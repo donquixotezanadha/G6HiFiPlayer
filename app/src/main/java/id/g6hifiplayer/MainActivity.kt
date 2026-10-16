@@ -238,7 +238,7 @@ class MainActivity : Activity() {
                     prepared = true
                     durationMs = mp.duration
                     seek.max = durationMs.coerceAtLeast(1)
-                    duration.text = time(durationMs)
+                    this@MainActivity.duration.text = time(durationMs)
                     statusView.text = "Siap diputar • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "sample rate tidak diketahui")
                     playView.text = "▶"
                     playView.isEnabled = true
