@@ -26,6 +26,18 @@ class MainActivity : Activity() {
     private lateinit var fileDetails: TextView
     private lateinit var playButton: Button
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
+    private var lastDeviceEvent = "Belum ada perubahan perangkat yang teramati sejak aplikasi dibuka."
+    private val audioDeviceCallback = object : AudioManager.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            lastDeviceEvent = "Perangkat ditambahkan: " + addedDevices.joinToString { describeDevice(it) }
+            refreshAudioInfo()
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            lastDeviceEvent = "Perangkat dilepas: " + removedDevices.joinToString { describeDevice(it) }
+            refreshAudioInfo()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -105,6 +117,7 @@ class MainActivity : Activity() {
         content.addView(fileDetails)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
         refreshAudioInfo()
     }
 
@@ -247,7 +260,19 @@ class MainActivity : Activity() {
         } else {
             "Nilai default Android bukan pengukuran langsung sample rate aktual DAC."
         }
+        val wiredDevices = devices.filter {
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+        }
+        val wiredText = if (wiredDevices.isEmpty()) {
+            "Jack/headphone kabel: tidak terdeteksi dalam daftar output saat ini."
+        } else {
+            "Jack/headphone kabel terdeteksi: " + wiredDevices.joinToString { describeDevice(it) } +
+                ". Ini hanya menandakan tersedia, bukan bukti rute pemutaran aktif."
+        }
         outputDetails.text = "$current\n" +
+            "Peristiwa perangkat terakhir: $lastDeviceEvent\n" +
+            "$wiredText\n" +
             "Rute aktif menurut MediaPlayer: $activeRouteText\n" +
             "Sample rate sumber (dibaca dari track): $sourceRateText\n" +
             "Sample rate output default Android: $rates Hz\n" +
@@ -262,6 +287,9 @@ class MainActivity : Activity() {
         return String.format(Locale.getDefault(), "%s", product)
     }
 
+    private fun describeDevice(device: AudioDeviceInfo): String =
+        "${deviceName(device)} (${deviceTypeName(device.type)}, type=${device.type}, id=${device.id})"
+
     private fun deviceTypeName(type: Int): String = when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
         AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker internal"
@@ -275,6 +303,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         player?.release()
         player = null
         super.onDestroy()
