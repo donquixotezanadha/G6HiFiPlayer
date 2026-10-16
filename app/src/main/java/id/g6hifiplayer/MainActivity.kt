@@ -2,6 +2,7 @@ package id.g6hifiplayer
 
 import android.app.Activity
 import android.content.Intent
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaExtractor
@@ -27,7 +28,7 @@ class MainActivity : Activity() {
     private lateinit var playButton: Button
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private var lastDeviceEvent = "Belum ada perubahan perangkat yang teramati sejak aplikasi dibuka."
-    private val audioDeviceCallback = object : AudioManager.AudioDeviceCallback() {
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             lastDeviceEvent = "Perangkat ditambahkan: " + addedDevices.joinToString { describeDevice(it) }
             refreshAudioInfo()
