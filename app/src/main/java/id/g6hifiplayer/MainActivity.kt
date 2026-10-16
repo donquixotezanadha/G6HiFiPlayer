@@ -42,7 +42,19 @@ class MainActivity : Activity() {
         content.addView(TextView(this).apply {
             text = "Pemutar musik dan pemeriksa informasi jalur audio"
             textSize = 15f
-            setPadding(0, 6, 0, 20)
+            setPadding(0, 6, 0, 4)
+        })
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val versionLabel = if (android.os.Build.VERSION.SDK_INT >= 28) {
+            "Versi ${packageInfo.versionName} (Build ${packageInfo.longVersionCode})"
+        } else {
+            @Suppress("DEPRECATION")
+            "Versi ${packageInfo.versionName} (Build ${packageInfo.versionCode})"
+        }
+        content.addView(TextView(this).apply {
+            text = versionLabel
+            textSize = 13f
+            setPadding(0, 0, 0, 20)
         })
         content.addView(Button(this).apply {
             text = "Pilih file musik"
