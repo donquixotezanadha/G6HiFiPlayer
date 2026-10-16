@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.net.Uri
@@ -13,14 +15,14 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import java.util.Locale
 
 class MainActivity : Activity() {
     private var player: MediaPlayer? = null
     private var selectedUri: Uri? = null
     private lateinit var status: TextView
-    private lateinit var details: TextView
+    private lateinit var outputDetails: TextView
+    private lateinit var fileDetails: TextView
     private lateinit var playButton: Button
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
 
@@ -68,11 +70,26 @@ class MainActivity : Activity() {
             setPadding(0, 18, 0, 8)
         }
         content.addView(status)
-        details = TextView(this).apply {
+        content.addView(TextView(this).apply {
+            text = "STATUS OUTPUT ANDROID"
+            textSize = 18f
+            setPadding(0, 16, 0, 4)
+        })
+        outputDetails = TextView(this).apply {
             textSize = 14f
             setTextIsSelectable(true)
         }
-        content.addView(details)
+        content.addView(outputDetails)
+        content.addView(TextView(this).apply {
+            text = "INFORMASI FILE"
+            textSize = 18f
+            setPadding(0, 16, 0, 4)
+        })
+        fileDetails = TextView(this).apply {
+            textSize = 14f
+            setTextIsSelectable(true)
+        }
+        content.addView(fileDetails)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
         refreshAudioInfo()
@@ -92,10 +109,12 @@ class MainActivity : Activity() {
                     playButton.isEnabled = true
                     status.text = "Siap diputar"
                     showMetadata(uri)
+                    refreshAudioInfo()
                 }
                 setOnCompletionListener {
                     playButton.text = "Putar"
                     status.text = "Selesai"
+                    refreshAudioInfo()
                 }
                 setOnErrorListener { _, what, extra ->
                     status.text = "Gagal memutar (kode $what/$extra)"
@@ -122,8 +141,8 @@ class MainActivity : Activity() {
                 p.start()
                 playButton.text = "Jeda"
                 status.text = "Sedang diputar"
-                refreshAudioInfo()
             }
+            refreshAudioInfo()
         } catch (e: Exception) {
             status.text = "Pemutaran gagal: ${e.message}"
         }
@@ -131,23 +150,65 @@ class MainActivity : Activity() {
 
     private fun showMetadata(uri: Uri) {
         val retriever = MediaMetadataRetriever()
+        var title = "Tidak tersedia"
+        var artist = "Tidak tersedia"
+        var album = "Tidak tersedia"
+        var duration = "Tidak tersedia"
+        var mime = "Tidak tersedia"
+        var bitrate = "Tidak tersedia"
         try {
             retriever.setDataSource(this, uri)
             fun meta(key: Int): String = retriever.extractMetadata(key) ?: "Tidak tersedia"
-            details.text = "INFORMASI FILE\n" +
-                "Judul: ${meta(MediaMetadataRetriever.METADATA_KEY_TITLE)}\n" +
-                "Artis: ${meta(MediaMetadataRetriever.METADATA_KEY_ARTIST)}\n" +
-                "Album: ${meta(MediaMetadataRetriever.METADATA_KEY_ALBUM)}\n" +
-                "Durasi: ${meta(MediaMetadataRetriever.METADATA_KEY_DURATION)} ms\n" +
-                "Codec: ${meta(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)}\n" +
-                "Resolusi audio: ${meta(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)} Hz, " +
-                "${meta(MediaMetadataRetriever.METADATA_KEY_BITRATE)} bit/s (jika disediakan decoder)\n" +
-                "URI: $uri\n\n" + details.text
-        } catch (e: Exception) {
-            details.text = "Metadata tidak dapat dibaca: ${e.message}\nURI: $uri"
+            title = meta(MediaMetadataRetriever.METADATA_KEY_TITLE)
+            artist = meta(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            album = meta(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            duration = meta(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            mime = meta(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+            bitrate = meta(MediaMetadataRetriever.METADATA_KEY_BITRATE)
+        } catch (_: Exception) {
+            // Try MediaExtractor below for technical audio track properties.
         } finally {
             retriever.release()
         }
+
+        var sampleRate = "Tidak tersedia dari decoder"
+        var channels = "Tidak tersedia"
+        var trackMime = mime
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(this, uri, null)
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val trackType = if (format.containsKey(MediaFormat.KEY_MIME)) format.getString(MediaFormat.KEY_MIME) else null
+                if (trackType?.startsWith("audio/") == true) {
+                    trackMime = trackType
+                    if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                        sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE).toString()
+                    }
+                    if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                        channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT).toString()
+                    }
+                    if (format.containsKey(MediaFormat.KEY_BIT_RATE)) {
+                        bitrate = format.getInteger(MediaFormat.KEY_BIT_RATE).toString()
+                    }
+                    break
+                }
+            }
+        } catch (_: Exception) {
+            // Some Android codecs do not expose all source properties.
+        } finally {
+            extractor.release()
+        }
+
+        fileDetails.text = "Judul: $title\n" +
+            "Artis: $artist\n" +
+            "Album: $album\n" +
+            "Durasi: $duration ms\n" +
+            "Codec/MIME: $trackMime\n" +
+            "Sample rate file: $sampleRate Hz\n" +
+            "Kanal: $channels\n" +
+            "Bitrate: $bitrate bit/s (jika dilaporkan decoder)\n" +
+            "URI: $uri"
     }
 
     private fun refreshAudioInfo() {
@@ -160,10 +221,11 @@ class MainActivity : Activity() {
         val rates = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
         val frames = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
         val current = if (player?.isPlaying == true) "MediaPlayer sedang memutar" else "MediaPlayer tidak sedang memutar"
-        details.text = "STATUS OUTPUT ANDROID\n$current\n" +
+        outputDetails.text = "$current\n" +
             "Sample rate output default Android: $rates Hz\n" +
             "Buffer output default Android: $frames frame\n" +
-            "Perangkat output yang terdeteksi:\n$routeText\n\n" + details.text
+            "Perangkat output yang terdeteksi (bukan selalu rute aktif):\n$routeText\n" +
+            "Catatan: informasi ini tidak membuktikan bit-perfect."
     }
 
     private fun deviceName(device: AudioDeviceInfo): String {
