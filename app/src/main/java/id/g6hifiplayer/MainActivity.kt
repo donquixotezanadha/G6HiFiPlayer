@@ -20,6 +20,7 @@ import java.util.Locale
 class MainActivity : Activity() {
     private var player: MediaPlayer? = null
     private var selectedUri: Uri? = null
+    private var sourceSampleRate: Int? = null
     private lateinit var status: TextView
     private lateinit var outputDetails: TextView
     private lateinit var fileDetails: TextView
@@ -212,6 +213,7 @@ class MainActivity : Activity() {
             extractor.release()
         }
 
+        sourceSampleRate = sampleRate.toIntOrNull()
         fileDetails.text = "Judul: $title\n" +
             "Artis: $artist\n" +
             "Album: $album\n" +
@@ -233,9 +235,24 @@ class MainActivity : Activity() {
         val rates = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
         val frames = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
         val current = if (player?.isPlaying == true) "MediaPlayer sedang memutar" else "MediaPlayer tidak sedang memutar"
+        val activeRoute = try { player?.routedDevice } catch (_: Exception) { null }
+        val activeRouteText = when {
+            player == null -> "Pilih dan mulai putar file untuk memeriksa rute."
+            activeRoute != null -> "${deviceName(activeRoute)} (${deviceTypeName(activeRoute.type)}, type=${activeRoute.type}, id=${activeRoute.id})"
+            else -> "Android/MediaPlayer belum melaporkan rute aktif."
+        }
+        val sourceRateText = sourceSampleRate?.let { "$it Hz" } ?: "Belum terbaca"
+        val rateNote = if (sourceSampleRate != null && sourceSampleRate != rates.toIntOrNull()) {
+            "Sample rate sumber berbeda dari nilai default Android; ini dapat mengindikasikan konversi/resampling, tetapi belum membuktikan sample rate aktual DAC."
+        } else {
+            "Nilai default Android bukan pengukuran langsung sample rate aktual DAC."
+        }
         outputDetails.text = "$current\n" +
+            "Rute aktif menurut MediaPlayer: $activeRouteText\n" +
+            "Sample rate sumber (dibaca dari track): $sourceRateText\n" +
             "Sample rate output default Android: $rates Hz\n" +
             "Buffer output default Android: $frames frame\n" +
+            "$rateNote\n" +
             "Perangkat output yang terdeteksi (bukan selalu rute aktif):\n$routeText\n" +
             "Catatan: informasi ini tidak membuktikan bit-perfect."
     }
@@ -243,6 +260,18 @@ class MainActivity : Activity() {
     private fun deviceName(device: AudioDeviceInfo): String {
         val product = device.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Perangkat audio"
         return String.format(Locale.getDefault(), "%s", product)
+    }
+
+    private fun deviceTypeName(type: Int): String = when (type) {
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker internal"
+        AudioDeviceInfo.TYPE_WIRED_HEADSET -> "headset berkabel"
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "headphone berkabel"
+        AudioDeviceInfo.TYPE_USB_DEVICE -> "USB audio"
+        AudioDeviceInfo.TYPE_USB_HEADSET -> "headset USB"
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth A2DP"
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth SCO"
+        else -> "jenis perangkat lain"
     }
 
     override fun onDestroy() {
