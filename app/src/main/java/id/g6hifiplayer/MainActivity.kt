@@ -1,6 +1,15 @@
 package id.g6hifiplayer
 
 import android.app.Activity
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.ClipboardManager
+import android.content.ClipData
+import android.widget.ProgressBar
+import android.widget.Toast
+import android.graphics.drawable.BitmapDrawable
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.BitmapFactory
@@ -47,6 +56,10 @@ class MainActivity : Activity() {
     private var selectedAlbum: String? = null
     private var artToken = 0
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
+    private lateinit var scanProgress: ProgressBar
+    private lateinit var scanProgressText: TextView
+    private lateinit var audioInfoToggle: TextView
+    private lateinit var audioInfoInline: TextView
     private lateinit var playerPanel: LinearLayout
     private lateinit var libraryPanel: LinearLayout
     private lateinit var audioPanel: LinearLayout
@@ -97,7 +110,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BG; window.navigationBarColor = BG
+        activeInstance = this
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
+        createNotificationChannel()
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
         refreshAudioInfo(); handler.post(ticker)
         getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let {
             try { scanMusicFolder(Uri.parse(it)) } catch (_: Exception) { }
@@ -140,7 +156,17 @@ class MainActivity : Activity() {
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
-        hero.addView(frame, LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(13); bottomMargin = dp(10) })
+        hero.addView(frame, LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(13); bottomMargin = dp(8) })
+        audioInfoToggle = action("ⓘ  INFO AUDIO  ·  KETUK UNTUK MELIHAT", false) {
+            audioInfoInline.visibility = if (audioInfoInline.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO  ·  KETUK UNTUK MELIHAT"
+            refreshAudioInfo()
+        }
+        hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(8) })
+        audioInfoInline = text("Informasi output akan muncul di sini.", 12f, MUTED, false).apply {
+            setPadding(dp(12), dp(12), dp(12), dp(12)); background = shape(BG, 12); visibility = View.GONE; setTextIsSelectable(true)
+        }
+        hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
         titleView = text("Belum ada lagu dipilih", 22f, WHITE, true).apply { setPadding(0, dp(5), 0, dp(3)) }
         artistView = text("Pilih folder musik atau satu file", 14f, MUTED, false)
         albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(4), 0, dp(10)) }
@@ -184,7 +210,14 @@ class MainActivity : Activity() {
         head.addView(text("Pilih satu folder Music; subfolder album dipindai otomatis.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
         head.addView(action("PILIH FOLDER MUSIC", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(48)))
         librarySummary = text("Belum ada folder yang dipindai.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
-        head.addView(librarySummary); libraryPanel.addView(head)
+        head.addView(librarySummary)
+        scanProgressText = text("", 12f, ACCENT, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
+        head.addView(scanProgressText)
+        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true; visibility = View.GONE; progressTintList = android.content.res.ColorStateList.valueOf(ACCENT)
+        }
+        head.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
+        libraryPanel.addView(head)
         val albums = card(); albums.addView(text("ALBUM", 11f, ACCENT, true))
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
         albums.addView(albumRows); libraryPanel.addView(albums)
@@ -201,7 +234,11 @@ class MainActivity : Activity() {
         routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         detail.addView(routeInfo)
         detail.addView(action("PERBARUI INFORMASI", false) { refreshAudioInfo() }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14) })
-        audioPanel.addView(detail)
+        val logActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
+        logActions.addView(action("SALIN LOG", false) { copyAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        logActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        logActions.addView(action("KIRIM LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        detail.addView(logActions); audioPanel.addView(detail)
         val lg = card(); lg.addView(text("PEMERIKSAAN AUDIO LG", 11f, ACCENT, true))
         lg.addView(text("Mencari konfigurasi LG yang dapat dibaca dan menguji dukungan direct playback. Hasilnya bukan bukti jalur lagu yang sedang aktif.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
         lg.addView(action("SCAN KONFIGURASI LG", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
@@ -254,14 +291,18 @@ class MainActivity : Activity() {
 
     private fun scanMusicFolder(uri: Uri) {
         librarySummary.text = "Memindai folder dan subfolder…"; statusView.text = "Memindai pustaka musik…"
+        scanProgress.visibility = View.VISIBLE; scanProgressText.visibility = View.VISIBLE
+        scanProgressText.text = "Memulai pemindaian…"
         Thread {
             val found = mutableListOf<Track>()
+            val count = intArrayOf(0)
             var error: String? = null
-            try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0) } }
+            try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count) } }
             catch (e: Exception) { error = e.message ?: "akses ditolak" }
             val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
                 tracks = sorted; currentIndex = -1; selectedAlbum = null; renderLibrary()
+                scanProgress.visibility = View.GONE; scanProgressText.visibility = View.GONE
                 librarySummary.text = when {
                     error != null -> "Gagal memindai folder: " + error
                     sorted.isEmpty() -> "Tidak ditemukan file audio. Pilih folder Music yang berisi lagu."
@@ -272,15 +313,18 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun scanDirectory(dir: DocumentFile, output: MutableList<Track>, covers: MutableMap<String, Uri?>, depth: Int) {
+    private fun scanDirectory(dir: DocumentFile, output: MutableList<Track>, covers: MutableMap<String, Uri?>, depth: Int, count: IntArray) {
         if (depth > 12) return
         val children = try { dir.listFiles() } catch (_: Exception) { emptyArray() }
         for (file in children) try {
-            if (file.isDirectory) scanDirectory(file, output, covers, depth + 1)
+            if (file.isDirectory) scanDirectory(file, output, covers, depth + 1, count)
             else if (isAudioFile(file)) {
                 val key = dir.uri.toString()
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
-                output.add(readTrack(file.uri, covers[key], dir.name))
+                output.add(readTrack(file.uri, covers[key], dir.name)); count[0]++
+                if (count[0] == 1 || count[0] % 5 == 0) handler.post {
+                    if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Ditemukan " + count[0] + " lagu • memindai " + (dir.name ?: "folder") + "…"
+                }
             }
         } catch (_: Exception) { }
     }
