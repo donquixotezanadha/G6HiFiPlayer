@@ -841,8 +841,14 @@ class MainActivity : Activity() {
         val wiredText = if (wired.isEmpty()) "Jack kabel: tidak terdeteksi" else "Jack kabel terdeteksi: " + wired.joinToString { describe(it) }
         val rateNote = when {
             sourceRate == null -> "Sample rate sumber belum terbaca."
-            sourceRate.toString() == defaultRate -> "Sample rate sumber sama dengan properti default sistem; ini tidak membuktikan format stream atau DAC."
-            else -> "Sample rate sumber berbeda dari properti default sistem. Ini menandai potensi resampling, bukan bukti bahwa resampling benar-benar terjadi."
+            outputTrackPlaying && outputRate != null && outputRate == sourceRate ->
+                "Sample rate sumber sama dengan konfigurasi AudioTrack (${outputRate} Hz). Ini bukti konfigurasi track, bukan bukti sample rate fisik DAC atau bit-perfect."
+            outputTrackPlaying && outputRate != null && outputRate != sourceRate ->
+                "Sample rate sumber (${sourceRate} Hz) berbeda dari konfigurasi AudioTrack (${outputRate} Hz); ada konversi format/rate di pipeline output yang perlu diperiksa. Ini belum mengungkap apa yang dilakukan HAL/DSP/DAC."
+            sourceRate.toString() == defaultRate ->
+                "Sample rate sumber sama dengan properti default sistem; ini tidak membuktikan format stream atau DAC."
+            else ->
+                "Sample rate sumber berbeda dari properti default sistem, tetapi rate AudioTrack belum terbaca; belum cukup untuk menyimpulkan resampling."
         }
         routeSummary.text = route
         routeInfo.text = "Status: " + (if (isPlayingNow) "SEDANG MEMUTAR" else "tidak memutar") +
