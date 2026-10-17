@@ -74,6 +74,9 @@ class MainActivity : Activity() {
     private var prepared = false
     private var seeking = false
     private var pendingAutoplay = false
+    private var pendingRestorePositionMs: Long? = null
+    private var lastPlaybackPersistAtMs = 0L
+    private var lastPlaybackRestoreAttempted = false
     private var tracks: List<Track> = emptyList()
     private var currentIndex = -1
     // Queue stores indices into the scanned library; album playback stays inside that album.
@@ -154,6 +157,7 @@ class MainActivity : Activity() {
             // Keep frame-time work low on older devices: update playback position only.
             // Audio route inspection is event-driven elsewhere, not polled every half-second.
             if (prepared) player?.let { p ->
+                persistPlaybackState(force = false)
                 if (!seeking) {
                     val pos = try { p.currentPosition.toInt() } catch (_: Exception) { 0 }
                     if (seek.progress != pos) seek.progress = pos
@@ -735,11 +739,44 @@ class MainActivity : Activity() {
                     librarySummary.text = library.size.toString() + " tracks • local cache"
                     statusView.text = "Library restored from cache • " + library.size + " tracks."
                     recordDiagnostic("LIBRARY_CACHE_RESTORED tracks=" + library.size)
+                    restoreLastPlayback(library)
                 } else {
                     scanMusicFolder(treeUri)
                 }
             }
         }, "g6-library-cache").start()
+    }
+
+    private fun restoreLastPlayback(library: List<Track>) {
+        if (lastPlaybackRestoreAttempted || library.isEmpty()) return
+        val prefs = getPreferences(MODE_PRIVATE)
+        val savedUri = prefs.getString(KEY_LAST_TRACK_URI, null)?.takeIf { it.isNotBlank() } ?: return
+        val index = library.indexOfFirst { it.uri.toString() == savedUri }
+        if (index < 0) {
+            recordDiagnostic("LAST_PLAYBACK_RESTORE_TRACK_NOT_FOUND uri=$savedUri tracks=${library.size}")
+            return
+        }
+        lastPlaybackRestoreAttempted = true
+        pendingRestorePositionMs = prefs.getLong(KEY_LAST_POSITION_MS, 0L).coerceAtLeast(0L)
+        recordDiagnostic("LAST_PLAYBACK_RESTORE_START index=$index positionMs=${pendingRestorePositionMs}")
+        playTrackAt(index, autoplay = false)
+    }
+
+    private fun persistPlaybackState(force: Boolean) {
+        val index = currentIndex
+        if (index !in tracks.indices) return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastPlaybackPersistAtMs < 1500L) return
+        lastPlaybackPersistAtMs = now
+        val position = try { player?.currentPosition?.coerceAtLeast(0L) ?: 0L } catch (_: Exception) { 0L }
+        try {
+            getPreferences(MODE_PRIVATE).edit()
+                .putString(KEY_LAST_TRACK_URI, tracks[index].uri.toString())
+                .putLong(KEY_LAST_POSITION_MS, position)
+                .apply()
+        } catch (e: Exception) {
+            recordDiagnostic("LAST_PLAYBACK_PERSIST_FAILED", e)
+        }
     }
 
     private fun saveLibraryCache(treeUri: Uri, library: List<Track>) {
@@ -796,6 +833,7 @@ class MainActivity : Activity() {
                     else -> sorted.size.toString() + " tracks • " + sorted.map { it.album }.distinct().size + " albums found"
                 }
                 statusView.text = if (sorted.isEmpty()) "The library is empty. Check the selected folder." else "Library ready • " + sorted.size + " tracks."
+                if (sorted.isNotEmpty()) restoreLastPlayback(sorted)
             }
         }.start()
     }
@@ -1117,6 +1155,7 @@ class MainActivity : Activity() {
             playbackOrder = albumOrder.ifEmpty { listOf(index) }
             playbackQueue = playbackOrder
         }
+        persistPlaybackState(force = true)
         currentIndex = index
         if (::queueRows.isInitialized) renderQueueRows()
         val t = tracks[index]
@@ -1146,6 +1185,12 @@ class MainActivity : Activity() {
                             prepared = true
                             durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
                             seek.max = durationMs.coerceAtLeast(1); this@MainActivity.duration.text = time(durationMs)
+                            pendingRestorePositionMs?.let { savedPosition ->
+                                val boundedPosition = if (durationMs > 0) savedPosition.coerceAtMost(durationMs.toLong()) else savedPosition
+                                try { exo.seekTo(boundedPosition) } catch (e: Exception) { recordDiagnostic("LAST_PLAYBACK_SEEK_RESTORE_FAILED positionMs=$boundedPosition", e) }
+                                pendingRestorePositionMs = null
+                                recordDiagnostic("LAST_PLAYBACK_RESTORE_POSITION_APPLIED positionMs=$boundedPosition durationMs=$durationMs")
+                            }
                             playView.isEnabled = true
                             statusView.text = "Ready • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "source sample rate unknown")
                             if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Playing • " + t.title }
@@ -2092,7 +2137,13 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onStop() {
+        persistPlaybackState(force = true)
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        persistPlaybackState(force = true)
         handler.removeCallbacks(ticker)
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
         clearActiveAudioTrack()
@@ -2107,6 +2158,8 @@ class MainActivity : Activity() {
         private const val REQUEST_AUDIO = 1001
         private const val CHANNEL_ID = "g6_hifi_playback"
         private const val NOTIFICATION_ID = 6106
+        private const val KEY_LAST_TRACK_URI = "last_playback_track_uri"
+        private const val KEY_LAST_POSITION_MS = "last_playback_position_ms"
         private var activeInstance: MainActivity? = null
         @JvmStatic fun notificationAction(action: String) { activeInstance?.handleNotificationAction(action) }
         private const val REQUEST_FOLDER = 1002
