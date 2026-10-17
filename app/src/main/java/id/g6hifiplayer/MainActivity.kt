@@ -94,6 +94,8 @@ class MainActivity : Activity() {
     }
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(2)
+    // Coalesce duplicate thumbnail requests when grid cells are rebuilt after album expansion.
+    private val artworkTargetsInFlight = mutableMapOf<String, MutableList<java.lang.ref.WeakReference<ImageView>>>()
     // Keep current-player artwork independent of the library thumbnails backlog.
     private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
     private val metadataExecutor = Executors.newFixedThreadPool(2)
@@ -1214,22 +1216,38 @@ class MainActivity : Activity() {
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
         val key = "thumb:" + track.uri.toString()
-        // Tag each recycled/rebuilt view so an older asynchronous request cannot paint the wrong album.
+        // Tag each rebuilt view so stale asynchronous results cannot paint the wrong album.
         target.setTag(key)
         val cached = bitmapArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
             target.setImageBitmap(cached)
             return
         }
-        // Do not discard a completed decode just because the view is not attached yet:
-        // grid changes rebuild the cells and this was a source of blank covers.
+
+        // A grid rebuild can request the same album artwork several times before the first
+        // decode finishes. Join the existing request instead of queuing duplicate MediaMetadataRetriever
+        // work; every still-valid target receives the result.
+        synchronized(artworkTargetsInFlight) {
+            val waiting = artworkTargetsInFlight[key]
+            if (waiting != null) {
+                waiting.add(java.lang.ref.WeakReference(target))
+                return
+            }
+            artworkTargetsInFlight[key] = mutableListOf(java.lang.ref.WeakReference(target))
+        }
         artworkExecutor.execute {
             val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(track)
-                ?.let { decodeArtwork(it, 480, android.graphics.Bitmap.Config.RGB_565) }
+                ?.let { decodeArtwork(it, 320, android.graphics.Bitmap.Config.RGB_565) }
                 ?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
-                if (bitmap != null && !isFinishing && target.getTag() == key) {
-                    target.setImageBitmap(bitmap)
+                val targets = synchronized(artworkTargetsInFlight) {
+                    artworkTargetsInFlight.remove(key).orEmpty().toList()
+                }
+                if (bitmap != null && !isFinishing) {
+                    targets.forEach { ref ->
+                        val view = ref.get()
+                        if (view != null && view.getTag() == key) view.setImageBitmap(bitmap)
+                    }
                 }
             }
         }
