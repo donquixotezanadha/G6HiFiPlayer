@@ -644,6 +644,12 @@ class MainActivity : Activity() {
         if (::titleView.isInitialized) titleView.setTextColor(accentColor)
         if (::audioInfoToggle.isInitialized) audioInfoToggle.setTextColor(accentColor)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
+        fun recolor(view: View) {
+            if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
+            if (view is LinearLayout) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
+            if (view is FrameLayout) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
+        }
+        recolor(window.decorView)
         if (::albumRows.isInitialized && ::trackRows.isInitialized) renderLibrary()
     }
 
