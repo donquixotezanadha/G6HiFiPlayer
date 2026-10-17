@@ -1959,12 +1959,15 @@ class MainActivity : Activity() {
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun ImageView.setImageSize(widthPx: Int, heightPx: Int) {
-        // Scale only the icon artwork; layout width remains the equal-weight tab slot.
-        scaleType = ImageView.ScaleType.FIT_CENTER
+        // Scale only the icon artwork; keep the tab's full layout as its touch target.
+        val icon = drawable ?: return
+        val intrinsicW = icon.intrinsicWidth.takeIf { it > 0 }?.toFloat() ?: widthPx.toFloat()
+        val intrinsicH = icon.intrinsicHeight.takeIf { it > 0 }?.toFloat() ?: heightPx.toFloat()
+        val scale = minOf(widthPx / intrinsicW, heightPx / intrinsicH)
+        scaleType = ImageView.ScaleType.MATRIX
         imageMatrix = android.graphics.Matrix().apply {
-            val intrinsicW = drawable?.intrinsicWidth?.takeIf { it > 0 }?.toFloat() ?: widthPx.toFloat()
-            val intrinsicH = drawable?.intrinsicHeight?.takeIf { it > 0 }?.toFloat() ?: heightPx.toFloat()
-            setScale(widthPx / intrinsicW, heightPx / intrinsicH)
+            setScale(scale, scale)
+            postTranslate((width - intrinsicW * scale) / 2f, (height - intrinsicH * scale) / 2f)
         }
     }
 
