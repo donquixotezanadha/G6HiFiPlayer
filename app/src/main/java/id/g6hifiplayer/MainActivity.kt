@@ -1104,11 +1104,11 @@ class MainActivity : Activity() {
             "\nStatus API rute: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
             "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
             "\n" + connectionSummary +
-            "\nSample rate sumber: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
+            "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
             "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
-            "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
+            "\nLast event: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
         if (::audioInfoInline.isInitialized) {
             val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Choose a track to read file metadata."
@@ -1336,7 +1336,7 @@ class MainActivity : Activity() {
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
         report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
-        report.append("\nSTATUS BACKEND LG QUAD DAC: tidak terkonfirmasi melalui API publik. Preferensi perangkat kabel hanya meminta AudioPolicy memilih jack 3,5 mm; ini tidak memaksa AUDIO_OUTPUT_FLAG_DIRECT dan tidak membuktikan backend HAL/DAC.")
+        report.append("\nLG QUAD DAC BACKEND STATUS: not confirmed through the public API. Wired-device preference only asks AudioPolicy to select the 3.5 mm jack; it does not force AUDIO_OUTPUT_FLAG_DIRECT or prove the HAL/DAC backend.")
         report.append("\n\nTo inspect the backend while playing through the 3.5 mm jack, run these commands from a computer with USB debugging enabled:")
         report.append("\nadb shell dumpsys media.audio_flinger")
         report.append("\nadb shell dumpsys media.audio_policy")
@@ -1512,7 +1512,7 @@ class MainActivity : Activity() {
         val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "not reported" } catch (_: Exception) { "unavailable" }
         val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "not reported" } catch (_: Exception) { "unavailable" }
         val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString(", ") { encodingName(it) } ?: "not reported" } catch (_: Exception) { "unavailable" }
-        return "Capabilities reported for the active device (not proof of the active stream format):\nSample rates: " + rates + " Hz\nJumlah kanal: " + channels + "\nEncoding: " + encodings
+        return "Capabilities reported for the active device (not proof of the active stream format):\nSample rates: " + rates + " Hz\nChannel count: " + channels + "\nEncoding: " + encodings
     }
     private fun encodingName(encoding: Int) = when (encoding) {
         AudioFormat.ENCODING_PCM_8BIT -> "PCM 8-bit"
