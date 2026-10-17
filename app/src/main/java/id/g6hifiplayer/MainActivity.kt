@@ -342,11 +342,11 @@ class MainActivity : Activity() {
         logActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         logActions.addView(action("SHARE LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         detail.addView(logActions)
-        detail.addView(action("KUMPULKAN & KIRIM DIAGNOSTIK", true) { collectAndShareDiagnostics() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
+        detail.addView(action("COLLECT & SHARE DIAGNOSTICS", true) { collectAndShareDiagnostics() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
         audioPanel.addView(detail)
         val lg = card(); lg.addView(text("LG AUDIO INSPECTION", 11f, accentColor, true))
         lg.addView(text("Searching readable LG configuration files and testing direct-playback support. Results do not prove the route used by the current track.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
-        lg.addView(action("SCAN KONFIGURASI LG", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
+        lg.addView(action("SCAN LG CONFIGURATION", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
         val note = card(); note.addView(text("MEASUREMENT LIMITATIONS", 11f, accentColor, true))
         note.addView(text("The public Android API cannot conclusively report the active stream bit depth, actual DAC sample rate, or bit-perfect output. A source rate differing from the default does not by itself prove resampling.", 13f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         audioPanel.addView(note)
@@ -515,7 +515,7 @@ class MainActivity : Activity() {
                 librarySummary.text = when {
                     error != null -> "Failed to scan folder: " + error
                     sorted.isEmpty() -> "No audio files found. Choose a Music folder containing tracks."
-                    else -> sorted.size.toString() + " lagu • " + sorted.map { it.album }.distinct().size + " albums found"
+                    else -> sorted.size.toString() + " tracks • " + sorted.map { it.album }.distinct().size + " albums found"
                 }
                 statusView.text = if (sorted.isEmpty()) "The library is empty. Check the selected folder." else "Library ready • " + sorted.size + " tracks."
             }
@@ -615,7 +615,7 @@ class MainActivity : Activity() {
             tracks.withIndex().take(visibleTrackLimit).forEach { entry -> addLibraryTrackRow(trackRows, entry, false, tracks.indices.toList()) }
             if (tracks.size > visibleTrackLimit) trackRows.addView(action("LOAD MORE TRACKS", false) { visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(tracks.size); renderLibrary() }, LinearLayout.LayoutParams(-1, dp(44)))
         }
-        librarySummary.text = tracks.size.toString() + " lagu • " + albums.size + " album"
+        librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
     private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean, queueIndices: List<Int>) {
         val t = entry.value
@@ -1102,14 +1102,14 @@ class MainActivity : Activity() {
                     "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") else "inactive") +
             "\nAudioManager mode: " + audioMode +
             "\nStatus API rute: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
-            "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
+            "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
             "\n" + connectionSummary +
             "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
-            "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
+            "\n" + activeCapabilities + "\n\nOutput devices reported by Android (not necessarily active):\n" +
             (if (devices.isEmpty()) "No devices reported." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nLast event: " + lastDeviceEvent + "\n\n" + rateNote +
-            "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
+            "\n\nAudioTrack shows the format configured for the app stream. The audio HAL/DSP/DAC may still convert it; this is not proof of bit-perfect output or the physical DAC sample rate."
         if (::audioInfoInline.isInitialized) {
             val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Choose a track to read file metadata."
             val track = tracks.getOrNull(currentIndex)
