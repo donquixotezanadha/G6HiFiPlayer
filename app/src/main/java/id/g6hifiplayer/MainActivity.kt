@@ -201,7 +201,7 @@ class MainActivity : Activity() {
         val hero = card()
         val nowPlayingHeader = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         nowPlayingHeader.addView(text("SEDANG DIPUTAR", 11f, accentColor, true), LinearLayout.LayoutParams(0, -2, 1f))
-        nowPlayingHeader.addView(text("HI-RES", 10f, accentColor, true).apply {
+        nowPlayingHeader.addView(text("HI-FI", 10f, accentColor, true).apply {
             setPadding(dp(9), dp(5), dp(9), dp(5)); background = shape(ART, 9)
         })
         hero.addView(nowPlayingHeader)
