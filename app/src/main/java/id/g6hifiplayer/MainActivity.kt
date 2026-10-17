@@ -165,7 +165,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
         })
         header.addView(brand)
-        header.addView(text("MUSIC PLAYER / BUILD 0.11.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
+        header.addView(text("MUSIC PLAYER / BUILD 0.12.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
         root.addView(header)
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(4), dp(8), dp(10)) }
         navPlayer = navButton("PLAYER") { show("player") }
@@ -265,7 +265,7 @@ class MainActivity : Activity() {
     private fun makeAudioPanel() {
         val summary = card(); summary.addView(text("OUTPUT AKTIF", 11f, accentColor, true))
         routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
-        summary.addView(routeSummary); summary.addView(text("Media3 tidak melaporkan rute output aktual melalui Player API; perangkat terdeteksi belum tentu rute aktif.", 12f, MUTED, false)); audioPanel.addView(summary)
+        summary.addView(routeSummary); summary.addView(text("Rute stream dibaca dari AudioTrack milik Media3. Backend internal LG Quad DAC tidak tersedia melalui API publik; perangkat headphone terdeteksi bukan bukti backend DAC tertentu.", 12f, MUTED, false)); audioPanel.addView(summary)
         val detail = card(); detail.addView(text("DIAGNOSTIK ROUTE", 11f, MUTED, true))
         routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         detail.addView(routeInfo)
@@ -897,6 +897,7 @@ class MainActivity : Activity() {
                     " frame / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
             "\nAudioManager mode: " + audioMode +
             "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
+            "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
             "\n" + connectionSummary +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
@@ -982,7 +983,7 @@ class MainActivity : Activity() {
         val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }, flags)
-        recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} engine=Media3/ExoPlayer route=not-exposed-by-player-api")
+        recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} engine=Media3/ExoPlayer trackRoute=queried-separately backend=not-exposed-by-public-api")
         val session = mediaSession
         session?.setMetadata(MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
@@ -1030,6 +1031,22 @@ class MainActivity : Activity() {
     private fun scanAudioConfiguration() {
         val paths = listOf(
             "/vendor/etc/audio_output_policy.conf",
+            "/vendor/etc/audio/mixer_paths.xml",
+            "/vendor/etc/audio/mixer_paths_wcd9335.xml",
+            "/vendor/etc/audio/mixer_paths_wcd9340.xml",
+            "/vendor/etc/audio/mixer_paths_msm8996.xml",
+            "/vendor/etc/audio/audio_platform_info.xml",
+            "/vendor/etc/audio/audio_platform_info_extcodec.xml",
+            "/odm/etc/audio_output_policy.conf",
+            "/odm/etc/audio_policy.conf",
+            "/odm/etc/audio_policy_configuration.xml",
+            "/odm/etc/mixer_paths.xml",
+            "/odm/etc/audio_platform_info.xml",
+            "/system/vendor/etc/audio_output_policy.conf",
+            "/system/vendor/etc/audio_policy.conf",
+            "/system/vendor/etc/audio_policy_configuration.xml",
+            "/system/vendor/etc/mixer_paths.xml",
+            "/system/vendor/etc/audio_platform_info.xml",
             "/vendor/etc/audio_policy.conf",
             "/vendor/etc/audio_policy_configuration.xml",
             "/vendor/etc/mixer_paths.xml",
@@ -1046,7 +1063,7 @@ class MainActivity : Activity() {
         )
         val keys = listOf("direct_pcm", "direct_hd", "pcm_8_24", "pcm_24", "192000", "176400", "96000",
             "88200", "flag_dsd", "supports_pcm", "samplingrates", "sampling_rates", "audio_output_flag_direct",
-            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340")
+            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340", "SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC", "tert-mi2s-headphones", "SEC_MI2S_RX", "hifi_dac", "mixer_path")
         val report = StringBuilder()
         var readable = 0
         for (path in paths) {
@@ -1085,6 +1102,11 @@ class MainActivity : Activity() {
         } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
+        report.append("\n\nSTATUS BACKEND LG QUAD DAC: tidak dapat dibaca melalui API publik aplikasi Android biasa. AudioTrack.getRoutedDevice() hanya mengidentifikasi perangkat output Android (mis. headphone), bukan backend HAL seperti SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC.")
+        report.append("\n\nUntuk memeriksa backend saat lagu sedang diputar melalui jack 3,5 mm, jalankan dari komputer dengan USB debugging aktif:")
+        report.append("\nadb shell dumpsys media.audio_flinger")
+        report.append("\nadb shell dumpsys media.audio_policy")
+        report.append("\nKirim kedua keluaran itu bersama log aplikasi. Jika keluaran sistem tidak memuat nama backend atau output thread yang relevan, verifikasi fisik DAC mungkin memerlukan akses vendor/root; jangan simpulkan DAC aktif hanya dari rate AudioTrack.")
         lastAudioConfigLog = report.toString()
         AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
             .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
