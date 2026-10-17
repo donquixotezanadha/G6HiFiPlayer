@@ -674,14 +674,13 @@ class MainActivity : Activity() {
         if (requestedOrder.isNotEmpty() && index in requestedOrder) {
             playbackOrder = requestedOrder
             playbackQueue = requestedOrder
-            if (::queueRows.isInitialized) renderQueueRows()
         } else if (playbackOrder.isEmpty() || index !in playbackOrder) {
             val albumOrder = tracks.withIndex().filter { it.value.album == tracks[index].album }.map { it.index }
             playbackOrder = albumOrder.ifEmpty { listOf(index) }
             playbackQueue = playbackOrder
-            if (::queueRows.isInitialized) renderQueueRows()
         }
         currentIndex = index
+        if (::queueRows.isInitialized) renderQueueRows()
         val t = tracks[index]
         pendingAutoplay = autoplay
         prepared = false
@@ -1370,7 +1369,7 @@ class MainActivity : Activity() {
             row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
             val remove = iconAction("×") {
                 if (trackIndex == currentIndex) Toast.makeText(this, "Lagu yang sedang diputar tidak dapat dihapus dari antrian aktif.", Toast.LENGTH_SHORT).show()
-                else { playbackQueue = playbackQueue.filter { it != trackIndex }; renderQueueRows() }
+                else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; renderQueueRows() }
             }.apply { textSize = 24f; setTextColor(MUTED) }
             row.addView(remove, LinearLayout.LayoutParams(dp(42), dp(42)))
             row.setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
