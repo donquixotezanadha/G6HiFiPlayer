@@ -81,6 +81,8 @@ class MainActivity : Activity() {
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
     private var lastActiveRouteKey: String? = null
+    private var lastRouteApiError: String? = null
+    private var lastLegacyRouteHints = "Belum diperiksa"
     private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
@@ -126,10 +128,17 @@ class MainActivity : Activity() {
     }
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
-            lastDeviceEvent = "Ditambahkan: " + addedDevices.joinToString { describe(it) }; refreshAudioInfo()
+            val details = addedDevices.joinToString { describe(it) }
+            lastDeviceEvent = "Perangkat output terhubung: " + details
+            recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
+            activeAudioTrack?.let { preferWiredHeadphoneRoute(it, "perangkat output ditambahkan") }
+            updateActiveRoute(); refreshAudioInfo()
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-            lastDeviceEvent = "Dilepas: " + removedDevices.joinToString { describe(it) }; refreshAudioInfo()
+            val details = removedDevices.joinToString { describe(it) }
+            lastDeviceEvent = "Perangkat output dilepas: " + details
+            recordDiagnostic("AUDIO_DEVICE_REMOVED devices=" + details)
+            updateActiveRoute(); refreshAudioInfo()
         }
     }
 
@@ -157,7 +166,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
         })
         header.addView(brand)
-        header.addView(text("MUSIC PLAYER / BUILD 0.10.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
+        header.addView(text("MUSIC PLAYER / BUILD 0.12.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
         root.addView(header)
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(4), dp(8), dp(10)) }
         navPlayer = navButton("PLAYER") { show("player") }
@@ -257,7 +266,7 @@ class MainActivity : Activity() {
     private fun makeAudioPanel() {
         val summary = card(); summary.addView(text("OUTPUT AKTIF", 11f, accentColor, true))
         routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
-        summary.addView(routeSummary); summary.addView(text("Media3 tidak melaporkan rute output aktual melalui Player API; perangkat terdeteksi belum tentu rute aktif.", 12f, MUTED, false)); audioPanel.addView(summary)
+        summary.addView(routeSummary); summary.addView(text("Rute stream dibaca dari AudioTrack milik Media3. Backend internal LG Quad DAC tidak tersedia melalui API publik; perangkat headphone terdeteksi bukan bukti backend DAC tertentu.", 12f, MUTED, false)); audioPanel.addView(summary)
         val detail = card(); detail.addView(text("DIAGNOSTIK ROUTE", 11f, MUTED, true))
         routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         detail.addView(routeInfo)
@@ -542,6 +551,9 @@ class MainActivity : Activity() {
             try { previous.removeOnRoutingChangedListener(previousListener) } catch (_: Exception) { }
         }
         activeAudioTrack = track
+        // Android may not report routedDevice on this LG Android 9 HAL. Ask policy to
+        // prefer the connected 3.5 mm device, but this is not proof of DIRECT/DAC use.
+        preferWiredHeadphoneRoute(track, "AudioTrack dibuat")
         val listener = object : AudioRouting.OnRoutingChangedListener {
             override fun onRoutingChanged(router: AudioRouting) {
                 val routed = try { router.routedDevice } catch (_: Exception) { null }
@@ -560,6 +572,26 @@ class MainActivity : Activity() {
                 "channels=${try { track.channelCount } catch (_: Exception) { -1 }} " +
                 "bufferFrames=${try { track.bufferSizeInFrames } catch (_: Exception) { -1 }} " +
                 "session=${try { track.audioSessionId } catch (_: Exception) { -1 }}"
+        )
+        handler.post { updateActiveRoute(); refreshAudioInfo() }
+    }
+
+    private fun preferWiredHeadphoneRoute(track: AudioTrack, reason: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val outputs = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) } catch (_: Exception) { emptyArray<AudioDeviceInfo>() }
+        val wired = outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
+            ?: outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
+        if (wired == null) {
+            recordDiagnostic("WIRED_ROUTE_PREFERENCE skipped reason=$reason connectedWiredDevice=false")
+            return
+        }
+        val accepted = try { track.setPreferredDevice(wired) } catch (e: Exception) {
+            recordDiagnostic("WIRED_ROUTE_PREFERENCE failed device=${describe(wired)} reason=$reason", e)
+            false
+        }
+        recordDiagnostic(
+            "WIRED_ROUTE_PREFERENCE requested=${describe(wired)} accepted=$accepted reason=$reason " +
+                "note=policy-hint-only-not-proof-of-DIRECT-or-Quad-DAC"
         )
         handler.post { updateActiveRoute(); refreshAudioInfo() }
     }
@@ -801,7 +833,36 @@ class MainActivity : Activity() {
         val isPlayingNow = try { player?.isPlaying == true } catch (_: Exception) { false }
         val outputTrack = activeAudioTrack
         val outputTrackPlaying = try { isPlayingNow && outputTrack != null && outputTrack.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try { if (outputTrackPlaying) outputTrack?.routedDevice else null } catch (_: Exception) { null }
+        val active = try {
+            val routed = if (outputTrackPlaying) outputTrack?.routedDevice else null
+            lastRouteApiError = null
+            routed
+        } catch (e: Exception) {
+            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
+            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
+            lastRouteApiError = message
+            null
+        }
+        val legacyHints = buildList {
+            try { if (audioManager.isWiredHeadsetOn) add("isWiredHeadsetOn=true (indikasi jack terhubung, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (indikasi Bluetooth A2DP, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (indikasi Bluetooth SCO, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (flag speaker telepon, bukan bukti rute media)") } catch (_: Exception) { }
+        }.ifEmpty { listOf("Tidak ada flag legacy aktif; ini tidak membuktikan tidak ada jack/headphone.") }.joinToString("; ")
+        if (legacyHints != lastLegacyRouteHints) {
+            recordDiagnostic("LEGACY_ROUTE_HINTS " + legacyHints)
+            lastLegacyRouteHints = legacyHints
+        }
+        val connectedWired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
+        val connectedBluetooth = devices.filter { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (Build.VERSION.SDK_INT >= 28 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET) }
+        val connectionSummary = buildString {
+            append("Perangkat TERHUBUNG menurut AudioManager: ")
+            append(if (devices.isEmpty()) "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
+            append("\nIndikasi legacy AudioManager: ").append(legacyHints)
+            append("\nHeadphone/jack terdaftar: ").append(if (connectedWired.isEmpty()) "tidak" else connectedWired.joinToString { describe(it) })
+            append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
+            append("\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
+        }
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "Belum ada stream"
@@ -829,6 +890,9 @@ class MainActivity : Activity() {
         val outputEncoding = try { if (outputTrackPlaying) outputTrack?.audioFormat?.let { encodingName(it) } else null } catch (_: Exception) { null }
         val outputChannels = try { if (outputTrackPlaying) outputTrack?.channelCount else null } catch (_: Exception) { null }
         val outputBufferFrames = try { if (outputTrackPlaying) outputTrack?.bufferSizeInFrames else null } catch (_: Exception) { null }
+        // Buffer capacity converted to time; this is not measured end-to-end latency.
+        val outputBufferCapacityMs = if (outputTrackPlaying && outputBufferFrames != null && outputRate != null && outputRate > 0)
+            outputBufferFrames * 1000.0 / outputRate else null
         val outputPerformance = try {
             if (outputTrackPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) outputTrack?.performanceMode?.let {
                 when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> "POWER_SAVING"; else -> "NONE/UNKNOWN" }
@@ -857,11 +921,15 @@ class MainActivity : Activity() {
             "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
                 (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding tidak terbaca") +
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
-                    " frame / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
+                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "durasi tidak tersedia") +
+                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
             "\nAudioManager mode: " + audioMode +
+            "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
+            "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
+            "\n" + connectionSummary +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
-            "\n" + activeCapabilities + "\n\nPerangkat output tersedia/terdeteksi (bukan berarti semuanya aktif):\n" +
+            "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
@@ -943,7 +1011,7 @@ class MainActivity : Activity() {
         val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }, flags)
-        recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} engine=Media3/ExoPlayer route=not-exposed-by-player-api")
+        recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} engine=Media3/ExoPlayer trackRoute=queried-separately backend=not-exposed-by-public-api")
         val session = mediaSession
         session?.setMetadata(MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
@@ -991,6 +1059,23 @@ class MainActivity : Activity() {
     private fun scanAudioConfiguration() {
         val paths = listOf(
             "/vendor/etc/audio_output_policy.conf",
+            "/vendor/etc/audio/mixer_paths.xml",
+            "/vendor/etc/audio/mixer_paths_wcd9335.xml",
+            "/vendor/etc/audio/mixer_paths_wcd9340.xml",
+            "/vendor/etc/audio/mixer_paths_msm8996.xml",
+            "/vendor/etc/audio/audio_platform_info.xml",
+            "/vendor/etc/audio/audio_platform_info_extcodec.xml",
+            "/odm/etc/audio_output_policy.conf",
+            "/odm/etc/audio_policy.conf",
+            "/odm/etc/audio_policy_configuration.xml",
+            "/odm/etc/mixer_paths.xml",
+            "/odm/etc/audio_platform_info.xml",
+            "/system/vendor/etc/audio_output_policy.conf",
+            "/system/vendor/etc/audio_policy.conf",
+            "/system/vendor/etc/audio_policy_configuration.xml",
+            "/system/vendor/etc/mixer_paths.xml",
+            "/system/vendor/etc/audio_platform_info.xml",
+            "/system/vendor/etc/audio_platform_info_extcodec.xml",
             "/vendor/etc/audio_policy.conf",
             "/vendor/etc/audio_policy_configuration.xml",
             "/vendor/etc/mixer_paths.xml",
@@ -1007,7 +1092,7 @@ class MainActivity : Activity() {
         )
         val keys = listOf("direct_pcm", "direct_hd", "pcm_8_24", "pcm_24", "192000", "176400", "96000",
             "88200", "flag_dsd", "supports_pcm", "samplingrates", "sampling_rates", "audio_output_flag_direct",
-            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340")
+            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340", "SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC", "tert-mi2s-headphones", "SEC_MI2S_RX", "hifi_dac", "mixer_path")
         val report = StringBuilder()
         var readable = 0
         for (path in paths) {
@@ -1046,6 +1131,12 @@ class MainActivity : Activity() {
         } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
+        report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
+        report.append("\nSTATUS BACKEND LG QUAD DAC: tidak terkonfirmasi melalui API publik. Preferensi perangkat kabel hanya meminta AudioPolicy memilih jack 3,5 mm; ini tidak memaksa AUDIO_OUTPUT_FLAG_DIRECT dan tidak membuktikan backend HAL/DAC.")
+        report.append("\n\nUntuk memeriksa backend saat lagu sedang diputar melalui jack 3,5 mm, jalankan dari komputer dengan USB debugging aktif:")
+        report.append("\nadb shell dumpsys media.audio_flinger")
+        report.append("\nadb shell dumpsys media.audio_policy")
+        report.append("\nKirim kedua keluaran itu bersama log aplikasi. Jika keluaran sistem tidak memuat nama backend atau output thread yang relevan, verifikasi fisik DAC mungkin memerlukan akses vendor/root; jangan simpulkan DAC aktif hanya dari rate AudioTrack.")
         lastAudioConfigLog = report.toString()
         AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
             .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
@@ -1056,7 +1147,12 @@ class MainActivity : Activity() {
     private fun updateActiveRoute() {
         val track = activeAudioTrack
         val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try { if (playing) track?.routedDevice else null } catch (_: Exception) { null }
+        val active = try { val routed = if (playing) track?.routedDevice else null; lastRouteApiError = null; routed } catch (e: Exception) {
+            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
+            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
+            lastRouteApiError = message
+            null
+        }
         val routeKey = when {
             player == null -> "no-player"
             !playing -> "not-playing"
@@ -1075,7 +1171,7 @@ class MainActivity : Activity() {
             if (::routeSummary.isInitialized) routeSummary.text = label
             if (previous != null && previous != routeKey) {
                 lastDeviceEvent = "Rute AudioTrack: " + label
-                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey)
+                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey + " routedDevice=" + (active?.let { describe(it) } ?: "null") + " playing=" + playing)
             }
             if (::routeInfo.isInitialized) refreshAudioInfo()
         }
