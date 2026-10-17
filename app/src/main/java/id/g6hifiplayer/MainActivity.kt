@@ -2067,18 +2067,26 @@ class MainActivity : Activity() {
         private var downX = 0f
         private var downY = 0f
 
+        init { isClickable = true }
+
         override fun dispatchTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 downX = event.x
                 downY = event.y
+                parent?.requestDisallowInterceptTouchEvent(true)
             }
             val handled = super.dispatchTouchEvent(event)
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val dx = event.x - downX
                 val dy = event.y - downY
                 if (kotlin.math.abs(dy) > dp(72) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.25f) {
-                    if (dy > 0) onSwipeDown() else onSwipeUp()
+                    val overlayOpen = ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE
+                    if (dy > 0 && !overlayOpen) onSwipeDown()
+                    else if (dy < 0 && overlayOpen && downY < dp(180)) onSwipeUp()
                 }
+                parent?.requestDisallowInterceptTouchEvent(false)
+            } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                parent?.requestDisallowInterceptTouchEvent(false)
             }
             return handled
         }
