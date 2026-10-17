@@ -258,6 +258,26 @@ class MainActivity : Activity() {
         }
         scanCard.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         settingsPanel.addView(scanCard)
+        val batteryCard = card()
+        batteryCard.addView(text("BATTERY OPTIMIZATION", 12f, MUTED, true))
+        batteryCard.addView(text("Allow Android to exempt playback from standard battery optimization when supported.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        batteryCard.addView(action("OPEN BATTERY SETTINGS", false) {
+            try {
+                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    !getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) {
+                    Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                } else {
+                    Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                try { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                catch (_: Exception) { Toast.makeText(this, "Battery settings are unavailable on this device.", Toast.LENGTH_LONG).show() }
+            }
+        }, LinearLayout.LayoutParams(-1, dp(44)))
+        settingsPanel.addView(batteryCard)
         settingsPanel.addView(filePanel)
         settingsPanel.addView(audioPanel)
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(queuePanel); content.addView(settingsPanel)
@@ -1194,16 +1214,23 @@ class MainActivity : Activity() {
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
         val key = "thumb:" + track.uri.toString()
+        // Tag each recycled/rebuilt view so an older asynchronous request cannot paint the wrong album.
+        target.setTag(key)
         val cached = bitmapArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
             target.setImageBitmap(cached)
             return
         }
+        // Do not discard a completed decode just because the view is not attached yet:
+        // grid changes rebuild the cells and this was a source of blank covers.
         artworkExecutor.execute {
-            val bitmap = readArtworkBytes(track)?.let { decodeArtwork(it, 480, android.graphics.Bitmap.Config.RGB_565) }
-            if (bitmap != null) bitmapArtworkCache.put(key, bitmap)
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(track)
+                ?.let { decodeArtwork(it, 480, android.graphics.Bitmap.Config.RGB_565) }
+                ?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
-                if (bitmap != null && !isFinishing && target.isAttachedToWindow) target.setImageBitmap(bitmap)
+                if (bitmap != null && !isFinishing && target.getTag() == key) {
+                    target.setImageBitmap(bitmap)
+                }
             }
         }
     }
