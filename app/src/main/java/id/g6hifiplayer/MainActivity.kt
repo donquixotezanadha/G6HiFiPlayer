@@ -193,7 +193,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            setPadding(dp(10), dp(5), dp(10), dp(7)); setBackgroundColor(Color.TRANSPARENT)
+            setPadding(0, dp(5), 0, dp(7)); setBackgroundColor(Color.TRANSPARENT)
         }
         navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { show("player") }
         navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
@@ -215,9 +215,9 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        songsPanel.setPadding(dp(10), statusBarInset, dp(10), dp(8))
-        queuePanel.setPadding(dp(10), statusBarInset, dp(10), dp(8))
-        settingsPanel.setPadding(dp(10), statusBarInset, dp(10), dp(8))
+        songsPanel.setPadding(0, statusBarInset, 0, dp(8))
+        queuePanel.setPadding(0, statusBarInset, 0, dp(8))
+        settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
@@ -254,7 +254,7 @@ class MainActivity : Activity() {
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(queuePanel); content.addView(settingsPanel)
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(nav, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dp(12); rightMargin = dp(12); topMargin = dp(3); bottomMargin = dp(8) })
+        root.addView(nav, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3); bottomMargin = dp(8) })
         setContentView(root); show("player"); renderLibrary()
     }
 
@@ -398,12 +398,12 @@ class MainActivity : Activity() {
 
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        libraryPanel.setPadding(dp(10), inset + dp(2), dp(10), dp(8))
+        libraryPanel.setPadding(0, inset + dp(2), 0, dp(8))
         libraryPanel.addView(text("ALBUM", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(2), dp(2), dp(2), dp(10))
+            setPadding(0, dp(2), 0, dp(10))
         }
         gridControls.addView(action("2 COLUMNS", albumGridColumns == 2) {
             albumGridColumns = 2
@@ -1656,7 +1656,7 @@ class MainActivity : Activity() {
     }
 
     private fun flatSection() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(12), dp(4), dp(12)); setBackgroundColor(Color.TRANSPARENT)
+        orientation = LinearLayout.VERTICAL; setPadding(0, dp(12), 0, dp(12)); setBackgroundColor(Color.TRANSPARENT)
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) }
     }
     private fun card() = LinearLayout(this).apply {
