@@ -62,6 +62,7 @@ class MainActivity : Activity() {
     private var artToken = 0
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newSingleThreadExecutor()
+    private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
     private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
@@ -299,7 +300,21 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun recordDiagnostic(event: String, error: Throwable? = null) {
+        val timestamp = System.currentTimeMillis()
+        val detail = buildString {
+            append(timestamp).append(" [").append(Thread.currentThread().name).append("] ").append(event)
+            if (error != null) append("\n").append(android.util.Log.getStackTraceString(error))
+        }
+        synchronized(diagnosticEvents) {
+            diagnosticEvents.add(detail)
+            while (diagnosticEvents.size > 300) diagnosticEvents.removeAt(0)
+        }
+        if (error == null) android.util.Log.i("G6HiFiPlayer", event) else android.util.Log.e("G6HiFiPlayer", event, error)
+    }
+
     private fun scanMusicFolder(uri: Uri) {
+        recordDiagnostic("SCAN_START uri=$uri")
         librarySummary.text = "Memindai folder dan subfolder…"; statusView.text = "Memindai pustaka musik…"
         scanProgress.visibility = View.VISIBLE; scanProgressText.visibility = View.VISIBLE
         scanProgressText.text = "Memulai pemindaian…"
@@ -308,10 +323,16 @@ class MainActivity : Activity() {
             val count = intArrayOf(0)
             var error: String? = null
             try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count) } }
-            catch (e: Exception) { error = e.message ?: "akses ditolak" }
+            catch (e: Exception) { error = e.javaClass.simpleName + ": " + (e.message ?: "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
+            recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
             val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
-                tracks = sorted; currentIndex = -1; selectedAlbum = null; renderLibrary()
+                tracks = sorted; currentIndex = -1; selectedAlbum = null
+                try { renderLibrary() } catch (e: Throwable) {
+                    recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
+                    librarySummary.text = "Daftar ditemukan (${sorted.size} lagu), tetapi tampilan gagal dibuat. Log diagnostik tersedia."
+                    statusView.text = "Gagal menampilkan pustaka: " + e.javaClass.simpleName
+                }
                 scanProgress.visibility = View.GONE; scanProgressText.visibility = View.GONE
                 librarySummary.text = when {
                     error != null -> "Gagal memindai folder: " + error
@@ -336,7 +357,7 @@ class MainActivity : Activity() {
                     if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Ditemukan " + count[0] + " lagu • memindai " + (dir.name ?: "folder") + "…"
                 }
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) { recordDiagnostic("SCAN_ENTRY_FAILED name=${file.name} uri=${file.uri}", e) }
     }
     private fun isAudioFile(file: DocumentFile): Boolean {
         val name = file.name?.lowercase(Locale.ROOT) ?: return file.type?.startsWith("audio/") == true
@@ -538,6 +559,7 @@ class MainActivity : Activity() {
                 if (token != artToken) { bitmap?.recycle(); return@post }
                 if (bitmap != null) {
                     artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
+                    if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
                 } else { artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "G6\nNO COVER ART" }
             }
         }
@@ -588,12 +610,14 @@ class MainActivity : Activity() {
     private fun copyAudioLog() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
         val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
-        copyText("G6 HiFi Player — DIAGNOSTIK AUDIO\n\n$route\n\n$file\n\n$lastAudioConfigLog")
+        val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
+        copyText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
     private fun shareAudioLog() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
         val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
-        shareText("G6 HiFi Player — DIAGNOSTIK AUDIO\n\n$route\n\n$file\n\n$lastAudioConfigLog")
+        val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
+        shareText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
 
     private fun createNotificationChannel() {
@@ -641,6 +665,7 @@ class MainActivity : Activity() {
         val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }, flags)
+        recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} route=${try { player?.routedDevice?.productName?.toString() ?: "unreported" } catch (_: Exception) { "unavailable" }}")
         val session = mediaSession
         session?.setMetadata(MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
