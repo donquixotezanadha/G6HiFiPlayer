@@ -62,6 +62,7 @@ class MainActivity : Activity() {
     private var playbackQueue: List<Int> = emptyList()
     private var selectedAlbum: String? = null
     private var artToken = 0
+    private var accentColor = DEFAULT_ACCENT
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newSingleThreadExecutor()
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -139,7 +140,7 @@ class MainActivity : Activity() {
         val brand = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         brand.addView(text("G6", 28f, WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
         brand.addView(text("HI-FI • LOCAL LIBRARY", 10f, BG, true).apply {
-            gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(ACCENT, 20)
+            gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
         })
         header.addView(brand)
         header.addView(text("MUSIC PLAYER / BUILD 0.8.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
@@ -164,7 +165,7 @@ class MainActivity : Activity() {
     }
 
     private fun makePlayerPanel() {
-        val hero = card(); hero.addView(text("NOW PLAYING", 11f, ACCENT, true))
+        val hero = card(); hero.addView(text("NOW PLAYING", 11f, accentColor, true))
         val frame = FrameLayout(this).apply { background = shape(ART, 22); clipToOutline = true }
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
@@ -188,8 +189,8 @@ class MainActivity : Activity() {
         elapsed = text("0:00", 11f, MUTED, false); duration = text("0:00", 11f, MUTED, false)
         times.addView(elapsed, LinearLayout.LayoutParams(0, -2, 1f)); times.addView(duration); hero.addView(times)
         seek = SeekBar(this).apply {
-            max = 1; progressTintList = android.content.res.ColorStateList.valueOf(ACCENT)
-            thumbTintList = android.content.res.ColorStateList.valueOf(ACCENT)
+            max = 1; progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) { if (fromUser) elapsed.text = time(value) }
                 override fun onStartTrackingTouch(bar: SeekBar?) { seeking = true }
@@ -224,23 +225,23 @@ class MainActivity : Activity() {
         head.addView(action("PILIH FOLDER MUSIC", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(48)))
         librarySummary = text("Belum ada folder yang dipindai.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         head.addView(librarySummary)
-        scanProgressText = text("", 12f, ACCENT, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
+        scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
         head.addView(scanProgressText)
         scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true; visibility = View.GONE; progressTintList = android.content.res.ColorStateList.valueOf(ACCENT)
+            isIndeterminate = true; visibility = View.GONE; progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
         }
         head.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         libraryPanel.addView(head)
-        val albums = card(); albums.addView(text("ALBUM", 11f, ACCENT, true))
+        val albums = card(); albums.addView(text("ALBUM", 11f, accentColor, true))
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
         albums.addView(albumRows); libraryPanel.addView(albums)
-        val songs = card(); songs.addView(text("LAGU", 11f, ACCENT, true))
+        val songs = card(); songs.addView(text("LAGU", 11f, accentColor, true))
         trackRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
         songs.addView(trackRows); libraryPanel.addView(songs)
     }
 
     private fun makeAudioPanel() {
-        val summary = card(); summary.addView(text("OUTPUT AKTIF", 11f, ACCENT, true))
+        val summary = card(); summary.addView(text("OUTPUT AKTIF", 11f, accentColor, true))
         routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
         summary.addView(routeSummary); summary.addView(text("Rute dari MediaPlayer, jika dilaporkan.", 12f, MUTED, false)); audioPanel.addView(summary)
         val detail = card(); detail.addView(text("DIAGNOSTIK ROUTE", 11f, MUTED, true))
@@ -252,16 +253,16 @@ class MainActivity : Activity() {
         logActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         logActions.addView(action("KIRIM LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         detail.addView(logActions); audioPanel.addView(detail)
-        val lg = card(); lg.addView(text("PEMERIKSAAN AUDIO LG", 11f, ACCENT, true))
+        val lg = card(); lg.addView(text("PEMERIKSAAN AUDIO LG", 11f, accentColor, true))
         lg.addView(text("Mencari konfigurasi LG yang dapat dibaca dan menguji dukungan direct playback. Hasilnya bukan bukti jalur lagu yang sedang aktif.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
         lg.addView(action("SCAN KONFIGURASI LG", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
-        val note = card(); note.addView(text("BATASAN PENGUKURAN", 11f, ACCENT, true))
+        val note = card(); note.addView(text("BATASAN PENGUKURAN", 11f, accentColor, true))
         note.addView(text("API publik Android tidak memberi bukti pasti tentang bit depth stream aktif, sample rate DAC aktual, atau bit-perfect. Rate sumber yang berbeda dari default bukan bukti resampling dengan sendirinya.", 13f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         audioPanel.addView(note)
     }
 
     private fun makeFilePanel() {
-        val info = card(); info.addView(text("INFORMASI FILE", 11f, ACCENT, true))
+        val info = card(); info.addView(text("INFORMASI FILE", 11f, accentColor, true))
         fileInfo = text("Belum ada file yang dipilih.", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         info.addView(fileInfo)
         info.addView(action("PILIH FILE AUDIO", false) { pickFile() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(16) })
@@ -427,7 +428,7 @@ class MainActivity : Activity() {
             }
             val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
             albumRow.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
-            val label = text((if (selectedAlbum == album) "▾ " else "▸ ") + album + "\n" + albumEntries.size + " lagu", 13f, if (selectedAlbum == album) ACCENT else WHITE, true)
+            val label = text((if (selectedAlbum == album) "▾ " else "▸ ") + album + "\n" + albumEntries.size + " lagu", 13f, if (selectedAlbum == album) accentColor else WHITE, true)
                 .apply { setPadding(dp(12), 0, 0, 0) }
             albumRow.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
             albumRow.setOnClickListener {
@@ -490,7 +491,7 @@ class MainActivity : Activity() {
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         loadArtworkInto(cover, t)
     }
-    private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) ACCENT else WHITE, selected).apply {
+    private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) accentColor else WHITE, selected).apply {
         setPadding(dp(12), dp(11), dp(12), dp(11)); background = shape(if (selected) LINE else BG, 12)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
@@ -591,6 +592,61 @@ class MainActivity : Activity() {
         fileInfo.text = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
     }
 
+    private fun vividArtworkColor(bitmap: android.graphics.Bitmap): Int {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= 0 || h <= 0) return DEFAULT_ACCENT
+        var bestColor = DEFAULT_ACCENT
+        var bestScore = 0f
+        val stepX = (w / 40).coerceAtLeast(1)
+        val stepY = (h / 40).coerceAtLeast(1)
+        val hsv = FloatArray(3)
+        var y = 0
+        while (y < h) {
+            var x = 0
+            while (x < w) {
+                val pixel = bitmap.getPixel(x, y)
+                if (Color.alpha(pixel) > 180) {
+                    Color.colorToHSV(pixel, hsv)
+                    val saturation = hsv[1]
+                    val value = hsv[2]
+                    if (saturation >= 0.38f && value >= 0.22f && value <= 0.88f) {
+                        // Prefer clearly saturated colors while avoiding near-black and near-white pixels.
+                        val brightnessScore = 1f - kotlin.math.abs(value - 0.58f)
+                        val score = saturation * brightnessScore
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestColor = Color.HSVToColor(floatArrayOf(hsv[0], saturation.coerceAtMost(0.9f), value.coerceIn(0.58f, 0.86f)))
+                        }
+                    }
+                }
+                x += stepX
+            }
+            y += stepY
+        }
+        return if (bestScore >= 0.38f) bestColor else DEFAULT_ACCENT
+    }
+
+    private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
+        val picked = vividArtworkColor(bitmap)
+        if (picked == accentColor) return
+        accentColor = picked
+        if (::seek.isInitialized) {
+            seek.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
+        }
+        if (::playView.isInitialized) {
+            playView.setTextColor(accentColor)
+            playView.background = shape(accentColor, 14)
+        }
+        if (::scanProgress.isInitialized) scanProgress.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
+        if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
+        if (::titleView.isInitialized) titleView.setTextColor(accentColor)
+        if (::audioInfoToggle.isInitialized) audioInfoToggle.setTextColor(accentColor)
+        if (::statusView.isInitialized) statusView.setTextColor(accentColor)
+        if (::root.isInitialized) renderLibrary()
+    }
+
     private fun decodeArtwork(bytes: ByteArray): android.graphics.Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -612,7 +668,7 @@ class MainActivity : Activity() {
             }
             val bitmap = bytes?.let { decodeArtwork(it) }
             handler.post {
-                if (bitmap != null && !isFinishing && target.isAttachedToWindow) target.setImageBitmap(bitmap)
+                if (bitmap != null && !isFinishing && target.isAttachedToWindow) { target.setImageBitmap(bitmap); applyArtworkAccent(bitmap) }
                 else bitmap?.recycle()
             }
         }
@@ -631,7 +687,7 @@ class MainActivity : Activity() {
             handler.post {
                 if (token != artToken) { bitmap?.recycle(); return@post }
                 if (bitmap != null) {
-                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
+                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE; applyArtworkAccent(bitmap)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
                 } else { artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "G6\nNO COVER ART" }
             }
@@ -837,7 +893,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER; background = shape(Color.TRANSPARENT, 12); setOnClickListener { click() }
     }
     private fun navState(view: TextView, selected: Boolean) {
-        view.setTextColor(if (selected) ACCENT else MUTED); view.background = shape(if (selected) CARD else Color.TRANSPARENT, 12)
+        view.setTextColor(if (selected) accentColor else MUTED); view.background = shape(if (selected) CARD else Color.TRANSPARENT, 12)
     }
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(CARD, 21)
@@ -849,7 +905,7 @@ class MainActivity : Activity() {
         setLineSpacing(dp(2).toFloat(), 1f)
     }
     private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) BG else WHITE, true).apply {
-        gravity = Gravity.CENTER; background = shape(if (primary) ACCENT else LINE, 14)
+        gravity = Gravity.CENTER; background = shape(if (primary) accentColor else LINE, 14)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
@@ -894,7 +950,7 @@ class MainActivity : Activity() {
         private const val LINE = 0xFF2A3741.toInt()
         private const val WHITE = 0xFFF3F6F8.toInt()
         private const val MUTED = 0xFF9BAAB5.toInt()
-        private const val ACCENT = 0xFFB6F2D5.toInt()
+        private const val DEFAULT_ACCENT = 0xFFB6F2D5.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }
 }
