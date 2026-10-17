@@ -120,6 +120,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BG; window.navigationBarColor = BG
         activeInstance = this
+        getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
         createNotificationChannel()
         createMediaSession()
@@ -306,10 +307,12 @@ class MainActivity : Activity() {
             append(timestamp).append(" [").append(Thread.currentThread().name).append("] ").append(event)
             if (error != null) append("\n").append(android.util.Log.getStackTraceString(error))
         }
-        synchronized(diagnosticEvents) {
+        val snapshot = synchronized(diagnosticEvents) {
             diagnosticEvents.add(detail)
             while (diagnosticEvents.size > 300) diagnosticEvents.removeAt(0)
+            diagnosticEvents.joinToString("\n\n").takeLast(30000)
         }
+        try { getPreferences(MODE_PRIVATE).edit().putString("diagnostic_events", snapshot).apply() } catch (_: Exception) { }
         if (error == null) android.util.Log.i("G6HiFiPlayer", event) else android.util.Log.e("G6HiFiPlayer", event, error)
     }
 
