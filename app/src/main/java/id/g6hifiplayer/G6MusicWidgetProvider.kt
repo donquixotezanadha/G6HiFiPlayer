@@ -33,7 +33,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         if (artwork != null) views.setImageViewBitmap(R.id.widget_art, artwork)
                         views.setInt(R.id.widget_play, "setColorFilter", if (light) Color.WHITE else Color.BLACK)
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-                        views.setInt(R.id.widget_play_circle, "setColorFilter", if (light) 0xCCFFFFFF.toInt() else 0xCC000000.toInt())
+                        views.setInt(R.id.widget_play_circle, "setBackgroundColor", if (light) 0xCCFFFFFF.toInt() else 0xCC000000.toInt())
                     } else {
                         views.setTextViewText(R.id.widget_title, title.ifBlank { "Not Playing" })
                         views.setTextViewText(R.id.widget_artist, listOf(artist, album).filter { it.isNotBlank() }.joinToString(" • "))
@@ -46,7 +46,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         views.setTextColor(R.id.widget_title, if (light) Color.BLACK else Color.WHITE)
                         views.setTextColor(R.id.widget_artist, if (light) 0xFF666666.toInt() else 0xFFAAAAAA.toInt())
                     }
-                    bind(context, views, R.id.widget_play, "play")
+                    bind(context, views, R.id.widget_play, "toggle")
                     if (!compact) {
                         bind(context, views, R.id.widget_previous, "previous")
                         bind(context, views, R.id.widget_next, "next")
