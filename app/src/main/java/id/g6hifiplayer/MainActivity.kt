@@ -91,6 +91,7 @@ class MainActivity : Activity() {
     private val artworkExecutor = Executors.newFixedThreadPool(3)
     // Keep current-player artwork independent of the library thumbnails backlog.
     private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
+    private val metadataExecutor = Executors.newFixedThreadPool(2)
     private val artworkBytesCache = java.util.Collections.synchronizedMap(java.util.LinkedHashMap<String, ByteArray>(16, 0.75f, true))
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
@@ -772,33 +773,44 @@ class MainActivity : Activity() {
     }
 
     private fun showMetadata(uri: Uri, t: Track) {
-        val r = MediaMetadataRetriever()
-        var fileDuration = "Tidak tersedia"; var mime = "Tidak tersedia"; var bitrate = "Tidak tersedia"
-        try {
-            r.setDataSource(this, uri)
-            fileDuration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: fileDuration
-            mime = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: mime
-            bitrate = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE) ?: bitrate
-        } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
-        var rate = "Tidak tersedia"; var channels = "Tidak tersedia"; var trackMime = mime
-        val extractor = MediaExtractor()
-        try {
-            extractor.setDataSource(this, uri, null)
-            for (i in 0 until extractor.trackCount) {
-                val f = extractor.getTrackFormat(i)
-                val type = if (f.containsKey(MediaFormat.KEY_MIME)) f.getString(MediaFormat.KEY_MIME) else null
-                if (type?.startsWith("audio/") == true) {
-                    trackMime = type
-                    if (f.containsKey(MediaFormat.KEY_SAMPLE_RATE)) rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE).toString()
-                    if (f.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT).toString()
-                    if (f.containsKey(MediaFormat.KEY_BIT_RATE)) bitrate = f.getInteger(MediaFormat.KEY_BIT_RATE).toString()
-                    break
+        // SAF/MediaMetadataRetriever/MediaExtractor may block on slow storage. Never run them on the UI thread,
+        // otherwise the artwork bitmap cannot be displayed even when its background task has already finished.
+        metadataExecutor.execute {
+            val r = MediaMetadataRetriever()
+            var fileDuration = "Tidak tersedia"; var mime = "Tidak tersedia"; var bitrate = "Tidak tersedia"
+            try {
+                r.setDataSource(this@MainActivity, uri)
+                fileDuration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: fileDuration
+                mime = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: mime
+                bitrate = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE) ?: bitrate
+            } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
+            var rate = "Tidak tersedia"; var channels = "Tidak tersedia"; var trackMime = mime
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(this@MainActivity, uri, null)
+                for (i in 0 until extractor.trackCount) {
+                    val f = extractor.getTrackFormat(i)
+                    val type = if (f.containsKey(MediaFormat.KEY_MIME)) f.getString(MediaFormat.KEY_MIME) else null
+                    if (type?.startsWith("audio/") == true) {
+                        trackMime = type
+                        if (f.containsKey(MediaFormat.KEY_SAMPLE_RATE)) rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE).toString()
+                        if (f.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT).toString()
+                        if (f.containsKey(MediaFormat.KEY_BIT_RATE)) bitrate = f.getInteger(MediaFormat.KEY_BIT_RATE).toString()
+                        break
+                    }
                 }
+            } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
+            val parsedRate = rate.toIntOrNull()
+            val parsedBitrate = bitrate.toIntOrNull()
+            val infoText = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
+            handler.post {
+                if (isFinishing || tracks.getOrNull(currentIndex)?.uri != uri) return@post
+                sourceRate = parsedRate
+                sourceBitrate = parsedBitrate
+                fileInfo.text = infoText
+                refreshAudioInfo()
             }
-        } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
-        sourceRate = rate.toIntOrNull()
-        sourceBitrate = bitrate.toIntOrNull()
-        fileInfo.text = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
+        }
     }
 
     private fun vividArtworkColor(bitmap: android.graphics.Bitmap): Int {
