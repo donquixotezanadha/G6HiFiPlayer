@@ -529,7 +529,7 @@ class MainActivity : Activity() {
                 val key = dir.uri.toString()
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
                 output.add(readTrack(file.uri, covers[key], dir.name)); count[0]++
-                if (count[0] == 1 || count[0] % 5 == 0) handler.post {
+                if (count[0] == 1 || count[0] % 50 == 0) handler.post {
                     if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Ditemukan " + count[0] + " lagu • memindai " + (dir.name ?: "folder") + "…"
                 }
             }
