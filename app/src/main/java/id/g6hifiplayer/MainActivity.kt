@@ -166,7 +166,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
         })
         header.addView(brand)
-        header.addView(text("MUSIC PLAYER / BUILD 0.14.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
+        header.addView(text("MUSIC PLAYER / BUILD 0.15.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
         root.addView(header)
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(4), dp(8), dp(10)) }
         navPlayer = navButton("PLAYER") { show("player") }
@@ -541,8 +541,9 @@ class MainActivity : Activity() {
                     .build()
             }
         }
-        // Prefer float output for high-resolution PCM when supported. Vendor HAL may still convert it.
-        renderersFactory.setEnableAudioFloatOutput(true)
+        // Disable float PCM: the LG G6 direct_pcm policy lists integer PCM formats, not PCM_FLOAT.
+        // This improves format compatibility but does NOT force AUDIO_OUTPUT_FLAG_DIRECT or prove Quad DAC use.
+        renderersFactory.setEnableAudioFloatOutput(false)
         return ExoPlayer.Builder(this, renderersFactory).build()
     }
 
