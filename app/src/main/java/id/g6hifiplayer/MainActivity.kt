@@ -97,7 +97,6 @@ class MainActivity : Activity() {
     private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
-    private lateinit var audioInfoToggle: TextView
     private lateinit var audioInfoInline: TextView
     private lateinit var playerPanel: LinearLayout
     private lateinit var libraryPanel: LinearLayout
@@ -225,17 +224,10 @@ class MainActivity : Activity() {
         val artworkSize = minOf(292, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 56).coerceAtLeast(220))
         hero.gravity = Gravity.CENTER_HORIZONTAL
         hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(8) })
-        audioInfoToggle = iconAction("ⓘ  INFO AUDIO") {
-            audioInfoInline.visibility = if (audioInfoInline.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-            audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO"
-            refreshAudioInfo()
-        }
-        audioInfoToggle.textSize = 12f; audioInfoToggle.setTextColor(MUTED)
-        hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(26)).apply { bottomMargin = dp(1) })
         audioInfoInline = text("FLAC • sumber — kHz → output — kHz • status belum terverifikasi", 9f, MUTED, false).apply {
-            setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.GONE; setTextIsSelectable(true)
+            setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
-        hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+        hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
         artistView = text("Pilih folder musik atau satu file", 14f, MUTED, false)
         albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(2), 0, dp(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
@@ -820,7 +812,7 @@ class MainActivity : Activity() {
         if (::scanProgress.isInitialized) scanProgress.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
         if (::titleView.isInitialized) titleView.setTextColor(accentColor)
-        if (::audioInfoToggle.isInitialized) audioInfoToggle.setTextColor(accentColor)
+        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
         fun recolor(view: View) {
             if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
