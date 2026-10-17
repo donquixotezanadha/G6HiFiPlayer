@@ -197,8 +197,10 @@ class MainActivity : Activity() {
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 0)
+            setPadding(0, dp(5), 0, dp(5))
             setBackgroundColor(BG)
+            clipChildren = false
+            clipToPadding = false
         }
         navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { show("player") }
         navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
@@ -206,7 +208,7 @@ class MainActivity : Activity() {
         navAudio = navButton(android.R.drawable.ic_menu_sort_by_size, "Queue") { show("queue") }
         navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
         listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach {
-            nav.addView(it, LinearLayout.LayoutParams(0, dp(52), 1f))
+            nav.addView(it, LinearLayout.LayoutParams(0, -1, 1f))
         }
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
@@ -755,7 +757,7 @@ class MainActivity : Activity() {
             }
             val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(Color.TRANSPARENT, 8); contentDescription = "Artwork $album" }
             cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 148 else 108)))
-            cell.addView(text(album, 12f, WHITE, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
+            cell.addView(text(album, 12f, MUTED, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
             cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply { gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
             val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (position % albumGridColumns != 0) leftMargin = dp(3)
@@ -832,8 +834,19 @@ class MainActivity : Activity() {
         }
         val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
-        val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
-        row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+        val details = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), 0, dp(4), 0)
+        }
+        details.addView(text(t.title, 12f, WHITE, true).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        details.addView(text(t.artist + " • " + t.album, 12f, MUTED, false).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
         val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
@@ -1602,7 +1615,7 @@ class MainActivity : Activity() {
     }
     private fun show(which: String) {
         // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
-        window.decorView.systemUiVisibility = (if (which == "player") View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN else 0) or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         window.statusBarColor = if (which == "player") Color.TRANSPARENT else BG
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
@@ -1620,7 +1633,7 @@ class MainActivity : Activity() {
     private fun navButton(iconRes: Int, description: String, click: () -> Unit) = ImageView(this).apply {
         contentDescription = description
         scaleType = ImageView.ScaleType.CENTER_INSIDE
-        setPadding(dp(12), dp(12), dp(12), dp(12))
+        setPadding(dp(12), dp(7), dp(12), dp(7))
         setImageResource(iconRes)
         imageTintList = ColorStateList.valueOf(MUTED)
         background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
