@@ -868,7 +868,7 @@ class MainActivity : Activity() {
             } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
             val parsedRate = rate.toIntOrNull()
             val parsedBitrate = bitrate.toIntOrNull()
-            val infoText = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
+            val infoText = "Title: " + t.title + "\nArtist: " + t.artist + "\nAlbum: " + t.album + "\nDuration: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSource sample rate: " + rate + " Hz\nChannels: " + channels + "\nBitrate: " + bitrate + " bit/s (if reported)\nURI: " + uri
             handler.post {
                 if (isFinishing || tracks.getOrNull(currentIndex)?.uri != uri) return@post
                 sourceRate = parsedRate
@@ -1025,7 +1025,7 @@ class MainActivity : Activity() {
             try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (indikasi Bluetooth A2DP, bukan rute aktif)") } catch (_: Exception) { }
             try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (indikasi Bluetooth SCO, bukan rute aktif)") } catch (_: Exception) { }
             try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (flag speaker telepon, bukan bukti rute media)") } catch (_: Exception) { }
-        }.ifEmpty { listOf("Tidak ada flag legacy aktif; ini tidak membuktikan tidak ada jack/headphone.") }.joinToString("; ")
+        }.ifEmpty { listOf("No legacy flags are active; this does not prove that no jack/headphones are connected.") }.joinToString("; ")
         if (legacyHints != lastLegacyRouteHints) {
             recordDiagnostic("LEGACY_ROUTE_HINTS " + legacyHints)
             lastLegacyRouteHints = legacyHints
@@ -1036,7 +1036,7 @@ class MainActivity : Activity() {
             append("Perangkat TERHUBUNG menurut AudioManager: ")
             append(if (devices.isEmpty()) "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
             append("\nIndikasi legacy AudioManager: ").append(legacyHints)
-            append("\nHeadphone/jack terdaftar: ").append(if (connectedWired.isEmpty()) "tidak" else connectedWired.joinToString { describe(it) })
+            append("\nRegistered headphones/jack: ").append(if (connectedWired.isEmpty()) "none" else connectedWired.joinToString { describe(it) })
             append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
             append("\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
         }
@@ -1079,15 +1079,15 @@ class MainActivity : Activity() {
         val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
         val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
-        val wiredText = if (wired.isEmpty()) "Jack kabel: tidak terdeteksi" else "Jack kabel terdeteksi: " + wired.joinToString { describe(it) }
+        val wiredText = if (wired.isEmpty()) "Wired jack: not detected" else "Wired jack detected: " + wired.joinToString { describe(it) }
         val rateNote = when {
             sourceRate == null -> "Source sample rate has not been read."
             outputTrackPlaying && outputRate != null && outputRate == sourceRate ->
-                "Sample rate sumber sama dengan konfigurasi AudioTrack (${outputRate} Hz). Ini bukti konfigurasi track, bukan bukti sample rate fisik DAC atau bit-perfect."
+                "The source sample rate matches the AudioTrack configuration (${outputRate} Hz). This confirms the track configuration, not the physical DAC sample rate or bit-perfect output."
             outputTrackPlaying && outputRate != null && outputRate != sourceRate ->
-                "Sample rate sumber (${sourceRate} Hz) berbeda dari konfigurasi AudioTrack (${outputRate} Hz); ada konversi format/rate di pipeline output yang perlu diperiksa. Ini belum mengungkap apa yang dilakukan HAL/DSP/DAC."
+                "The source sample rate (${sourceRate} Hz) differs from the AudioTrack configuration (${outputRate} Hz); format/rate conversion in the output pipeline should be investigated. This does not reveal what the HAL/DSP/DAC is doing."
             sourceRate.toString() == defaultRate ->
-                "Sample rate sumber sama dengan properti default sistem; ini tidak membuktikan format stream atau DAC."
+                "The source sample rate matches the system default property; this does not prove the stream format or DAC behavior."
             else ->
                 "The source sample rate differs from the system default property, but the AudioTrack rate is unreadable; this is insufficient to conclude that resampling occurred."
         }
@@ -1337,10 +1337,10 @@ class MainActivity : Activity() {
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
         report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
         report.append("\nSTATUS BACKEND LG QUAD DAC: tidak terkonfirmasi melalui API publik. Preferensi perangkat kabel hanya meminta AudioPolicy memilih jack 3,5 mm; ini tidak memaksa AUDIO_OUTPUT_FLAG_DIRECT dan tidak membuktikan backend HAL/DAC.")
-        report.append("\n\nUntuk memeriksa backend saat lagu sedang diputar melalui jack 3,5 mm, jalankan dari komputer dengan USB debugging aktif:")
+        report.append("\n\nTo inspect the backend while playing through the 3.5 mm jack, run these commands from a computer with USB debugging enabled:")
         report.append("\nadb shell dumpsys media.audio_flinger")
         report.append("\nadb shell dumpsys media.audio_policy")
-        report.append("\nKirim kedua keluaran itu bersama log aplikasi. Jika keluaran sistem tidak memuat nama backend atau output thread yang relevan, verifikasi fisik DAC mungkin memerlukan akses vendor/root; jangan simpulkan DAC aktif hanya dari rate AudioTrack.")
+        report.append("\nSend both outputs with the app log. If system output does not include a relevant backend or output thread name, physical DAC verification may require vendor/root access; do not infer DAC activity from the AudioTrack rate alone.")
         lastAudioConfigLog = report.toString()
         if (showDialog) {
             AlertDialog.Builder(this).setTitle("LG audio scan results").setMessage(lastAudioConfigLog)
@@ -1378,7 +1378,7 @@ class MainActivity : Activity() {
                 player == null -> "No active stream"
                 !playing -> "Not playing"
                 active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
-                else -> "AudioTrack aktif; perangkat rute belum dilaporkan"
+                else -> "AudioTrack is active; the routed device has not been reported"
             }
             if (::routeSummary.isInitialized) routeSummary.text = label
             if (previous != null && previous != routeKey) {
