@@ -22,3 +22,22 @@ Build 40 continues from `build-39-smooth-queue-transition`. Keep the Build 39 qu
 - [ ] Verify album-cover tap opens that album's dedicated track list and back navigation returns to the album grid.
 
 Source changes and CI build status do not substitute for on-device verification. Record any remaining defects in the next build's conversation and update this checklist.
+
+
+## Build 41 — UI navigation and queue fixes
+
+Branch: `build-41-album-queue-transition`  
+Version: `0.41.0`
+
+### User-reported regressions addressed
+
+- **Album details:** tapping an album now switches the Albums tab to a dedicated track-list view and returns to the album grid using the in-view back action or Android Back.
+- **Queue overlay structure:** moved Queue out of the Now Playing panel and made it a sibling overlay over the content viewport. This avoids the old nested layout/scroll interaction that could hide the queue mini-player or prevent the queue list from scrolling.
+- **Queue mini-player:** retained as a fixed dock below the queue's scrollable list; tapping it closes Queue and returns to Now Playing rather than toggling playback.
+- **Queue transitions:** animate after queue rows are prepared and use cubic PathInterpolator timing, with hardware layer enabled only for the transition. Opening/closing and Back should be checked on-device for gesture smoothness.
+- **Bottom tabs:** remove the stale image-matrix sizing path and use consistent native centered icon scaling in equal-width tab cells. This addresses the active Play icon appearing displaced/overlapped in the user's screenshot.
+- **Previously requested Build 40 items remain in scope:** album-tab scan progress, automatic navigation to Albums on scan, album/song metadata styling, and prior playback/queue ripple and mini-player playback-state fixes.
+
+### Verification status
+
+Source changes and workflow configuration have been committed to the Build 41 branch. GitHub Actions must complete successfully before an APK is considered built. Device verification is still required for album tap/back, long queue scrolling, persistent mini-player dock, Play/Pause synchronization, bottom-tab alignment, swipe-up/down and Android Back transition smoothness on the LG G6 (LGM-G600L / Android 9). Do not treat source-level checks as proof of runtime behavior.
