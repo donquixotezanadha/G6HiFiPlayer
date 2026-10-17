@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: ["main", "ui/build-16-player-polish"]
   pull_request:
     branches: ["main"]
 
