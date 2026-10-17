@@ -509,11 +509,11 @@ class MainActivity : Activity() {
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
                     librarySummary.text = "Found ${sorted.size} tracks, but the library view could not be rendered. Diagnostic log is available."
-                    statusView.text = "Gagal menampilkan pustaka: " + e.javaClass.simpleName
+                    statusView.text = "Failed to render library: " + e.javaClass.simpleName
                 }
                 scanProgress.visibility = View.GONE; scanProgressText.visibility = View.GONE
                 librarySummary.text = when {
-                    error != null -> "Gagal memindai folder: " + error
+                    error != null -> "Failed to scan folder: " + error
                     sorted.isEmpty() -> "No audio files found. Choose a Music folder containing tracks."
                     else -> sorted.size.toString() + " lagu • " + sorted.map { it.album }.distinct().size + " albums found"
                 }
@@ -1021,7 +1021,7 @@ class MainActivity : Activity() {
             null
         }
         val legacyHints = buildList {
-            try { if (audioManager.isWiredHeadsetOn) add("isWiredHeadsetOn=true (indikasi jack terhubung, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isWiredHeadsetOn) add("isWiredHeadsetOn=true (jack connection hint, not the active route)") } catch (_: Exception) { }
             try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (indikasi Bluetooth A2DP, bukan rute aktif)") } catch (_: Exception) { }
             try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (indikasi Bluetooth SCO, bukan rute aktif)") } catch (_: Exception) { }
             try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (flag speaker telepon, bukan bukti rute media)") } catch (_: Exception) { }
@@ -1075,7 +1075,7 @@ class MainActivity : Activity() {
                 when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> "POWER_SAVING"; else -> "NONE/UNKNOWN" }
             } else null
         } catch (_: Exception) { null }
-        val activeCapabilities = if (active == null) "Kapabilitas perangkat aktif: belum dapat dikaitkan dengan rute aktual." else describeCapabilities(active)
+        val activeCapabilities = if (active == null) "Active device capabilities cannot yet be linked to the actual route." else describeCapabilities(active)
         val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
         val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
@@ -1101,7 +1101,7 @@ class MainActivity : Activity() {
                     " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "duration unavailable") +
                     "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") else "inactive") +
             "\nAudioManager mode: " + audioMode +
-            "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
+            "\nStatus API rute: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
             "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
             "\n" + connectionSummary +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
@@ -1315,8 +1315,8 @@ class MainActivity : Activity() {
                         .take(24).toList()
                 }
                 readable++
-                report.append("\n").append(path).append('\n').append("Status: terbaca.\n")
-                if (matches.isEmpty()) report.append("Tidak ada baris yang cocok dengan kata kunci audio yang dicari.\n")
+                report.append("\n").append(path).append('\n').append("Status: readable.\n")
+                if (matches.isEmpty()) report.append("No lines matched the audio search keywords.\n")
                 else matches.forEach { report.append(it.trim()).append('\n') }
             } catch (e: Exception) {
                 report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "tanpa detail").append(").\n")
@@ -1330,9 +1330,9 @@ class MainActivity : Activity() {
                     val f = AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build()
                     AudioTrack.isDirectPlaybackSupported(f, attrs)
                 } catch (_: Exception) { false }
-                report.append(rate).append(" Hz / PCM 16-bit: ").append(if (supported) "didukung menurut API" else "tidak dilaporkan didukung").append('\n')
+                report.append(rate).append(" Hz / PCM 16-bit: ").append(if (supported) "reported as supported by the API" else "not reported as supported").append('\n')
             }
-        } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
+        } else report.append("The direct-playback API is unavailable on this Android version.\n")
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
         report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
