@@ -2,9 +2,9 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_card" android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp"
-    android:background="#CC000000">
+    android:background="@drawable/widget_card_dark">
     <ImageView android:id="@+id/widget_art" android:layout_width="112dp" android:layout_height="112dp"
-        android:scaleType="centerCrop" android:contentDescription="Album artwork" android:src="@android:drawable/ic_media_play"/>
+        android:scaleType="centerCrop" android:contentDescription="Album artwork" android:src="@drawable/widget_empty_art"/>
     <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
         android:orientation="vertical" android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="8dp">
         <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content"
