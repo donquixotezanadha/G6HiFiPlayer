@@ -132,6 +132,7 @@ class MainActivity : Activity() {
     private lateinit var queueMiniTitle: TextView
     private lateinit var queueMiniArtist: TextView
     private lateinit var queueMiniProgress: ProgressBar
+    private lateinit var queueMiniPlayView: ImageView
     private var currentPage = "player"
     private lateinit var navFile: ImageView
     private lateinit var titleView: TextView
@@ -518,10 +519,13 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            background = shape(CARD, 14)
+            background = RippleDrawable(
+                ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000),
+                shape(CARD, 14), null
+            )
             isClickable = true
             isFocusable = true
-            setOnClickListener { togglePlayback() }
+            setOnClickListener { show("player") }
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -551,9 +555,21 @@ class MainActivity : Activity() {
         miniInfo.addView(queueMiniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         miniInfo.addView(queueMiniProgress, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(7) })
         mini.addView(miniInfo, LinearLayout.LayoutParams(0, -2, 1f))
-        mini.addView(iconAction("Ⅱ") { togglePlayback() }, LinearLayout.LayoutParams(dp(38), dp(48)))
-        surface.addView(mini, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-
+        queueMiniPlayView = ImageView(this).apply {
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            imageTintList = ColorStateList.valueOf(accentColor)
+            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
+            isClickable = true
+            isFocusable = true
+            background = RippleDrawable(
+                ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000),
+                shape(Color.TRANSPARENT, 24), null
+            )
+            setOnClickListener { togglePlayback() }
+        }
+        mini.addView(queueMiniPlayView, LinearLayout.LayoutParams(dp(44), dp(48)))
         val queueActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -570,10 +586,15 @@ class MainActivity : Activity() {
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val queueScroll = ScrollView(this).apply {
             clipToPadding = false
-            isFillViewport = false
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = true
             addView(queueRows, ViewGroup.LayoutParams(-1, -2))
         }
+        // The list owns the flexible middle area; the mini-player stays docked directly
+        // above the app's bottom navigation instead of scrolling away with queue rows.
         surface.addView(queueScroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        surface.addView(mini, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
         updateQueueMiniPlayer()
     }
@@ -582,29 +603,31 @@ class MainActivity : Activity() {
         if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
         if (queuePanel.visibility == View.VISIBLE) return
         queuePanel.animate().cancel()
+        val travel = (playerPanel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels).toFloat()
+            .coerceAtLeast(dp(160).toFloat())
+        queuePanel.animate().cancel()
+        // Put the panel off-screen before showing it to prevent a one-frame jump.
+        queuePanel.translationY = -travel
+        queuePanel.alpha = 0.96f
+        queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         queuePanel.visibility = View.VISIBLE
         queuePanel.bringToFront()
         renderQueueRows()
-        queuePanel.post {
-            val travel = queuePanel.height.toFloat().coerceAtLeast(dp(160).toFloat())
-            queuePanel.translationY = -travel
-            queuePanel.alpha = 0.94f
-            queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            queuePanel.animate()
-                .translationY(0f)
-                .alpha(1f)
-                .setDuration(230L)
-                .setInterpolator(DecelerateInterpolator())
-                .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }
-                .start()
-        }
-        recordDiagnostic("QUEUE_OVERLAY opened=true animation=property-230ms")
+        queuePanel.animate()
+            .translationY(0f)
+            .alpha(1f)
+            .setDuration(260L)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }
+            .start()
+        recordDiagnostic("QUEUE_OVERLAY opened=true animation=property-260ms")
     }
 
     private fun closeQueueOverlay() {
         if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
         queuePanel.animate().cancel()
-        val travel = queuePanel.height.toFloat().coerceAtLeast(dp(160).toFloat())
+        val travel = (playerPanel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels).toFloat()
+            .coerceAtLeast(dp(160).toFloat())
         queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         queuePanel.animate()
             .translationY(-travel)
@@ -1309,6 +1332,11 @@ class MainActivity : Activity() {
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(accentColor)
+        if (::queueMiniPlayView.isInitialized) {
+            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
+            queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
+        }
     }
 
     private fun togglePlayback() {
@@ -2038,7 +2066,11 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(8))
-                background = if (trackIndex == currentIndex) shape(selectedHighlight(), 12) else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                background = RippleDrawable(
+                    ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x38000000),
+                    shape(if (trackIndex == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12),
+                    null
+                )
                 isClickable = true; isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
             }
