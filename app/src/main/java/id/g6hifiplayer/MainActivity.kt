@@ -310,8 +310,11 @@ class MainActivity : Activity() {
         val valid = indices.filter { it in tracks.indices }
         if (valid.isEmpty()) { Toast.makeText(this, "Pustaka masih kosong", Toast.LENGTH_SHORT).show(); return }
         val base = playbackQueue.toMutableList()
-        valid.forEach { if (it !in base) base.add(it) }
-        playbackQueue = base
+        valid.filter { it != currentIndex }.forEach { index ->
+            base.removeAll { it == index }
+            base.add(index)
+        }
+        playbackQueue = if (currentIndex in tracks.indices && currentIndex !in base) listOf(currentIndex) + base else base
         renderQueue()
     }
 
