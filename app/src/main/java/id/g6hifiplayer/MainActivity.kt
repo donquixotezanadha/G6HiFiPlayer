@@ -158,8 +158,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
-        window.statusBarColor = BG; window.navigationBarColor = BG
-        window.decorView.systemUiVisibility = if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
+        window.statusBarColor = BG
+        window.navigationBarColor = Color.TRANSPARENT
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
@@ -176,7 +177,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            setPadding(dp(10), dp(5), dp(10), dp(7)); background = shape(CARD, 22)
+            setPadding(dp(10), dp(5), dp(10), dp(7)); setBackgroundColor(Color.TRANSPARENT)
         }
         navPlayer = navButton("〰\nPUTAR") { show("player") }
         navLibrary = navButton("♫\nALBUM") { show("library") }
@@ -198,6 +199,10 @@ class MainActivity : Activity() {
         themeCard.addView(text("Pilih tampilan tanpa bergantung pada tema sistem Android.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
         themeCard.addView(action(if (lightTheme) "GUNAKAN TEMA GELAP" else "GUNAKAN TEMA PUTIH", false) {
             lightTheme = !lightTheme
+            accentColor = DEFAULT_ACCENT
+            window.statusBarColor = BG
+            window.navigationBarColor = Color.TRANSPARENT
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
             getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
             buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
         }, LinearLayout.LayoutParams(-1, dp(44)))
@@ -797,7 +802,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        val picked = vividArtworkColor(bitmap)
+        val picked = DEFAULT_ACCENT
         if (picked == accentColor) return
         accentColor = picked
         if (::seek.isInitialized) {
