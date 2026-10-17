@@ -115,11 +115,11 @@ class MainActivity : Activity() {
     private lateinit var queueRows: LinearLayout
     private lateinit var audioPanel: LinearLayout
     private lateinit var filePanel: LinearLayout
-    private lateinit var navPlayer: TextView
-    private lateinit var navLibrary: TextView
-    private lateinit var navSongs: TextView
-    private lateinit var navAudio: TextView
-    private lateinit var navFile: TextView
+    private lateinit var navPlayer: ImageView
+    private lateinit var navLibrary: ImageView
+    private lateinit var navSongs: ImageView
+    private lateinit var navAudio: ImageView
+    private lateinit var navFile: ImageView
     private lateinit var titleView: TextView
     private lateinit var artistView: TextView
     private lateinit var albumView: TextView
@@ -171,9 +171,9 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
-        window.statusBarColor = BG
+        window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
@@ -192,15 +192,19 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
             setPadding(dp(10), dp(5), dp(10), dp(7)); setBackgroundColor(Color.TRANSPARENT)
         }
-        navPlayer = navButton("▶", "Now playing") { show("player") }
-        navLibrary = navButton("▦", "Albums") { show("library") }
-        navSongs = navButton("♫", "Songs") { show("songs") }
-        navAudio = navButton("≡", "Queue") { show("queue") }
-        navFile = navButton("⚙", "Settings") { show("settings") }
+        navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { show("player") }
+        navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
+        navSongs = navButton(android.R.drawable.ic_menu_agenda, "Songs") { show("songs") }
+        navAudio = navButton(android.R.drawable.ic_menu_sort_by_size, "Queue") { show("queue") }
+        navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
         listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
         val scroll = ScrollView(this).apply { clipToPadding = false }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(8)) }
-        playerPanel = FrameLayout(this)
+        playerPanel = FrameLayout(this).apply {
+            // Reserve the available player viewport so the artwork and its fade fill the screen
+            // behind the controls instead of ending at the last control row.
+            minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
+        }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         queuePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -215,9 +219,9 @@ class MainActivity : Activity() {
         themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
             lightTheme = !lightTheme
             accentColor = DEFAULT_ACCENT
-            window.statusBarColor = BG
+            window.statusBarColor = Color.TRANSPARENT
             window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
             getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
             buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
             if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
@@ -271,10 +275,11 @@ class MainActivity : Activity() {
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
         val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)); gravity = Gravity.CENTER_HORIZONTAL }
+        val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
         artPlaceholder.background = shape(if (lightTheme) 0x55FFFFFF else 0x55000000, 18)
-        hero.addView(View(this), LinearLayout.LayoutParams(1, dp(18)))
+        hero.addView(View(this), LinearLayout.LayoutParams(1, statusBarInset + dp(8)))
         audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
@@ -322,12 +327,29 @@ class MainActivity : Activity() {
         val state = card(); state.visibility = View.GONE; state.addView(text("PLAYBACK STATUS", 11f, MUTED, true))
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
         state.addView(statusView); foreground.addView(state)
-        playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1, Gravity.TOP))
     }
 
     private fun makeLibraryPanel() {
-        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
         libraryPanel.setPadding(dp(2), dp(2), dp(2), dp(2))
+        val gridControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(2), dp(2), dp(2), dp(10))
+        }
+        gridControls.addView(action("2 COLUMNS", albumGridColumns == 2) {
+            albumGridColumns = 2
+            getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", albumGridColumns).apply()
+            buildUi(); show("library"); renderLibrary()
+        }, LinearLayout.LayoutParams(0, dp(38), 1f))
+        gridControls.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        gridControls.addView(action("3 COLUMNS", albumGridColumns == 3) {
+            albumGridColumns = 3
+            getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", albumGridColumns).apply()
+            buildUi(); show("library"); renderLibrary()
+        }, LinearLayout.LayoutParams(0, dp(38), 1f))
+        libraryPanel.addView(gridControls, LinearLayout.LayoutParams(-1, -2))
+        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
     }
 
@@ -1469,17 +1491,19 @@ class MainActivity : Activity() {
         if (which == "queue") renderQueueRows()
         if (which == "songs") renderSongs()
     }
-    private fun navButton(symbol: String, description: String, click: () -> Unit) = text(symbol, 23f, MUTED, true).apply {
+    private fun navButton(iconRes: Int, description: String, click: () -> Unit) = ImageView(this).apply {
         contentDescription = description
-        gravity = Gravity.CENTER
-        setPadding(dp(2), dp(3), dp(2), dp(3))
-        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 15), null)
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        setPadding(dp(12), dp(12), dp(12), dp(12))
+        setImageResource(iconRes)
+        imageTintList = ColorStateList.valueOf(MUTED)
+        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
 
-    private fun navState(view: TextView, selected: Boolean) {
-        view.setTextColor(if (selected) accentColor else MUTED)
+    private fun navState(view: ImageView, selected: Boolean) {
+        view.imageTintList = ColorStateList.valueOf(if (selected) accentColor else MUTED)
         view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 18), null)
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
