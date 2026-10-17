@@ -248,7 +248,7 @@ class MainActivity : Activity() {
     private fun makeAudioPanel() {
         val summary = card(); summary.addView(text("OUTPUT AKTIF", 11f, accentColor, true))
         routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
-        summary.addView(routeSummary); summary.addView(text("Rute dari MediaPlayer, jika dilaporkan.", 12f, MUTED, false)); audioPanel.addView(summary)
+        summary.addView(routeSummary); summary.addView(text("Media3 tidak melaporkan rute output aktual melalui Player API; perangkat terdeteksi belum tentu rute aktif.", 12f, MUTED, false)); audioPanel.addView(summary)
         val detail = card(); detail.addView(text("DIAGNOSTIK ROUTE", 11f, MUTED, true))
         routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         detail.addView(routeInfo)
@@ -729,7 +729,7 @@ class MainActivity : Activity() {
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "Belum ada stream"
-            else -> "Rute aktif belum dilaporkan oleh MediaPlayer"
+            else -> "Rute aktif belum dapat diverifikasi melalui API publik Media3"
         }
         val isPlayingNow = try { player?.isPlaying == true } catch (_: Exception) { false }
         val playbackState = when {
@@ -760,7 +760,7 @@ class MainActivity : Activity() {
         }
         routeSummary.text = route
         routeInfo.text = "Status: " + (if (isPlayingNow) "SEDANG MEMUTAR" else "tidak memutar") +
-            "\nRute aktif aktual (tidak diekspos oleh Media3 Player API): " + route + "\n" + wiredText +
+            "\nRute aktif aktual: " + route + "\n" + wiredText +
             "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
             "\nAudioManager mode: " + audioMode +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
