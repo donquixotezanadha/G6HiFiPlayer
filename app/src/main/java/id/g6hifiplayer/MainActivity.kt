@@ -113,6 +113,7 @@ class MainActivity : Activity() {
     private var lastAudioConfigLog = "No audio configuration scan results yet."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
+    private lateinit var albumScanSummary: TextView
     private lateinit var audioInfoInline: TextView
     private lateinit var playerPanel: FrameLayout
     private lateinit var libraryPanel: LinearLayout
@@ -262,14 +263,6 @@ class MainActivity : Activity() {
         scanCard.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
         librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         scanCard.addView(librarySummary)
-        scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
-        scanCard.addView(scanProgressText)
-        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true; visibility = View.GONE
-            progressTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFE3E1F5.toInt() else 0xFF242238.toInt())
-        }
-        scanCard.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         settingsPanel.addView(scanCard)
         val batteryCard = card()
         batteryCard.addView(text("BATTERY OPTIMIZATION", 12f, MUTED, true))
@@ -466,6 +459,20 @@ class MainActivity : Activity() {
             buildUi(); show("library"); renderLibrary()
         }, LinearLayout.LayoutParams(0, dp(38), 1f))
         libraryPanel.addView(gridControls, LinearLayout.LayoutParams(-1, -2))
+        albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
+            setPadding(dp(4), dp(2), dp(4), dp(6))
+        }
+        libraryPanel.addView(albumScanSummary, LinearLayout.LayoutParams(-1, -2))
+        scanProgressText = text("", 12f, accentColor, false).apply {
+            setPadding(dp(4), dp(4), dp(4), dp(3)); visibility = View.GONE
+        }
+        libraryPanel.addView(scanProgressText, LinearLayout.LayoutParams(-1, -2))
+        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true; visibility = View.GONE
+            progressTintList = ColorStateList.valueOf(accentColor)
+            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFE3E1F5.toInt() else 0xFF242238.toInt())
+        }
+        libraryPanel.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { bottomMargin = dp(6) })
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
     }
@@ -605,19 +612,18 @@ class MainActivity : Activity() {
         queuePanel.animate().cancel()
         val travel = (playerPanel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels).toFloat()
             .coerceAtLeast(dp(160).toFloat())
-        queuePanel.animate().cancel()
-        // Put the panel off-screen before showing it to prevent a one-frame jump.
+        // Prepare expensive queue rows before the first animated frame to avoid a stalled swipe.
+        renderQueueRows()
         queuePanel.translationY = -travel
-        queuePanel.alpha = 0.96f
+        queuePanel.alpha = 0.92f
         queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         queuePanel.visibility = View.VISIBLE
         queuePanel.bringToFront()
-        renderQueueRows()
         queuePanel.animate()
             .translationY(0f)
             .alpha(1f)
-            .setDuration(260L)
-            .setInterpolator(DecelerateInterpolator())
+            .setDuration(320L)
+            .setInterpolator(DecelerateInterpolator(1.5f))
             .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }
             .start()
         recordDiagnostic("QUEUE_OVERLAY opened=true animation=property-260ms")
@@ -632,7 +638,7 @@ class MainActivity : Activity() {
         queuePanel.animate()
             .translationY(-travel)
             .alpha(0.94f)
-            .setDuration(200L)
+            .setDuration(260L)
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
                 queuePanel.visibility = View.GONE
@@ -858,8 +864,12 @@ class MainActivity : Activity() {
     }
 
     private fun scanMusicFolder(uri: Uri) {
+        // Scanning is a library workflow: move to Albums first so progress and newly found art are visible.
+        show("library")
         recordDiagnostic("SCAN_START uri=$uri")
-        librarySummary.text = "Scanning folders and subfolders…"; statusView.text = "Scanning music library…"
+        librarySummary.text = "Scanning folders and subfolders…"
+        albumScanSummary.text = "Scanning folders and subfolders…"
+        statusView.text = "Scanning music library…"
         scanProgress.visibility = View.VISIBLE; scanProgressText.visibility = View.VISIBLE
         scanProgressText.text = "Starting scan…"
         Thread {
@@ -869,7 +879,7 @@ class MainActivity : Activity() {
             try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count) } }
             catch (e: Exception) { error = e.javaClass.simpleName + ": " + (e.message ?: "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
-            val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+            val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
                 tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = emptyList()
                 Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
@@ -884,6 +894,7 @@ class MainActivity : Activity() {
                     sorted.isEmpty() -> "No audio files found. Choose a Music folder containing tracks."
                     else -> sorted.size.toString() + " tracks • " + sorted.map { it.album }.distinct().size + " albums found"
                 }
+                albumScanSummary.text = librarySummary.text
                 statusView.text = if (sorted.isEmpty()) "The library is empty. Check the selected folder." else "Library ready • " + sorted.size + " tracks."
                 if (sorted.isNotEmpty()) restoreLastPlayback(sorted)
             }
@@ -898,9 +909,29 @@ class MainActivity : Activity() {
             else if (isAudioFile(file)) {
                 val key = dir.uri.toString()
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
-                output.add(readTrack(file.uri, covers[key], dir.name)); count[0]++
-                if (count[0] == 1 || count[0] % 50 == 0) handler.post {
-                    if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Found " + count[0] + " tracks • scanning " + (dir.name ?: "folder") + "…"
+                synchronized(output) { output.add(readTrack(file.uri, covers[key], dir.name)) }
+                count[0]++
+                if (count[0] == 1 || count[0] % 50 == 0) {
+                    val processedCount = count[0]
+                    val folderName = dir.name ?: "folder"
+                    handler.post {
+                        if (scanProgress.visibility == View.VISIBLE) {
+                            scanProgressText.text = "Found " + processedCount + " tracks • scanning " + folderName + "…"
+                            // Publish modest batches so albums and their artwork appear during the scan,
+                            // without rebuilding the grid for every single file on older devices.
+                            val partial = synchronized(output) { output.toList() }
+                            if (partial.isNotEmpty()) {
+                                val previousUri = tracks.getOrNull(currentIndex)?.uri
+                                tracks = partial.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+                                currentIndex = previousUri?.let { uri -> tracks.indexOfFirst { it.uri == uri } } ?: -1
+                                playbackQueue = emptyList()
+                                playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
+                                renderLibrary()
+                                albumScanSummary.text = tracks.size.toString() + " tracks found so far • " + tracks.map { it.album }.distinct().size + " albums"
+                                librarySummary.text = albumScanSummary.text
+                            }
+                        }
+                    }
                 }
             }
         } catch (e: Exception) { recordDiagnostic("SCAN_ENTRY_FAILED name=${file.name} uri=${file.uri}", e) }
@@ -2007,13 +2038,20 @@ class MainActivity : Activity() {
         contentDescription = description
         scaleType = ImageView.ScaleType.CENTER_INSIDE
         // Four-tab layout: keep navigation glyphs visually secondary to Now Playing controls.
-        setPadding(dp(18), dp(10), dp(18), dp(10))
+        setPadding(0, 0, 0, 0)
         setImageResource(iconRes)
-        // Shrink the drawable without shrinking the full-width touch target.
-        post { val iconSize = dp(27); setImageSize(iconSize, iconSize) }
+        // Keep a generous full-tab touch target while making the four glyphs uniform and centered.
+        post { val iconSize = dp(25); setImageSize(iconSize, iconSize) }
         imageTintList = ColorStateList.valueOf(MUTED)
-        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
+        background = navBackground(false)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
+    }
+    private fun navBackground(selected: Boolean): RippleDrawable {
+        val pill = android.graphics.drawable.InsetDrawable(
+            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 18),
+            dp(25), dp(7), dp(25), dp(7)
+        )
+        return RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), pill, null)
     }
     private fun ImageView.setImageSize(widthPx: Int, heightPx: Int) {
         // Scale only the icon artwork; keep the tab's full layout as its touch target.
@@ -2032,7 +2070,7 @@ class MainActivity : Activity() {
 
     private fun navState(view: ImageView, selected: Boolean) {
         view.imageTintList = ColorStateList.valueOf(if (selected) accentColor else MUTED)
-        view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 18), null)
+        view.background = navBackground(selected)
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
         gravity = Gravity.CENTER
