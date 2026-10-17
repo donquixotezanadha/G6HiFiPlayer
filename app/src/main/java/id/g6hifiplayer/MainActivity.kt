@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var selectedAlbum: String? = null
     private var artToken = 0
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
+    private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
     private lateinit var audioInfoToggle: TextView
@@ -540,6 +541,83 @@ class MainActivity : Activity() {
             "\n\nBit depth stream aktif dan status bit-perfect belum dapat diverifikasi lewat API publik ini."
     }
 
+    private fun copyText(value: String) {
+        try {
+            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("G6 HiFi Player log", value))
+            Toast.makeText(this, "Log disalin ke clipboard.", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) { Toast.makeText(this, "Tidak dapat menyalin log: " + e.message, Toast.LENGTH_LONG).show() }
+    }
+    private fun shareText(value: String) {
+        try {
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "G6 HiFi Player — log audio"); putExtra(Intent.EXTRA_TEXT, value)
+            }, "Kirim log audio"))
+        } catch (e: Exception) { Toast.makeText(this, "Tidak dapat membuka menu berbagi.", Toast.LENGTH_SHORT).show() }
+    }
+    private fun copyAudioLog() {
+        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
+        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
+        copyText("G6 HiFi Player — DIAGNOSTIK AUDIO\n\n$route\n\n$file\n\n$lastAudioConfigLog")
+    }
+    private fun shareAudioLog() {
+        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
+        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
+        shareText("G6 HiFi Player — DIAGNOSTIK AUDIO\n\n$route\n\n$file\n\n$lastAudioConfigLog")
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(CHANNEL_ID, "Pemutaran musik", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Kontrol dan informasi lagu yang sedang diputar"
+                setShowBadge(false)
+            }
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        }
+    }
+    private fun updatePlaybackNotification(isPlaying: Boolean) {
+        if (!prepared || currentIndex !in tracks.indices) return
+        val track = tracks[currentIndex]
+        val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        fun activityIntent(action: String, requestCode: Int): PendingIntent {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                putExtra("notification_action", action)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            return PendingIntent.getActivity(this, requestCode, intent, flags)
+        }
+        val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }, flags)
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
+        builder.setSmallIcon(R.drawable.ic_stat_music)
+            .setContentTitle(track.title)
+            .setContentText(track.artist + " • " + track.album)
+            .setSubText("G6 HiFi Player")
+            .setContentIntent(contentIntent)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setOngoing(isPlaying)
+            .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Sebelumnya", activityIntent("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
+            .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Berikutnya", activityIntent("next", 6103)).build())
+        val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
+        if (cover != null) builder.setLargeIcon(cover)
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, builder.build())
+    }
+    private fun handleNotificationAction(action: String) {
+        when (action) {
+            "previous" -> playPrevious()
+            "next" -> playNext()
+            "toggle" -> togglePlayback()
+        }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("notification_action")?.let { handleNotificationAction(it) }
+    }
+
     private fun scanAudioConfiguration() {
         val paths = listOf("/vendor/etc/audio_output_policy.conf", "/vendor/etc/audio_policy.conf", "/vendor/etc/audio_policy_configuration.xml", "/system/etc/audio_policy.conf", "/system/etc/audio_policy_configuration.xml")
         val report = StringBuilder()
@@ -568,7 +646,11 @@ class MainActivity : Activity() {
         } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nKonfigurasi bukan bukti MediaPlayer sedang memakai DIRECT_HD atau direct_pcm_24.")
-        AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(report.toString()).setPositiveButton("OK", null).show()
+        lastAudioConfigLog = report.toString()
+        AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
+            .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
+            .setNegativeButton("KIRIM LOG") { _, _ -> shareText(lastAudioConfigLog) }
+            .setPositiveButton("TUTUP", null).show()
     }
 
     private fun updateActiveRoute() {
