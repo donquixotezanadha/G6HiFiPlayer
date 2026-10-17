@@ -22,6 +22,11 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            // One short render after boot; no service, polling, timer, or persistent process.
+            renderSavedState(context)
+            return
+        }
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
         MainActivity.notificationAction(action)
     }
@@ -48,20 +53,27 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             // Persist only a small widget thumbnail. Sending the Now Playing bitmap (up to
             // 960x960) through RemoteViews can exceed Binder's transaction limit on Android 9.
             if (artwork != null && !artwork.isRecycled) {
-                try {
-                    val ratio = minOf(1f, THUMB_SIZE.toFloat() / maxOf(artwork.width, artwork.height).coerceAtLeast(1))
-                    val thumb = if (ratio < 1f) Bitmap.createScaledBitmap(
-                        artwork,
-                        (artwork.width * ratio).toInt().coerceAtLeast(1),
-                        (artwork.height * ratio).toInt().coerceAtLeast(1),
-                        true
-                    ) else artwork
-                    context.openFileOutput(ART_FILE, Context.MODE_PRIVATE).use { out ->
-                        thumb.compress(Bitmap.CompressFormat.JPEG, 84, out)
+                val artworkIdentity = listOf(title, artist, album).joinToString("\u001F")
+                val savedIdentity = prefs.getString("artwork_identity", null)
+                val artworkFile = File(context.filesDir, ART_FILE)
+                // Persist once per track, not on every play/pause/notification refresh.
+                if (savedIdentity != artworkIdentity || !artworkFile.exists()) {
+                    try {
+                        val ratio = minOf(1f, THUMB_SIZE.toFloat() / maxOf(artwork.width, artwork.height).coerceAtLeast(1))
+                        val thumb = if (ratio < 1f) Bitmap.createScaledBitmap(
+                            artwork,
+                            (artwork.width * ratio).toInt().coerceAtLeast(1),
+                            (artwork.height * ratio).toInt().coerceAtLeast(1),
+                            true
+                        ) else artwork
+                        context.openFileOutput(ART_FILE, Context.MODE_PRIVATE).use { out ->
+                            thumb.compress(Bitmap.CompressFormat.JPEG, 84, out)
+                        }
+                        prefs.edit().putString("artwork_identity", artworkIdentity).apply()
+                        if (thumb !== artwork) thumb.recycle()
+                    } catch (_: Exception) {
+                        // Keep the last valid artwork file if writing a new thumbnail fails.
                     }
-                    if (thumb !== artwork) thumb.recycle()
-                } catch (_: Exception) {
-                    // Keep the last valid artwork file if writing a new thumbnail fails.
                 }
             }
             prefs.edit()
