@@ -92,7 +92,7 @@ class MainActivity : Activity() {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
     }
     private var visibleTrackLimit = 80
-    private val artworkExecutor = Executors.newFixedThreadPool(3)
+    private val artworkExecutor = Executors.newFixedThreadPool(2)
     // Keep current-player artwork independent of the library thumbnails backlog.
     private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
     private val metadataExecutor = Executors.newFixedThreadPool(2)
@@ -141,14 +141,17 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val ticker = object : Runnable {
         override fun run() {
+            // Keep frame-time work low on older devices: update playback position only.
+            // Audio route inspection is event-driven elsewhere, not polled every half-second.
             if (prepared) player?.let { p ->
                 if (!seeking) {
                     val pos = try { p.currentPosition.toInt() } catch (_: Exception) { 0 }
-                    seek.progress = pos; elapsed.text = time(pos)
+                    if (seek.progress != pos) seek.progress = pos
+                    val label = time(pos)
+                    if (elapsed.text.toString() != label) elapsed.text = label
                 }
-                if (try { p.isPlaying } catch (_: Exception) { false }) updateActiveRoute()
             }
-            handler.postDelayed(this, 500)
+            handler.postDelayed(this, 350)
         }
     }
     private val deviceCallback = object : AudioDeviceCallback() {
@@ -324,7 +327,7 @@ class MainActivity : Activity() {
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         val spacer = View(this)
-        foreground.addView(hero, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        foreground.addView(hero, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply { topMargin = statusBarInset })
         foreground.addView(spacer, FrameLayout.LayoutParams(1, 1, Gravity.TOP))
         foreground.addView(transport, FrameLayout.LayoutParams(-1, dp(76), Gravity.BOTTOM))
         val state = card(); state.visibility = View.GONE; state.addView(text("PLAYBACK STATUS", 11f, MUTED, true))
@@ -633,14 +636,16 @@ class MainActivity : Activity() {
             albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
             return
         }
-        val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
+        // One grouping pass avoids repeatedly filtering the full library for each album.
+        val groupedAlbums = tracks.withIndex().groupBy { it.value.album }
+        val albums = groupedAlbums.keys.sortedBy { it.lowercase(Locale.ROOT) }
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             if (position % albumGridColumns == 0) {
                 gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
                 albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
-            val entries = tracks.withIndex().filter { it.value.album == album }
+            val entries = groupedAlbums[album].orEmpty()
             val indices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
@@ -1086,7 +1091,7 @@ class MainActivity : Activity() {
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
             val key = "player:" + t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 960, android.graphics.Bitmap.Config.RGB_565) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
@@ -1486,8 +1491,9 @@ class MainActivity : Activity() {
         }
     }
     private fun show(which: String) {
-        // Draw edge-to-edge only on Now Playing. Other tabs retain normal status-bar insets.
+        // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (which == "player") View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN else 0) or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.statusBarColor = if (which == "player") Color.TRANSPARENT else BG
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
         songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
