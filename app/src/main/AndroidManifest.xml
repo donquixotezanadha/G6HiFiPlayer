@@ -23,6 +23,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver android:name="id.g6hifiplayer.NotificationActionReceiver" android:exported="false" />
         <receiver android:name="id.g6hifiplayer.G6MusicWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
