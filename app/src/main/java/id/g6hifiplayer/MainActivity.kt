@@ -26,6 +26,9 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.media.MediaMetadata
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -47,6 +50,7 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?)
     private var player: MediaPlayer? = null
+    private var mediaSession: MediaSession? = null
     private var sourceRate: Int? = null
     private var durationMs = 0
     private var prepared = false
@@ -117,6 +121,7 @@ class MainActivity : Activity() {
         activeInstance = this
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
         createNotificationChannel()
+        createMediaSession()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
         refreshAudioInfo(); handler.post(ticker)
         getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let {
@@ -426,7 +431,9 @@ class MainActivity : Activity() {
                     if (pendingAutoplay) try {
                         mp.start(); playView.text = "Ⅱ"; statusView.text = "Sedang diputar • " + t.title
                     } catch (e: Exception) { statusView.text = "Gagal memulai: " + e.message }
-                    pendingAutoplay = false; refreshAudioInfo()
+                    pendingAutoplay = false
+                    refreshAudioInfo()
+                    updatePlaybackNotification(try { mp.isPlaying } catch (_: Exception) { false })
                 }
                 setOnCompletionListener {
                     playView.text = "▶"
@@ -457,6 +464,7 @@ class MainActivity : Activity() {
             if (p.isPlaying) { p.pause(); playView.text = "▶"; statusView.text = "Dijeda" }
             else { p.start(); playView.text = "Ⅱ"; statusView.text = "Sedang diputar" }
             refreshAudioInfo()
+            updatePlaybackNotification(try { p.isPlaying } catch (_: Exception) { false })
         } catch (e: Exception) { statusView.text = "Pemutaran gagal: " + e.message }
     }
 
@@ -597,6 +605,28 @@ class MainActivity : Activity() {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
     }
+    private fun createMediaSession() {
+        mediaSession = MediaSession(this, "G6HiFiPlayer").apply {
+            setCallback(object : MediaSession.Callback() {
+                override fun onPlay() {
+                    val activity = activeInstance ?: return
+                    if (activity.player?.isPlaying != true) activity.togglePlayback()
+                }
+                override fun onPause() {
+                    val activity = activeInstance ?: return
+                    if (activity.player?.isPlaying == true) activity.togglePlayback()
+                }
+                override fun onSkipToNext() { activeInstance?.playNext() }
+                override fun onSkipToPrevious() { activeInstance?.playPrevious() }
+                override fun onSeekTo(pos: Long) {
+                    activeInstance?.player?.let { p -> try { p.seekTo(pos.coerceIn(0L, activityDuration(p).toLong()).toInt()) } catch (_: Exception) { } }
+                }
+            })
+            isActive = true
+        }
+    }
+    private fun activityDuration(p: MediaPlayer): Int = try { p.duration } catch (_: Exception) { 0 }
+
     private fun updatePlaybackNotification(isPlaying: Boolean) {
         if (!prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
@@ -611,6 +641,18 @@ class MainActivity : Activity() {
         val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }, flags)
+        val session = mediaSession
+        session?.setMetadata(MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
+            .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
+            .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
+            .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs.toLong())
+            .build())
+        val state = if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
+        session?.setPlaybackState(PlaybackState.Builder()
+            .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SEEK_TO)
+            .setState(state, try { player?.currentPosition?.toLong() ?: 0L } catch (_: Exception) { 0L }, if (isPlaying) 1f else 0f)
+            .build())
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         builder.setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(track.title)
@@ -625,6 +667,9 @@ class MainActivity : Activity() {
             .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Berikutnya", activityIntent("next", 6103)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
+        if (Build.VERSION.SDK_INT >= 21) {
+            builder.setStyle(Notification.MediaStyle().setMediaSession(session?.sessionToken).setShowActionsInCompactView(0, 1, 2))
+        }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, builder.build())
     }
     private fun handleNotificationAction(action: String) {
@@ -729,6 +774,8 @@ class MainActivity : Activity() {
         handler.removeCallbacks(ticker)
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
         try { player?.release() } catch (_: Exception) { }
+        try { mediaSession?.isActive = false; mediaSession?.release() } catch (_: Exception) { }
+        mediaSession = null
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
         if (activeInstance === this) activeInstance = null
         player = null; super.onDestroy()
