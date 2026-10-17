@@ -213,10 +213,12 @@ class MainActivity : Activity() {
     private fun makePlayerPanel() {
         val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)) }
         val frame = FrameLayout(this).apply { background = shape(ART, 22); clipToOutline = true }
-        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
+        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
-        hero.addView(frame, LinearLayout.LayoutParams(-1, dp(158)).apply { topMargin = dp(3); bottomMargin = dp(4) })
+        val artworkSize = minOf(320, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 48).coerceAtLeast(220))
+        hero.gravity = Gravity.CENTER_HORIZONTAL
+        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(3); bottomMargin = dp(4) })
         audioInfoToggle = iconAction("ⓘ  INFO AUDIO") {
             audioInfoInline.visibility = if (audioInfoInline.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO"
@@ -357,7 +359,7 @@ class MainActivity : Activity() {
                 val flag = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
                 if (flag != 0) contentResolver.takePersistableUriPermission(uri, flag)
             } catch (_: Exception) { }
-            tracks = listOf(readTrack(uri, null, null)); currentIndex = 0; selectedAlbum = null; playbackQueue = listOf(0); playTrackAt(0, false, playbackQueue)
+            tracks = listOf(readTrack(uri, null, null)); currentIndex = 0; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = listOf(0); playTrackAt(0, false, listOf(0))
         }
     }
 
@@ -396,7 +398,7 @@ class MainActivity : Activity() {
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
             val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
-                tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = tracks.indices.toList()
+                tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = emptyList()
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
                     librarySummary.text = "Daftar ditemukan (${sorted.size} lagu), tetapi tampilan gagal dibuat. Log diagnostik tersedia."
@@ -1066,14 +1068,13 @@ class MainActivity : Activity() {
         builder.setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(track.title)
             .setContentText(track.artist + " • " + track.album)
-            .setSubText("G6 HiFi Player")
             .setContentIntent(contentIntent)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(isPlaying)
-            .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Sebelumnya", activityIntent("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Berikutnya", activityIntent("next", 6103)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Sebelumnya", activityIntent("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Berikutnya", activityIntent("next", 6103)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Tutup", activityIntent("dismiss", 6104)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
@@ -1259,10 +1260,7 @@ class MainActivity : Activity() {
         if (!::queueRows.isInitialized) return
         queueRows.removeAllViews()
         val queue = playbackQueue.filter { it in tracks.indices }
-        if (queue.isEmpty()) {
-            queueRows.addView(text("Antrian kosong. Putar album atau lagu dari daftar album.", 12f, MUTED, false).apply { setPadding(0, dp(8), 0, dp(8)) })
-            return
-        }
+        if (queue.isEmpty()) return
         queue.forEachIndexed { position, trackIndex ->
             val track = tracks[trackIndex]
             val row = LinearLayout(this).apply {
