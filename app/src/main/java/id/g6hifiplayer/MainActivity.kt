@@ -17,6 +17,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
+import android.content.res.ColorStateList
 import android.media.AudioAttributes
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
@@ -76,6 +78,13 @@ class MainActivity : Activity() {
     private var selectedAlbum: String? = null
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
+    private var lightTheme = false
+    private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
+    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
+    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
+    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
+    private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
+    private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newSingleThreadExecutor()
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -90,6 +99,8 @@ class MainActivity : Activity() {
     private lateinit var audioInfoInline: TextView
     private lateinit var playerPanel: LinearLayout
     private lateinit var libraryPanel: LinearLayout
+    private lateinit var settingsPanel: LinearLayout
+    private lateinit var queueRows: LinearLayout
     private lateinit var audioPanel: LinearLayout
     private lateinit var filePanel: LinearLayout
     private lateinit var navPlayer: TextView
@@ -144,7 +155,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         window.statusBarColor = BG; window.navigationBarColor = BG
+        window.decorView.systemUiVisibility = if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
@@ -159,54 +172,61 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
-        val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(16), dp(22), dp(10)) }
-        val brand = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        brand.addView(text("G6", 28f, WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
-        brand.addView(text("HI-FI • LOCAL LIBRARY", 10f, BG, true).apply {
-            gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
-        })
-        header.addView(brand)
-        header.addView(text("MUSIC PLAYER / BUILD 0.15.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
-        root.addView(header)
-        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(4), dp(8), dp(10)) }
-        navPlayer = navButton("PLAYER") { show("player") }
-        navLibrary = navButton("PUSTAKA") { show("library") }
-        navAudio = navButton("AUDIO") { show("audio") }
-        navFile = navButton("FILE") { show("file") }
-        listOf(navPlayer, navLibrary, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(43), 1f)) }
-        root.addView(nav)
-        val scroll = ScrollView(this)
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(3), dp(16), dp(24)) }
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            setPadding(dp(10), dp(5), dp(10), dp(7)); background = shape(CARD, 22)
+        }
+        navPlayer = navButton("〰\nPUTAR") { show("player") }
+        navLibrary = navButton("♫\nALBUM / ANTRIAN") { show("library") }
+        navAudio = navButton("⚙\nSETTINGS") { show("settings") }
+        navFile = navAudio
+        listOf(navPlayer, navLibrary, navAudio).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(54), 1f)) }
+        val scroll = ScrollView(this).apply { clipToPadding = false }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8)) }
         playerPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeAudioPanel(); makeFilePanel()
-        listOf(playerPanel, libraryPanel, audioPanel, filePanel).forEach { content.addView(it) }
-        scroll.addView(content); root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
+        val themeCard = card()
+        themeCard.addView(text("TEMA APLIKASI", 12f, MUTED, true))
+        themeCard.addView(text("Pilih tampilan tanpa bergantung pada tema sistem Android.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        themeCard.addView(action(if (lightTheme) "GUNAKAN TEMA GELAP" else "GUNAKAN TEMA PUTIH", false) {
+            lightTheme = !lightTheme
+            getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
+            buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
+        }, LinearLayout.LayoutParams(-1, dp(44)))
+        settingsPanel.addView(themeCard)
+        settingsPanel.addView(audioPanel); settingsPanel.addView(filePanel)
+        content.addView(playerPanel); content.addView(libraryPanel); content.addView(settingsPanel)
+        scroll.addView(content)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(nav, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dp(12); rightMargin = dp(12); topMargin = dp(3); bottomMargin = dp(8) })
         setContentView(root); show("player"); renderLibrary()
     }
 
     private fun makePlayerPanel() {
-        val hero = card(); hero.addView(text("NOW PLAYING", 11f, accentColor, true))
+        val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)) }
         val frame = FrameLayout(this).apply { background = shape(ART, 22); clipToOutline = true }
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
-        hero.addView(frame, LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(13); bottomMargin = dp(8) })
-        audioInfoToggle = action("ⓘ  INFO AUDIO  ·  KETUK UNTUK MELIHAT", false) {
+        hero.addView(frame, LinearLayout.LayoutParams(-1, dp(158)).apply { topMargin = dp(3); bottomMargin = dp(4) })
+        audioInfoToggle = iconAction("ⓘ  INFO AUDIO") {
             audioInfoInline.visibility = if (audioInfoInline.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-            audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO  ·  KETUK UNTUK MELIHAT"
+            audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO"
             refreshAudioInfo()
         }
-        hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(8) })
+        hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(30)).apply { bottomMargin = dp(2) })
         audioInfoInline = text("Informasi output akan muncul di sini.", 12f, MUTED, false).apply {
             setPadding(dp(12), dp(12), dp(12), dp(12)); background = shape(BG, 12); visibility = View.GONE; setTextIsSelectable(true)
         }
         hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
-        titleView = text("Belum ada lagu dipilih", 22f, WHITE, true).apply { setPadding(0, dp(5), 0, dp(3)) }
+        titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
         artistView = text("Pilih folder musik atau satu file", 14f, MUTED, false)
-        albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(4), 0, dp(10)) }
+        albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(2), 0, dp(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
         hero.addView(titleView); hero.addView(artistView); hero.addView(albumView)
         val times = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         elapsed = text("0:00", 11f, MUTED, false); duration = text("0:00", 11f, MUTED, false)
@@ -225,25 +245,25 @@ class MainActivity : Activity() {
         }
         hero.addView(seek)
         val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(3)) }
-        transport.addView(action("|◀", false) { playPrevious() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        playView = action("▶", true) { togglePlayback() }
-        transport.addView(playView, LinearLayout.LayoutParams(0, dp(48), 1.3f))
+        playView = iconAction("▶") { togglePlayback() }.apply { textSize = 28f; setTextColor(accentColor) }
+        transport.addView(playView, LinearLayout.LayoutParams(0, dp(44), 1.1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        transport.addView(action("▶|", false) { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         hero.addView(transport)
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
-        buttons.addView(action("PILIH FILE", false) { pickFile() }, LinearLayout.LayoutParams(0, dp(43), 1f))
+        buttons.addView(action("PILIH FILE", false) { pickFile() }, LinearLayout.LayoutParams(0, dp(36), 1f))
         buttons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        buttons.addView(action("SCAN FOLDER", false) { pickFolder() }, LinearLayout.LayoutParams(0, dp(43), 1f))
+        buttons.addView(action("SCAN FOLDER", false) { pickFolder() }, LinearLayout.LayoutParams(0, dp(36), 1f))
         hero.addView(buttons); playerPanel.addView(hero)
-        val state = card(); state.addView(text("STATUS PEMUTARAN", 11f, MUTED, true))
+        val state = card(); state.visibility = View.GONE; state.addView(text("STATUS PEMUTARAN", 11f, MUTED, true))
         statusView = text("Pilih folder musik atau file audio untuk memulai.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
         state.addView(statusView); playerPanel.addView(state)
     }
 
     private fun makeLibraryPanel() {
-        val head = card(); head.addView(text("PUSTAKA MUSIK", 16f, WHITE, true))
+        val head = card(); head.addView(text("ALBUM", 16f, WHITE, true))
         head.addView(text("Pilih satu folder Music; subfolder album dipindai otomatis.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
         head.addView(action("PILIH FOLDER MUSIC", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(48)))
         librarySummary = text("Belum ada folder yang dipindai.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
@@ -255,6 +275,9 @@ class MainActivity : Activity() {
         }
         head.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         libraryPanel.addView(head)
+        val queueCard = card(); queueCard.addView(text("ANTRIAN PUTAR", 12f, accentColor, true))
+        queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        queueCard.addView(queueRows); libraryPanel.addView(queueCard)
         val albums = card(); albums.addView(text("ALBUM", 11f, accentColor, true))
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
         albums.addView(albumRows); libraryPanel.addView(albums)
@@ -428,6 +451,7 @@ class MainActivity : Activity() {
     private fun renderLibrary() {
         if (!::albumRows.isInitialized || !::trackRows.isInitialized) return
         albumRows.removeAllViews(); trackRows.removeAllViews()
+        renderQueueRows()
         if (tracks.isEmpty()) {
             albumRows.addView(text("Pilih folder untuk membangun pustaka.", 13f, MUTED, false))
             trackRows.addView(text("Lagu yang ditemukan akan muncul di sini.", 13f, MUTED, false))
@@ -1039,6 +1063,7 @@ class MainActivity : Activity() {
             .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Sebelumnya", activityIntent("previous", 6101)).build())
             .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(R.drawable.ic_stat_music, "Berikutnya", activityIntent("next", 6103)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Tutup", activityIntent("dismiss", 6104)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
@@ -1051,6 +1076,7 @@ class MainActivity : Activity() {
             "previous" -> playPrevious()
             "next" -> playNext()
             "toggle" -> togglePlayback()
+            "dismiss" -> { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { } }
         }
     }
     override fun onNewIntent(intent: Intent) {
@@ -1190,16 +1216,53 @@ class MainActivity : Activity() {
     private fun show(which: String) {
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
-        audioPanel.visibility = if (which == "audio") View.VISIBLE else View.GONE
-        filePanel.visibility = if (which == "file") View.VISIBLE else View.GONE
+        settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
         navState(navPlayer, which == "player"); navState(navLibrary, which == "library")
-        navState(navAudio, which == "audio"); navState(navFile, which == "file")
+        navState(navAudio, which == "settings" || which == "audio" || which == "file")
     }
     private fun navButton(label: String, click: () -> Unit) = text(label, 10f, MUTED, true).apply {
-        gravity = Gravity.CENTER; background = shape(Color.TRANSPARENT, 12); setOnClickListener { click() }
+        gravity = Gravity.CENTER; setPadding(dp(3), dp(4), dp(3), dp(4))
+        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
+        isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun navState(view: TextView, selected: Boolean) {
-        view.setTextColor(if (selected) accentColor else MUTED); view.background = shape(if (selected) CARD else Color.TRANSPARENT, 12)
+        view.setTextColor(if (selected) accentColor else MUTED)
+        view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (selected) (accentColor and 0x20FFFFFF) else Color.TRANSPARENT, 18), null)
+    }
+    private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
+        gravity = Gravity.CENTER
+        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 24), null)
+        isClickable = true; isFocusable = true; setOnClickListener { click() }
+    }
+    private fun renderQueueRows() {
+        if (!::queueRows.isInitialized) return
+        queueRows.removeAllViews()
+        val queue = playbackQueue.filter { it in tracks.indices }
+        if (queue.isEmpty()) {
+            queueRows.addView(text("Antrian kosong. Putar album atau lagu dari daftar album.", 12f, MUTED, false).apply { setPadding(0, dp(8), 0, dp(8)) })
+            return
+        }
+        queue.forEachIndexed { position, trackIndex ->
+            val track = tracks[trackIndex]
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(2), dp(5), dp(2), dp(5))
+                background = if (trackIndex == currentIndex) shape((accentColor and 0x20FFFFFF), 10) else RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 10), null)
+            }
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 6) }
+            row.addView(cover, LinearLayout.LayoutParams(dp(42), dp(42)))
+            val label = text("${position + 1}. ${track.title}\n${track.artist} • ${track.album}", 12f, WHITE, true).apply {
+                setPadding(dp(9), 0, dp(6), 0); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            val remove = iconAction("×") {
+                if (trackIndex == currentIndex) Toast.makeText(this, "Lagu yang sedang diputar tidak dapat dihapus dari antrian aktif.", Toast.LENGTH_SHORT).show()
+                else { playbackQueue = playbackQueue.filter { it != trackIndex }; renderQueueRows() }
+            }.apply { textSize = 24f; setTextColor(MUTED) }
+            row.addView(remove, LinearLayout.LayoutParams(dp(42), dp(42)))
+            row.setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
+            queueRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(2) })
+            loadArtworkInto(cover, track)
+        }
     }
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(CARD, 21)
@@ -1211,7 +1274,7 @@ class MainActivity : Activity() {
         setLineSpacing(dp(2).toFloat(), 1f)
     }
     private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) BG else WHITE, true).apply {
-        gravity = Gravity.CENTER; background = shape(if (primary) accentColor else LINE, 14)
+        gravity = Gravity.CENTER; background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (primary) accentColor else LINE, 14), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
@@ -1265,13 +1328,7 @@ class MainActivity : Activity() {
         private var activeInstance: MainActivity? = null
         @JvmStatic fun notificationAction(action: String) { activeInstance?.handleNotificationAction(action) }
         private const val REQUEST_FOLDER = 1002
-        private const val BG = 0xFF0B1015.toInt()
-        private const val CARD = 0xFF151D24.toInt()
-        private const val ART = 0xFF202C35.toInt()
-        private const val LINE = 0xFF2A3741.toInt()
-        private const val WHITE = 0xFFF3F6F8.toInt()
-        private const val MUTED = 0xFF9BAAB5.toInt()
-        private const val DEFAULT_ACCENT = 0xFFB6F2D5.toInt()
+        private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }
 }
