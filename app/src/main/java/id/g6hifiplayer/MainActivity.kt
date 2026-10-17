@@ -112,7 +112,7 @@ class MainActivity : Activity() {
     private lateinit var titleView: TextView
     private lateinit var artistView: TextView
     private lateinit var albumView: TextView
-    private lateinit var playView: TextView
+    private lateinit var playView: ImageView
     private lateinit var statusView: TextView
     private lateinit var seek: SeekBar
     private lateinit var elapsed: TextView
@@ -205,6 +205,8 @@ class MainActivity : Activity() {
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
             getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
             buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
+            if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
+            syncPlaybackIcon()
         }, LinearLayout.LayoutParams(-1, dp(44)))
         settingsPanel.addView(themeCard)
         settingsPanel.addView(audioPanel); settingsPanel.addView(filePanel)
@@ -251,7 +253,16 @@ class MainActivity : Activity() {
         val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(5), 0, dp(2)) }
         transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        playView = iconAction("▶") { togglePlayback() }.apply { textSize = 28f; setTextColor(accentColor) }
+        playView = ImageView(this).apply {
+            contentDescription = "Putar atau jeda"
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(9), dp(9), dp(9), dp(9))
+            background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(CARD, 16), null)
+            imageTintList = ColorStateList.valueOf(accentColor)
+            isClickable = true; isFocusable = true
+            setOnClickListener { togglePlayback() }
+        }
+        syncPlaybackIcon()
         transport.addView(playView, LinearLayout.LayoutParams(0, dp(44), 1.1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
@@ -663,7 +674,7 @@ class MainActivity : Activity() {
         lastActiveRouteKey = null
         titleView.text = t.title; artistView.text = t.artist; albumView.text = t.album
         elapsed.text = "0:00"; duration.text = "0:00"; seek.progress = 0; seek.max = 1
-        playView.isEnabled = false; playView.text = "▶"
+        playView.isEnabled = false; syncPlaybackIcon(false)
         statusView.text = "Memuat dengan mesin Media3: " + t.title + "…"
         showMetadata(t.uri, t); loadArtwork(t)
         try {
@@ -679,12 +690,13 @@ class MainActivity : Activity() {
                             seek.max = durationMs.coerceAtLeast(1); this@MainActivity.duration.text = time(durationMs)
                             playView.isEnabled = true
                             statusView.text = "Siap diputar • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "sample rate sumber tidak diketahui")
-                            if (pendingAutoplay) { exo.play(); playView.text = "⏸"; statusView.text = "Sedang diputar • " + t.title }
+                            if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Sedang diputar • " + t.title }
+                            else syncPlaybackIcon(false)
                             pendingAutoplay = false
                             refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
                         }
                         Player.STATE_ENDED -> {
-                            playView.text = "▶"
+                            syncPlaybackIcon(false)
                             val q = playbackOrder.indexOf(currentIndex)
                             if (q >= 0 && q + 1 < playbackOrder.size) playTrackAt(playbackOrder[q + 1], true)
                             else { statusView.text = "Album/antrean selesai."; refreshAudioInfo(); updatePlaybackNotification(false) }
@@ -692,7 +704,7 @@ class MainActivity : Activity() {
                     }
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (prepared) { playView.text = if (isPlaying) "⏸" else "▶"; refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
+                    if (prepared) { syncPlaybackIcon(isPlaying); refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     prepared = false; playView.isEnabled = true
@@ -721,12 +733,20 @@ class MainActivity : Activity() {
         val target = playbackOrder[(position + 1).mod(playbackOrder.size)]
         playTrackAt(target, true)
     }
+    private fun syncPlaybackIcon(isPlaying: Boolean? = null) {
+        if (!::playView.isInitialized) return
+        val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
+        playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+        playView.contentDescription = if (playing) "Jeda" else "Putar"
+        playView.imageTintList = ColorStateList.valueOf(accentColor)
+    }
+
     private fun togglePlayback() {
         val p = player
         if (p == null || !prepared) { statusView.text = "Pilih lagu dari pustaka terlebih dahulu."; return }
         try {
-            if (p.isPlaying) { p.pause(); playView.text = "▶"; statusView.text = "Dijeda" }
-            else { p.play(); playView.text = "Ⅱ"; statusView.text = "Sedang diputar" }
+            if (p.isPlaying) { p.pause(); syncPlaybackIcon(false); statusView.text = "Dijeda" }
+            else { p.play(); syncPlaybackIcon(true); statusView.text = "Sedang diputar" }
             refreshAudioInfo()
             updatePlaybackNotification(try { p.isPlaying } catch (_: Exception) { false })
         } catch (e: Exception) { statusView.text = "Pemutaran gagal: " + e.message }
@@ -806,8 +826,9 @@ class MainActivity : Activity() {
             seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
         }
         if (::playView.isInitialized) {
-            playView.setTextColor(accentColor)
-            playView.background = shape(accentColor, 14)
+            playView.imageTintList = ColorStateList.valueOf(accentColor)
+            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(CARD, 16), null)
+            syncPlaybackIcon()
         }
         if (::scanProgress.isInitialized) scanProgress.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
