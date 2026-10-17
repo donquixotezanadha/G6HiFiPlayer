@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "id.g6hifiplayer"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.8.0"
+        versionCode = 10
+        versionName = "0.10.0"
     }
 
     compileOptions {
@@ -26,5 +26,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.media3:media3-exoplayer:1.10.1")
+    implementation("androidx.media3:media3-common:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
 }
