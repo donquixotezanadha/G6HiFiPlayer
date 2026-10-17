@@ -94,6 +94,8 @@ class MainActivity : Activity() {
     }
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(2)
+    // Coalesce duplicate thumbnail requests when grid cells are rebuilt after album expansion.
+    private val artworkTargetsInFlight = mutableMapOf<String, MutableList<java.lang.ref.WeakReference<ImageView>>>()
     // Keep current-player artwork independent of the library thumbnails backlog.
     private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
     private val metadataExecutor = Executors.newFixedThreadPool(2)
@@ -258,6 +260,26 @@ class MainActivity : Activity() {
         }
         scanCard.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         settingsPanel.addView(scanCard)
+        val batteryCard = card()
+        batteryCard.addView(text("BATTERY OPTIMIZATION", 12f, MUTED, true))
+        batteryCard.addView(text("Allow Android to exempt playback from standard battery optimization when supported.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        batteryCard.addView(action("OPEN BATTERY SETTINGS", false) {
+            try {
+                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    !getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) {
+                    Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                } else {
+                    Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                try { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                catch (_: Exception) { Toast.makeText(this, "Battery settings are unavailable on this device.", Toast.LENGTH_LONG).show() }
+            }
+        }, LinearLayout.LayoutParams(-1, dp(44)))
+        settingsPanel.addView(batteryCard)
         settingsPanel.addView(filePanel)
         settingsPanel.addView(audioPanel)
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(queuePanel); content.addView(settingsPanel)
@@ -728,9 +750,44 @@ class MainActivity : Activity() {
             albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
             return
         }
-        // One grouping pass avoids repeatedly filtering the full library for each album.
+
+        // Group once per render; selected album rows are shown before the grid so tapping a
+        // cover immediately reveals its tracks instead of appending them below the entire library.
         val groupedAlbums = tracks.withIndex().groupBy { it.value.album }
         val albums = groupedAlbums.keys.sortedBy { it.lowercase(Locale.ROOT) }
+
+        selectedAlbum?.let { album ->
+            val entries = groupedAlbums[album].orEmpty().sortedWith(
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+            )
+            if (entries.isEmpty()) {
+                selectedAlbum = null
+            } else {
+                albumRows.addView(text(album, 18f, WHITE, true).apply {
+                    setPadding(dp(8), dp(12), dp(8), dp(8))
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, LinearLayout.LayoutParams(-1, -2))
+                val albumActions = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(dp(4), dp(2), dp(4), dp(8))
+                }
+                albumActions.addView(action("PLAY ALBUM", true) {
+                    val order = entries.map { it.index }
+                    if (order.isNotEmpty()) { playTrackAt(order.first(), true, order); show("player") }
+                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+                albumActions.addView(action("ADD TO QUEUE", false) {
+                    addAlbumToQueue(entries.map { it.index }, album)
+                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
+                entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
+                albumRows.addView(View(this), LinearLayout.LayoutParams(-1, dp(1)).apply {
+                    topMargin = dp(12); bottomMargin = dp(8)
+                }.also { /* spacer separates the open album from the remaining grid */ })
+            }
+        }
+
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             if (position % albumGridColumns == 0) {
@@ -738,12 +795,19 @@ class MainActivity : Activity() {
                 albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val entries = groupedAlbums[album].orEmpty()
-            val indices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
+            val indices = entries.sortedWith(
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+            ).map { it.index }
             val cell = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(3), dp(4), dp(3), dp(7))
-                background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 12), null)
-                isClickable = true; isFocusable = true
+                background = RippleDrawable(
+                    ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000),
+                    shape(Color.TRANSPARENT, 12), null
+                )
+                isClickable = true
+                isFocusable = true
                 contentDescription = "Open songs in album $album"
                 setOnClickListener {
                     selectedAlbum = if (selectedAlbum == album) null else album
@@ -755,38 +819,27 @@ class MainActivity : Activity() {
                     true
                 }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(Color.TRANSPARENT, 8); contentDescription = "Artwork $album" }
+            val cover = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                background = shape(Color.TRANSPARENT, 8)
+                contentDescription = "Artwork $album"
+            }
             cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 148 else 108)))
-            cell.addView(text(album, 12f, MUTED, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply { gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
+            cell.addView(text(album, 12f, MUTED, true).apply {
+                setPadding(dp(2), dp(7), dp(2), dp(2))
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER_HORIZONTAL
+            }, LinearLayout.LayoutParams(-1, -2))
+            cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }, LinearLayout.LayoutParams(-1, -2))
             val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (position % albumGridColumns != 0) leftMargin = dp(3)
                 if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(3)
             }
             gridRow?.addView(cell, lp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
-        }
-        selectedAlbum?.let { album ->
-            val entries = groupedAlbums[album].orEmpty().sortedWith(
-                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
-            )
-            if (entries.isEmpty()) {
-                selectedAlbum = null
-            } else {
-                albumRows.addView(text(album, 18f, WHITE, true).apply {
-                    setPadding(dp(12), dp(12), dp(12), dp(8)); maxLines = 2
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }, LinearLayout.LayoutParams(-1, -2))
-                val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(2), dp(8), dp(8)) }
-                albumActions.addView(action("PLAY ALBUM", true) {
-                    val order = entries.map { it.index }
-                    if (order.isNotEmpty()) { playTrackAt(order.first(), true, order); show("player") }
-                }, LinearLayout.LayoutParams(0, dp(42), 1f))
-                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-                albumActions.addView(action("ADD TO QUEUE", false) { addAlbumToQueue(entries.map { it.index }, album) }, LinearLayout.LayoutParams(0, dp(42), 1f))
-                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
-                entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
-            }
         }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
@@ -983,6 +1036,7 @@ class MainActivity : Activity() {
             val exo = createHiFiPlayer()
             player = exo
             exo.setHandleAudioBecomingNoisy(true)
+            var ffmpegFallbackAttempted = false
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     when (state) {
@@ -995,6 +1049,7 @@ class MainActivity : Activity() {
                             if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Playing • " + t.title }
                             else syncPlaybackIcon(false)
                             pendingAutoplay = false
+                            mediaSession?.isActive = true
                             refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
                         }
                         Player.STATE_ENDED -> {
@@ -1009,9 +1064,46 @@ class MainActivity : Activity() {
                     if (prepared) { syncPlaybackIcon(isPlaying); refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
                 }
                 override fun onPlayerError(error: PlaybackException) {
-                    prepared = false; playView.isEnabled = true
-                    statusView.text = "Media3 playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format or decoder")
-                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR code=${error.errorCodeName}", error); refreshAudioInfo()
+                    prepared = false
+                    if (!ffmpegFallbackAttempted) {
+                        ffmpegFallbackAttempted = true
+                        val shouldResumePlayback = pendingAutoplay || exo.playWhenReady || exo.isPlaying
+                        playView.isEnabled = false
+                        statusView.text = "Native decoder failed; trying FFmpeg fallback…"
+                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=${t.uri} code=${error.errorCodeName}", error)
+                        FfmpegAudioDecoder(this@MainActivity).decodeToWav(t.uri) { result ->
+                            handler.post {
+                                if (player !== exo || isFinishing) {
+                                    result.getOrNull()?.delete()
+                                    return@post
+                                }
+                                result.onSuccess { wav ->
+                                    try {
+                                        exo.stop()
+                                        exo.clearMediaItems()
+                                        pendingAutoplay = shouldResumePlayback
+                                        exo.setMediaItem(MediaItem.fromUri(Uri.fromFile(wav)))
+                                        exo.prepare()
+                                        statusView.text = "FFmpeg PCM fallback • preparing " + t.title
+                                        recordDiagnostic("FFMPEG_FALLBACK_READY file=${wav.name} note=decoded-to-24bit-PCM-WAV-no-explicit-resampling")
+                                    } catch (e: Exception) {
+                                        playView.isEnabled = true
+                                        statusView.text = "FFmpeg fallback could not start: " + (e.message ?: e.javaClass.simpleName)
+                                        recordDiagnostic("FFMPEG_FALLBACK_PLAYER_FAILED", e)
+                                    }
+                                }.onFailure { e ->
+                                    playView.isEnabled = true
+                                    statusView.text = "Audio decode failed (Media3 + FFmpeg): " + (e.message ?: e.javaClass.simpleName)
+                                    recordDiagnostic("FFMPEG_FALLBACK_FAILED", e)
+                                }
+                            }
+                        }
+                    } else {
+                        playView.isEnabled = true
+                        statusView.text = "Media3/FFmpeg playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format")
+                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_AFTER_FFMPEG code=${error.errorCodeName}", error)
+                    }
+                    refreshAudioInfo()
                 }
             })
             exo.setMediaItem(MediaItem.fromUri(t.uri)); exo.prepare()
@@ -1019,7 +1111,7 @@ class MainActivity : Activity() {
             playView.isEnabled = true; statusView.text = "Unable to open file: " + e.message
             recordDiagnostic("MEDIA3_INITIALIZATION_FAILED", e)
         }
-        renderLibrary()
+        // Avoid rebuilding the entire album grid for every playback state change.
     }
     private fun playPrevious() {
         if (tracks.isEmpty()) { statusView.text = "Choose a folder or audio file first."; return }
@@ -1187,23 +1279,52 @@ class MainActivity : Activity() {
         // Keep the in-memory cache bounded; exceptionally large embedded covers are not retained.
         if (bytes != null && bytes!!.size <= 8 * 1024 * 1024) synchronized(artworkBytesCache) {
             artworkBytesCache[key] = bytes!!
-            while (artworkBytesCache.size > 24) artworkBytesCache.remove(artworkBytesCache.keys.iterator().next())
+            // Bound by total bytes, not only entry count: 24 large embedded covers could
+            // otherwise retain close to 192 MB on the LG G6 before bitmap memory is counted.
+            var cachedBytes = artworkBytesCache.values.sumOf { it.size.toLong() }
+            while (artworkBytesCache.isNotEmpty() && cachedBytes > 16L * 1024L * 1024L) {
+                val oldestKey = artworkBytesCache.keys.iterator().next()
+                cachedBytes -= artworkBytesCache.remove(oldestKey)?.size?.toLong() ?: 0L
+            }
         }
         return bytes
     }
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
         val key = "thumb:" + track.uri.toString()
+        // Tag each rebuilt view so stale asynchronous results cannot paint the wrong album.
+        target.setTag(key)
         val cached = bitmapArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
             target.setImageBitmap(cached)
             return
         }
+
+        // A grid rebuild can request the same album artwork several times before the first
+        // decode finishes. Join the existing request instead of queuing duplicate MediaMetadataRetriever
+        // work; every still-valid target receives the result.
+        synchronized(artworkTargetsInFlight) {
+            val waiting = artworkTargetsInFlight[key]
+            if (waiting != null) {
+                waiting.add(java.lang.ref.WeakReference(target))
+                return
+            }
+            artworkTargetsInFlight[key] = mutableListOf(java.lang.ref.WeakReference(target))
+        }
         artworkExecutor.execute {
-            val bitmap = readArtworkBytes(track)?.let { decodeArtwork(it, 480, android.graphics.Bitmap.Config.RGB_565) }
-            if (bitmap != null) bitmapArtworkCache.put(key, bitmap)
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(track)
+                ?.let { decodeArtwork(it, 320, android.graphics.Bitmap.Config.RGB_565) }
+                ?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
-                if (bitmap != null && !isFinishing && target.isAttachedToWindow) target.setImageBitmap(bitmap)
+                val targets = synchronized(artworkTargetsInFlight) {
+                    artworkTargetsInFlight.remove(key).orEmpty().toList()
+                }
+                if (bitmap != null && !isFinishing) {
+                    targets.forEach { ref ->
+                        val view = ref.get()
+                        if (view != null && view.getTag() == key) view.setImageBitmap(bitmap)
+                    }
+                }
             }
         }
     }
@@ -1403,7 +1524,7 @@ class MainActivity : Activity() {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() {
                     val activity = activeInstance ?: return
-                    if (activity.player?.isPlaying != true) activity.togglePlayback()
+                    if (activity.player != null && activity.prepared && activity.player?.isPlaying != true) activity.togglePlayback()
                 }
                 override fun onPause() {
                     val activity = activeInstance ?: return
@@ -1415,7 +1536,7 @@ class MainActivity : Activity() {
                     activeInstance?.player?.let { p -> try { p.seekTo(pos.coerceIn(0L, activityDuration(p).toLong())) } catch (_: Exception) { } }
                 }
             })
-            isActive = true
+            isActive = false
         }
     }
     private fun activityDuration(p: ExoPlayer): Int = try { p.duration.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() } catch (_: Exception) { 0 }
@@ -1423,6 +1544,14 @@ class MainActivity : Activity() {
     private fun updatePlaybackNotification(isPlaying: Boolean) {
         if (!prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
+        val widgetBitmap = try {
+            (artImage.drawable as? BitmapDrawable)?.bitmap
+        } catch (_: Exception) { null }
+        G6MusicWidgetProvider.refresh(
+            this, track.title, track.artist, track.album, isPlaying, widgetBitmap, lightTheme,
+            try { player?.currentPosition?.toInt() ?: 0 } catch (_: Exception) { 0 },
+            try { player?.duration?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
+        )
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun activityIntent(action: String, requestCode: Int): PendingIntent {
             val intent = Intent(this, MainActivity::class.java).apply {
@@ -1471,12 +1600,42 @@ class MainActivity : Activity() {
         }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, builder.build())
     }
+    private fun stopAndDismissPlayback() {
+        pendingAutoplay = false
+        prepared = false
+        seeking = false
+        clearActiveAudioTrack()
+        try { player?.stop(); player?.clearMediaItems(); player?.release() } catch (_: Exception) { }
+        player = null
+        currentIndex = -1
+        sourceRate = null
+        sourceBitrate = null
+        durationMs = 0
+        playView.isEnabled = false
+        syncPlaybackIcon(false)
+        titleView.text = "Nothing playing"
+        artistView.text = ""
+        albumView.text = ""
+        elapsed.text = "0:00"
+        duration.text = "0:00"
+        seek.progress = 0
+        seek.max = 1
+        statusView.text = "Playback stopped."
+        try {
+            mediaSession?.setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_STOPPED, 0L, 0f).setActions(0L).build())
+            mediaSession?.isActive = false
+        } catch (_: Exception) { }
+        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
+        refreshAudioInfo()
+        recordDiagnostic("NOTIFICATION_DISMISS playback=stopped player=released mediaSession=inactive")
+    }
+
     private fun handleNotificationAction(action: String) {
         when (action) {
             "previous" -> playPrevious()
             "next" -> playNext()
             "toggle" -> togglePlayback()
-            "dismiss" -> { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { } }
+            "dismiss" -> stopAndDismissPlayback()
         }
     }
     override fun onNewIntent(intent: Intent) {
