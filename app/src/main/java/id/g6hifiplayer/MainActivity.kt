@@ -159,8 +159,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         window.statusBarColor = BG
-        window.navigationBarColor = Color.TRANSPARENT
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
@@ -223,15 +223,15 @@ class MainActivity : Activity() {
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
         val artworkSize = minOf(320, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 48).coerceAtLeast(220))
         hero.gravity = Gravity.CENTER_HORIZONTAL
-        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(3); bottomMargin = dp(4) })
+        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(22); bottomMargin = dp(12) })
         audioInfoToggle = iconAction("ⓘ  INFO AUDIO") {
             audioInfoInline.visibility = if (audioInfoInline.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO"
             refreshAudioInfo()
         }
         hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(30)).apply { bottomMargin = dp(2) })
-        audioInfoInline = text("Informasi output akan muncul di sini.", 12f, MUTED, false).apply {
-            setPadding(dp(12), dp(12), dp(12), dp(12)); background = shape(BG, 12); visibility = View.GONE; setTextIsSelectable(true)
+        audioInfoInline = text("FLAC • sumber — kHz → output — kHz • output belum terkonfirmasi bit-perfect", 10f, MUTED, false).apply {
+            setPadding(dp(2), dp(4), dp(2), dp(6)); visibility = View.GONE; setTextIsSelectable(true)
         }
         hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
         titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
@@ -684,7 +684,7 @@ class MainActivity : Activity() {
                             seek.max = durationMs.coerceAtLeast(1); this@MainActivity.duration.text = time(durationMs)
                             playView.isEnabled = true
                             statusView.text = "Siap diputar • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "sample rate sumber tidak diketahui")
-                            if (pendingAutoplay) { exo.play(); playView.text = "Ⅱ"; statusView.text = "Sedang diputar • " + t.title }
+                            if (pendingAutoplay) { exo.play(); playView.text = "⏸"; statusView.text = "Sedang diputar • " + t.title }
                             pendingAutoplay = false
                             refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
                         }
@@ -697,7 +697,7 @@ class MainActivity : Activity() {
                     }
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (prepared) { playView.text = if (isPlaying) "Ⅱ" else "▶"; refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
+                    if (prepared) { playView.text = if (isPlaying) "⏸" else "▶"; refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     prepared = false; playView.isEnabled = true
@@ -980,7 +980,23 @@ class MainActivity : Activity() {
             "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
         if (::audioInfoInline.isInitialized) {
             val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Pilih lagu untuk membaca metadata file."
-            audioInfoInline.text = "INFO FILE / LAGU\n$fileDetails\n\nINFO OUTPUT / ROUTE\n${routeInfo.text}"
+            val track = tracks.getOrNull(currentIndex)
+            val extension = track?.uri?.lastPathSegment?.substringAfterLast('.', "")?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: "AUDIO"
+            val sourceKhz = sourceRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
+            val outputTrack = activeAudioTrack
+            val playingOutput = try { player?.isPlaying == true && outputTrack?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
+            val outputRate = try { if (playingOutput) outputTrack?.sampleRate else null } catch (_: Exception) { null }
+            val outputKhz = outputRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
+            val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "rute belum dilaporkan" else "belum aktif" } catch (_: Exception) { "rute belum dilaporkan" }
+            val bitPerfectText = "● BELUM TERKONFIRMASI BIT-PERFECT"
+            val compact = "$extension • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
+            audioInfoInline.text = compact
+            val start = compact.indexOf(bitPerfectText)
+            if (start >= 0) {
+                val colored = android.text.SpannableString(compact)
+                colored.setSpan(android.text.style.ForegroundColorSpan(0xFFFFA43A.toInt()), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                audioInfoInline.text = colored
+            }
         }
     }
 
@@ -1081,10 +1097,11 @@ class MainActivity : Activity() {
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
-            .setOngoing(isPlaying)
+            .setOngoing(false)
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Sebelumnya", activityIntent("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Berikutnya", activityIntent("next", 6103)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Tutup notifikasi", activityIntent("dismiss", 6104)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
