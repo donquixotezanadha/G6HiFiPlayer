@@ -599,15 +599,13 @@ class MainActivity : Activity() {
     }
 
     private fun renderLibrary() {
-        if (!::albumRows.isInitialized || !::trackRows.isInitialized) return
-        albumRows.removeAllViews(); trackRows.removeAllViews()
+        if (!::albumRows.isInitialized) return
+        albumRows.removeAllViews()
         if (tracks.isEmpty()) {
-            albumRows.addView(text("Choose a folder to build your library.", 13f, MUTED, false))
-            trackRows.addView(text("Found tracks will appear here.", 13f, MUTED, false))
+            albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
             return
         }
         val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
-        albumRows.addView(rowButton("All albums • " + tracks.size + " tracks", selectedAlbum == null) { selectedAlbum = null; visibleTrackLimit = 80; renderLibrary() })
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             if (position % albumGridColumns == 0) {
@@ -615,39 +613,70 @@ class MainActivity : Activity() {
                 albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val entries = tracks.withIndex().filter { it.value.album == album }
-            val indices = entries.map { it.index }
+            val indices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(dp(5), dp(6), dp(5), dp(7))
-                background = if (selectedAlbum == album) shape(selectedHighlight(), 12) else RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 12), null)
+                setPadding(dp(3), dp(4), dp(3), dp(7))
+                background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 12), null)
                 isClickable = true; isFocusable = true
-                setOnClickListener { selectedAlbum = if (selectedAlbum == album) null else album; visibleTrackLimit = 80; renderLibrary() }
+                contentDescription = "Open songs in album $album"
+                setOnClickListener {
+                    selectedAlbum = album
+                    renderSongs()
+                    show("songs")
+                }
                 setOnLongClickListener {
                     showAlbumOptions(album, indices)
                     true
                 }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 8); contentDescription = "Artwork " + album }
-            cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 132 else 94)))
-            cell.addView(text(album, 12f, if (selectedAlbum == album) accentColor else WHITE, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(Color.TRANSPARENT, 8); contentDescription = "Artwork $album" }
+            cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 148 else 108)))
+            cell.addView(text(album, 12f, WHITE, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
             cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply { gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
-            val lp = LinearLayout.LayoutParams(0, -2, 1f).apply { if (position % albumGridColumns != 0) leftMargin = dp(2); if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(2) }
+            val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (position % albumGridColumns != 0) leftMargin = dp(3)
+                if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(3)
+            }
             gridRow?.addView(cell, lp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
-        if (selectedAlbum != null) {
-            val entries = tracks.withIndex().filter { it.value.album == selectedAlbum }
-            albumRows.addView(text("ALBUM TRACKS • " + selectedAlbum, 11f, accentColor, true).apply { setPadding(dp(4), dp(10), 0, dp(6)) })
-            entries.take(visibleTrackLimit).forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
-            if (entries.size > visibleTrackLimit) albumRows.addView(action("LOAD MORE TRACKS (" + (entries.size - visibleTrackLimit) + " remaining)", false) { visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(entries.size); renderLibrary() }, LinearLayout.LayoutParams(-1, dp(44)))
-        }
-        trackRows.visibility = if (selectedAlbum == null) View.VISIBLE else View.GONE
-        if (selectedAlbum == null) {
-            tracks.withIndex().take(visibleTrackLimit).forEach { entry -> addLibraryTrackRow(trackRows, entry, false, tracks.indices.toList()) }
-            if (tracks.size > visibleTrackLimit) trackRows.addView(action("LOAD MORE TRACKS", false) { visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(tracks.size); renderLibrary() }, LinearLayout.LayoutParams(-1, dp(44)))
-        }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
+
+    private fun renderSongs() {
+        if (!::songRows.isInitialized) return
+        songRows.removeAllViews()
+        if (tracks.isEmpty()) {
+            songRows.addView(text("No songs yet. Scan your music folder in Settings.", 13f, MUTED, false))
+            return
+        }
+        val grouped = tracks.withIndex().groupBy { it.value.album }
+        val albums = grouped.keys.filter { selectedAlbum == null || it == selectedAlbum }.sortedBy { it.lowercase(Locale.ROOT) }
+        if (selectedAlbum != null) {
+            songRows.addView(text(selectedAlbum!!, 15f, accentColor, true).apply { setPadding(dp(4), dp(8), dp(4), dp(8)) })
+        }
+        albums.forEach { album ->
+            val entries = grouped[album].orEmpty().sortedWith(
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }
+                    .thenBy { it.value.title.lowercase(Locale.ROOT) }
+            )
+            if (selectedAlbum == null) {
+                val heading = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(4), dp(12), dp(4), dp(6))
+                }
+                heading.addView(text(album, 14f, WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
+                heading.addView(text(entries.size.toString(), 11f, MUTED, false))
+                heading.isClickable = true
+                heading.setOnClickListener { selectedAlbum = album; renderSongs() }
+                songRows.addView(heading)
+            }
+            entries.forEach { entry -> addLibraryTrackRow(songRows, entry, selectedAlbum != null, entries.map { it.index }) }
+        }
+    }
+
     private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean, queueIndices: List<Int>) {
         val t = entry.value
         val row = LinearLayout(this).apply {
@@ -1422,16 +1451,22 @@ class MainActivity : Activity() {
     private fun show(which: String) {
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
+        songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
         queuePanel.visibility = if (which == "queue") View.VISIBLE else View.GONE
         settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
-        navState(navPlayer, which == "player"); navState(navLibrary, which == "library")
+        navState(navPlayer, which == "player")
+        navState(navLibrary, which == "library")
+        navState(navSongs, which == "songs")
         navState(navAudio, which == "queue")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
         if (which == "queue") renderQueueRows()
+        if (which == "songs") renderSongs()
     }
-    private fun navButton(label: String, click: () -> Unit) = text(label, 11f, MUTED, true).apply {
-        gravity = Gravity.CENTER; setPadding(dp(3), dp(4), dp(3), dp(4))
-        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
+    private fun navButton(symbol: String, description: String, click: () -> Unit) = text(symbol, 23f, MUTED, true).apply {
+        contentDescription = description
+        gravity = Gravity.CENTER
+        setPadding(dp(2), dp(3), dp(2), dp(3))
+        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 15), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
