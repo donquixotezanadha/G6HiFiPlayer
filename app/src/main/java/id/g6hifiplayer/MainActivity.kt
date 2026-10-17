@@ -223,7 +223,7 @@ class MainActivity : Activity() {
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset, dp(16), dp(8))
-        queuePanel.setPadding(0, statusBarInset, 0, dp(8))
+        queuePanel.setPadding(dp(16), statusBarInset + dp(2), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
@@ -463,18 +463,22 @@ class MainActivity : Activity() {
     }
 
     private fun makeQueuePanel() {
-        val head = card()
-        head.addView(text("PLAYBACK QUEUE", 18f, WHITE, true))
-        head.addView(text("Tracks waiting to be played.", 12f, MUTED, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        head.addView(action("CLEAR QUEUE", false) {
+        // Use the same flat black surface and horizontal inset as Albums and Songs.
+        queuePanel.setBackgroundColor(BG)
+        queuePanel.addView(text("PLAYBACK QUEUE", 18f, WHITE, true).apply {
+            setPadding(dp(4), dp(8), dp(4), dp(8))
+        })
+        queuePanel.addView(text("Tracks waiting to be played.", 12f, MUTED, false).apply {
+            setPadding(dp(4), 0, dp(4), dp(10))
+        })
+        queuePanel.addView(action("CLEAR QUEUE", false) {
             playbackQueue = emptyList()
             playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
             renderQueueRows()
             Toast.makeText(this, "Queue cleared.", Toast.LENGTH_SHORT).show()
         }, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(10) })
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        head.addView(queueRows)
-        queuePanel.addView(head)
+        queuePanel.addView(queueRows)
     }
 
     private fun makeAudioPanel() {
@@ -1658,16 +1662,16 @@ class MainActivity : Activity() {
             val track = tracks[trackIndex]
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(8), dp(7), dp(6), dp(7))
-                background = if (trackIndex == currentIndex) shape(selectedHighlight(), 10) else RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 10), null)
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                background = if (trackIndex == currentIndex) shape(selectedHighlight(), 12) else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
                 isClickable = true; isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 6); contentDescription = "Artwork " + track.album }
-            row.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8); contentDescription = "Artwork " + track.album }
+            row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
             val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(6), 0) }
-            info.addView(text((position + 1).toString() + ". " + track.title, 13f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-            info.addView(text(track.artist + " • " + track.album, 11f, MUTED, false).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+            info.addView(text((position + 1).toString() + ". " + track.title, 12f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+            info.addView(text(track.artist + " • " + track.album, 12f, MUTED, false).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
             row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(iconAction("×") {
                 if (trackIndex == currentIndex) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
