@@ -1067,6 +1067,7 @@ class MainActivity : Activity() {
                     prepared = false
                     if (!ffmpegFallbackAttempted) {
                         ffmpegFallbackAttempted = true
+                        val shouldResumePlayback = pendingAutoplay || exo.playWhenReady || exo.isPlaying
                         playView.isEnabled = false
                         statusView.text = "Native decoder failed; trying FFmpeg fallback…"
                         recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=${t.uri} code=${error.errorCodeName}", error)
@@ -1080,6 +1081,7 @@ class MainActivity : Activity() {
                                     try {
                                         exo.stop()
                                         exo.clearMediaItems()
+                                        pendingAutoplay = shouldResumePlayback
                                         exo.setMediaItem(MediaItem.fromUri(Uri.fromFile(wav)))
                                         exo.prepare()
                                         statusView.text = "FFmpeg PCM fallback • preparing " + t.title
