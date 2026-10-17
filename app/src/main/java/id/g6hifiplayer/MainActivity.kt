@@ -703,7 +703,7 @@ class MainActivity : Activity() {
 
     private fun refreshAudioInfo() {
         val devices = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList() } catch (_: Exception) { emptyList() }
-        val active = try { player?.routedDevice } catch (_: Exception) { null }
+        val active = try { if (player?.isPlaying == true) player?.routedDevice else null } catch (_: Exception) { null }
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "Belum ada stream"
