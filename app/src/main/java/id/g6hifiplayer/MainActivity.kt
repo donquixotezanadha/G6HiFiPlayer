@@ -87,6 +87,7 @@ class MainActivity : Activity() {
     private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
+    private var queueGridColumns = 2
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(3)
     // Keep current-player artwork independent of the library thumbnails backlog.
@@ -162,6 +163,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
+        queueGridColumns = getPreferences(MODE_PRIVATE).getInt("queue_grid_columns", 2).coerceIn(2, 3)
         window.statusBarColor = BG
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
@@ -213,7 +215,12 @@ class MainActivity : Activity() {
             syncPlaybackIcon()
         }, LinearLayout.LayoutParams(-1, dp(44)))
         settingsPanel.addView(themeCard)
-        settingsPanel.addView(audioPanel); settingsPanel.addView(filePanel)
+        val scanCard = card()
+        scanCard.addView(text("PEMINDAIAN ALBUM", 12f, MUTED, true))
+        scanCard.addView(text("Pilih folder musik untuk memindai album dan subfolder. Folder terakhir dipindai otomatis saat aplikasi dibuka.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        scanCard.addView(action("PILIH FOLDER MUSIK", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
+        settingsPanel.addView(scanCard)
+        settingsPanel.addView(audioPanel)
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(queuePanel); content.addView(settingsPanel)
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -280,10 +287,7 @@ class MainActivity : Activity() {
         val head = card(); head.addView(text("ALBUM", 16f, WHITE, true))
         head.addView(text("Pilih satu folder Music; subfolder album dipindai otomatis.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
         val sourceActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        sourceActions.addView(action("PILIH FILE", false) { pickFile() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        sourceActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        sourceActions.addView(action("SCAN FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        head.addView(sourceActions, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) })
+        head.addView(text("Folder musik dipilih melalui SETTINGS.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
         librarySummary = text("Belum ada folder yang dipindai.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         head.addView(librarySummary)
         scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
@@ -494,7 +498,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(8))
-                background = shape(if (selectedAlbum == album) LINE else BG, 12)
+                background = shape(if (selectedAlbum == album) selectedHighlight() else BG, 12)
                 isClickable = true
                 isFocusable = true
                 contentDescription = if (selectedAlbum == album) "Tutup album $album" else "Buka album $album"
@@ -555,7 +559,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(if (nested) 18 else 8), dp(8), dp(8), dp(8))
-            background = shape(if (entry.index == currentIndex) LINE else BG, 12)
+            background = shape(if (entry.index == currentIndex) selectedHighlight() else BG, 12)
             isClickable = true
             isFocusable = true
         }
@@ -1324,9 +1328,11 @@ class MainActivity : Activity() {
         background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
+    private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
+
     private fun navState(view: TextView, selected: Boolean) {
         view.setTextColor(if (selected) accentColor else MUTED)
-        view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (selected) (accentColor and 0x20FFFFFF) else Color.TRANSPARENT, 18), null)
+        view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 18), null)
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
         gravity = Gravity.CENTER
