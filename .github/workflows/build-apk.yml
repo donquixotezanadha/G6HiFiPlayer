@@ -33,5 +33,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build32-v0.32.0-debug-apk
+          name: G6HiFiPlayer-Build33-v0.33.0-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
