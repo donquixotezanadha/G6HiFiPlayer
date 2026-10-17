@@ -1949,12 +1949,25 @@ class MainActivity : Activity() {
     private fun navButton(iconRes: Int, description: String, click: () -> Unit) = ImageView(this).apply {
         contentDescription = description
         scaleType = ImageView.ScaleType.CENTER_INSIDE
-        setPadding(dp(12), dp(7), dp(12), dp(7))
+        // Four-tab layout: keep navigation glyphs visually secondary to Now Playing controls.
+        setPadding(dp(18), dp(10), dp(18), dp(10))
         setImageResource(iconRes)
+        // Shrink the drawable without shrinking the full-width touch target.
+        post { val iconSize = dp(27); setImageSize(iconSize, iconSize) }
         imageTintList = ColorStateList.valueOf(MUTED)
         background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
+    private fun ImageView.setImageSize(widthPx: Int, heightPx: Int) {
+        // Scale only the icon artwork; layout width remains the equal-weight tab slot.
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        imageMatrix = android.graphics.Matrix().apply {
+            val intrinsicW = drawable?.intrinsicWidth?.takeIf { it > 0 }?.toFloat() ?: widthPx.toFloat()
+            val intrinsicH = drawable?.intrinsicHeight?.takeIf { it > 0 }?.toFloat() ?: heightPx.toFloat()
+            setScale(widthPx / intrinsicW, heightPx / intrinsicH)
+        }
+    }
+
     private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
 
     private fun navState(view: ImageView, selected: Boolean) {
