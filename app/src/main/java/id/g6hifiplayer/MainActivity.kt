@@ -524,64 +524,100 @@ class MainActivity : Activity() {
         if (!::albumRows.isInitialized || !::trackRows.isInitialized) return
         albumRows.removeAllViews(); trackRows.removeAllViews()
         if (tracks.isEmpty()) {
-            albumRows.addView(text("Pilih folder untuk membangun pustaka.", 13f, MUTED, false))
+            albumRows.addView(text("Pilih folder Music untuk mulai membangun pustaka.", 13f, MUTED, false))
             trackRows.addView(text("Lagu yang ditemukan akan muncul di sini.", 13f, MUTED, false))
             return
         }
 
         val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
-        albumRows.addView(rowButton("Semua album • " + tracks.size + " lagu", selectedAlbum == null) {
-            selectedAlbum = null
-            visibleTrackLimit = 80
-            renderLibrary()
-        })
-        albums.forEach { album ->
-            val albumEntries = tracks.withIndex().filter { it.value.album == album }
-            val albumRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(8), dp(8), dp(8), dp(8))
-                background = shape(if (selectedAlbum == album) LINE else BG, 12)
-                isClickable = true
-                isFocusable = true
-                contentDescription = if (selectedAlbum == album) "Tutup album $album" else "Buka album $album"
+        if (selectedAlbum == null) {
+            albumRows.addView(text("SEMUA ALBUM  ·  ${albums.size}", 11f, accentColor, true).apply {
+                setPadding(0, dp(4), 0, dp(12))
+            })
+            // Three-column artwork grid, matching the visual hierarchy of LG Music.
+            albums.chunked(3).forEach { albumGroup ->
+                val gridRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.TOP
+                }
+                albumGroup.forEach { album ->
+                    val entries = tracks.withIndex().filter { it.value.album == album }
+                    val tile = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(3), dp(3), dp(3), dp(12))
+                        isClickable = true
+                        isFocusable = true
+                        contentDescription = "Buka album $album, ${entries.size} lagu"
+                    }
+                    val cover = ImageView(this).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        background = shape(ART, 4)
+                        contentDescription = "Sampul $album"
+                    }
+                    tile.addView(cover, LinearLayout.LayoutParams(-1, dp(104)))
+                    tile.addView(text(album, 13f, WHITE, true).apply {
+                        setPadding(dp(1), dp(7), dp(1), 0)
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                    tile.addView(text(entries.firstOrNull()?.value?.artist ?: "", 11f, MUTED, false).apply {
+                        setPadding(dp(1), dp(3), dp(1), 0)
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                    tile.setOnClickListener {
+                        selectedAlbum = album
+                        visibleTrackLimit = 80
+                        renderLibrary()
+                    }
+                    gridRow.addView(tile, LinearLayout.LayoutParams(0, -2, 1f))
+                    entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
+                }
+                repeat(3 - albumGroup.size) {
+                    gridRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+                }
+                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2))
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
-            albumRow.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
-            val label = text((if (selectedAlbum == album) "▾ " else "▸ ") + album + "\n" + albumEntries.size + " lagu", 13f, if (selectedAlbum == album) accentColor else WHITE, true)
-                .apply { setPadding(dp(12), 0, 0, 0) }
-            albumRow.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-            albumRow.setOnClickListener {
-                selectedAlbum = if (selectedAlbum == album) null else album
+        } else {
+            val albumEntries = tracks.withIndex().filter { it.value.album == selectedAlbum }
+            albumRows.addView(action("‹  SEMUA ALBUM", false) {
+                selectedAlbum = null
                 visibleTrackLimit = 80
                 renderLibrary()
+            }, LinearLayout.LayoutParams(-1, dp(42)))
+            albumRows.addView(text(selectedAlbum ?: "ALBUM", 22f, WHITE, true).apply {
+                setPadding(0, dp(14), 0, dp(4))
+            })
+            albumRows.addView(text("${albumEntries.size} lagu  ·  ${albumEntries.firstOrNull()?.value?.artist ?: ""}", 12f, MUTED, false).apply {
+                setPadding(0, 0, 0, dp(12))
+            })
+            val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            albumActions.addView(action("▶  PUTAR ALBUM", true) {
+                val queue = albumEntries.map { it.index }
+                if (queue.isNotEmpty()) { playTrackAt(queue.first(), true, queue); show("player") }
+            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            albumActions.addView(View(this), LinearLayout.LayoutParams(dp(7), 1))
+            albumActions.addView(action("＋ ANTRIAN", false) {
+                enqueue(albumEntries.map { it.index })
+                Toast.makeText(this, "Album ditambahkan ke antrian", Toast.LENGTH_SHORT).show()
+            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(8) })
+            albumEntries.take(visibleTrackLimit).forEach { entry ->
+                addLibraryTrackRow(albumRows, entry, true, albumEntries.map { it.index })
             }
-            albumRows.addView(albumRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
-            albumEntries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
-
-            if (selectedAlbum == album) {
-                val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                albumActions.addView(action("▶  PUTAR ALBUM", true) {
-                    val queue = albumEntries.map { it.index }
-                    if (queue.isNotEmpty()) { playTrackAt(queue.first(), true, queue); show("player") }
-                }, LinearLayout.LayoutParams(0, dp(44), 1f))
-                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(7), 1))
-                albumActions.addView(action("＋ ANTRIAN", false) { enqueue(albumEntries.map { it.index }); Toast.makeText(this, "Album ditambahkan ke antrian", Toast.LENGTH_SHORT).show() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(7) })
-                albumEntries.take(visibleTrackLimit).forEach { entry ->
-                    addLibraryTrackRow(albumRows, entry, true, albumEntries.map { it.index })
-                }
-                if (albumEntries.size > visibleTrackLimit) {
-                    albumRows.addView(action("MUAT LAGU BERIKUTNYA (${albumEntries.size - visibleTrackLimit} tersisa)", false) {
-                        visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(albumEntries.size)
-                        renderLibrary()
-                    }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(8) })
-                }
+            if (albumEntries.size > visibleTrackLimit) {
+                albumRows.addView(action("MUAT LAGU BERIKUTNYA (${albumEntries.size - visibleTrackLimit} tersisa)", false) {
+                    visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(albumEntries.size)
+                    renderLibrary()
+                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5) })
             }
         }
 
         trackRows.visibility = if (selectedAlbum == null) View.VISIBLE else View.GONE
         if (selectedAlbum == null) {
+            trackRows.addView(text("SEMUA LAGU  ·  ${tracks.size}", 11f, accentColor, true).apply {
+                setPadding(0, dp(4), 0, dp(8))
+            })
             tracks.withIndex().take(visibleTrackLimit).forEach { entry ->
                 addLibraryTrackRow(trackRows, entry, false, tracks.indices.toList())
             }
