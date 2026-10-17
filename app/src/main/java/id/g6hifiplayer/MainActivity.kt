@@ -644,7 +644,7 @@ class MainActivity : Activity() {
         if (::titleView.isInitialized) titleView.setTextColor(accentColor)
         if (::audioInfoToggle.isInitialized) audioInfoToggle.setTextColor(accentColor)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
-        if (::root.isInitialized) renderLibrary()
+        if (::albumRows.isInitialized && ::trackRows.isInitialized) renderLibrary()
     }
 
     private fun decodeArtwork(bytes: ByteArray): android.graphics.Bitmap? {
@@ -668,7 +668,7 @@ class MainActivity : Activity() {
             }
             val bitmap = bytes?.let { decodeArtwork(it) }
             handler.post {
-                if (bitmap != null && !isFinishing && target.isAttachedToWindow) { target.setImageBitmap(bitmap); applyArtworkAccent(bitmap) }
+                if (bitmap != null && !isFinishing && target.isAttachedToWindow) { target.setImageBitmap(bitmap) }
                 else bitmap?.recycle()
             }
         }
