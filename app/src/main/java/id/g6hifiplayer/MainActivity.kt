@@ -308,13 +308,13 @@ class MainActivity : Activity() {
     private fun makeQueuePanel() {
         val head = card()
         head.addView(text("ANTRIAN PUTAR", 18f, WHITE, true))
-        head.addView(text("Ketuk lagu untuk memutar. Pilih grid 2 atau 3 kolom sesuai kebutuhan.", 12f, MUTED, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        val gridOptions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        gridOptions.addView(text("TAMPILAN", 11f, MUTED, true), LinearLayout.LayoutParams(0, dp(40), 1f))
-        gridOptions.addView(action("2 KOLOM", queueGridColumns == 2) { queueGridColumns = 2; getPreferences(MODE_PRIVATE).edit().putInt("queue_grid_columns", 2).apply(); renderQueueRows() }, LinearLayout.LayoutParams(dp(104), dp(40)))
-        gridOptions.addView(View(this), LinearLayout.LayoutParams(dp(6), 1))
-        gridOptions.addView(action("3 KOLOM", queueGridColumns == 3) { queueGridColumns = 3; getPreferences(MODE_PRIVATE).edit().putInt("queue_grid_columns", 3).apply(); renderQueueRows() }, LinearLayout.LayoutParams(dp(104), dp(40)))
-        head.addView(gridOptions, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+        head.addView(text("Daftar lagu yang menunggu diputar.", 12f, MUTED, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        head.addView(action("BERSIHKAN ANTRIAN", false) {
+            playbackQueue = emptyList()
+            playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
+            renderQueueRows()
+            Toast.makeText(this, "Antrian dibersihkan.", Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(10) })
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         head.addView(queueRows)
         queuePanel.addView(head)
@@ -1368,35 +1368,26 @@ class MainActivity : Activity() {
         queueRows.removeAllViews()
         val queue = playbackQueue.filter { it in tracks.indices }
         if (queue.isEmpty()) { queueRows.addView(text("Antrian masih kosong. Tambahkan album melalui tab ALBUM.", 13f, MUTED, false)); return }
-        var gridRow: LinearLayout? = null
         queue.forEachIndexed { position, trackIndex ->
-            if (position % queueGridColumns == 0) {
-                gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                queueRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
-            }
             val track = tracks[trackIndex]
-            val cell = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(dp(6), dp(7), dp(6), dp(7))
-                background = if (trackIndex == currentIndex) shape(selectedHighlight(), 12) else RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 12), null)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(7), dp(6), dp(7))
+                background = if (trackIndex == currentIndex) shape(selectedHighlight(), 10) else RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 10), null)
                 isClickable = true; isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8); contentDescription = "Artwork album" }
-            val artSize = if (queueGridColumns == 2) 136 else 96
-            cell.addView(cover, LinearLayout.LayoutParams(-1, dp(artSize)))
-            val label = text((position + 1).toString() + ". " + track.title, 12f, WHITE, true).apply { setPadding(0, dp(7), 0, dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }
-            cell.addView(label, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(track.album, 10f, MUTED, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(action("HAPUS", false) {
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 6); contentDescription = "Artwork " + track.album }
+            row.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
+            val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(6), 0) }
+            info.addView(text((position + 1).toString() + ". " + track.title, 13f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+            info.addView(text(track.artist + " • " + track.album, 11f, MUTED, false).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+            row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(iconAction("×") {
                 if (trackIndex == currentIndex) Toast.makeText(this, "Lagu yang sedang diputar tidak dapat dihapus dari antrian aktif.", Toast.LENGTH_SHORT).show()
                 else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; renderQueueRows() }
-            }, LinearLayout.LayoutParams(-1, dp(32)).apply { topMargin = dp(4) })
-            val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                if (position % queueGridColumns != 0) leftMargin = dp(4)
-                if (position % queueGridColumns != queueGridColumns - 1) rightMargin = dp(4)
-            }
-            gridRow?.addView(cell, lp)
+            }, LinearLayout.LayoutParams(dp(38), dp(44)))
+            queueRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
             loadArtworkInto(cover, track)
         }
     }
