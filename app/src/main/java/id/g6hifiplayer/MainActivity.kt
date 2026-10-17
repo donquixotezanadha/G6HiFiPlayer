@@ -58,6 +58,8 @@ class MainActivity : Activity() {
     private var pendingAutoplay = false
     private var tracks: List<Track> = emptyList()
     private var currentIndex = -1
+    // Queue stores indices into the scanned library; album playback stays inside that album.
+    private var playbackQueue: List<Int> = emptyList()
     private var selectedAlbum: String? = null
     private var artToken = 0
     private var visibleTrackLimit = 80
@@ -297,7 +299,7 @@ class MainActivity : Activity() {
                 val flag = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
                 if (flag != 0) contentResolver.takePersistableUriPermission(uri, flag)
             } catch (_: Exception) { }
-            tracks = listOf(readTrack(uri, null, null)); currentIndex = 0; selectedAlbum = null; playTrackAt(0, false)
+            tracks = listOf(readTrack(uri, null, null)); currentIndex = 0; selectedAlbum = null; playbackQueue = listOf(0); playTrackAt(0, false, playbackQueue)
         }
     }
 
@@ -336,7 +338,7 @@ class MainActivity : Activity() {
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
             val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
-                tracks = sorted; currentIndex = -1; selectedAlbum = null
+                tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = tracks.indices.toList()
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
                     librarySummary.text = "Daftar ditemukan (${sorted.size} lagu), tetapi tampilan gagal dibuat. Log diagnostik tersedia."
@@ -437,8 +439,15 @@ class MainActivity : Activity() {
             albumEntries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
 
             if (selectedAlbum == album) {
+                albumRows.addView(action("▶  PUTAR SELURUH ALBUM", true) {
+                    val queue = albumEntries.map { it.index }
+                    if (queue.isNotEmpty()) {
+                        playTrackAt(queue.first(), true, queue)
+                        show("player")
+                    }
+                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(7) })
                 albumEntries.take(visibleTrackLimit).forEach { entry ->
-                    addLibraryTrackRow(albumRows, entry, true)
+                    addLibraryTrackRow(albumRows, entry, true, albumEntries.map { it.index })
                 }
                 if (albumEntries.size > visibleTrackLimit) {
                     albumRows.addView(action("MUAT LAGU BERIKUTNYA (${albumEntries.size - visibleTrackLimit} tersisa)", false) {
@@ -452,7 +461,7 @@ class MainActivity : Activity() {
         trackRows.visibility = if (selectedAlbum == null) View.VISIBLE else View.GONE
         if (selectedAlbum == null) {
             tracks.withIndex().take(visibleTrackLimit).forEach { entry ->
-                addLibraryTrackRow(trackRows, entry, false)
+                addLibraryTrackRow(trackRows, entry, false, tracks.indices.toList())
             }
             if (tracks.size > visibleTrackLimit) {
                 trackRows.addView(action("MUAT LAGU BERIKUTNYA (${tracks.size - visibleTrackLimit} tersisa)", false) {
@@ -463,7 +472,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean) {
+    private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean, queueIndices: List<Int>) {
         val t = entry.value
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -477,7 +486,7 @@ class MainActivity : Activity() {
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0) }
         row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-        row.setOnClickListener { playTrackAt(entry.index, true); show("player") }
+        row.setOnClickListener { playTrackAt(entry.index, true, queueIndices); show("player") }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         loadArtworkInto(cover, t)
     }
@@ -487,8 +496,11 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
     }
 
-    private fun playTrackAt(index: Int, autoplay: Boolean) {
+    private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null) {
         if (index !in tracks.indices) return
+        if (queue != null) playbackQueue = queue.filter { it in tracks.indices }.distinct()
+        if (playbackQueue.isEmpty()) playbackQueue = tracks.indices.toList()
+        if (index !in playbackQueue) playbackQueue = tracks.indices.toList()
         currentIndex = index
         val t = tracks[index]; pendingAutoplay = autoplay; prepared = false; sourceRate = null; durationMs = 0
         try { player?.release() } catch (_: Exception) { }; player = null
@@ -512,8 +524,9 @@ class MainActivity : Activity() {
                 }
                 setOnCompletionListener {
                     playView.text = "▶"
-                    if (currentIndex >= 0 && currentIndex + 1 < tracks.size) playTrackAt(currentIndex + 1, true)
-                    else { statusView.text = "Pemutaran selesai."; refreshAudioInfo() }
+                    val queuePosition = playbackQueue.indexOf(currentIndex)
+                    if (queuePosition >= 0 && queuePosition + 1 < playbackQueue.size) playTrackAt(playbackQueue[queuePosition + 1], true)
+                    else { statusView.text = "Album/antrean selesai."; refreshAudioInfo(); updatePlaybackNotification(false) }
                 }
                 setOnErrorListener { _, what, extra ->
                     prepared = false; playView.isEnabled = true
@@ -526,11 +539,17 @@ class MainActivity : Activity() {
     }
     private fun playPrevious() {
         if (tracks.isEmpty()) { statusView.text = "Pilih folder atau file audio terlebih dahulu."; return }
-        playTrackAt(if (currentIndex <= 0) tracks.lastIndex else currentIndex - 1, true)
+        if (playbackQueue.isEmpty()) playbackQueue = tracks.indices.toList()
+        val position = playbackQueue.indexOf(currentIndex).let { if (it < 0) 0 else it }
+        val target = playbackQueue[(position - 1 + playbackQueue.size) % playbackQueue.size]
+        playTrackAt(target, true)
     }
     private fun playNext() {
         if (tracks.isEmpty()) { statusView.text = "Pilih folder atau file audio terlebih dahulu."; return }
-        playTrackAt(if (currentIndex < 0 || currentIndex >= tracks.lastIndex) 0 else currentIndex + 1, true)
+        if (playbackQueue.isEmpty()) playbackQueue = tracks.indices.toList()
+        val position = playbackQueue.indexOf(currentIndex).let { if (it < 0) -1 else it }
+        val target = playbackQueue[(position + 1).mod(playbackQueue.size)]
+        playTrackAt(target, true)
     }
     private fun togglePlayback() {
         val p = player
