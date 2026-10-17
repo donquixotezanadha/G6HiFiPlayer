@@ -87,7 +87,9 @@ class MainActivity : Activity() {
     private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
-    private var albumGridColumns = 2\n    private var queueGridColumns = 2
+    private var albumGridColumns = 2
+    private val bitmapArtworkCache = android.util.LruCache<String, android.graphics.Bitmap>(12 * 1024 * 1024) { _, bitmap -> bitmap.byteCount }
+    private var visibleTrackLimit = 80
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(3)
     // Keep current-player artwork independent of the library thumbnails backlog.
@@ -174,8 +176,8 @@ class MainActivity : Activity() {
         createMediaSession()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
         refreshAudioInfo(); handler.post(ticker)
-        getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let {
-            try { scanMusicFolder(Uri.parse(it)) } catch (_: Exception) { }
+        getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let { savedTree ->
+            restoreOrScanLibrary(Uri.parse(savedTree))
         }
     }
 
@@ -380,6 +382,7 @@ class MainActivity : Activity() {
                 if (flag != 0) contentResolver.takePersistableUriPermission(uri, flag)
             } catch (_: Exception) { }
             getPreferences(MODE_PRIVATE).edit().putString("music_tree_uri", uri.toString()).apply()
+            try { File(cacheDir, "library-cache.json").delete() } catch (_: Exception) { }
             visibleTrackLimit = 80
             scanMusicFolder(uri); show("library"); return
         }
@@ -413,6 +416,79 @@ class MainActivity : Activity() {
         if (error == null) android.util.Log.i("G6HiFiPlayer", event) else android.util.Log.e("G6HiFiPlayer", event, error)
     }
 
+    private fun restoreOrScanLibrary(treeUri: Uri) {
+        Thread({
+            var cached: List<Track>? = null
+            try {
+                val cacheFile = File(cacheDir, "library-cache.json")
+                if (cacheFile.isFile) {
+                    val root = org.json.JSONObject(cacheFile.readText(Charsets.UTF_8))
+                    if (root.optString("treeUri") == treeUri.toString()) {
+                        val array = root.getJSONArray("tracks")
+                        val list = ArrayList<Track>(array.length())
+                        for (i in 0 until array.length()) {
+                            val item = array.getJSONObject(i)
+                            val coverText = item.optString("coverUri", "")
+                            list.add(Track(
+                                Uri.parse(item.getString("uri")),
+                                item.optString("title", "Audio lokal"),
+                                item.optString("artist", "Artis tidak tersedia"),
+                                item.optString("album", "Album tidak diketahui"),
+                                coverText.takeIf { it.isNotBlank() }?.let { Uri.parse(it) },
+                                item.optInt("trackNumber", Int.MAX_VALUE)
+                            ))
+                        }
+                        if (list.isNotEmpty()) cached = list
+                    }
+                }
+            } catch (e: Exception) {
+                recordDiagnostic("LIBRARY_CACHE_READ_FAILED", e)
+            }
+            handler.post {
+                val library = cached
+                if (library != null) {
+                    tracks = library
+                    currentIndex = -1
+                    selectedAlbum = null
+                    playbackQueue = emptyList()
+                    playbackOrder = emptyList()
+                    renderLibrary()
+                    librarySummary.text = library.size.toString() + " lagu • cache lokal"
+                    statusView.text = "Pustaka siap dari cache • " + library.size + " lagu."
+                    recordDiagnostic("LIBRARY_CACHE_RESTORED tracks=" + library.size)
+                } else {
+                    scanMusicFolder(treeUri)
+                }
+            }
+        }, "g6-library-cache").start()
+    }
+
+    private fun saveLibraryCache(treeUri: Uri, library: List<Track>) {
+        try {
+            val array = org.json.JSONArray()
+            library.forEach { track ->
+                array.put(org.json.JSONObject()
+                    .put("uri", track.uri.toString())
+                    .put("title", track.title)
+                    .put("artist", track.artist)
+                    .put("album", track.album)
+                    .put("coverUri", track.coverUri?.toString() ?: "")
+                    .put("trackNumber", track.trackNumber))
+            }
+            val root = org.json.JSONObject().put("treeUri", treeUri.toString()).put("tracks", array)
+            val file = File(cacheDir, "library-cache.json")
+            val temporary = File(cacheDir, "library-cache.json.tmp")
+            temporary.writeText(root.toString(), Charsets.UTF_8)
+            if (!temporary.renameTo(file)) {
+                file.writeText(root.toString(), Charsets.UTF_8)
+                temporary.delete()
+            }
+            recordDiagnostic("LIBRARY_CACHE_SAVED tracks=" + library.size)
+        } catch (e: Exception) {
+            recordDiagnostic("LIBRARY_CACHE_WRITE_FAILED", e)
+        }
+    }
+
     private fun scanMusicFolder(uri: Uri) {
         recordDiagnostic("SCAN_START uri=$uri")
         librarySummary.text = "Memindai folder dan subfolder…"; statusView.text = "Memindai pustaka musik…"
@@ -428,6 +504,7 @@ class MainActivity : Activity() {
             val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
                 tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = emptyList()
+                Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
                     librarySummary.text = "Daftar ditemukan (${sorted.size} lagu), tetapi tampilan gagal dibuat. Log diagnostik tersedia."
@@ -868,8 +945,8 @@ class MainActivity : Activity() {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         var sample = 1
-        while (bounds.outWidth / sample > 1200 || bounds.outHeight / sample > 1200) sample *= 2
-        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1) }
+        while (bounds.outWidth / sample > 900 || bounds.outHeight / sample > 900) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1); inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
@@ -893,11 +970,17 @@ class MainActivity : Activity() {
     }
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
+        val key = track.uri.toString()
+        val cached = bitmapArtworkCache.get(key)
+        if (cached != null && !cached.isRecycled) {
+            target.setImageBitmap(cached)
+            return
+        }
         artworkExecutor.execute {
             val bitmap = readArtworkBytes(track)?.let { decodeArtwork(it) }
+            if (bitmap != null) bitmapArtworkCache.put(key, bitmap)
             handler.post {
-                if (bitmap != null && !isFinishing && target.isAttachedToWindow) { target.setImageBitmap(bitmap) }
-                else bitmap?.recycle()
+                if (bitmap != null && !isFinishing && target.isAttachedToWindow) target.setImageBitmap(bitmap)
             }
         }
     }
@@ -907,7 +990,8 @@ class MainActivity : Activity() {
         artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
-            val bitmap = readArtworkBytes(t)?.let { decodeArtwork(it) }
+            val key = t.uri.toString()
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) { bitmap?.recycle(); return@post }
                 if (bitmap != null && !isFinishing) {
