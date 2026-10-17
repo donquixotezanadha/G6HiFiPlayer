@@ -332,7 +332,7 @@ class MainActivity : Activity() {
     private fun makeAudioPanel() {
         val summary = card(); summary.addView(text("ACTIVE OUTPUT", 11f, accentColor, true))
         routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
-        summary.addView(routeSummary); summary.addView(text("Rute stream dibaca dari AudioTrack milik Media3. Backend internal LG Quad DAC tidak tersedia melalui API publik; perangkat headphone terdeteksi bukan bukti backend DAC tertentu.", 12f, MUTED, false)); audioPanel.addView(summary)
+        summary.addView(routeSummary); summary.addView(text("The stream route is read from Media3 AudioTrack. The internal LG Quad DAC backend is not exposed through the public API; detecting headphones does not prove a specific DAC backend.", 12f, MUTED, false)); audioPanel.addView(summary)
         val detail = card(); detail.addView(text("ROUTE DIAGNOSTICS", 11f, MUTED, true))
         routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         detail.addView(routeInfo)
@@ -517,7 +517,7 @@ class MainActivity : Activity() {
                     sorted.isEmpty() -> "No audio files found. Choose a Music folder containing tracks."
                     else -> sorted.size.toString() + " lagu • " + sorted.map { it.album }.distinct().size + " albums found"
                 }
-                statusView.text = if (sorted.isEmpty()) "The library is empty. Check the selected folder." else "Pustaka siap • " + sorted.size + " lagu."
+                statusView.text = if (sorted.isEmpty()) "The library is empty. Check the selected folder." else "Library ready • " + sorted.size + " tracks."
             }
         }.start()
     }
@@ -593,8 +593,6 @@ class MainActivity : Activity() {
                 setOnClickListener { selectedAlbum = if (selectedAlbum == album) null else album; visibleTrackLimit = 80; renderLibrary() }
                 setOnLongClickListener {
                     showAlbumOptions(album, indices)
-                        if (which == 0) { if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); show("player") } } else addAlbumToQueue(indices, album)
-                    }.show()
                     true
                 }
             }
@@ -777,8 +775,8 @@ class MainActivity : Activity() {
                             durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
                             seek.max = durationMs.coerceAtLeast(1); this@MainActivity.duration.text = time(durationMs)
                             playView.isEnabled = true
-                            statusView.text = "Siap diputar • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "sample rate sumber tidak diketahui")
-                            if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Sedang diputar • " + t.title }
+                            statusView.text = "Ready • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "source sample rate unknown")
+                            if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Playing • " + t.title }
                             else syncPlaybackIcon(false)
                             pendingAutoplay = false
                             refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
@@ -845,14 +843,14 @@ class MainActivity : Activity() {
         // otherwise the artwork bitmap cannot be displayed even when its background task has already finished.
         metadataExecutor.execute {
             val r = MediaMetadataRetriever()
-            var fileDuration = "Tidak tersedia"; var mime = "Tidak tersedia"; var bitrate = "Tidak tersedia"
+            var fileDuration = "Unavailable"; var mime = "Unavailable"; var bitrate = "Unavailable"
             try {
                 r.setDataSource(this@MainActivity, uri)
                 fileDuration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: fileDuration
                 mime = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: mime
                 bitrate = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE) ?: bitrate
             } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
-            var rate = "Tidak tersedia"; var channels = "Tidak tersedia"; var trackMime = mime
+            var rate = "Unavailable"; var channels = "Unavailable"; var trackMime = mime
             val extractor = MediaExtractor()
             try {
                 extractor.setDataSource(this@MainActivity, uri, null)
@@ -1045,9 +1043,9 @@ class MainActivity : Activity() {
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "No active stream"
-            !isPlayingNow -> "Tidak sedang memutar; rute aktif tidak sedang diukur"
-            outputTrack == null -> "AudioTrack Media3 belum tersedia untuk diperiksa"
-            else -> "AudioTrack aktif, tetapi Android belum melaporkan perangkat rute"
+            !isPlayingNow -> "Not playing; active routing is not being measured"
+            outputTrack == null -> "Media3 AudioTrack is not available for inspection"
+            else -> "AudioTrack is active, but Android has not reported a routed device"
         }
         val playbackState = when {
             player == null -> "tidak ada player"
@@ -1063,8 +1061,8 @@ class MainActivity : Activity() {
                 AudioManager.MODE_IN_COMMUNICATION -> "IN_COMMUNICATION"
                 else -> "mode=" + audioManager.mode
             }
-        } catch (_: Exception) { "tidak tersedia" }
-        val sessionId = try { if (outputTrackPlaying) outputTrack?.audioSessionId?.toString() ?: "tidak tersedia" else "tidak aktif" } catch (_: Exception) { "tidak tersedia" }
+        } catch (_: Exception) { "unavailable" }
+        val sessionId = try { if (outputTrackPlaying) outputTrack?.audioSessionId?.toString() ?: "unavailable" else "inactive" } catch (_: Exception) { "unavailable" }
         val outputRate = try { if (outputTrackPlaying) outputTrack?.sampleRate else null } catch (_: Exception) { null }
         val outputEncoding = try { if (outputTrackPlaying) outputTrack?.audioFormat?.let { encodingName(it) } else null } catch (_: Exception) { null }
         val outputChannels = try { if (outputTrackPlaying) outputTrack?.channelCount else null } catch (_: Exception) { null }
@@ -1083,7 +1081,7 @@ class MainActivity : Activity() {
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
         val wiredText = if (wired.isEmpty()) "Jack kabel: tidak terdeteksi" else "Jack kabel terdeteksi: " + wired.joinToString { describe(it) }
         val rateNote = when {
-            sourceRate == null -> "Sample rate sumber belum terbaca."
+            sourceRate == null -> "Source sample rate has not been read."
             outputTrackPlaying && outputRate != null && outputRate == sourceRate ->
                 "Sample rate sumber sama dengan konfigurasi AudioTrack (${outputRate} Hz). Ini bukti konfigurasi track, bukan bukti sample rate fisik DAC atau bit-perfect."
             outputTrackPlaying && outputRate != null && outputRate != sourceRate ->
@@ -1091,22 +1089,22 @@ class MainActivity : Activity() {
             sourceRate.toString() == defaultRate ->
                 "Sample rate sumber sama dengan properti default sistem; ini tidak membuktikan format stream atau DAC."
             else ->
-                "Sample rate sumber berbeda dari properti default sistem, tetapi rate AudioTrack belum terbaca; belum cukup untuk menyimpulkan resampling."
+                "The source sample rate differs from the system default property, but the AudioTrack rate is unreadable; this is insufficient to conclude that resampling occurred."
         }
         routeSummary.text = route
         routeInfo.text = "Status: " + (if (isPlayingNow) "SEDANG MEMUTAR" else "tidak memutar") +
             "\nRute aktif aktual: " + route + "\n" + wiredText +
             "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
             "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
-                (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding tidak terbaca") +
+                (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding unreadable") +
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
-                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "durasi tidak tersedia") +
-                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
+                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "duration unavailable") +
+                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") else "inactive") +
             "\nAudioManager mode: " + audioMode +
             "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
             "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
             "\n" + connectionSummary +
-            "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
+            "\nSample rate sumber: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
             "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
@@ -1154,14 +1152,14 @@ class MainActivity : Activity() {
         } catch (e: Exception) { Toast.makeText(this, "Tidak dapat membuka menu berbagi.", Toast.LENGTH_SHORT).show() }
     }
     private fun copyAudioLog() {
-        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
-        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
+        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Route information is unavailable."
+        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "File information is unavailable."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
         copyText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
     private fun shareAudioLog() {
-        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
-        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
+        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Route information is unavailable."
+        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "File information is unavailable."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
         shareText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
@@ -1384,7 +1382,7 @@ class MainActivity : Activity() {
             }
             if (::routeSummary.isInitialized) routeSummary.text = label
             if (previous != null && previous != routeKey) {
-                lastDeviceEvent = "Rute AudioTrack: " + label
+                lastDeviceEvent = "AudioTrack route: " + label
                 recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey + " routedDevice=" + (active?.let { describe(it) } ?: "null") + " playing=" + playing)
             }
             if (::routeInfo.isInitialized) refreshAudioInfo()
@@ -1511,10 +1509,10 @@ class MainActivity : Activity() {
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun describe(d: AudioDeviceInfo) = deviceName(d) + " (" + deviceType(d.type) + ", type=" + d.type + ", id=" + d.id + ")"
     private fun describeCapabilities(d: AudioDeviceInfo): String {
-        val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
-        val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
-        val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString(", ") { encodingName(it) } ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
-        return "Kapabilitas yang dilaporkan untuk perangkat aktif (bukan bukti format stream aktif):\nSample rates: " + rates + " Hz\nJumlah kanal: " + channels + "\nEncoding: " + encodings
+        val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "not reported" } catch (_: Exception) { "unavailable" }
+        val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "not reported" } catch (_: Exception) { "unavailable" }
+        val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString(", ") { encodingName(it) } ?: "not reported" } catch (_: Exception) { "unavailable" }
+        return "Capabilities reported for the active device (not proof of the active stream format):\nSample rates: " + rates + " Hz\nJumlah kanal: " + channels + "\nEncoding: " + encodings
     }
     private fun encodingName(encoding: Int) = when (encoding) {
         AudioFormat.ENCODING_PCM_8BIT -> "PCM 8-bit"
@@ -1534,7 +1532,7 @@ class MainActivity : Activity() {
         AudioDeviceInfo.TYPE_USB_HEADSET -> "headset USB"
         AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth A2DP"
         AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth SCO"
-        else -> "perangkat lain"
+        else -> "other device"
     }
     private fun time(ms: Int): String {
         val s = ms.coerceAtLeast(0) / 1000
