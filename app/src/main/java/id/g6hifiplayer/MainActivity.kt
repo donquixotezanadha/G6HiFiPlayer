@@ -42,6 +42,7 @@ import android.widget.TextView
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?)
@@ -55,6 +56,8 @@ class MainActivity : Activity() {
     private var currentIndex = -1
     private var selectedAlbum: String? = null
     private var artToken = 0
+    private var visibleTrackLimit = 80
+    private val artworkExecutor = Executors.newSingleThreadExecutor()
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
     private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
@@ -279,6 +282,7 @@ class MainActivity : Activity() {
                 if (flag != 0) contentResolver.takePersistableUriPermission(uri, flag)
             } catch (_: Exception) { }
             getPreferences(MODE_PRIVATE).edit().putString("music_tree_uri", uri.toString()).apply()
+            visibleTrackLimit = 80
             scanMusicFolder(uri); show("library"); return
         }
         if (requestCode == REQUEST_AUDIO) {
@@ -378,7 +382,8 @@ class MainActivity : Activity() {
             albumRows.addView(albumRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
             albumTracks.firstOrNull()?.let { loadArtworkInto(cover, it) }
         }
-        tracks.withIndex().filter { selectedAlbum == null || it.value.album == selectedAlbum }.forEach { entry ->
+        val visibleEntries = tracks.withIndex().filter { selectedAlbum == null || it.value.album == selectedAlbum }
+        visibleEntries.take(visibleTrackLimit).forEach { entry ->
             val t = entry.value
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); background = shape(if (entry.index == currentIndex) LINE else BG, 12); isClickable = true; isFocusable = true }
             val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
@@ -388,6 +393,12 @@ class MainActivity : Activity() {
             row.setOnClickListener { playTrackAt(entry.index, true); show("player") }
             trackRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
             loadArtworkInto(cover, t)
+        }
+        if (visibleEntries.size > visibleTrackLimit) {
+            trackRows.addView(action("MUAT LAGU BERIKUTNYA (${visibleEntries.size - visibleTrackLimit} tersisa)", false) {
+                visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(visibleEntries.size)
+                renderLibrary()
+            }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
         }
     }
     private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) ACCENT else WHITE, selected).apply {
@@ -478,8 +489,17 @@ class MainActivity : Activity() {
         fileInfo.text = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
     }
 
+    private fun decodeArtwork(bytes: ByteArray): android.graphics.Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / sample > 1200 || bounds.outHeight / sample > 1200) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1) }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    }
+
     private fun loadArtworkInto(target: ImageView, track: Track) {
-        Thread {
+        artworkExecutor.execute {
             var bytes: ByteArray? = null
             val retriever = MediaMetadataRetriever()
             try { retriever.setDataSource(this@MainActivity, track.uri); bytes = retriever.embeddedPicture }
@@ -488,30 +508,31 @@ class MainActivity : Activity() {
             if (bytes == null && track.coverUri != null) {
                 try { contentResolver.openInputStream(track.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
             }
-            val bitmap = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+            val bitmap = bytes?.let { decodeArtwork(it) }
             handler.post {
-                if (bitmap != null && !isFinishing) target.setImageBitmap(bitmap)
+                if (bitmap != null && !isFinishing && target.isAttachedToWindow) target.setImageBitmap(bitmap)
+                else bitmap?.recycle()
             }
-        }.start()
+        }
     }
 
     private fun loadArtwork(t: Track) {
         val token = ++artToken
         artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
-        Thread {
+        artworkExecutor.execute {
             var bytes: ByteArray? = null
             val r = MediaMetadataRetriever()
             try { r.setDataSource(this@MainActivity, t.uri); bytes = r.embeddedPicture } catch (_: Exception) { }
             finally { try { r.release() } catch (_: Exception) { } }
             if (bytes == null && t.coverUri != null) try { contentResolver.openInputStream(t.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
-            val bitmap = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+            val bitmap = bytes?.let { decodeArtwork(it) }
             handler.post {
                 if (token != artToken) { bitmap?.recycle(); return@post }
                 if (bitmap != null) {
                     artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
                 } else { artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "G6\nNO COVER ART" }
             }
-        }.start()
+        }
     }
 
     private fun refreshAudioInfo() {
