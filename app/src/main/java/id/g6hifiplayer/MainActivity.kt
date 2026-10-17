@@ -229,11 +229,11 @@ class MainActivity : Activity() {
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
         val artworkSize = minOf(292, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 56).coerceAtLeast(220))
         hero.gravity = Gravity.CENTER_HORIZONTAL
-        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(8) })
+        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(16) })
         audioInfoInline = text("FLAC • sumber — kHz → output — kHz • status belum terverifikasi", 9f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
-        hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+        hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
         titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END }
         artistView = text("Pilih folder musik atau satu file", 14f, MUTED, false)
         albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(2), 0, dp(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
@@ -253,8 +253,8 @@ class MainActivity : Activity() {
                 }
             })
         }
-        hero.addView(seek)
-        val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(5), 0, dp(2)) }
+        hero.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5); bottomMargin = dp(12) })
+        val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(10)) }
         transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         playView = ImageView(this).apply {
@@ -270,12 +270,7 @@ class MainActivity : Activity() {
         transport.addView(playView, LinearLayout.LayoutParams(0, dp(44), 1.1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        hero.addView(transport)
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(6), 0, 0) }
-        buttons.addView(action("PILIH FILE", false) { pickFile() }, LinearLayout.LayoutParams(0, dp(36), 1f))
-        buttons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        buttons.addView(action("SCAN FOLDER", false) { pickFolder() }, LinearLayout.LayoutParams(0, dp(36), 1f))
-        hero.addView(buttons); playerPanel.addView(hero)
+        hero.addView(transport); playerPanel.addView(hero)
         val state = card(); state.visibility = View.GONE; state.addView(text("STATUS PEMUTARAN", 11f, MUTED, true))
         statusView = text("Pilih folder musik atau file audio untuk memulai.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
         state.addView(statusView); playerPanel.addView(state)
@@ -284,7 +279,11 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val head = card(); head.addView(text("ALBUM", 16f, WHITE, true))
         head.addView(text("Pilih satu folder Music; subfolder album dipindai otomatis.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
-        head.addView(action("PILIH FOLDER MUSIC", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(48)))
+        val sourceActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        sourceActions.addView(action("PILIH FILE", false) { pickFile() }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        sourceActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        sourceActions.addView(action("SCAN FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        head.addView(sourceActions, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) })
         librarySummary = text("Belum ada folder yang dipindai.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         head.addView(librarySummary)
         scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
