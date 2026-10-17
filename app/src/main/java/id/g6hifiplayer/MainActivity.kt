@@ -195,15 +195,19 @@ class MainActivity : Activity() {
     private fun buildUi() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
         val nav = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            setPadding(0, dp(5), 0, dp(7)); setBackgroundColor(Color.TRANSPARENT)
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 0)
+            setBackgroundColor(BG)
         }
         navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { show("player") }
         navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
         navSongs = navButton(android.R.drawable.ic_menu_agenda, "Songs") { show("songs") }
         navAudio = navButton(android.R.drawable.ic_menu_sort_by_size, "Queue") { show("queue") }
         navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
-        listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
+        listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach {
+            nav.addView(it, LinearLayout.LayoutParams(0, dp(52), 1f))
+        }
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
@@ -218,7 +222,7 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        songsPanel.setPadding(0, statusBarInset, 0, dp(8))
+        songsPanel.setPadding(dp(16), statusBarInset, dp(16), dp(8))
         queuePanel.setPadding(0, statusBarInset, 0, dp(8))
         settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
@@ -257,7 +261,8 @@ class MainActivity : Activity() {
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(queuePanel); content.addView(settingsPanel)
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(nav, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3); bottomMargin = dp(8) })
+        // A fixed-height, opaque bottom bar keeps its geometry stable while tabs change.
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
         setContentView(root); show("player"); renderLibrary()
     }
 
@@ -302,7 +307,10 @@ class MainActivity : Activity() {
             topMargin = statusBarInset
         })
 
-        audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
+        audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
+            gravity = Gravity.CENTER
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            maxLines = 2
             setPadding(0, dp(2), 0, dp(4))
             visibility = View.VISIBLE
             setTextIsSelectable(true)
@@ -392,6 +400,7 @@ class MainActivity : Activity() {
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1) })
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
             leftMargin = dp(18); rightMargin = dp(18); topMargin = dp(4); bottomMargin = dp(2)
+            gravity = Gravity.CENTER_HORIZONTAL
         })
 
         foreground.addView(bottomDock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -402,7 +411,8 @@ class MainActivity : Activity() {
 
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        libraryPanel.setPadding(0, inset + dp(2), 0, dp(8))
+        // Match the inner horizontal content edge used by the Queue card (16dp).
+        libraryPanel.setPadding(dp(16), inset + dp(2), dp(16), dp(8))
         libraryPanel.addView(text("ALBUM", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1323,15 +1333,15 @@ class MainActivity : Activity() {
                 playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLING / NOT BIT-PERFECT"
                 else -> "● BIT-PERFECT NOT CONFIRMED"
             }
-            val compact = "$extension$bitrateLabel • source $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
-            audioInfoInline.text = compact
+            val formatLine = "$extension$bitrateLabel • source $sourceKhz kHz → output $outputKhz kHz • $routeLabel"
+            val compact = "$formatLine\n$bitPerfectText"
+            val colored = android.text.SpannableString(compact)
             val start = compact.indexOf(bitPerfectText)
             if (start >= 0) {
-                val colored = android.text.SpannableString(compact)
                 // Android's public APIs cannot confirm bit-perfect delivery; orange means unknown or conversion indicated.
                 colored.setSpan(android.text.style.ForegroundColorSpan(0xFFFFA43A.toInt()), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                audioInfoInline.text = colored
             }
+            audioInfoInline.text = colored
         }
     }
 
