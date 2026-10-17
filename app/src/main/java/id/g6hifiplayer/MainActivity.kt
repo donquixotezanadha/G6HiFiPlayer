@@ -539,6 +539,7 @@ class MainActivity : Activity() {
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nBit depth stream aktif dan status bit-perfect belum dapat diverifikasi lewat API publik ini."
+        if (::audioInfoInline.isInitialized) audioInfoInline.text = routeInfo.text.toString()
     }
 
     private fun copyText(value: String) {
@@ -707,10 +708,16 @@ class MainActivity : Activity() {
         handler.removeCallbacks(ticker)
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
         try { player?.release() } catch (_: Exception) { }
+        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
+        if (activeInstance === this) activeInstance = null
         player = null; super.onDestroy()
     }
     companion object {
         private const val REQUEST_AUDIO = 1001
+        private const val CHANNEL_ID = "g6_hifi_playback"
+        private const val NOTIFICATION_ID = 6106
+        private var activeInstance: MainActivity? = null
+        @JvmStatic fun notificationAction(action: String) { activeInstance?.handleNotificationAction(action) }
         private const val REQUEST_FOLDER = 1002
         private const val BG = 0xFF0B1015.toInt()
         private const val CARD = 0xFF151D24.toInt()
