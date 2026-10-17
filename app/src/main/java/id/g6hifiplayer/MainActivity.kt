@@ -222,17 +222,18 @@ class MainActivity : Activity() {
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
-        val artworkSize = minOf(320, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 48).coerceAtLeast(220))
+        val artworkSize = minOf(292, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 56).coerceAtLeast(220))
         hero.gravity = Gravity.CENTER_HORIZONTAL
-        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(22); bottomMargin = dp(12) })
+        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(8) })
         audioInfoToggle = iconAction("ⓘ  INFO AUDIO") {
             audioInfoInline.visibility = if (audioInfoInline.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             audioInfoToggle.text = if (audioInfoInline.visibility == View.VISIBLE) "ⓘ  SEMBUNYIKAN INFO AUDIO" else "ⓘ  INFO AUDIO"
             refreshAudioInfo()
         }
-        hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(30)).apply { bottomMargin = dp(2) })
-        audioInfoInline = text("FLAC • sumber — kHz → output — kHz • output belum terkonfirmasi bit-perfect", 10f, MUTED, false).apply {
-            setPadding(dp(2), dp(4), dp(2), dp(6)); visibility = View.GONE; setTextIsSelectable(true)
+        audioInfoToggle.textSize = 12f; audioInfoToggle.setTextColor(MUTED)
+        hero.addView(audioInfoToggle, LinearLayout.LayoutParams(-1, dp(26)).apply { bottomMargin = dp(1) })
+        audioInfoInline = text("FLAC • sumber — kHz → output — kHz • status belum terverifikasi", 9f, MUTED, false).apply {
+            setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.GONE; setTextIsSelectable(true)
         }
         hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
         titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
@@ -255,7 +256,7 @@ class MainActivity : Activity() {
             })
         }
         hero.addView(seek)
-        val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(3)) }
+        val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(5), 0, dp(2)) }
         transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         playView = iconAction("▶") { togglePlayback() }.apply { textSize = 28f; setTextColor(accentColor) }
@@ -263,7 +264,7 @@ class MainActivity : Activity() {
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         hero.addView(transport)
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(6), 0, 0) }
         buttons.addView(action("PILIH FILE", false) { pickFile() }, LinearLayout.LayoutParams(0, dp(36), 1f))
         buttons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         buttons.addView(action("SCAN FOLDER", false) { pickFolder() }, LinearLayout.LayoutParams(0, dp(36), 1f))
