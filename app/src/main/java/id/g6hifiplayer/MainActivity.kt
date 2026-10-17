@@ -950,7 +950,7 @@ class MainActivity : Activity() {
         titleView.text = t.title; titleView.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT); titleView.gravity = Gravity.START or Gravity.CENTER_VERTICAL; titleView.setPadding(0, dp(2), 0, dp(1)); artistView.text = t.artist; albumView.text = t.album
         elapsed.text = "0:00"; duration.text = "0:00"; seek.progress = 0; seek.max = 1
         playView.isEnabled = false; syncPlaybackIcon(false)
-        statusView.text = "Memuat dengan mesin Media3: " + t.title + "…"
+        statusView.text = "Loading with the Media3 engine: " + t.title + "…"
         showMetadata(t.uri, t); loadArtwork(t)
         try {
             val exo = createHiFiPlayer()
@@ -1235,8 +1235,8 @@ class MainActivity : Activity() {
             append(if (devices.isEmpty()) "no output devices reported" else devices.joinToString { describe(it) })
             append("\nIndikasi legacy AudioManager: ").append(legacyHints)
             append("\nRegistered headphones/jack: ").append(if (connectedWired.isEmpty()) "none" else connectedWired.joinToString { describe(it) })
-            append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "none" else connectedBluetooth.joinToString { describe(it) })
-            append("\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
+            append("\nBluetooth devices listed: ").append(if (connectedBluetooth.isEmpty()) "none" else connectedBluetooth.joinToString { describe(it) })
+            append("\nIMPORTANT: The entries/flags above indicate connections or legacy hints, not the active stream route.")
         }
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
@@ -1531,9 +1531,9 @@ class MainActivity : Activity() {
                 report.append(rate).append(" Hz / PCM 16-bit: ").append(if (supported) "reported as supported by the API" else "not reported as supported").append('\n')
             }
         } else report.append("The direct-playback API is unavailable on this Android version.\n")
-        report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
+        report.append("\nReadable configuration files: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nConfiguration files indicate capabilities declared by the system; they do not prove Media3 is using DIRECT_HD/direct_pcm_24 or that the DAC receives a specific sample rate.")
-        report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
+        report.append("\n\nLG G6-SPECIFIC INTERPRETATION: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC together with the headphones backend tert-mi2s-headphones and SEC_MI2S_RX indicates a possible Quad DAC path configuration. Configuration files only show that a path is defined, not that the current stream is using it.")
         report.append("\nLG QUAD DAC BACKEND STATUS: not confirmed through the public API. Wired-device preference only asks AudioPolicy to select the 3.5 mm jack; it does not force AUDIO_OUTPUT_FLAG_DIRECT or prove the HAL/DAC backend.")
         report.append("\n\nTo inspect the backend while playing through the 3.5 mm jack, run these commands from a computer with USB debugging enabled:")
         report.append("\nadb shell dumpsys media.audio_flinger")
