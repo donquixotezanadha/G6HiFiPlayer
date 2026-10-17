@@ -201,8 +201,8 @@ class MainActivity : Activity() {
             lightTheme = !lightTheme
             accentColor = DEFAULT_ACCENT
             window.statusBarColor = BG
-            window.navigationBarColor = Color.TRANSPARENT
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+            window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
             getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
             buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
         }, LinearLayout.LayoutParams(-1, dp(44)))
