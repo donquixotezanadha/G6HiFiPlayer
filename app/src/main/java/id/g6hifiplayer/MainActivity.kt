@@ -1240,7 +1240,13 @@ class MainActivity : Activity() {
         // Keep the in-memory cache bounded; exceptionally large embedded covers are not retained.
         if (bytes != null && bytes!!.size <= 8 * 1024 * 1024) synchronized(artworkBytesCache) {
             artworkBytesCache[key] = bytes!!
-            while (artworkBytesCache.size > 24) artworkBytesCache.remove(artworkBytesCache.keys.iterator().next())
+            // Bound by total bytes, not only entry count: 24 large embedded covers could
+            // otherwise retain close to 192 MB on the LG G6 before bitmap memory is counted.
+            var cachedBytes = artworkBytesCache.values.sumOf { it.size.toLong() }
+            while (artworkBytesCache.isNotEmpty() && cachedBytes > 16L * 1024L * 1024L) {
+                val oldestKey = artworkBytesCache.keys.iterator().next()
+                cachedBytes -= artworkBytesCache.remove(oldestKey)?.size?.toLong() ?: 0L
+            }
         }
         return bytes
     }
