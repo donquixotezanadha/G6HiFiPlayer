@@ -87,7 +87,7 @@ class MainActivity : Activity() {
     private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
-    private var queueGridColumns = 2
+    private var albumGridColumns = 2\n    private var queueGridColumns = 2
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(3)
     // Keep current-player artwork independent of the library thumbnails backlog.
@@ -163,7 +163,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
-        queueGridColumns = getPreferences(MODE_PRIVATE).getInt("queue_grid_columns", 2).coerceIn(2, 3)
+        albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         window.statusBarColor = BG
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
@@ -298,7 +298,13 @@ class MainActivity : Activity() {
         head.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         libraryPanel.addView(head)
         val albums = card(); albums.addView(text("ALBUM", 11f, accentColor, true))
-        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
+        albums.addView(text("Pilih tampilan artwork album.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
+        val albumGridOptions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        albumGridOptions.addView(action("2 KOLOM", albumGridColumns == 2) { albumGridColumns = 2; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 2).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        albumGridOptions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        albumGridOptions.addView(action("3 KOLOM", albumGridColumns == 3) { albumGridColumns = 3; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 3).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        albums.addView(albumGridOptions)
+        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
         albums.addView(albumRows); libraryPanel.addView(albums)
         val songs = card(); songs.addView(text("LAGU", 11f, accentColor, true))
         trackRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
