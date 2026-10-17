@@ -192,9 +192,9 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
             setPadding(dp(10), dp(5), dp(10), dp(7)); setBackgroundColor(Color.TRANSPARENT)
         }
-        navPlayer = navButton("♫", "Now playing") { show("player") }
+        navPlayer = navButton("▶", "Now playing") { show("player") }
         navLibrary = navButton("▦", "Albums") { show("library") }
-        navSongs = navButton("☷", "Songs") { show("songs") }
+        navSongs = navButton("♫", "Songs") { show("songs") }
         navAudio = navButton("≡", "Queue") { show("queue") }
         navFile = navButton("⚙", "Settings") { show("settings") }
         listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
@@ -987,7 +987,10 @@ class MainActivity : Activity() {
             playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
             syncPlaybackIcon()
         }
-        if (::scanProgress.isInitialized) scanProgress.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
+        if (::scanProgress.isInitialized) {
+            scanProgress.progressTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
+            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+        }
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
         if (::titleView.isInitialized) titleView.setTextColor(accentColor)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
@@ -997,7 +1000,8 @@ class MainActivity : Activity() {
             if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
         }
         recolor(window.decorView)
-        if (::albumRows.isInitialized && ::trackRows.isInitialized) renderLibrary()
+        if (::albumRows.isInitialized) renderLibrary()
+        if (::songRows.isInitialized) renderSongs()
     }
 
     private fun decodeArtwork(
@@ -1058,9 +1062,14 @@ class MainActivity : Activity() {
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
-                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE; applyArtworkAccent(bitmap)
+                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
+                    if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+                    applyArtworkAccent(bitmap)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
-                } else { artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "G6\nNO COVER ART" }
+                } else {
+                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "G6\nNO COVER ART"
+                    if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
+                }
             }
         }
     }
