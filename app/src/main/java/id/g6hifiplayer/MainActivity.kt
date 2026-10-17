@@ -750,9 +750,44 @@ class MainActivity : Activity() {
             albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
             return
         }
-        // One grouping pass avoids repeatedly filtering the full library for each album.
+
+        // Group once per render; selected album rows are shown before the grid so tapping a
+        // cover immediately reveals its tracks instead of appending them below the entire library.
         val groupedAlbums = tracks.withIndex().groupBy { it.value.album }
         val albums = groupedAlbums.keys.sortedBy { it.lowercase(Locale.ROOT) }
+
+        selectedAlbum?.let { album ->
+            val entries = groupedAlbums[album].orEmpty().sortedWith(
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+            )
+            if (entries.isEmpty()) {
+                selectedAlbum = null
+            } else {
+                albumRows.addView(text(album, 18f, WHITE, true).apply {
+                    setPadding(dp(8), dp(12), dp(8), dp(8))
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, LinearLayout.LayoutParams(-1, -2))
+                val albumActions = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(dp(4), dp(2), dp(4), dp(8))
+                }
+                albumActions.addView(action("PLAY ALBUM", true) {
+                    val order = entries.map { it.index }
+                    if (order.isNotEmpty()) { playTrackAt(order.first(), true, order); show("player") }
+                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+                albumActions.addView(action("ADD TO QUEUE", false) {
+                    addAlbumToQueue(entries.map { it.index }, album)
+                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
+                entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
+                albumRows.addView(View(this), LinearLayout.LayoutParams(-1, dp(1)).apply {
+                    topMargin = dp(12); bottomMargin = dp(8)
+                }.also { /* spacer separates the open album from the remaining grid */ })
+            }
+        }
+
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             if (position % albumGridColumns == 0) {
@@ -760,12 +795,19 @@ class MainActivity : Activity() {
                 albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val entries = groupedAlbums[album].orEmpty()
-            val indices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
+            val indices = entries.sortedWith(
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+            ).map { it.index }
             val cell = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(3), dp(4), dp(3), dp(7))
-                background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000), shape(Color.TRANSPARENT, 12), null)
-                isClickable = true; isFocusable = true
+                background = RippleDrawable(
+                    ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000),
+                    shape(Color.TRANSPARENT, 12), null
+                )
+                isClickable = true
+                isFocusable = true
                 contentDescription = "Open songs in album $album"
                 setOnClickListener {
                     selectedAlbum = if (selectedAlbum == album) null else album
@@ -777,38 +819,27 @@ class MainActivity : Activity() {
                     true
                 }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(Color.TRANSPARENT, 8); contentDescription = "Artwork $album" }
+            val cover = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                background = shape(Color.TRANSPARENT, 8)
+                contentDescription = "Artwork $album"
+            }
             cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 148 else 108)))
-            cell.addView(text(album, 12f, MUTED, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply { gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
+            cell.addView(text(album, 12f, MUTED, true).apply {
+                setPadding(dp(2), dp(7), dp(2), dp(2))
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER_HORIZONTAL
+            }, LinearLayout.LayoutParams(-1, -2))
+            cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }, LinearLayout.LayoutParams(-1, -2))
             val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (position % albumGridColumns != 0) leftMargin = dp(3)
                 if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(3)
             }
             gridRow?.addView(cell, lp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
-        }
-        selectedAlbum?.let { album ->
-            val entries = groupedAlbums[album].orEmpty().sortedWith(
-                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
-            )
-            if (entries.isEmpty()) {
-                selectedAlbum = null
-            } else {
-                albumRows.addView(text(album, 18f, WHITE, true).apply {
-                    setPadding(dp(12), dp(12), dp(12), dp(8)); maxLines = 2
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }, LinearLayout.LayoutParams(-1, -2))
-                val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(2), dp(8), dp(8)) }
-                albumActions.addView(action("PLAY ALBUM", true) {
-                    val order = entries.map { it.index }
-                    if (order.isNotEmpty()) { playTrackAt(order.first(), true, order); show("player") }
-                }, LinearLayout.LayoutParams(0, dp(42), 1f))
-                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-                albumActions.addView(action("ADD TO QUEUE", false) { addAlbumToQueue(entries.map { it.index }, album) }, LinearLayout.LayoutParams(0, dp(42), 1f))
-                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
-                entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
-            }
         }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
