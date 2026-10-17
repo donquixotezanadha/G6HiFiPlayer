@@ -433,7 +433,7 @@ class MainActivity : Activity() {
             textSize = 14f
             setTextColor(WHITE)
             setHintTextColor(MUTED)
-            singleLine = true
+            setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = shape(LINE, 14)
             setText(songSearchQuery)
