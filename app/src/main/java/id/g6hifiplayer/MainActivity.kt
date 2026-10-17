@@ -106,8 +106,10 @@ class MainActivity : Activity() {
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
     private lateinit var audioInfoInline: TextView
-    private lateinit var playerPanel: LinearLayout
+    private lateinit var playerPanel: FrameLayout
     private lateinit var libraryPanel: LinearLayout
+    private lateinit var songsPanel: LinearLayout
+    private lateinit var songRows: LinearLayout
     private lateinit var queuePanel: LinearLayout
     private lateinit var settingsPanel: LinearLayout
     private lateinit var queueRows: LinearLayout
@@ -115,6 +117,7 @@ class MainActivity : Activity() {
     private lateinit var filePanel: LinearLayout
     private lateinit var navPlayer: TextView
     private lateinit var navLibrary: TextView
+    private lateinit var navSongs: TextView
     private lateinit var navAudio: TextView
     private lateinit var navFile: TextView
     private lateinit var titleView: TextView
@@ -129,6 +132,7 @@ class MainActivity : Activity() {
     private lateinit var routeInfo: TextView
     private lateinit var fileInfo: TextView
     private lateinit var artImage: ImageView
+    private lateinit var playerBackdropImage: ImageView
     private lateinit var artPlaceholder: TextView
     private lateinit var librarySummary: TextView
     private lateinit var albumRows: LinearLayout
@@ -188,20 +192,22 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
             setPadding(dp(10), dp(5), dp(10), dp(7)); setBackgroundColor(Color.TRANSPARENT)
         }
-        navPlayer = navButton("NOW PLAYING") { show("player") }
-        navLibrary = navButton("ALBUMS") { show("library") }
-        navAudio = navButton("QUEUE") { show("queue") }
-        navFile = navButton("SETTINGS") { show("settings") }
-        listOf(navPlayer, navLibrary, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(54), 1f)) }
+        navPlayer = navButton("♫", "Now playing") { show("player") }
+        navLibrary = navButton("▦", "Albums") { show("library") }
+        navSongs = navButton("☷", "Songs") { show("songs") }
+        navAudio = navButton("≡", "Queue") { show("queue") }
+        navFile = navButton("⚙", "Settings") { show("settings") }
+        listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
         val scroll = ScrollView(this).apply { clipToPadding = false }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(8)) }
-        playerPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        playerPanel = FrameLayout(this)
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         queuePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        makePlayerPanel(); makeLibraryPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
+        makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
@@ -222,9 +228,20 @@ class MainActivity : Activity() {
         scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
         scanCard.addView(text("Choose a music folder to scan albums and subfolders. The last folder is checked automatically when the app opens.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
         scanCard.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
+        librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
+        scanCard.addView(librarySummary)
+        scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
+        scanCard.addView(scanProgressText)
+        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true; visibility = View.GONE
+            progressTintList = ColorStateList.valueOf(accentColor)
+            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFE3E1F5.toInt() else 0xFF242238.toInt())
+        }
+        scanCard.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         settingsPanel.addView(scanCard)
+        settingsPanel.addView(filePanel)
         settingsPanel.addView(audioPanel)
-        content.addView(playerPanel); content.addView(libraryPanel); content.addView(queuePanel); content.addView(settingsPanel)
+        content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(queuePanel); content.addView(settingsPanel)
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dp(12); rightMargin = dp(12); topMargin = dp(3); bottomMargin = dp(8) })
@@ -232,13 +249,33 @@ class MainActivity : Activity() {
     }
 
     private fun makePlayerPanel() {
-        val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)) }
+        playerBackdropImage = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0.22f
+            setBackgroundColor(BG)
+            contentDescription = "Faded album artwork background"
+        }
+        playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
+        val backdropGradient = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                if (lightTheme) intArrayOf(0x18FFFFFF, 0xDDF8F8FC.toInt(), BG)
+                else intArrayOf(0x18000000, 0xD9000000.toInt(), BG)
+            )
+            isClickable = false
+        }
+        playerPanel.addView(backdropGradient, FrameLayout.LayoutParams(-1, -1))
+        val foreground = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(4), dp(2), dp(4), dp(8))
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        }
+        val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)); gravity = Gravity.CENTER_HORIZONTAL }
         val frame = FrameLayout(this).apply { background = shape(ART, 22); clipToOutline = true }
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
         frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
         val artworkSize = minOf(292, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 56).coerceAtLeast(220))
-        hero.gravity = Gravity.CENTER_HORIZONTAL
         hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(16) })
         audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
@@ -252,8 +289,10 @@ class MainActivity : Activity() {
         elapsed = text("0:00", 11f, MUTED, false); duration = text("0:00", 11f, MUTED, false)
         times.addView(elapsed, LinearLayout.LayoutParams(0, -2, 1f)); times.addView(duration); hero.addView(times)
         seek = SeekBar(this).apply {
-            max = 1; progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
-            thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            max = 1
+            progressTintList = ColorStateList.valueOf(accentColor)
+            thumbTintList = ColorStateList.valueOf(accentColor)
+            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) { if (fromUser) elapsed.text = time(value) }
                 override fun onStartTrackingTouch(bar: SeekBar?) { seeking = true }
@@ -280,38 +319,30 @@ class MainActivity : Activity() {
         transport.addView(playView, LinearLayout.LayoutParams(0, dp(44), 1.1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        hero.addView(transport); playerPanel.addView(hero)
+        hero.addView(transport)
+        foreground.addView(hero)
         val state = card(); state.visibility = View.GONE; state.addView(text("PLAYBACK STATUS", 11f, MUTED, true))
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
-        state.addView(statusView); playerPanel.addView(state)
+        state.addView(statusView); foreground.addView(state)
+        playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
     }
 
     private fun makeLibraryPanel() {
-        val head = flatSection(); head.addView(text("ALBUMS", 18f, WHITE, true))
-        head.addView(text("Choose a Music folder; album subfolders are scanned automatically.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
-        val sourceActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        head.addView(text("Choose the music folder in Settings.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
-        librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
-        head.addView(librarySummary)
-        scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
-        head.addView(scanProgressText)
-        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true; visibility = View.GONE; progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
-        }
-        head.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
-        libraryPanel.addView(head)
-        val albums = flatSection(); albums.addView(text("ALBUM ARTWORK", 11f, accentColor, true))
-        albums.addView(text("Choose an album artwork layout.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
-        val albumGridOptions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        albumGridOptions.addView(action("2 COLUMNS", albumGridColumns == 2) { albumGridColumns = 2; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 2).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
-        albumGridOptions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        albumGridOptions.addView(action("3 COLUMNS", albumGridColumns == 3) { albumGridColumns = 3; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 3).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
-        albums.addView(albumGridOptions)
-        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
-        albums.addView(albumRows); libraryPanel.addView(albums)
-        val songs = flatSection(); songs.addView(text("TRACKS", 11f, accentColor, true))
-        trackRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
-        songs.addView(trackRows); libraryPanel.addView(songs)
+        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
+        libraryPanel.setPadding(dp(2), dp(2), dp(2), dp(2))
+        libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
+    }
+
+    private fun makeSongsPanel() {
+        val heading = flatSection()
+        heading.addView(text("SONGS", 18f, WHITE, true))
+        heading.addView(action("SHOW ALL SONGS", false) {
+            selectedAlbum = null
+            renderSongs()
+        }, LinearLayout.LayoutParams(-1, dp(40)).apply { topMargin = dp(8) })
+        songRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(2), dp(4), dp(2), dp(8)) }
+        heading.addView(songRows)
+        songsPanel.addView(heading)
     }
 
     private fun makeQueuePanel() {
