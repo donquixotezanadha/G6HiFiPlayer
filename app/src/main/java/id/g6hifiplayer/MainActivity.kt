@@ -402,39 +402,84 @@ class MainActivity : Activity() {
         albumRows.removeAllViews(); trackRows.removeAllViews()
         if (tracks.isEmpty()) {
             albumRows.addView(text("Pilih folder untuk membangun pustaka.", 13f, MUTED, false))
-            trackRows.addView(text("Lagu yang ditemukan akan muncul di sini.", 13f, MUTED, false)); return
+            trackRows.addView(text("Lagu yang ditemukan akan muncul di sini.", 13f, MUTED, false))
+            return
         }
+
         val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
-        albumRows.addView(rowButton("Semua album • " + tracks.size + " lagu", selectedAlbum == null) { selectedAlbum = null; renderLibrary() })
+        albumRows.addView(rowButton("Semua album • " + tracks.size + " lagu", selectedAlbum == null) {
+            selectedAlbum = null
+            visibleTrackLimit = 80
+            renderLibrary()
+        })
         albums.forEach { album ->
-            val albumTracks = tracks.filter { it.album == album }
-            val albumRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); background = shape(if (selectedAlbum == album) LINE else BG, 12); isClickable = true; isFocusable = true }
+            val albumEntries = tracks.withIndex().filter { it.value.album == album }
+            val albumRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                background = shape(if (selectedAlbum == album) LINE else BG, 12)
+                isClickable = true
+                isFocusable = true
+                contentDescription = if (selectedAlbum == album) "Tutup album $album" else "Buka album $album"
+            }
             val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
             albumRow.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
-            val label = text(album + "\n" + albumTracks.size + " lagu", 13f, if (selectedAlbum == album) ACCENT else WHITE, true).apply { setPadding(dp(12), 0, 0, 0) }
+            val label = text((if (selectedAlbum == album) "▾ " else "▸ ") + album + "\n" + albumEntries.size + " lagu", 13f, if (selectedAlbum == album) ACCENT else WHITE, true)
+                .apply { setPadding(dp(12), 0, 0, 0) }
             albumRow.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-            albumRow.setOnClickListener { selectedAlbum = album; renderLibrary() }
-            albumRows.addView(albumRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
-            albumTracks.firstOrNull()?.let { loadArtworkInto(cover, it) }
-        }
-        val visibleEntries = tracks.withIndex().filter { selectedAlbum == null || it.value.album == selectedAlbum }
-        visibleEntries.take(visibleTrackLimit).forEach { entry ->
-            val t = entry.value
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); background = shape(if (entry.index == currentIndex) LINE else BG, 12); isClickable = true; isFocusable = true }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
-            row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
-            val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0) }
-            row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-            row.setOnClickListener { playTrackAt(entry.index, true); show("player") }
-            trackRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
-            loadArtworkInto(cover, t)
-        }
-        if (visibleEntries.size > visibleTrackLimit) {
-            trackRows.addView(action("MUAT LAGU BERIKUTNYA (${visibleEntries.size - visibleTrackLimit} tersisa)", false) {
-                visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(visibleEntries.size)
+            albumRow.setOnClickListener {
+                selectedAlbum = if (selectedAlbum == album) null else album
+                visibleTrackLimit = 80
                 renderLibrary()
-            }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
+            }
+            albumRows.addView(albumRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+            albumEntries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
+
+            if (selectedAlbum == album) {
+                albumEntries.take(visibleTrackLimit).forEach { entry ->
+                    addLibraryTrackRow(albumRows, entry, true)
+                }
+                if (albumEntries.size > visibleTrackLimit) {
+                    albumRows.addView(action("MUAT LAGU BERIKUTNYA (\${albumEntries.size - visibleTrackLimit} tersisa)", false) {
+                        visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(albumEntries.size)
+                        renderLibrary()
+                    }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(8) })
+                }
+            }
         }
+
+        trackRows.visibility = if (selectedAlbum == null) View.VISIBLE else View.GONE
+        if (selectedAlbum == null) {
+            tracks.withIndex().take(visibleTrackLimit).forEach { entry ->
+                addLibraryTrackRow(trackRows, entry, false)
+            }
+            if (tracks.size > visibleTrackLimit) {
+                trackRows.addView(action("MUAT LAGU BERIKUTNYA (\${tracks.size - visibleTrackLimit} tersisa)", false) {
+                    visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(tracks.size)
+                    renderLibrary()
+                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
+            }
+        }
+    }
+
+    private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean) {
+        val t = entry.value
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(if (nested) 18 else 8), dp(8), dp(8), dp(8))
+            background = shape(if (entry.index == currentIndex) LINE else BG, 12)
+            isClickable = true
+            isFocusable = true
+        }
+        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
+        row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
+        val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0) }
+        row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+        row.setOnClickListener { playTrackAt(entry.index, true); show("player") }
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+        loadArtworkInto(cover, t)
     }
     private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) ACCENT else WHITE, selected).apply {
         setPadding(dp(12), dp(11), dp(12), dp(11)); background = shape(if (selected) LINE else BG, 12)
@@ -599,7 +644,10 @@ class MainActivity : Activity() {
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nBit depth stream aktif dan status bit-perfect belum dapat diverifikasi lewat API publik ini."
-        if (::audioInfoInline.isInitialized) audioInfoInline.text = routeInfo.text.toString()
+        if (::audioInfoInline.isInitialized) {
+            val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Pilih lagu untuk membaca metadata file."
+            audioInfoInline.text = "INFO FILE / LAGU\n$fileDetails\n\nINFO OUTPUT / ROUTE\n\${routeInfo.text}"
+        }
     }
 
     private fun copyText(value: String) {
