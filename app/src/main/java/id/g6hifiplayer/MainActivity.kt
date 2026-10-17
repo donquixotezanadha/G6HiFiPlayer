@@ -536,6 +536,33 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
             setOnClickListener { closeQueueOverlay() }
+            // Swipe up on the mini-player dock to return to Now Playing.
+            var downX = 0f
+            var downY = 0f
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                        false
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        if (dy < -dp(32) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.2f) {
+                            closeQueueOverlay()
+                            true
+                        } else false
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        false
+                    }
+                    else -> false
+                }
+            }
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -2075,9 +2102,10 @@ class MainActivity : Activity() {
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun navBackground(selected: Boolean): RippleDrawable {
+        // A broad symmetric capsule; 25dp insets made the selected background look like a dot.
         val pill = android.graphics.drawable.InsetDrawable(
-            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 18),
-            dp(25), dp(7), dp(25), dp(7)
+            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 22),
+            dp(12), dp(4), dp(12), dp(4)
         )
         return RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), pill, null)
     }
