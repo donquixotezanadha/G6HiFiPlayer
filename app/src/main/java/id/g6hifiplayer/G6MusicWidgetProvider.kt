@@ -84,7 +84,8 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             val artist = if (hasTrack) prefs.getString("artist", "").orEmpty() else ""
             val album = if (hasTrack) prefs.getString("album", "").orEmpty() else ""
             val playing = hasTrack && prefs.getBoolean("playing", false)
-            val light = prefs.getBoolean("light", false)
+            val savedAppTheme = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+            val light = prefs.getBoolean("light", savedAppTheme)
             val position = prefs.getInt("position", 0)
             val duration = prefs.getInt("duration", 0)
             val artwork = if (hasTrack) try {
