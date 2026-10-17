@@ -1068,6 +1068,10 @@ class MainActivity : Activity() {
         builder.setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(track.title)
             .setContentText(track.artist + " • " + track.album)
+            // Android 9 may show these fields in the right side of the notification header.
+            // Keep the system app name on the left, but do not duplicate it on the right.
+            .setSubText(null)
+            .setContentInfo(null)
             .setContentIntent(contentIntent)
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
