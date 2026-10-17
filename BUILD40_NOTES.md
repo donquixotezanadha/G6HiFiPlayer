@@ -65,3 +65,19 @@ Build 41 is the accepted checkpoint for the user-confirmed fixes: Album taps now
 - Confirm album detail/back, scan progress, playback controls and queue dock are unchanged.
 
 Source and workflow commits are not a substitute for running the APK on the LG G6 (LGM-G600L, Android 9). Await GitHub Actions success before distributing an APK.
+
+
+## Next build TODO — visual polish from Build 42 screenshot
+
+Keep **Build 41/42 as the accepted functional checkpoint**. The user confirmed album detail navigation, scan progress, Queue scrolling/dock, and queue transitions are now substantially improved. Do not regress those fixes.
+
+For the next requested build, apply only these remaining UI refinements:
+
+1. **Bottom navigation icon sizing:** keep the active indicator/cell geometry from Build 42, but restore the smaller icon glyph size from before the latest change. Do not enlarge the icons to fill the indicator.
+2. **Play tab active indicator shape:** change the selected Play tab background from a long pill/capsule to a compact rounded-square shape, with the Play glyph still centered and small. Keep the other tabs aligned consistently.
+3. **Queue Clear button spacing:** move the Clear button slightly upward / adjust the Queue header layout so the button does not touch or visually collide with the first queue row. Preserve comfortable separation above the list.
+4. **Regression guard:** retain the dedicated Album detail screen, Album-tab scan progress, independently scrollable Queue, docked Queue mini-player, swipe-up-to-Now-Playing transition, and the smoother open/close/Back animations.
+
+Screenshot reference supplied by user: `Screenshot_20261018-012244.png` (Queue screen, Build 42). Do not start a new build until the user explicitly asks; this is a saved checklist for the next build.
+
+Verification after implementation: compare bottom-tab icon glyph size versus active marker, verify Play marker is rounded-square rather than capsule, ensure Clear has visible spacing above row 1, and smoke-test album detail/back, scan progress, Queue scrolling/dock/swipe-up, playback controls, and Back transitions.
