@@ -11,8 +11,8 @@ android {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 35
-        versionName = "0.35.0"
+        versionCode = 38
+        versionName = "0.38.0"
     }
 
     compileOptions {
@@ -29,4 +29,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    // FFmpeg fallback decoder for unsupported native formats.
+    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.7")
 }
