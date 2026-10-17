@@ -199,7 +199,7 @@ class MainActivity : Activity() {
         navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
         listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
         val scroll = ScrollView(this).apply { clipToPadding = false }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(8)) }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(10), dp(8)) }
         playerPanel = FrameLayout(this).apply {
             // Reserve the available player viewport so the artwork and its fade fill the screen
             // behind the controls instead of ending at the last control row.
