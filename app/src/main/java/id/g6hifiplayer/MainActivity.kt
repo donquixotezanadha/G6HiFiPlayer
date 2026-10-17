@@ -810,7 +810,9 @@ class MainActivity : Activity() {
         val outputTrack = activeAudioTrack
         val outputTrackPlaying = try { isPlayingNow && outputTrack != null && outputTrack.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
         val active = try {
-            if (outputTrackPlaying) outputTrack?.routedDevice else null
+            val routed = if (outputTrackPlaying) outputTrack?.routedDevice else null
+            lastRouteApiError = null
+            routed
         } catch (e: Exception) {
             val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
             if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
@@ -832,10 +834,10 @@ class MainActivity : Activity() {
         val connectionSummary = buildString {
             append("Perangkat TERHUBUNG menurut AudioManager: ")
             append(if (devices.isEmpty()) "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
-            append("\\nIndikasi legacy AudioManager: ").append(legacyHints)
-            append("\\nHeadphone/jack terdaftar: ").append(if (connectedWired.isEmpty()) "tidak" else connectedWired.joinToString { describe(it) })
-            append("\\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
-            append("\\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
+            append("\nIndikasi legacy AudioManager: ").append(legacyHints)
+            append("\nHeadphone/jack terdaftar: ").append(if (connectedWired.isEmpty()) "tidak" else connectedWired.joinToString { describe(it) })
+            append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
+            append("\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
         }
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
@@ -1093,7 +1095,7 @@ class MainActivity : Activity() {
     private fun updateActiveRoute() {
         val track = activeAudioTrack
         val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try { if (playing) track?.routedDevice else null } catch (e: Exception) {
+        val active = try { val routed = if (playing) track?.routedDevice else null; lastRouteApiError = null; routed } catch (e: Exception) {
             val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
             if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
             lastRouteApiError = message
