@@ -98,11 +98,11 @@ class MainActivity : Activity() {
     private val metadataExecutor = Executors.newFixedThreadPool(2)
     private val artworkBytesCache = java.util.Collections.synchronizedMap(java.util.LinkedHashMap<String, ByteArray>(16, 0.75f, true))
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
-    private var lastDeviceEvent = "Belum ada perubahan perangkat."
+    private var lastDeviceEvent =" "No device changes reported yet."
     private var lastActiveRouteKey: String? = null
     private var lastRouteApiError: String? = null
-    private var lastLegacyRouteHints = "Belum diperiksa"
-    private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
+    private var lastLegacyRouteHints =" "Not checked yet"
+    private var lastAudioConfigLog =" "No audio configuration scan results yet."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
     private lateinit var audioInfoInline: TextView
@@ -150,14 +150,14 @@ class MainActivity : Activity() {
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             val details = addedDevices.joinToString { describe(it) }
-            lastDeviceEvent = "Perangkat output terhubung: " + details
+            lastDeviceEvent =" "Output device connected:" " + details
             recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
-            activeAudioTrack?.let { preferWiredHeadphoneRoute(it, "perangkat output ditambahkan") }
+            activeAudioTrack?.let { preferWiredHeadphoneRoute(it," "output device added") }
             updateActiveRoute(); refreshAudioInfo()
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
             val details = removedDevices.joinToString { describe(it) }
-            lastDeviceEvent = "Perangkat output dilepas: " + details
+            lastDeviceEvent =" "Perangkat output dilepas:" " + details
             recordDiagnostic("AUDIO_DEVICE_REMOVED devices=" + details)
             updateActiveRoute(); refreshAudioInfo()
         }
@@ -171,7 +171,7 @@ class MainActivity : Activity() {
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
-        getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
+        getPreferences(MODE_PRIVATE).getString("diagnostic_events"," "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
         createNotificationChannel()
         createMediaSession()
@@ -188,13 +188,13 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
             setPadding(dp(10), dp(5), dp(10), dp(7)); setBackgroundColor(Color.TRANSPARENT)
         }
-        navPlayer = navButton("〰\nPUTAR") { show("player") }
-        navLibrary = navButton("♫\nALBUM") { show("library") }
-        navAudio = navButton("☷\nANTRIAN") { show("queue") }
-        navFile = navButton("⚙\nSETTINGS") { show("settings") }
+        navPlayer = navButton("NOW PLAYING") { show("player") }
+        navLibrary = navButton("ALBUMS") { show("library") }
+        navAudio = navButton("QUEUE") { show("queue") }
+        navFile = navButton("SETTINGS") { show("settings") }
         listOf(navPlayer, navLibrary, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(54), 1f)) }
         val scroll = ScrollView(this).apply { clipToPadding = false }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8)) }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(8)) }
         playerPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         queuePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -204,9 +204,9 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
-        themeCard.addView(text("TEMA APLIKASI", 12f, MUTED, true))
-        themeCard.addView(text("Pilih tampilan tanpa bergantung pada tema sistem Android.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        themeCard.addView(action(if (lightTheme) "GUNAKAN TEMA GELAP" else "GUNAKAN TEMA PUTIH", false) {
+        themeCard.addView(text("APP THEME", 12f, MUTED, true))
+        themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        themeCard.addView(action(if (lightTheme)" "USE DARK THEME" else" "USE LIGHT THEME", false) {
             lightTheme = !lightTheme
             accentColor = DEFAULT_ACCENT
             window.statusBarColor = BG
@@ -219,9 +219,9 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(-1, dp(44)))
         settingsPanel.addView(themeCard)
         val scanCard = card()
-        scanCard.addView(text("PEMINDAIAN ALBUM", 12f, MUTED, true))
-        scanCard.addView(text("Pilih folder musik untuk memindai album dan subfolder. Folder terakhir dipindai otomatis saat aplikasi dibuka.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        scanCard.addView(action("PILIH FOLDER MUSIK", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
+        scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
+        scanCard.addView(text("Choose a music folder to scan albums and subfolders. The last folder is checked automatically when the app opens.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        scanCard.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
         settingsPanel.addView(scanCard)
         settingsPanel.addView(audioPanel)
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(queuePanel); content.addView(settingsPanel)
@@ -244,8 +244,8 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
         hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-        titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END }
-        artistView = text("Pilih folder musik atau satu file", 14f, MUTED, false)
+        titleView = text("No track selected", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END }
+        artistView = text("Choose a music folder or a single file", 14f, MUTED, false)
         albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(2), 0, dp(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
         hero.addView(titleView); hero.addView(artistView); hero.addView(albumView)
         val times = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -268,10 +268,10 @@ class MainActivity : Activity() {
         transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         playView = ImageView(this).apply {
-            contentDescription = "Putar atau jeda"
+            contentDescription =" "Play or pause"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(dp(9), dp(9), dp(9), dp(9))
-            background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(CARD, 16), null)
+            background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
             imageTintList = ColorStateList.valueOf(accentColor)
             isClickable = true; isFocusable = true
             setOnClickListener { togglePlayback() }
@@ -281,17 +281,17 @@ class MainActivity : Activity() {
         transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         hero.addView(transport); playerPanel.addView(hero)
-        val state = card(); state.visibility = View.GONE; state.addView(text("STATUS PEMUTARAN", 11f, MUTED, true))
-        statusView = text("Pilih folder musik atau file audio untuk memulai.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
+        val state = card(); state.visibility = View.GONE; state.addView(text("PLAYBACK STATUS", 11f, MUTED, true))
+        statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
         state.addView(statusView); playerPanel.addView(state)
     }
 
     private fun makeLibraryPanel() {
-        val head = card(); head.addView(text("ALBUM", 16f, WHITE, true))
-        head.addView(text("Pilih satu folder Music; subfolder album dipindai otomatis.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
+        val head = flatSection(); head.addView(text("ALBUMS", 18f, WHITE, true))
+        head.addView(text("Choose a Music folder; album subfolders are scanned automatically.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(12)) })
         val sourceActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        head.addView(text("Folder musik dipilih melalui SETTINGS.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
-        librarySummary = text("Belum ada folder yang dipindai.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
+        head.addView(text("Choose the music folder in Settings.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
+        librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         head.addView(librarySummary)
         scanProgressText = text("", 12f, accentColor, false).apply { setPadding(0, dp(10), 0, dp(3)); visibility = View.GONE }
         head.addView(scanProgressText)
@@ -300,16 +300,16 @@ class MainActivity : Activity() {
         }
         head.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { topMargin = dp(3) })
         libraryPanel.addView(head)
-        val albums = card(); albums.addView(text("ALBUM", 11f, accentColor, true))
-        albums.addView(text("Pilih tampilan artwork album.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
+        val albums = flatSection(); albums.addView(text("ALBUM ARTWORK", 11f, accentColor, true))
+        albums.addView(text("Choose an album artwork layout.", 12f, MUTED, false).apply { setPadding(0, dp(5), 0, dp(8)) })
         val albumGridOptions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        albumGridOptions.addView(action("2 KOLOM", albumGridColumns == 2) { albumGridColumns = 2; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 2).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        albumGridOptions.addView(action("2 COLUMNS", albumGridColumns == 2) { albumGridColumns = 2; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 2).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
         albumGridOptions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        albumGridOptions.addView(action("3 KOLOM", albumGridColumns == 3) { albumGridColumns = 3; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 3).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        albumGridOptions.addView(action("3 COLUMNS", albumGridColumns == 3) { albumGridColumns = 3; getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", 3).apply(); renderLibrary() }, LinearLayout.LayoutParams(0, dp(40), 1f))
         albums.addView(albumGridOptions)
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
         albums.addView(albumRows); libraryPanel.addView(albums)
-        val songs = card(); songs.addView(text("LAGU", 11f, accentColor, true))
+        val songs = flatSection(); songs.addView(text("TRACKS", 11f, accentColor, true))
         trackRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, 0) }
         songs.addView(trackRows); libraryPanel.addView(songs)
     }
@@ -317,12 +317,12 @@ class MainActivity : Activity() {
     private fun makeQueuePanel() {
         val head = card()
         head.addView(text("ANTRIAN PUTAR", 18f, WHITE, true))
-        head.addView(text("Daftar lagu yang menunggu diputar.", 12f, MUTED, false).apply { setPadding(0, dp(6), 0, dp(10)) })
+        head.addView(text("Tracks waiting to be played.", 12f, MUTED, false).apply { setPadding(0, dp(6), 0, dp(10)) })
         head.addView(action("BERSIHKAN ANTRIAN", false) {
             playbackQueue = emptyList()
             playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
             renderQueueRows()
-            Toast.makeText(this, "Antrian dibersihkan.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this," "Queue cleared.", Toast.LENGTH_SHORT).show()
         }, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(10) })
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         head.addView(queueRows)
@@ -330,31 +330,31 @@ class MainActivity : Activity() {
     }
 
     private fun makeAudioPanel() {
-        val summary = card(); summary.addView(text("OUTPUT AKTIF", 11f, accentColor, true))
+        val summary = card(); summary.addView(text("ACTIVE OUTPUT", 11f, accentColor, true))
         routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
         summary.addView(routeSummary); summary.addView(text("Rute stream dibaca dari AudioTrack milik Media3. Backend internal LG Quad DAC tidak tersedia melalui API publik; perangkat headphone terdeteksi bukan bukti backend DAC tertentu.", 12f, MUTED, false)); audioPanel.addView(summary)
-        val detail = card(); detail.addView(text("DIAGNOSTIK ROUTE", 11f, MUTED, true))
+        val detail = card(); detail.addView(text("ROUTE DIAGNOSTICS", 11f, MUTED, true))
         routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         detail.addView(routeInfo)
         detail.addView(action("PERBARUI INFORMASI", false) { refreshAudioInfo() }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14) })
         val logActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
-        logActions.addView(action("SALIN LOG", false) { copyAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        logActions.addView(action("COPY LOG", false) { copyAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         logActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        logActions.addView(action("KIRIM LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        logActions.addView(action("SHARE LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         detail.addView(logActions)
         detail.addView(action("KUMPULKAN & KIRIM DIAGNOSTIK", true) { collectAndShareDiagnostics() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
         audioPanel.addView(detail)
-        val lg = card(); lg.addView(text("PEMERIKSAAN AUDIO LG", 11f, accentColor, true))
+        val lg = card(); lg.addView(text("LG AUDIO INSPECTION", 11f, accentColor, true))
         lg.addView(text("Mencari konfigurasi LG yang dapat dibaca dan menguji dukungan direct playback. Hasilnya bukan bukti jalur lagu yang sedang aktif.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
         lg.addView(action("SCAN KONFIGURASI LG", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
-        val note = card(); note.addView(text("BATASAN PENGUKURAN", 11f, accentColor, true))
+        val note = card(); note.addView(text("MEASUREMENT LIMITATIONS", 11f, accentColor, true))
         note.addView(text("API publik Android tidak memberi bukti pasti tentang bit depth stream aktif, sample rate DAC aktual, atau bit-perfect. Rate sumber yang berbeda dari default bukan bukti resampling dengan sendirinya.", 13f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         audioPanel.addView(note)
     }
 
     private fun makeFilePanel() {
-        val info = card(); info.addView(text("INFORMASI FILE", 11f, accentColor, true))
-        fileInfo = text("Belum ada file yang dipilih.", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
+        val info = card(); info.addView(text("FILE INFORMATION", 11f, accentColor, true))
+        fileInfo = text("No file selected.", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         info.addView(fileInfo)
         info.addView(action("PILIH FILE AUDIO", false) { pickFile() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(16) })
         filePanel.addView(info)
@@ -362,7 +362,7 @@ class MainActivity : Activity() {
 
     private fun pickFile() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE); type = "audio/*"
+            addCategory(Intent.CATEGORY_OPENABLE); type =" "audio/*"
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }, REQUEST_AUDIO)
     }
@@ -383,7 +383,7 @@ class MainActivity : Activity() {
                 if (flag != 0) contentResolver.takePersistableUriPermission(uri, flag)
             } catch (_: Exception) { }
             getPreferences(MODE_PRIVATE).edit().putString("music_tree_uri", uri.toString()).apply()
-            try { File(cacheDir, "library-cache.json").delete() } catch (_: Exception) { }
+            try { File(cacheDir," "library-cache.json").delete() } catch (_: Exception) { }
             visibleTrackLimit = 80
             scanMusicFolder(uri); show("library"); return
         }
@@ -399,13 +399,13 @@ class MainActivity : Activity() {
     private fun appVersionLabel(): String = try {
         val info = packageManager.getPackageInfo(packageName, 0)
         val code = info.longVersionCode
-        "${info.versionName ?: "unknown"} ($code)"
-    } catch (_: Exception) { "unknown" }
+       " "${info.versionName ?:" "unknown"} ($code)"
+    } catch (_: Exception) {" "unknown" }
 
     private fun recordDiagnostic(event: String, error: Throwable? = null) {
         val timestamp = System.currentTimeMillis()
         val detail = buildString {
-            append(timestamp).append(" [").append(Thread.currentThread().name).append("] ").append(event)
+            append(timestamp).append(" [").append(Thread.currentThread().name).append("]" ").append(event)
             if (error != null) append("\n").append(android.util.Log.getStackTraceString(error))
         }
         val snapshot = synchronized(diagnosticEvents) {
@@ -421,7 +421,7 @@ class MainActivity : Activity() {
         Thread({
             var cached: List<Track>? = null
             try {
-                val cacheFile = File(cacheDir, "library-cache.json")
+                val cacheFile = File(cacheDir," "library-cache.json")
                 if (cacheFile.isFile) {
                     val root = org.json.JSONObject(cacheFile.readText(Charsets.UTF_8))
                     if (root.optString("treeUri") == treeUri.toString()) {
@@ -429,12 +429,12 @@ class MainActivity : Activity() {
                         val list = ArrayList<Track>(array.length())
                         for (i in 0 until array.length()) {
                             val item = array.getJSONObject(i)
-                            val coverText = item.optString("coverUri", "")
+                            val coverText = item.optString("coverUri"," "")
                             list.add(Track(
                                 Uri.parse(item.getString("uri")),
-                                item.optString("title", "Audio lokal"),
-                                item.optString("artist", "Artis tidak tersedia"),
-                                item.optString("album", "Album tidak diketahui"),
+                                item.optString("title"," "Audio lokal"),
+                                item.optString("artist"," "Artis tidak tersedia"),
+                                item.optString("album"," "Album tidak diketahui"),
                                 coverText.takeIf { it.isNotBlank() }?.let { Uri.parse(it) },
                                 item.optInt("trackNumber", Int.MAX_VALUE)
                             ))
@@ -454,14 +454,14 @@ class MainActivity : Activity() {
                     playbackQueue = emptyList()
                     playbackOrder = emptyList()
                     renderLibrary()
-                    librarySummary.text = library.size.toString() + " lagu • cache lokal"
-                    statusView.text = "Pustaka siap dari cache • " + library.size + " lagu."
+                    librarySummary.text = library.size.toString() +" " lagu • cache lokal"
+                    statusView.text =" "Pustaka siap dari cache •" " + library.size +" " lagu."
                     recordDiagnostic("LIBRARY_CACHE_RESTORED tracks=" + library.size)
                 } else {
                     scanMusicFolder(treeUri)
                 }
             }
-        }, "g6-library-cache").start()
+        }," "g6-library-cache").start()
     }
 
     private fun saveLibraryCache(treeUri: Uri, library: List<Track>) {
@@ -473,12 +473,12 @@ class MainActivity : Activity() {
                     .put("title", track.title)
                     .put("artist", track.artist)
                     .put("album", track.album)
-                    .put("coverUri", track.coverUri?.toString() ?: "")
+                    .put("coverUri", track.coverUri?.toString() ?:" "")
                     .put("trackNumber", track.trackNumber))
             }
             val root = org.json.JSONObject().put("treeUri", treeUri.toString()).put("tracks", array)
-            val file = File(cacheDir, "library-cache.json")
-            val temporary = File(cacheDir, "library-cache.json.tmp")
+            val file = File(cacheDir," "library-cache.json")
+            val temporary = File(cacheDir," "library-cache.json.tmp")
             temporary.writeText(root.toString(), Charsets.UTF_8)
             if (!temporary.renameTo(file)) {
                 file.writeText(root.toString(), Charsets.UTF_8)
@@ -492,32 +492,32 @@ class MainActivity : Activity() {
 
     private fun scanMusicFolder(uri: Uri) {
         recordDiagnostic("SCAN_START uri=$uri")
-        librarySummary.text = "Memindai folder dan subfolder…"; statusView.text = "Memindai pustaka musik…"
+        librarySummary.text =" "Memindai folder dan subfolder…"; statusView.text =" "Memindai pustaka musik…"
         scanProgress.visibility = View.VISIBLE; scanProgressText.visibility = View.VISIBLE
-        scanProgressText.text = "Memulai pemindaian…"
+        scanProgressText.text =" "Memulai pemindaian…"
         Thread {
             val found = mutableListOf<Track>()
             val count = intArrayOf(0)
             var error: String? = null
             try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count) } }
-            catch (e: Exception) { error = e.javaClass.simpleName + ": " + (e.message ?: "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
-            recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
+            catch (e: Exception) { error = e.javaClass.simpleName +" ":" " + (e.message ?:" "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
+            recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?:" "none"}")
             val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
                 tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = emptyList()
-                Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
+                Thread({ saveLibraryCache(uri, sorted) }," "g6-library-cache-save").start()
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
-                    librarySummary.text = "Daftar ditemukan (${sorted.size} lagu), tetapi tampilan gagal dibuat. Log diagnostik tersedia."
-                    statusView.text = "Gagal menampilkan pustaka: " + e.javaClass.simpleName
+                    librarySummary.text =" "Daftar ditemukan (${sorted.size} lagu), tetapi tampilan gagal dibuat. Log diagnostik tersedia."
+                    statusView.text =" "Gagal menampilkan pustaka:" " + e.javaClass.simpleName
                 }
                 scanProgress.visibility = View.GONE; scanProgressText.visibility = View.GONE
                 librarySummary.text = when {
-                    error != null -> "Gagal memindai folder: " + error
-                    sorted.isEmpty() -> "Tidak ditemukan file audio. Pilih folder Music yang berisi lagu."
-                    else -> sorted.size.toString() + " lagu • " + sorted.map { it.album }.distinct().size + " album terdeteksi"
+                    error != null ->" "Gagal memindai folder:" " + error
+                    sorted.isEmpty() ->" "No audio files found. Choose a Music folder containing tracks."
+                    else -> sorted.size.toString() +" " lagu •" " + sorted.map { it.album }.distinct().size +" " album terdeteksi"
                 }
-                statusView.text = if (sorted.isEmpty()) "Pustaka kosong. Periksa folder." else "Pustaka siap • " + sorted.size + " lagu."
+                statusView.text = if (sorted.isEmpty())" "Pustaka kosong. Periksa folder." else" "Pustaka siap •" " + sorted.size +" " lagu."
             }
         }.start()
     }
@@ -532,30 +532,30 @@ class MainActivity : Activity() {
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
                 output.add(readTrack(file.uri, covers[key], dir.name)); count[0]++
                 if (count[0] == 1 || count[0] % 50 == 0) handler.post {
-                    if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Ditemukan " + count[0] + " lagu • memindai " + (dir.name ?: "folder") + "…"
+                    if (scanProgress.visibility == View.VISIBLE) scanProgressText.text =" "Ditemukan" " + count[0] +" " lagu • memindai" " + (dir.name ?:" "folder") +" "…"
                 }
             }
         } catch (e: Exception) { recordDiagnostic("SCAN_ENTRY_FAILED name=${file.name} uri=${file.uri}", e) }
     }
     private fun isAudioFile(file: DocumentFile): Boolean {
         val name = file.name?.lowercase(Locale.ROOT) ?: return file.type?.startsWith("audio/") == true
-        return file.type?.startsWith("audio/") == true || name.substringAfterLast('.', "") in AUDIO_EXTENSIONS
+        return file.type?.startsWith("audio/") == true || name.substringAfterLast('.'," "") in AUDIO_EXTENSIONS
     }
     private fun findCover(dir: DocumentFile): Uri? {
         val files = try { dir.listFiles().filter { !it.isDirectory } } catch (_: Exception) { emptyList() }
         val images = files.filter {
-            val n = it.name?.lowercase(Locale.ROOT) ?: ""
+            val n = it.name?.lowercase(Locale.ROOT) ?:" ""
             n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")
         }
-        for (prefix in listOf("cover", "folder", "front", "album", "artwork", "albumart")) {
+        for (prefix in listOf("cover"," "folder"," "front"," "album"," "artwork"," "albumart")) {
             images.firstOrNull { it.name?.substringBeforeLast('.')?.lowercase(Locale.ROOT) == prefix }?.let { return it.uri }
         }
         return images.firstOrNull()?.uri
     }
     private fun readTrack(uri: Uri, coverUri: Uri?, folderName: String?): Track {
         val r = MediaMetadataRetriever()
-        var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Audio lokal"
-        var artist = "Artis tidak tersedia"; var album = folderName ?: "Album tidak diketahui"; var trackNumber = Int.MAX_VALUE
+        var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?:" "Audio lokal"
+        var artist =" "Artis tidak tersedia"; var album = folderName ?:" "Album tidak diketahui"; var trackNumber = Int.MAX_VALUE
         try {
             r.setDataSource(this, uri)
             fun meta(key: Int) = r.extractMetadata(key)?.takeIf { it.isNotBlank() }
@@ -571,12 +571,12 @@ class MainActivity : Activity() {
         if (!::albumRows.isInitialized || !::trackRows.isInitialized) return
         albumRows.removeAllViews(); trackRows.removeAllViews()
         if (tracks.isEmpty()) {
-            albumRows.addView(text("Pilih folder untuk membangun pustaka.", 13f, MUTED, false))
-            trackRows.addView(text("Lagu yang ditemukan akan muncul di sini.", 13f, MUTED, false))
+            albumRows.addView(text("Choose a folder to build your library.", 13f, MUTED, false))
+            trackRows.addView(text("Found tracks will appear here.", 13f, MUTED, false))
             return
         }
         val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
-        albumRows.addView(rowButton("Semua album • " + tracks.size + " lagu", selectedAlbum == null) { selectedAlbum = null; visibleTrackLimit = 80; renderLibrary() })
+        albumRows.addView(rowButton("All albums •" " + tracks.size +" "" tracks", selectedAlbum == null) { selectedAlbum = null; visibleTrackLimit = 80; renderLibrary() })
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             if (position % albumGridColumns == 0) {
@@ -592,32 +592,30 @@ class MainActivity : Activity() {
                 isClickable = true; isFocusable = true
                 setOnClickListener { selectedAlbum = if (selectedAlbum == album) null else album; visibleTrackLimit = 80; renderLibrary() }
                 setOnLongClickListener {
-                    AlertDialog.Builder(this@MainActivity).setTitle(album).setItems(arrayOf("▶ Putar seluruh album", "＋ Tambahkan album ke antrian")) { _, which ->
-                        if (which == 0) { if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); show("player") } } else addAlbumToQueue(indices, album)
-                    }.show()
+                    showAlbumOptions(album, indices)
                     true
                 }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 8); contentDescription = "Artwork " + album }
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 8); contentDescription =" "Artwork" " + album }
             cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 132 else 94)))
             cell.addView(text(album, 12f, if (selectedAlbum == album) accentColor else WHITE, true).apply { setPadding(dp(2), dp(7), dp(2), dp(2)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(entries.size.toString() + " lagu", 10f, MUTED, false).apply { gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
-            val lp = LinearLayout.LayoutParams(0, -2, 1f).apply { if (position % albumGridColumns != 0) leftMargin = dp(4); if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(4) }
+            cell.addView(text(entries.size.toString() +" "" tracks", 10f, MUTED, false).apply { gravity = Gravity.CENTER_HORIZONTAL }, LinearLayout.LayoutParams(-1, -2))
+            val lp = LinearLayout.LayoutParams(0, -2, 1f).apply { if (position % albumGridColumns != 0) leftMargin = dp(2); if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(2) }
             gridRow?.addView(cell, lp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
         if (selectedAlbum != null) {
             val entries = tracks.withIndex().filter { it.value.album == selectedAlbum }
-            albumRows.addView(text("LAGU DALAM ALBUM • " + selectedAlbum, 11f, accentColor, true).apply { setPadding(dp(4), dp(10), 0, dp(6)) })
+            albumRows.addView(text("ALBUM TRACKS •" " + selectedAlbum, 11f, accentColor, true).apply { setPadding(dp(4), dp(10), 0, dp(6)) })
             entries.take(visibleTrackLimit).forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
-            if (entries.size > visibleTrackLimit) albumRows.addView(action("MUAT LAGU BERIKUTNYA (" + (entries.size - visibleTrackLimit) + " tersisa)", false) { visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(entries.size); renderLibrary() }, LinearLayout.LayoutParams(-1, dp(44)))
+            if (entries.size > visibleTrackLimit) albumRows.addView(action("MUAT LAGU BERIKUTNYA (" + (entries.size - visibleTrackLimit) +" " tersisa)", false) { visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(entries.size); renderLibrary() }, LinearLayout.LayoutParams(-1, dp(44)))
         }
         trackRows.visibility = if (selectedAlbum == null) View.VISIBLE else View.GONE
         if (selectedAlbum == null) {
             tracks.withIndex().take(visibleTrackLimit).forEach { entry -> addLibraryTrackRow(trackRows, entry, false, tracks.indices.toList()) }
             if (tracks.size > visibleTrackLimit) trackRows.addView(action("MUAT LAGU BERIKUTNYA", false) { visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(tracks.size); renderLibrary() }, LinearLayout.LayoutParams(-1, dp(44)))
         }
-        librarySummary.text = tracks.size.toString() + " lagu • " + albums.size + " album"
+        librarySummary.text = tracks.size.toString() +" " lagu •" " + albums.size +" " album"
     }
     private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean, queueIndices: List<Int>) {
         val t = entry.value
@@ -631,9 +629,9 @@ class MainActivity : Activity() {
         }
         val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
-        val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+        val label = text(t.title +" "\n" + t.artist +" " •" " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
         row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Tambahkan ${t.title} ke antrian" }
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription =" "Tambahkan ${t.title} ke antrian" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
@@ -683,12 +681,12 @@ class MainActivity : Activity() {
         activeAudioTrack = track
         // Android may not report routedDevice on this LG Android 9 HAL. Ask policy to
         // prefer the connected 3.5 mm device, but this is not proof of DIRECT/DAC use.
-        preferWiredHeadphoneRoute(track, "AudioTrack dibuat")
+        preferWiredHeadphoneRoute(track," "AudioTrack dibuat")
         val listener = object : AudioRouting.OnRoutingChangedListener {
             override fun onRoutingChanged(router: AudioRouting) {
                 val routed = try { router.routedDevice } catch (_: Exception) { null }
-                val label = routed?.let { describe(it) } ?: "rute belum dilaporkan oleh AudioTrack"
-                lastDeviceEvent = "Rute aktual AudioTrack berubah: " + label
+                val label = routed?.let { describe(it) } ?:" "rute belum dilaporkan oleh AudioTrack"
+                lastDeviceEvent =" "Rute aktual AudioTrack berubah:" " + label
                 recordDiagnostic("AUDIOTRACK_ROUTING_CHANGED route=" + label)
                 handler.post { updateActiveRoute(); refreshAudioInfo() }
             }
@@ -697,11 +695,11 @@ class MainActivity : Activity() {
         try { track.addOnRoutingChangedListener(listener, handler) }
         catch (e: Exception) { recordDiagnostic("AUDIOTRACK_ROUTING_LISTENER_FAILED", e) }
         recordDiagnostic(
-            "AUDIOTRACK_CREATED rate=${try { track.sampleRate } catch (_: Exception) { -1 }} " +
-                "encoding=${try { encodingName(track.audioFormat) } catch (_: Exception) { "unknown" }} " +
-                "channels=${try { track.channelCount } catch (_: Exception) { -1 }} " +
-                "bufferFrames=${try { track.bufferSizeInFrames } catch (_: Exception) { -1 }} " +
-                "session=${try { track.audioSessionId } catch (_: Exception) { -1 }}"
+           " "AUDIOTRACK_CREATED rate=${try { track.sampleRate } catch (_: Exception) { -1 }}" " +
+               " "encoding=${try { encodingName(track.audioFormat) } catch (_: Exception) {" "unknown" }}" " +
+               " "channels=${try { track.channelCount } catch (_: Exception) { -1 }}" " +
+               " "bufferFrames=${try { track.bufferSizeInFrames } catch (_: Exception) { -1 }}" " +
+               " "session=${try { track.audioSessionId } catch (_: Exception) { -1 }}"
         )
         handler.post { updateActiveRoute(); refreshAudioInfo() }
     }
@@ -720,8 +718,8 @@ class MainActivity : Activity() {
             false
         }
         recordDiagnostic(
-            "WIRED_ROUTE_PREFERENCE requested=${describe(wired)} accepted=$accepted reason=$reason " +
-                "note=policy-hint-only-not-proof-of-DIRECT-or-Quad-DAC"
+           " "WIRED_ROUTE_PREFERENCE requested=${describe(wired)} accepted=$accepted reason=$reason" " +
+               " "note=policy-hint-only-not-proof-of-DIRECT-or-Quad-DAC"
         )
         handler.post { updateActiveRoute(); refreshAudioInfo() }
     }
@@ -761,9 +759,9 @@ class MainActivity : Activity() {
         player = null
         lastActiveRouteKey = null
         titleView.text = t.title; artistView.text = t.artist; albumView.text = t.album
-        elapsed.text = "0:00"; duration.text = "0:00"; seek.progress = 0; seek.max = 1
+        elapsed.text =" "0:00"; duration.text =" "0:00"; seek.progress = 0; seek.max = 1
         playView.isEnabled = false; syncPlaybackIcon(false)
-        statusView.text = "Memuat dengan mesin Media3: " + t.title + "…"
+        statusView.text =" "Memuat dengan mesin Media3:" " + t.title +" "…"
         showMetadata(t.uri, t); loadArtwork(t)
         try {
             val exo = createHiFiPlayer()
@@ -777,8 +775,8 @@ class MainActivity : Activity() {
                             durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
                             seek.max = durationMs.coerceAtLeast(1); this@MainActivity.duration.text = time(durationMs)
                             playView.isEnabled = true
-                            statusView.text = "Siap diputar • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "sample rate sumber tidak diketahui")
-                            if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Sedang diputar • " + t.title }
+                            statusView.text =" "Ready • Media3/ExoPlayer •" " + (sourceRate?.let {" "%.1f kHz".format(Locale.US, it / 1000f) } ?:" "source sample rate unknown")
+                            if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text =" "Sedang diputar •" " + t.title }
                             else syncPlaybackIcon(false)
                             pendingAutoplay = false
                             refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
@@ -787,7 +785,7 @@ class MainActivity : Activity() {
                             syncPlaybackIcon(false)
                             val q = playbackOrder.indexOf(currentIndex)
                             if (q >= 0 && q + 1 < playbackOrder.size) playTrackAt(playbackOrder[q + 1], true)
-                            else { statusView.text = "Album/antrean selesai."; refreshAudioInfo(); updatePlaybackNotification(false) }
+                            else { statusView.text =" "Album/antrean selesai."; refreshAudioInfo(); updatePlaybackNotification(false) }
                         }
                     }
                 }
@@ -796,26 +794,26 @@ class MainActivity : Activity() {
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     prepared = false; playView.isEnabled = true
-                    statusView.text = "Media3 gagal memutar • " + error.errorCodeName + ": " + (error.message ?: "format atau decoder tidak didukung")
+                    statusView.text =" "Media3 gagal memutar •" " + error.errorCodeName +" ":" " + (error.message ?:" "format atau decoder tidak didukung")
                     recordDiagnostic("MEDIA3_PLAYBACK_ERROR code=${error.errorCodeName}", error); refreshAudioInfo()
                 }
             })
             exo.setMediaItem(MediaItem.fromUri(t.uri)); exo.prepare()
         } catch (e: Exception) {
-            playView.isEnabled = true; statusView.text = "Tidak dapat membuka file: " + e.message
+            playView.isEnabled = true; statusView.text =" "Tidak dapat membuka file:" " + e.message
             recordDiagnostic("MEDIA3_INITIALIZATION_FAILED", e)
         }
         renderLibrary()
     }
     private fun playPrevious() {
-        if (tracks.isEmpty()) { statusView.text = "Pilih folder atau file audio terlebih dahulu."; return }
+        if (tracks.isEmpty()) { statusView.text =" "Choose a folder or audio file first."; return }
         if (playbackOrder.isEmpty()) playbackOrder = tracks.indices.toList()
         val position = playbackOrder.indexOf(currentIndex).let { if (it < 0) 0 else it }
         val target = playbackOrder[(position - 1 + playbackOrder.size) % playbackOrder.size]
         playTrackAt(target, true)
     }
     private fun playNext() {
-        if (tracks.isEmpty()) { statusView.text = "Pilih folder atau file audio terlebih dahulu."; return }
+        if (tracks.isEmpty()) { statusView.text =" "Choose a folder or audio file first."; return }
         if (playbackOrder.isEmpty()) playbackOrder = tracks.indices.toList()
         val position = playbackOrder.indexOf(currentIndex).let { if (it < 0) -1 else it }
         val target = playbackOrder[(position + 1).mod(playbackOrder.size)]
@@ -825,19 +823,19 @@ class MainActivity : Activity() {
         if (!::playView.isInitialized) return
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-        playView.contentDescription = if (playing) "Jeda" else "Putar"
+        playView.contentDescription = if (playing)" "Jeda" else" "Putar"
         playView.imageTintList = ColorStateList.valueOf(accentColor)
     }
 
     private fun togglePlayback() {
         val p = player
-        if (p == null || !prepared) { statusView.text = "Pilih lagu dari pustaka terlebih dahulu."; return }
+        if (p == null || !prepared) { statusView.text =" "Choose a track from the library first."; return }
         try {
-            if (p.isPlaying) { p.pause(); syncPlaybackIcon(false); statusView.text = "Dijeda" }
-            else { p.play(); syncPlaybackIcon(true); statusView.text = "Sedang diputar" }
+            if (p.isPlaying) { p.pause(); syncPlaybackIcon(false); statusView.text =" "Dijeda" }
+            else { p.play(); syncPlaybackIcon(true); statusView.text =" "Playing" }
             refreshAudioInfo()
             updatePlaybackNotification(try { p.isPlaying } catch (_: Exception) { false })
-        } catch (e: Exception) { statusView.text = "Pemutaran gagal: " + e.message }
+        } catch (e: Exception) { statusView.text =" "Pemutaran gagal:" " + e.message }
     }
 
     private fun showMetadata(uri: Uri, t: Track) {
@@ -845,14 +843,14 @@ class MainActivity : Activity() {
         // otherwise the artwork bitmap cannot be displayed even when its background task has already finished.
         metadataExecutor.execute {
             val r = MediaMetadataRetriever()
-            var fileDuration = "Tidak tersedia"; var mime = "Tidak tersedia"; var bitrate = "Tidak tersedia"
+            var fileDuration =" "Tidak tersedia"; var mime =" "Tidak tersedia"; var bitrate =" "Tidak tersedia"
             try {
                 r.setDataSource(this@MainActivity, uri)
                 fileDuration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: fileDuration
                 mime = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) ?: mime
                 bitrate = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE) ?: bitrate
             } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
-            var rate = "Tidak tersedia"; var channels = "Tidak tersedia"; var trackMime = mime
+            var rate =" "Tidak tersedia"; var channels =" "Tidak tersedia"; var trackMime = mime
             val extractor = MediaExtractor()
             try {
                 extractor.setDataSource(this@MainActivity, uri, null)
@@ -870,7 +868,7 @@ class MainActivity : Activity() {
             } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
             val parsedRate = rate.toIntOrNull()
             val parsedBitrate = bitrate.toIntOrNull()
-            val infoText = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
+            val infoText =" "Judul:" " + t.title +" "\nArtis:" " + t.artist +" "\nAlbum:" " + t.album +" "\nDurasi:" " + fileDuration +" " ms\nCodec/MIME:" " + trackMime +" "\nSample rate sumber:" " + rate +" " Hz\nKanal:" " + channels +" "\nBitrate:" " + bitrate +" " bit/s (jika dilaporkan)\nURI:" " + uri
             handler.post {
                 if (isFinishing || tracks.getOrNull(currentIndex)?.uri != uri) return@post
                 sourceRate = parsedRate
@@ -935,7 +933,7 @@ class MainActivity : Activity() {
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
         fun recolor(view: View) {
-            if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
+            if (view is TextView && view.tag ==" "g6_dynamic_accent_text") view.setTextColor(accentColor)
             if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
         }
         recolor(window.decorView)
@@ -975,7 +973,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
-        val key = "thumb:" + track.uri.toString()
+        val key =" "thumb:" + track.uri.toString()
         val cached = bitmapArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
             target.setImageBitmap(cached)
@@ -995,14 +993,14 @@ class MainActivity : Activity() {
         artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
-            val key = "player:" + t.uri.toString()
+            val key =" "player:" + t.uri.toString()
             val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
                     artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE; applyArtworkAccent(bitmap)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
-                } else { artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "G6\nNO COVER ART" }
+                } else { artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text =" "G6\nNO COVER ART" }
             }
         }
     }
@@ -1017,8 +1015,8 @@ class MainActivity : Activity() {
             lastRouteApiError = null
             routed
         } catch (e: Exception) {
-            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
-            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
+            val message = e.javaClass.simpleName +" ":" " + (e.message ?:" "tanpa detail")
+            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED" " + message, e)
             lastRouteApiError = message
             null
         }
@@ -1027,44 +1025,44 @@ class MainActivity : Activity() {
             try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (indikasi Bluetooth A2DP, bukan rute aktif)") } catch (_: Exception) { }
             try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (indikasi Bluetooth SCO, bukan rute aktif)") } catch (_: Exception) { }
             try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (flag speaker telepon, bukan bukti rute media)") } catch (_: Exception) { }
-        }.ifEmpty { listOf("Tidak ada flag legacy aktif; ini tidak membuktikan tidak ada jack/headphone.") }.joinToString("; ")
+        }.ifEmpty { listOf("Tidak ada flag legacy aktif; ini tidak membuktikan tidak ada jack/headphone.") }.joinToString(";" ")
         if (legacyHints != lastLegacyRouteHints) {
-            recordDiagnostic("LEGACY_ROUTE_HINTS " + legacyHints)
+            recordDiagnostic("LEGACY_ROUTE_HINTS" " + legacyHints)
             lastLegacyRouteHints = legacyHints
         }
         val connectedWired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
         val connectedBluetooth = devices.filter { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (Build.VERSION.SDK_INT >= 28 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET) }
         val connectionSummary = buildString {
-            append("Perangkat TERHUBUNG menurut AudioManager: ")
-            append(if (devices.isEmpty()) "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
-            append("\nIndikasi legacy AudioManager: ").append(legacyHints)
-            append("\nHeadphone/jack terdaftar: ").append(if (connectedWired.isEmpty()) "tidak" else connectedWired.joinToString { describe(it) })
-            append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
+            append("Perangkat TERHUBUNG menurut AudioManager:" ")
+            append(if (devices.isEmpty())" "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
+            append("\nIndikasi legacy AudioManager:" ").append(legacyHints)
+            append("\nHeadphone/jack terdaftar:" ").append(if (connectedWired.isEmpty())" "tidak" else connectedWired.joinToString { describe(it) })
+            append("\nBluetooth terdaftar:" ").append(if (connectedBluetooth.isEmpty())" "tidak" else connectedBluetooth.joinToString { describe(it) })
             append("\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
         }
         val route = when {
-            active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
-            player == null -> "Belum ada stream"
-            !isPlayingNow -> "Tidak sedang memutar; rute aktif tidak sedang diukur"
-            outputTrack == null -> "AudioTrack Media3 belum tersedia untuk diperiksa"
-            else -> "AudioTrack aktif, tetapi Android belum melaporkan perangkat rute"
+            active != null -> deviceName(active) +" " •" " + deviceType(active.type) +" " (type=" + active.type +" ", id=" + active.id +" ")"
+            player == null ->" "No active stream"
+            !isPlayingNow ->" "Tidak sedang memutar; rute aktif tidak sedang diukur"
+            outputTrack == null ->" "AudioTrack Media3 belum tersedia untuk diperiksa"
+            else ->" "AudioTrack aktif, tetapi Android belum melaporkan perangkat rute"
         }
         val playbackState = when {
-            player == null -> "tidak ada player"
-            !prepared -> "player belum siap"
-            isPlayingNow -> "memutar"
-            else -> "jeda / tidak memutar"
+            player == null ->" "tidak ada player"
+            !prepared ->" "player belum siap"
+            isPlayingNow ->" "memutar"
+            else ->" "jeda / tidak memutar"
         }
         val audioMode = try {
             when (audioManager.mode) {
-                AudioManager.MODE_NORMAL -> "NORMAL"
-                AudioManager.MODE_RINGTONE -> "RINGTONE"
-                AudioManager.MODE_IN_CALL -> "IN_CALL"
-                AudioManager.MODE_IN_COMMUNICATION -> "IN_COMMUNICATION"
-                else -> "mode=" + audioManager.mode
+                AudioManager.MODE_NORMAL ->" "NORMAL"
+                AudioManager.MODE_RINGTONE ->" "RINGTONE"
+                AudioManager.MODE_IN_CALL ->" "IN_CALL"
+                AudioManager.MODE_IN_COMMUNICATION ->" "IN_COMMUNICATION"
+                else ->" "mode=" + audioManager.mode
             }
-        } catch (_: Exception) { "tidak tersedia" }
-        val sessionId = try { if (outputTrackPlaying) outputTrack?.audioSessionId?.toString() ?: "tidak tersedia" else "tidak aktif" } catch (_: Exception) { "tidak tersedia" }
+        } catch (_: Exception) {" "unavailable" }
+        val sessionId = try { if (outputTrackPlaying) outputTrack?.audioSessionId?.toString() ?:" "unavailable" else" "tidak aktif" } catch (_: Exception) {" "unavailable" }
         val outputRate = try { if (outputTrackPlaying) outputTrack?.sampleRate else null } catch (_: Exception) { null }
         val outputEncoding = try { if (outputTrackPlaying) outputTrack?.audioFormat?.let { encodingName(it) } else null } catch (_: Exception) { null }
         val outputChannels = try { if (outputTrackPlaying) outputTrack?.channelCount else null } catch (_: Exception) { null }
@@ -1074,60 +1072,60 @@ class MainActivity : Activity() {
             outputBufferFrames * 1000.0 / outputRate else null
         val outputPerformance = try {
             if (outputTrackPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) outputTrack?.performanceMode?.let {
-                when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> "POWER_SAVING"; else -> "NONE/UNKNOWN" }
+                when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY ->" "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING ->" "POWER_SAVING"; else ->" "NONE/UNKNOWN" }
             } else null
         } catch (_: Exception) { null }
-        val activeCapabilities = if (active == null) "Kapabilitas perangkat aktif: belum dapat dikaitkan dengan rute aktual." else describeCapabilities(active)
-        val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
-        val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
+        val activeCapabilities = if (active == null)" "Kapabilitas perangkat aktif: belum dapat dikaitkan dengan rute aktual." else describeCapabilities(active)
+        val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?:" "Tidak dilaporkan"
+        val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?:" "Tidak dilaporkan"
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
-        val wiredText = if (wired.isEmpty()) "Jack kabel: tidak terdeteksi" else "Jack kabel terdeteksi: " + wired.joinToString { describe(it) }
+        val wiredText = if (wired.isEmpty())" "Jack kabel: tidak terdeteksi" else" "Jack kabel terdeteksi:" " + wired.joinToString { describe(it) }
         val rateNote = when {
-            sourceRate == null -> "Sample rate sumber belum terbaca."
+            sourceRate == null ->" "Sample rate sumber belum terbaca."
             outputTrackPlaying && outputRate != null && outputRate == sourceRate ->
-                "Sample rate sumber sama dengan konfigurasi AudioTrack (${outputRate} Hz). Ini bukti konfigurasi track, bukan bukti sample rate fisik DAC atau bit-perfect."
+               " "Sample rate sumber sama dengan konfigurasi AudioTrack (${outputRate} Hz). Ini bukti konfigurasi track, bukan bukti sample rate fisik DAC atau bit-perfect."
             outputTrackPlaying && outputRate != null && outputRate != sourceRate ->
-                "Sample rate sumber (${sourceRate} Hz) berbeda dari konfigurasi AudioTrack (${outputRate} Hz); ada konversi format/rate di pipeline output yang perlu diperiksa. Ini belum mengungkap apa yang dilakukan HAL/DSP/DAC."
+               " "Sample rate sumber (${sourceRate} Hz) berbeda dari konfigurasi AudioTrack (${outputRate} Hz); ada konversi format/rate di pipeline output yang perlu diperiksa. Ini belum mengungkap apa yang dilakukan HAL/DSP/DAC."
             sourceRate.toString() == defaultRate ->
-                "Sample rate sumber sama dengan properti default sistem; ini tidak membuktikan format stream atau DAC."
+               " "Sample rate sumber sama dengan properti default sistem; ini tidak membuktikan format stream atau DAC."
             else ->
-                "Sample rate sumber berbeda dari properti default sistem, tetapi rate AudioTrack belum terbaca; belum cukup untuk menyimpulkan resampling."
+               " "Sample rate sumber berbeda dari properti default sistem, tetapi rate AudioTrack belum terbaca; belum cukup untuk menyimpulkan resampling."
         }
         routeSummary.text = route
-        routeInfo.text = "Status: " + (if (isPlayingNow) "SEDANG MEMUTAR" else "tidak memutar") +
-            "\nRute aktif aktual: " + route + "\n" + wiredText +
-            "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
-            "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
-                (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding tidak terbaca") +
-                    " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
-                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "durasi tidak tersedia") +
-                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
-            "\nAudioManager mode: " + audioMode +
-            "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
-            "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
-            "\n" + connectionSummary +
-            "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
-            "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
-            "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
-            (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
-            "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
-            "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
+        routeInfo.text =" "Status:" " + (if (isPlayingNow)" "SEDANG MEMUTAR" else" "tidak memutar") +
+           " "\nRute aktif aktual:" " + route +" "\n" + wiredText +
+           " "\nStatus stream:" " + playbackState +" "\nAudio session ID:" " + sessionId +
+           " "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC):" " +
+                (if (outputTrackPlaying) (outputRate?.toString() ?:" "?") +" " Hz /" " + (outputEncoding ?:" "encoding tidak terbaca") +
+                   " " /" " + (outputChannels?.toString() ?:" "?") +" " kanal / buffer" " + (outputBufferFrames?.toString() ?:" "?") +
+                   " " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US," "%.1f ms kapasitas", it) } ?:" "durasi tidak tersedia") +
+                   " "; bukan latensi terukur) / mode" " + (outputPerformance ?:" "unavailable") else" "tidak sedang aktif") +
+           " "\nAudioManager mode:" " + audioMode +
+           " "\nStatus API rute:" " + (when { active != null ->" "AudioTrack melaporkan rute aktual"; !outputTrackPlaying ->" "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null ->" "API rute gagal:" " + lastRouteApiError; else ->" "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
+           " "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
+           " "\n" + connectionSummary +
+           " "\nSample rate sumber:" " + (sourceRate?.toString() ?:" "Belum terbaca") +" " Hz" +
+           " "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini):" " + defaultRate +" " Hz\nBuffer default sistem:" " + buffer +" " frame" +
+           " "\n" + activeCapabilities +" "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
+            (if (devices.isEmpty())" "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") {" "•" " + describe(it) }) +
+           " "\nPeristiwa terakhir:" " + lastDeviceEvent +" "\n\n" + rateNote +
+           " "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
         if (::audioInfoInline.isInitialized) {
-            val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Pilih lagu untuk membaca metadata file."
+            val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else" "Choose a track to read file metadata."
             val track = tracks.getOrNull(currentIndex)
-            val extension = track?.uri?.lastPathSegment?.substringAfterLast('.', "")?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: "AUDIO"
-            val sourceKhz = sourceRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
+            val extension = track?.uri?.lastPathSegment?.substringAfterLast('.'," "")?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?:" "AUDIO"
+            val sourceKhz = sourceRate?.let { String.format(Locale.US," "%.1f", it / 1000f) } ?:" "?"
             val outputTrack = activeAudioTrack
             val playingOutput = try { player?.isPlaying == true && outputTrack?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
             val outputRate = try { if (playingOutput) outputTrack?.sampleRate else null } catch (_: Exception) { null }
-            val outputKhz = outputRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
-            val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "rute belum dilaporkan" else "belum aktif" } catch (_: Exception) { "rute belum dilaporkan" }
-            val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
+            val outputKhz = outputRate?.let { String.format(Locale.US," "%.1f", it / 1000f) } ?:" "?"
+            val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?:" "rute belum dilaporkan" else" "belum aktif" } catch (_: Exception) {" "rute belum dilaporkan" }
+            val bitrateLabel = sourceBitrate?.let {" " • ${it / 1000} kbps" } ?:" ""
             val bitPerfectText = when {
-                playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLE / BUKAN BIT-PERFECT"
-                else -> "● BELUM TERKONFIRMASI BIT-PERFECT"
+                playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate ->" "● RESAMPLE / BUKAN BIT-PERFECT"
+                else ->" "● BELUM TERKONFIRMASI BIT-PERFECT"
             }
-            val compact = "$extension$bitrateLabel • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
+            val compact =" "$extension$bitrateLabel • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
             audioInfoInline.text = compact
             val start = compact.indexOf(bitPerfectText)
             if (start >= 0) {
@@ -1143,40 +1141,40 @@ class MainActivity : Activity() {
         try {
             val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("G6 HiFi Player log", value))
-            Toast.makeText(this, "Log disalin ke clipboard.", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) { Toast.makeText(this, "Tidak dapat menyalin log: " + e.message, Toast.LENGTH_LONG).show() }
+            Toast.makeText(this," "Log disalin ke clipboard.", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) { Toast.makeText(this," "Tidak dapat menyalin log:" " + e.message, Toast.LENGTH_LONG).show() }
     }
     private fun shareText(value: String) {
         try {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "G6 HiFi Player — log audio"); putExtra(Intent.EXTRA_TEXT, value)
-            }, "Kirim log audio"))
-        } catch (e: Exception) { Toast.makeText(this, "Tidak dapat membuka menu berbagi.", Toast.LENGTH_SHORT).show() }
+                type =" "text/plain"; putExtra(Intent.EXTRA_SUBJECT," "G6 HiFi Player — log audio"); putExtra(Intent.EXTRA_TEXT, value)
+            }," "Kirim log audio"))
+        } catch (e: Exception) { Toast.makeText(this," "Tidak dapat membuka menu berbagi.", Toast.LENGTH_SHORT).show() }
     }
     private fun copyAudioLog() {
-        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
-        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
+        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else" "Informasi route belum tersedia."
+        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else" "Informasi file belum tersedia."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
         copyText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
     private fun shareAudioLog() {
-        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
-        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
+        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else" "Informasi route belum tersedia."
+        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else" "Informasi file belum tersedia."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
         shareText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Pemutaran musik", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Kontrol dan informasi lagu yang sedang diputar"
+            val channel = NotificationChannel(CHANNEL_ID," "Pemutaran musik", NotificationManager.IMPORTANCE_LOW).apply {
+                description =" "Playback controls and information"
                 setShowBadge(false)
             }
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
     }
     private fun createMediaSession() {
-        mediaSession = MediaSession(this, "G6HiFiPlayer").apply {
+        mediaSession = MediaSession(this," "G6HiFiPlayer").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() {
                     val activity = activeInstance ?: return
@@ -1227,7 +1225,7 @@ class MainActivity : Activity() {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         builder.setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(track.title)
-            .setContentText(track.artist + " • " + track.album)
+            .setContentText(track.artist +" " •" " + track.album)
             // Android 9 may show these fields in the right side of the notification header.
             // Keep the system app name on the left, but do not duplicate it on the right.
             .setSubText(null)
@@ -1237,10 +1235,10 @@ class MainActivity : Activity() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(false)
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Sebelumnya", activityIntent("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Berikutnya", activityIntent("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Tutup notifikasi", activityIntent("dismiss", 6104)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous," "Sebelumnya", activityIntent("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying)" "Jeda" else" "Putar", activityIntent("toggle", 6102)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next," "Berikutnya", activityIntent("next", 6103)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel," "Tutup notifikasi", activityIntent("dismiss", 6104)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
@@ -1250,10 +1248,10 @@ class MainActivity : Activity() {
     }
     private fun handleNotificationAction(action: String) {
         when (action) {
-            "previous" -> playPrevious()
-            "next" -> playNext()
-            "toggle" -> togglePlayback()
-            "dismiss" -> { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { } }
+           " "previous" -> playPrevious()
+           " "next" -> playNext()
+           " "toggle" -> togglePlayback()
+           " "dismiss" -> { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { } }
         }
     }
     override fun onNewIntent(intent: Intent) {
@@ -1264,41 +1262,41 @@ class MainActivity : Activity() {
 
     private fun scanAudioConfiguration(showDialog: Boolean = true) {
         val paths = listOf(
-            "/vendor/etc/audio_output_policy.conf",
-            "/vendor/etc/audio/mixer_paths.xml",
-            "/vendor/etc/audio/mixer_paths_wcd9335.xml",
-            "/vendor/etc/audio/mixer_paths_wcd9340.xml",
-            "/vendor/etc/audio/mixer_paths_msm8996.xml",
-            "/vendor/etc/audio/audio_platform_info.xml",
-            "/vendor/etc/audio/audio_platform_info_extcodec.xml",
-            "/odm/etc/audio_output_policy.conf",
-            "/odm/etc/audio_policy.conf",
-            "/odm/etc/audio_policy_configuration.xml",
-            "/odm/etc/mixer_paths.xml",
-            "/odm/etc/audio_platform_info.xml",
-            "/system/vendor/etc/audio_output_policy.conf",
-            "/system/vendor/etc/audio_policy.conf",
-            "/system/vendor/etc/audio_policy_configuration.xml",
-            "/system/vendor/etc/mixer_paths.xml",
-            "/system/vendor/etc/audio_platform_info.xml",
-            "/system/vendor/etc/audio_platform_info_extcodec.xml",
-            "/vendor/etc/audio_policy.conf",
-            "/vendor/etc/audio_policy_configuration.xml",
-            "/vendor/etc/mixer_paths.xml",
-            "/vendor/etc/mixer_paths_wcd9335.xml",
-            "/vendor/etc/mixer_paths_wcd9340.xml",
-            "/vendor/etc/audio_platform_info.xml",
-            "/vendor/etc/audio_platform_info_extcodec.xml",
-            "/vendor/etc/audio_effects.conf",
-            "/vendor/etc/audio_effects.xml",
-            "/system/etc/audio_policy.conf",
-            "/system/etc/audio_policy_configuration.xml",
-            "/system/etc/audio_effects.conf",
-            "/system/etc/audio_effects.xml"
+           " "/vendor/etc/audio_output_policy.conf",
+           " "/vendor/etc/audio/mixer_paths.xml",
+           " "/vendor/etc/audio/mixer_paths_wcd9335.xml",
+           " "/vendor/etc/audio/mixer_paths_wcd9340.xml",
+           " "/vendor/etc/audio/mixer_paths_msm8996.xml",
+           " "/vendor/etc/audio/audio_platform_info.xml",
+           " "/vendor/etc/audio/audio_platform_info_extcodec.xml",
+           " "/odm/etc/audio_output_policy.conf",
+           " "/odm/etc/audio_policy.conf",
+           " "/odm/etc/audio_policy_configuration.xml",
+           " "/odm/etc/mixer_paths.xml",
+           " "/odm/etc/audio_platform_info.xml",
+           " "/system/vendor/etc/audio_output_policy.conf",
+           " "/system/vendor/etc/audio_policy.conf",
+           " "/system/vendor/etc/audio_policy_configuration.xml",
+           " "/system/vendor/etc/mixer_paths.xml",
+           " "/system/vendor/etc/audio_platform_info.xml",
+           " "/system/vendor/etc/audio_platform_info_extcodec.xml",
+           " "/vendor/etc/audio_policy.conf",
+           " "/vendor/etc/audio_policy_configuration.xml",
+           " "/vendor/etc/mixer_paths.xml",
+           " "/vendor/etc/mixer_paths_wcd9335.xml",
+           " "/vendor/etc/mixer_paths_wcd9340.xml",
+           " "/vendor/etc/audio_platform_info.xml",
+           " "/vendor/etc/audio_platform_info_extcodec.xml",
+           " "/vendor/etc/audio_effects.conf",
+           " "/vendor/etc/audio_effects.xml",
+           " "/system/etc/audio_policy.conf",
+           " "/system/etc/audio_policy_configuration.xml",
+           " "/system/etc/audio_effects.conf",
+           " "/system/etc/audio_effects.xml"
         )
-        val keys = listOf("direct_pcm", "direct_hd", "pcm_8_24", "pcm_24", "192000", "176400", "96000",
-            "88200", "flag_dsd", "supports_pcm", "samplingrates", "sampling_rates", "audio_output_flag_direct",
-            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340", "SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC", "tert-mi2s-headphones", "SEC_MI2S_RX", "hifi_dac", "mixer_path")
+        val keys = listOf("direct_pcm"," "direct_hd"," "pcm_8_24"," "pcm_24"," "192000"," "176400"," "96000",
+           " "88200"," "flag_dsd"," "supports_pcm"," "samplingrates"," "sampling_rates"," "audio_output_flag_direct",
+           " "compress_offload"," "deep_buffer"," "headphone"," "headset"," "hifi"," "quad"," "wcd9335"," "wcd9340"," "SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC"," "tert-mi2s-headphones"," "SEC_MI2S_RX"," "hifi_dac"," "mixer_path")
         val report = StringBuilder()
         var readable = 0
         for (path in paths) {
@@ -1317,11 +1315,11 @@ class MainActivity : Activity() {
                         .take(24).toList()
                 }
                 readable++
-                report.append("\n").append(path).append('\n').append("Status: terbaca.\n")
-                if (matches.isEmpty()) report.append("Tidak ada baris yang cocok dengan kata kunci audio yang dicari.\n")
+                report.append("\n").append(path).append('\n').append("Status: readable.\n")
+                if (matches.isEmpty()) report.append("No lines matched the searched audio keywords.\n")
                 else matches.forEach { report.append(it.trim()).append('\n') }
             } catch (e: Exception) {
-                report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "tanpa detail").append(").\n")
+                report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(":" ").append(e.message ?:" "tanpa detail").append(").\n")
             }
         }
         report.append("\nDirect playback PCM stereo (dukungan sistem, bukan stream aktif):\n")
@@ -1332,10 +1330,10 @@ class MainActivity : Activity() {
                     val f = AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build()
                     AudioTrack.isDirectPlaybackSupported(f, attrs)
                 } catch (_: Exception) { false }
-                report.append(rate).append(" Hz / PCM 16-bit: ").append(if (supported) "didukung menurut API" else "tidak dilaporkan didukung").append('\n')
+                report.append(rate).append(" Hz / PCM 16-bit:" ").append(if (supported)" "didukung menurut API" else" "tidak dilaporkan didukung").append('\n')
             }
         } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
-        report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
+        report.append("\nFile konfigurasi yang dapat dibaca:" ").append(readable).append(" dari" ").append(paths.size)
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
         report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
         report.append("\nSTATUS BACKEND LG QUAD DAC: tidak terkonfirmasi melalui API publik. Preferensi perangkat kabel hanya meminta AudioPolicy memilih jack 3,5 mm; ini tidak memaksa AUDIO_OUTPUT_FLAG_DIRECT dan tidak membuktikan backend HAL/DAC.")
@@ -1345,10 +1343,10 @@ class MainActivity : Activity() {
         report.append("\nKirim kedua keluaran itu bersama log aplikasi. Jika keluaran sistem tidak memuat nama backend atau output thread yang relevan, verifikasi fisik DAC mungkin memerlukan akses vendor/root; jangan simpulkan DAC aktif hanya dari rate AudioTrack.")
         lastAudioConfigLog = report.toString()
         if (showDialog) {
-            AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
-                .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
-                .setNegativeButton("KIRIM LOG") { _, _ -> shareText(lastAudioConfigLog) }
-                .setPositiveButton("TUTUP", null).show()
+            AlertDialog.Builder(this).setTitle("LG audio scan results").setMessage(lastAudioConfigLog)
+                .setNeutralButton("COPY LOG") { _, _ -> copyText(lastAudioConfigLog) }
+                .setNegativeButton("SHARE LOG") { _, _ -> shareText(lastAudioConfigLog) }
+                .setPositiveButton("CLOSE", null).show()
         }
     }
 
@@ -1362,45 +1360,45 @@ class MainActivity : Activity() {
         val track = activeAudioTrack
         val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
         val active = try { val routed = if (playing) track?.routedDevice else null; lastRouteApiError = null; routed } catch (e: Exception) {
-            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
-            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
+            val message = e.javaClass.simpleName +" ":" " + (e.message ?:" "tanpa detail")
+            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED" " + message, e)
             lastRouteApiError = message
             null
         }
         val routeKey = when {
-            player == null -> "no-player"
-            !playing -> "not-playing"
-            active != null -> "${active.id}:${active.type}:${deviceName(active)}"
-            else -> "audio-track-route-unreported"
+            player == null ->" "no-player"
+            !playing ->" "not-playing"
+            active != null ->" "${active.id}:${active.type}:${deviceName(active)}"
+            else ->" "audio-track-route-unreported"
         }
         if (routeKey != lastActiveRouteKey) {
             val previous = lastActiveRouteKey
             lastActiveRouteKey = routeKey
             val label = when {
-                player == null -> "Belum ada stream"
-                !playing -> "Tidak sedang memutar"
-                active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
-                else -> "AudioTrack aktif; perangkat rute belum dilaporkan"
+                player == null ->" "No active stream"
+                !playing ->" "Not playing"
+                active != null -> deviceName(active) +" " •" " + deviceType(active.type) +" " (type=" + active.type +" ", id=" + active.id +" ")"
+                else ->" "AudioTrack aktif; perangkat rute belum dilaporkan"
             }
             if (::routeSummary.isInitialized) routeSummary.text = label
             if (previous != null && previous != routeKey) {
-                lastDeviceEvent = "Rute AudioTrack: " + label
-                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey + " routedDevice=" + (active?.let { describe(it) } ?: "null") + " playing=" + playing)
+                lastDeviceEvent =" "Rute AudioTrack:" " + label
+                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous +" " current=" + routeKey +" " routedDevice=" + (active?.let { describe(it) } ?:" "null") +" " playing=" + playing)
             }
             if (::routeInfo.isInitialized) refreshAudioInfo()
         }
     }
     private fun show(which: String) {
-        playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
-        libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
-        queuePanel.visibility = if (which == "queue") View.VISIBLE else View.GONE
-        settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
-        navState(navPlayer, which == "player"); navState(navLibrary, which == "library")
-        navState(navAudio, which == "queue")
-        navState(navFile, which == "settings" || which == "audio" || which == "file")
-        if (which == "queue") renderQueueRows()
+        playerPanel.visibility = if (which ==" "player") View.VISIBLE else View.GONE
+        libraryPanel.visibility = if (which ==" "library") View.VISIBLE else View.GONE
+        queuePanel.visibility = if (which ==" "queue") View.VISIBLE else View.GONE
+        settingsPanel.visibility = if (which ==" "settings" || which ==" "audio" || which ==" "file") View.VISIBLE else View.GONE
+        navState(navPlayer, which ==" "player"); navState(navLibrary, which ==" "library")
+        navState(navAudio, which ==" "queue")
+        navState(navFile, which ==" "settings" || which ==" "audio" || which ==" "file")
+        if (which ==" "queue") renderQueueRows()
     }
-    private fun navButton(label: String, click: () -> Unit) = text(label, 10f, MUTED, true).apply {
+    private fun navButton(label: String, click: () -> Unit) = text(label, 11f, MUTED, true).apply {
         gravity = Gravity.CENTER; setPadding(dp(3), dp(4), dp(3), dp(4))
         background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 18), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
@@ -1421,7 +1419,7 @@ class MainActivity : Activity() {
         val albumIndices = tracks.withIndex().filter { it.value.album == tracks[index].album }.map { it.index }
         playbackQueue = (playbackQueue + albumIndices.ifEmpty { listOf(index) }).distinct()
         renderQueueRows()
-        Toast.makeText(this, "Album ditambahkan ke antrian: ${tracks[index].album}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this," "Album added to queue: ${tracks[index].album}", Toast.LENGTH_SHORT).show()
     }
 
     private fun addAlbumToQueue(indices: List<Int>, album: String) {
@@ -1429,14 +1427,14 @@ class MainActivity : Activity() {
         if (valid.isEmpty()) return
         playbackQueue = (playbackQueue + valid).distinct()
         renderQueueRows()
-        Toast.makeText(this, "Album ditambahkan ke antrian: $album", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this," "Album added to queue: $album", Toast.LENGTH_SHORT).show()
     }
 
     private fun renderQueueRows() {
         if (!::queueRows.isInitialized) return
         queueRows.removeAllViews()
         val queue = playbackQueue.filter { it in tracks.indices }
-        if (queue.isEmpty()) { queueRows.addView(text("Antrian masih kosong. Tambahkan album melalui tab ALBUM.", 13f, MUTED, false)); return }
+        if (queue.isEmpty()) { queueRows.addView(text("The queue is empty. Add an album from the Albums tab.", 13f, MUTED, false)); return }
         queue.forEachIndexed { position, trackIndex ->
             val track = tracks[trackIndex]
             val row = LinearLayout(this).apply {
@@ -1446,19 +1444,54 @@ class MainActivity : Activity() {
                 isClickable = true; isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 6); contentDescription = "Artwork " + track.album }
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = shape(ART, 6); contentDescription =" "Artwork" " + track.album }
             row.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
             val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(6), 0) }
-            info.addView(text((position + 1).toString() + ". " + track.title, 13f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-            info.addView(text(track.artist + " • " + track.album, 11f, MUTED, false).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+            info.addView(text((position + 1).toString() +" "." " + track.title, 13f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+            info.addView(text(track.artist +" " •" " + track.album, 11f, MUTED, false).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
             row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(iconAction("×") {
-                if (trackIndex == currentIndex) Toast.makeText(this, "Lagu yang sedang diputar tidak dapat dihapus dari antrian aktif.", Toast.LENGTH_SHORT).show()
+                if (trackIndex == currentIndex) Toast.makeText(this," "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
                 else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; renderQueueRows() }
             }, LinearLayout.LayoutParams(dp(38), dp(44)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
             loadArtworkInto(cover, track)
         }
+    }
+    private fun showAlbumOptions(album: String, indices: List<Int>) {
+        val dialog = AlertDialog(this)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(14))
+            background = shape(if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF17171D.toInt(), 24)
+        }
+        panel.addView(text(album, 18f, WHITE, true).apply {
+            setPadding(dp(2), dp(2), dp(2), dp(14)); maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        fun option(label: String, onClick: () -> Unit) {
+            val item = text(label, 14f, WHITE, true).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(14), 0, dp(10), 0)
+                background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (lightTheme) 0xFFF1F0F8.toInt() else 0xFF24242D.toInt(), 14), null)
+                isClickable = true; isFocusable = true
+                setOnClickListener { dialog.dismiss(); onClick() }
+            }
+            panel.addView(item, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(8) })
+        }
+        option("▶  Play entire album") {
+            if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); show("player") }
+        }
+        option("＋  Add album to queue") { addAlbumToQueue(indices, album) }
+        dialog.setView(panel)
+        dialog.show()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setDimAmount(0.55f)
+    }
+
+    private fun flatSection() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(12), dp(4), dp(12)); setBackgroundColor(Color.TRANSPARENT)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) }
     }
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(CARD, 21)
@@ -1474,36 +1507,36 @@ class MainActivity : Activity() {
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
-    private fun describe(d: AudioDeviceInfo) = deviceName(d) + " (" + deviceType(d.type) + ", type=" + d.type + ", id=" + d.id + ")"
+    private fun describe(d: AudioDeviceInfo) = deviceName(d) +" " (" + deviceType(d.type) +" ", type=" + d.type +" ", id=" + d.id +" ")"
     private fun describeCapabilities(d: AudioDeviceInfo): String {
-        val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
-        val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
-        val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString(", ") { encodingName(it) } ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
-        return "Kapabilitas yang dilaporkan untuk perangkat aktif (bukan bukti format stream aktif):\nSample rates: " + rates + " Hz\nJumlah kanal: " + channels + "\nEncoding: " + encodings
+        val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString("," ") ?:" "not reported" } catch (_: Exception) {" "unavailable" }
+        val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString("," ") ?:" "not reported" } catch (_: Exception) {" "unavailable" }
+        val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString("," ") { encodingName(it) } ?:" "not reported" } catch (_: Exception) {" "unavailable" }
+        return" "Kapabilitas yang dilaporkan untuk perangkat aktif (bukan bukti format stream aktif):\nSample rates:" " + rates +" " Hz\nJumlah kanal:" " + channels +" "\nEncoding:" " + encodings
     }
     private fun encodingName(encoding: Int) = when (encoding) {
-        AudioFormat.ENCODING_PCM_8BIT -> "PCM 8-bit"
-        AudioFormat.ENCODING_PCM_16BIT -> "PCM 16-bit"
-        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "PCM 24-bit packed"
-        AudioFormat.ENCODING_PCM_32BIT -> "PCM 32-bit"
-        AudioFormat.ENCODING_PCM_FLOAT -> "PCM float"
-        else -> "encoding=" + encoding
+        AudioFormat.ENCODING_PCM_8BIT ->" "PCM 8-bit"
+        AudioFormat.ENCODING_PCM_16BIT ->" "PCM 16-bit"
+        AudioFormat.ENCODING_PCM_24BIT_PACKED ->" "PCM 24-bit packed"
+        AudioFormat.ENCODING_PCM_32BIT ->" "PCM 32-bit"
+        AudioFormat.ENCODING_PCM_FLOAT ->" "PCM float"
+        else ->" "encoding=" + encoding
     }
-    private fun deviceName(d: AudioDeviceInfo) = d.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Perangkat audio"
+    private fun deviceName(d: AudioDeviceInfo) = d.productName?.toString()?.takeIf { it.isNotBlank() } ?:" "Audio device"
     private fun deviceType(type: Int) = when (type) {
-        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
-        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker internal"
-        AudioDeviceInfo.TYPE_WIRED_HEADSET -> "headset berkabel"
-        AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "headphone berkabel"
-        AudioDeviceInfo.TYPE_USB_DEVICE -> "USB audio"
-        AudioDeviceInfo.TYPE_USB_HEADSET -> "headset USB"
-        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth A2DP"
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth SCO"
-        else -> "perangkat lain"
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ->" "earpiece"
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER ->" "speaker internal"
+        AudioDeviceInfo.TYPE_WIRED_HEADSET ->" "headset berkabel"
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES ->" "headphone berkabel"
+        AudioDeviceInfo.TYPE_USB_DEVICE ->" "USB audio"
+        AudioDeviceInfo.TYPE_USB_HEADSET ->" "headset USB"
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ->" "Bluetooth A2DP"
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO ->" "Bluetooth SCO"
+        else ->" "perangkat lain"
     }
     private fun time(ms: Int): String {
         val s = ms.coerceAtLeast(0) / 1000
-        return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60)
+        return String.format(Locale.getDefault()," "%d:%02d", s / 60, s % 60)
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
     override fun onDestroy() {
@@ -1519,12 +1552,12 @@ class MainActivity : Activity() {
     }
     companion object {
         private const val REQUEST_AUDIO = 1001
-        private const val CHANNEL_ID = "g6_hifi_playback"
+        private const val CHANNEL_ID =" "g6_hifi_playback"
         private const val NOTIFICATION_ID = 6106
         private var activeInstance: MainActivity? = null
         @JvmStatic fun notificationAction(action: String) { activeInstance?.handleNotificationAction(action) }
         private const val REQUEST_FOLDER = 1002
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
-        private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
+        private val AUDIO_EXTENSIONS = setOf("mp3"," "flac"," "wav"," "m4a"," "aac"," "ogg"," "opus"," "aiff"," "aif"," "ape"," "dsf"," "dff"," "wma"," "3gp"," "amr")
     }
 }
