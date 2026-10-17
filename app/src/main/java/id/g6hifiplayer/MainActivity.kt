@@ -240,7 +240,7 @@ class MainActivity : Activity() {
         val artworkSize = minOf(292, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 56).coerceAtLeast(220))
         hero.gravity = Gravity.CENTER_HORIZONTAL
         hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(16) })
-        audioInfoInline = text("FLAC • sumber — kHz → output — kHz • status belum terverifikasi", 9f, MUTED, false).apply {
+        audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
         hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
@@ -345,10 +345,10 @@ class MainActivity : Activity() {
         detail.addView(action("KUMPULKAN & KIRIM DIAGNOSTIK", true) { collectAndShareDiagnostics() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
         audioPanel.addView(detail)
         val lg = card(); lg.addView(text("LG AUDIO INSPECTION", 11f, accentColor, true))
-        lg.addView(text("Mencari konfigurasi LG yang dapat dibaca dan menguji dukungan direct playback. Hasilnya bukan bukti jalur lagu yang sedang aktif.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
+        lg.addView(text("Searching readable LG configuration files and testing direct-playback support. Results do not prove the route used by the current track.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
         lg.addView(action("SCAN KONFIGURASI LG", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
         val note = card(); note.addView(text("MEASUREMENT LIMITATIONS", 11f, accentColor, true))
-        note.addView(text("API publik Android tidak memberi bukti pasti tentang bit depth stream aktif, sample rate DAC aktual, atau bit-perfect. Rate sumber yang berbeda dari default bukan bukti resampling dengan sendirinya.", 13f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        note.addView(text("The public Android API cannot conclusively report the active stream bit depth, actual DAC sample rate, or bit-perfect output. A source rate differing from the default does not by itself prove resampling.", 13f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         audioPanel.addView(note)
     }
 
@@ -454,8 +454,8 @@ class MainActivity : Activity() {
                     playbackQueue = emptyList()
                     playbackOrder = emptyList()
                     renderLibrary()
-                    librarySummary.text = library.size.toString() + " lagu • cache lokal"
-                    statusView.text = "Pustaka siap dari cache • " + library.size + " lagu."
+                    librarySummary.text = library.size.toString() + " tracks • local cache"
+                    statusView.text = "Library restored from cache • " + library.size + " tracks."
                     recordDiagnostic("LIBRARY_CACHE_RESTORED tracks=" + library.size)
                 } else {
                     scanMusicFolder(treeUri)
@@ -532,7 +532,7 @@ class MainActivity : Activity() {
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
                 output.add(readTrack(file.uri, covers[key], dir.name)); count[0]++
                 if (count[0] == 1 || count[0] % 50 == 0) handler.post {
-                    if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Ditemukan " + count[0] + " lagu • memindai " + (dir.name ?: "folder") + "…"
+                    if (scanProgress.visibility == View.VISIBLE) scanProgressText.text = "Found " + count[0] + " tracks • scanning " + (dir.name ?: "folder") + "…"
                 }
             }
         } catch (e: Exception) { recordDiagnostic("SCAN_ENTRY_FAILED name=${file.name} uri=${file.uri}", e) }
@@ -631,7 +631,7 @@ class MainActivity : Activity() {
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
         row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Tambahkan ${t.title} ke antrian" }
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
@@ -685,7 +685,7 @@ class MainActivity : Activity() {
         val listener = object : AudioRouting.OnRoutingChangedListener {
             override fun onRoutingChanged(router: AudioRouting) {
                 val routed = try { router.routedDevice } catch (_: Exception) { null }
-                val label = routed?.let { describe(it) } ?: "rute belum dilaporkan oleh AudioTrack"
+                val label = routed?.let { describe(it) } ?: "route not reported by AudioTrack"
                 lastDeviceEvent = "Rute aktual AudioTrack berubah: " + label
                 recordDiagnostic("AUDIOTRACK_ROUTING_CHANGED route=" + label)
                 handler.post { updateActiveRoute(); refreshAudioInfo() }
@@ -794,13 +794,13 @@ class MainActivity : Activity() {
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     prepared = false; playView.isEnabled = true
-                    statusView.text = "Media3 gagal memutar • " + error.errorCodeName + ": " + (error.message ?: "format atau decoder tidak didukung")
+                    statusView.text = "Media3 playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format or decoder")
                     recordDiagnostic("MEDIA3_PLAYBACK_ERROR code=${error.errorCodeName}", error); refreshAudioInfo()
                 }
             })
             exo.setMediaItem(MediaItem.fromUri(t.uri)); exo.prepare()
         } catch (e: Exception) {
-            playView.isEnabled = true; statusView.text = "Tidak dapat membuka file: " + e.message
+            playView.isEnabled = true; statusView.text = "Unable to open file: " + e.message
             recordDiagnostic("MEDIA3_INITIALIZATION_FAILED", e)
         }
         renderLibrary()
@@ -835,7 +835,7 @@ class MainActivity : Activity() {
             else { p.play(); syncPlaybackIcon(true); statusView.text = "Playing" }
             refreshAudioInfo()
             updatePlaybackNotification(try { p.isPlaying } catch (_: Exception) { false })
-        } catch (e: Exception) { statusView.text = "Pemutaran gagal: " + e.message }
+        } catch (e: Exception) { statusView.text = "Playback failed: " + e.message }
     }
 
     private fun showMetadata(uri: Uri, t: Track) {
@@ -1015,16 +1015,16 @@ class MainActivity : Activity() {
             lastRouteApiError = null
             routed
         } catch (e: Exception) {
-            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
+            val message = e.javaClass.simpleName + ": " + (e.message ?: "no details")
             if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
             lastRouteApiError = message
             null
         }
         val legacyHints = buildList {
             try { if (audioManager.isWiredHeadsetOn) add("isWiredHeadsetOn=true (jack connection hint, not the active route)") } catch (_: Exception) { }
-            try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (indikasi Bluetooth A2DP, bukan rute aktif)") } catch (_: Exception) { }
-            try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (indikasi Bluetooth SCO, bukan rute aktif)") } catch (_: Exception) { }
-            try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (flag speaker telepon, bukan bukti rute media)") } catch (_: Exception) { }
+            try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (Bluetooth A2DP hint, not the active route)") } catch (_: Exception) { }
+            try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (Bluetooth SCO hint, not the active route)") } catch (_: Exception) { }
+            try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (phone speaker flag, not proof of media routing)") } catch (_: Exception) { }
         }.ifEmpty { listOf("No legacy flags are active; this does not prove that no jack/headphones are connected.") }.joinToString("; ")
         if (legacyHints != lastLegacyRouteHints) {
             recordDiagnostic("LEGACY_ROUTE_HINTS " + legacyHints)
@@ -1033,8 +1033,8 @@ class MainActivity : Activity() {
         val connectedWired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
         val connectedBluetooth = devices.filter { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (Build.VERSION.SDK_INT >= 28 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET) }
         val connectionSummary = buildString {
-            append("Perangkat TERHUBUNG menurut AudioManager: ")
-            append(if (devices.isEmpty()) "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
+            append("CONNECTED devices according to AudioManager: ")
+            append(if (devices.isEmpty()) "no output devices reported" else devices.joinToString { describe(it) })
             append("\nIndikasi legacy AudioManager: ").append(legacyHints)
             append("\nRegistered headphones/jack: ").append(if (connectedWired.isEmpty()) "none" else connectedWired.joinToString { describe(it) })
             append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
@@ -1048,10 +1048,10 @@ class MainActivity : Activity() {
             else -> "AudioTrack is active, but Android has not reported a routed device"
         }
         val playbackState = when {
-            player == null -> "tidak ada player"
-            !prepared -> "player belum siap"
+            player == null -> "no player"
+            !prepared -> "player not ready"
             isPlayingNow -> "memutar"
-            else -> "jeda / tidak memutar"
+            else -> "paused / not playing"
         }
         val audioMode = try {
             when (audioManager.mode) {
@@ -1076,8 +1076,8 @@ class MainActivity : Activity() {
             } else null
         } catch (_: Exception) { null }
         val activeCapabilities = if (active == null) "Active device capabilities cannot yet be linked to the actual route." else describeCapabilities(active)
-        val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
-        val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
+        val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Not reported"
+        val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Not reported"
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
         val wiredText = if (wired.isEmpty()) "Wired jack: not detected" else "Wired jack detected: " + wired.joinToString { describe(it) }
         val rateNote = when {
@@ -1092,13 +1092,13 @@ class MainActivity : Activity() {
                 "The source sample rate differs from the system default property, but the AudioTrack rate is unreadable; this is insufficient to conclude that resampling occurred."
         }
         routeSummary.text = route
-        routeInfo.text = "Status: " + (if (isPlayingNow) "SEDANG MEMUTAR" else "tidak memutar") +
+        routeInfo.text = "Status: " + (if (isPlayingNow) "PLAYING" else "not playing") +
             "\nRute aktif aktual: " + route + "\n" + wiredText +
             "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
             "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
                 (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding unreadable") +
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
-                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "duration unavailable") +
+                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms capacity", it) } ?: "duration unavailable") +
                     "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") else "inactive") +
             "\nAudioManager mode: " + audioMode +
             "\nStatus API rute: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
@@ -1107,7 +1107,7 @@ class MainActivity : Activity() {
             "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
             "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
-            (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
+            (if (devices.isEmpty()) "No devices reported." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nLast event: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
         if (::audioInfoInline.isInitialized) {
@@ -1119,10 +1119,10 @@ class MainActivity : Activity() {
             val playingOutput = try { player?.isPlaying == true && outputTrack?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
             val outputRate = try { if (playingOutput) outputTrack?.sampleRate else null } catch (_: Exception) { null }
             val outputKhz = outputRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
-            val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "rute belum dilaporkan" else "belum aktif" } catch (_: Exception) { "rute belum dilaporkan" }
+            val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "route not reported" else "inactive" } catch (_: Exception) { "route not reported" }
             val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
             val bitPerfectText = when {
-                playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLE / BUKAN BIT-PERFECT"
+                playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLING / NOT BIT-PERFECT"
                 else -> "● BELUM TERKONFIRMASI BIT-PERFECT"
             }
             val compact = "$extension$bitrateLabel • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
@@ -1142,26 +1142,26 @@ class MainActivity : Activity() {
             val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("G6 HiFi Player log", value))
             Toast.makeText(this, "Log disalin ke clipboard.", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) { Toast.makeText(this, "Tidak dapat menyalin log: " + e.message, Toast.LENGTH_LONG).show() }
+        } catch (e: Exception) { Toast.makeText(this, "Unable to copy log: " + e.message, Toast.LENGTH_LONG).show() }
     }
     private fun shareText(value: String) {
         try {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "G6 HiFi Player — log audio"); putExtra(Intent.EXTRA_TEXT, value)
             }, "Share audio log"))
-        } catch (e: Exception) { Toast.makeText(this, "Tidak dapat membuka menu berbagi.", Toast.LENGTH_SHORT).show() }
+        } catch (e: Exception) { Toast.makeText(this, "Unable to open the share menu.", Toast.LENGTH_SHORT).show() }
     }
     private fun copyAudioLog() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Route information is unavailable."
         val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "File information is unavailable."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
-        copyText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
+        copyText("G6 HiFi Player — AUDIO DIAGNOSTICS / SCAN\nTime: ${System.currentTimeMillis()}\nDevice: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nApp version: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nLG CONFIGURATION:\n$lastAudioConfigLog\n\nLATEST EVENTS:\n$events")
     }
     private fun shareAudioLog() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Route information is unavailable."
         val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "File information is unavailable."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
-        shareText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
+        shareText("G6 HiFi Player — AUDIO DIAGNOSTICS / SCAN\nTime: ${System.currentTimeMillis()}\nDevice: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nApp version: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nLG CONFIGURATION:\n$lastAudioConfigLog\n\nLATEST EVENTS:\n$events")
     }
 
     private fun createNotificationChannel() {
@@ -1319,7 +1319,7 @@ class MainActivity : Activity() {
                 if (matches.isEmpty()) report.append("No lines matched the audio search keywords.\n")
                 else matches.forEach { report.append(it.trim()).append('\n') }
             } catch (e: Exception) {
-                report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "tanpa detail").append(").\n")
+                report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "no details").append(").\n")
             }
         }
         report.append("\nDirect playback PCM stereo (dukungan sistem, bukan stream aktif):\n")
@@ -1360,7 +1360,7 @@ class MainActivity : Activity() {
         val track = activeAudioTrack
         val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
         val active = try { val routed = if (playing) track?.routedDevice else null; lastRouteApiError = null; routed } catch (e: Exception) {
-            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
+            val message = e.javaClass.simpleName + ": " + (e.message ?: "no details")
             if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
             lastRouteApiError = message
             null
