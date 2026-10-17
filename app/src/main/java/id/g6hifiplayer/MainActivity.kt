@@ -626,7 +626,7 @@ class MainActivity : Activity() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
         val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
-        shareText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
+        shareText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
 
     private fun createNotificationChannel() {
