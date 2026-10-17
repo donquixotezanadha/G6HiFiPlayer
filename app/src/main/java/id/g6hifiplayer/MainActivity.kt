@@ -1450,6 +1450,14 @@ class MainActivity : Activity() {
     private fun updatePlaybackNotification(isPlaying: Boolean) {
         if (!prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
+        val widgetBitmap = try {
+            (artImage.drawable as? BitmapDrawable)?.bitmap
+        } catch (_: Exception) { null }
+        G6MusicWidgetProvider.refresh(
+            this, track.title, track.artist, track.album, isPlaying, widgetBitmap, lightTheme,
+            try { player?.currentPosition?.toInt() ?: 0 } catch (_: Exception) { 0 },
+            try { player?.duration?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
+        )
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun activityIntent(action: String, requestCode: Int): PendingIntent {
             val intent = Intent(this, MainActivity::class.java).apply {
