@@ -81,6 +81,8 @@ class MainActivity : Activity() {
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
     private var lastActiveRouteKey: String? = null
+    private var lastRouteApiError: String? = null
+    private var lastLegacyRouteHints = "Belum diperiksa"
     private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
@@ -126,10 +128,16 @@ class MainActivity : Activity() {
     }
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
-            lastDeviceEvent = "Ditambahkan: " + addedDevices.joinToString { describe(it) }; refreshAudioInfo()
+            val details = addedDevices.joinToString { describe(it) }
+            lastDeviceEvent = "Perangkat output terhubung: " + details
+            recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
+            updateActiveRoute(); refreshAudioInfo()
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-            lastDeviceEvent = "Dilepas: " + removedDevices.joinToString { describe(it) }; refreshAudioInfo()
+            val details = removedDevices.joinToString { describe(it) }
+            lastDeviceEvent = "Perangkat output dilepas: " + details
+            recordDiagnostic("AUDIO_DEVICE_REMOVED devices=" + details)
+            updateActiveRoute(); refreshAudioInfo()
         }
     }
 
@@ -157,7 +165,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
         })
         header.addView(brand)
-        header.addView(text("MUSIC PLAYER / BUILD 0.10.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
+        header.addView(text("MUSIC PLAYER / BUILD 0.11.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
         root.addView(header)
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(4), dp(8), dp(10)) }
         navPlayer = navButton("PLAYER") { show("player") }
@@ -801,7 +809,34 @@ class MainActivity : Activity() {
         val isPlayingNow = try { player?.isPlaying == true } catch (_: Exception) { false }
         val outputTrack = activeAudioTrack
         val outputTrackPlaying = try { isPlayingNow && outputTrack != null && outputTrack.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try { if (outputTrackPlaying) outputTrack?.routedDevice else null } catch (_: Exception) { null }
+        val active = try {
+            if (outputTrackPlaying) outputTrack?.routedDevice else null
+        } catch (e: Exception) {
+            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
+            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
+            lastRouteApiError = message
+            null
+        }
+        val legacyHints = buildList {
+            try { if (audioManager.isWiredHeadsetOn) add("isWiredHeadsetOn=true (indikasi jack terhubung, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (indikasi Bluetooth A2DP, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (indikasi Bluetooth SCO, bukan rute aktif)") } catch (_: Exception) { }
+            try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (flag speaker telepon, bukan bukti rute media)") } catch (_: Exception) { }
+        }.ifEmpty { listOf("Tidak ada flag legacy aktif; ini tidak membuktikan tidak ada jack/headphone.") }.joinToString("; ")
+        if (legacyHints != lastLegacyRouteHints) {
+            recordDiagnostic("LEGACY_ROUTE_HINTS " + legacyHints)
+            lastLegacyRouteHints = legacyHints
+        }
+        val connectedWired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
+        val connectedBluetooth = devices.filter { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (Build.VERSION.SDK_INT >= 28 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET) }
+        val connectionSummary = buildString {
+            append("Perangkat TERHUBUNG menurut AudioManager: ")
+            append(if (devices.isEmpty()) "tidak ada perangkat output yang dilaporkan" else devices.joinToString { describe(it) })
+            append("\\nIndikasi legacy AudioManager: ").append(legacyHints)
+            append("\\nHeadphone/jack terdaftar: ").append(if (connectedWired.isEmpty()) "tidak" else connectedWired.joinToString { describe(it) })
+            append("\\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
+            append("\\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
+        }
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "Belum ada stream"
@@ -859,9 +894,11 @@ class MainActivity : Activity() {
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
                     " frame / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
             "\nAudioManager mode: " + audioMode +
+            "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
+            "\n" + connectionSummary +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
-            "\n" + activeCapabilities + "\n\nPerangkat output tersedia/terdeteksi (bukan berarti semuanya aktif):\n" +
+            "\n" + activeCapabilities + "\n\nPerangkat output yang dilaporkan Android (belum tentu aktif):\n" +
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
@@ -1056,7 +1093,12 @@ class MainActivity : Activity() {
     private fun updateActiveRoute() {
         val track = activeAudioTrack
         val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try { if (playing) track?.routedDevice else null } catch (_: Exception) { null }
+        val active = try { if (playing) track?.routedDevice else null } catch (e: Exception) {
+            val message = e.javaClass.simpleName + ": " + (e.message ?: "tanpa detail")
+            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
+            lastRouteApiError = message
+            null
+        }
         val routeKey = when {
             player == null -> "no-player"
             !playing -> "not-playing"
@@ -1075,7 +1117,7 @@ class MainActivity : Activity() {
             if (::routeSummary.isInitialized) routeSummary.text = label
             if (previous != null && previous != routeKey) {
                 lastDeviceEvent = "Rute AudioTrack: " + label
-                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey)
+                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey + " routedDevice=" + (active?.let { describe(it) } ?: "null") + " playing=" + playing)
             }
             if (::routeInfo.isInitialized) refreshAudioInfo()
         }
