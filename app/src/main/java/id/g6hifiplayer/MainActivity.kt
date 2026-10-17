@@ -67,6 +67,7 @@ class MainActivity : Activity() {
     private var audioTrackRoutingListener: AudioRouting.OnRoutingChangedListener? = null
     private var mediaSession: MediaSession? = null
     private var sourceRate: Int? = null
+    private var sourceBitrate: Int? = null
     private var durationMs = 0
     private var prepared = false
     private var seeking = false
@@ -661,6 +662,7 @@ class MainActivity : Activity() {
         pendingAutoplay = autoplay
         prepared = false
         sourceRate = null
+        sourceBitrate = null
         durationMs = 0
         clearActiveAudioTrack()
         try { player?.release() } catch (_: Exception) { }
@@ -763,6 +765,7 @@ class MainActivity : Activity() {
             }
         } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
         sourceRate = rate.toIntOrNull()
+        sourceBitrate = bitrate.toIntOrNull()
         fileInfo.text = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
     }
 
@@ -988,12 +991,17 @@ class MainActivity : Activity() {
             val outputRate = try { if (playingOutput) outputTrack?.sampleRate else null } catch (_: Exception) { null }
             val outputKhz = outputRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
             val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "rute belum dilaporkan" else "belum aktif" } catch (_: Exception) { "rute belum dilaporkan" }
-            val bitPerfectText = "● BELUM TERKONFIRMASI BIT-PERFECT"
-            val compact = "$extension • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
+            val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
+            val bitPerfectText = when {
+                playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLE / BUKAN BIT-PERFECT"
+                else -> "● BELUM TERKONFIRMASI BIT-PERFECT"
+            }
+            val compact = "$extension$bitrateLabel • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
             audioInfoInline.text = compact
             val start = compact.indexOf(bitPerfectText)
             if (start >= 0) {
                 val colored = android.text.SpannableString(compact)
+                // Android's public APIs cannot confirm bit-perfect delivery; orange means unknown or conversion indicated.
                 colored.setSpan(android.text.style.ForegroundColorSpan(0xFFFFA43A.toInt()), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 audioInfoInline.text = colored
             }
