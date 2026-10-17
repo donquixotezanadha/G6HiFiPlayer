@@ -88,7 +88,9 @@ class MainActivity : Activity() {
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var albumGridColumns = 2
-    private val bitmapArtworkCache = android.util.LruCache<String, android.graphics.Bitmap>(12 * 1024 * 1024) { _, bitmap -> bitmap.byteCount }
+    private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
+    }
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(3)
     // Keep current-player artwork independent of the library thumbnails backlog.
