@@ -1,6 +1,7 @@
 package id.g6hifiplayer
 
 import android.app.Activity
+import android.content.Context
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -21,11 +22,17 @@ import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioRouting
 import android.media.AudioTrack
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.common.util.UnstableApi
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -54,6 +61,8 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?)
     private var player: ExoPlayer? = null
+    @Volatile private var activeAudioTrack: AudioTrack? = null
+    private var audioTrackRoutingListener: AudioRouting.OnRoutingChangedListener? = null
     private var mediaSession: MediaSession? = null
     private var sourceRate: Int? = null
     private var durationMs = 0
@@ -502,6 +511,69 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
     }
 
+    @OptIn(UnstableApi::class)
+    private fun createHiFiPlayer(): ExoPlayer {
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioOutputPlaybackParams: Boolean
+            ): AudioSink {
+                val baseProvider = AudioTrackAudioOutputProvider.Builder(context).build()
+                val trackingProvider = TrackingAudioOutputProvider(baseProvider) { track ->
+                    attachActiveAudioTrack(track)
+                }
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
+                    .setAudioOutputProvider(trackingProvider)
+                    .build()
+            }
+        }
+        // Prefer float output for high-resolution PCM when supported. Vendor HAL may still convert it.
+        renderersFactory.setEnableAudioFloatOutput(true)
+        return ExoPlayer.Builder(this, renderersFactory).build()
+    }
+
+    private fun attachActiveAudioTrack(track: AudioTrack) {
+        val previous = activeAudioTrack
+        val previousListener = audioTrackRoutingListener
+        if (previous != null && previousListener != null) {
+            try { previous.removeOnRoutingChangedListener(previousListener) } catch (_: Exception) { }
+        }
+        activeAudioTrack = track
+        val listener = object : AudioRouting.OnRoutingChangedListener {
+            override fun onRoutingChanged(router: AudioRouting) {
+                val routed = try { router.routedDevice } catch (_: Exception) { null }
+                val label = routed?.let { describe(it) } ?: "rute belum dilaporkan oleh AudioTrack"
+                lastDeviceEvent = "Rute aktual AudioTrack berubah: " + label
+                recordDiagnostic("AUDIOTRACK_ROUTING_CHANGED route=" + label)
+                handler.post { updateActiveRoute(); refreshAudioInfo() }
+            }
+        }
+        audioTrackRoutingListener = listener
+        try { track.addOnRoutingChangedListener(listener, handler) }
+        catch (e: Exception) { recordDiagnostic("AUDIOTRACK_ROUTING_LISTENER_FAILED", e) }
+        recordDiagnostic(
+            "AUDIOTRACK_CREATED rate=${try { track.sampleRate } catch (_: Exception) { -1 }} " +
+                "encoding=${try { encodingName(track.audioFormat) } catch (_: Exception) { "unknown" }} " +
+                "channels=${try { track.channelCount } catch (_: Exception) { -1 }} " +
+                "bufferFrames=${try { track.bufferSizeInFrames } catch (_: Exception) { -1 }} " +
+                "session=${try { track.audioSessionId } catch (_: Exception) { -1 }}"
+        )
+        handler.post { updateActiveRoute(); refreshAudioInfo() }
+    }
+
+    private fun clearActiveAudioTrack() {
+        val track = activeAudioTrack
+        val listener = audioTrackRoutingListener
+        if (track != null && listener != null) {
+            try { track.removeOnRoutingChangedListener(listener) } catch (_: Exception) { }
+        }
+        audioTrackRoutingListener = null
+        activeAudioTrack = null
+    }
+
     private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null) {
         if (index !in tracks.indices) return
         if (queue != null) playbackQueue = queue.filter { it in tracks.indices }.distinct()
@@ -513,6 +585,7 @@ class MainActivity : Activity() {
         prepared = false
         sourceRate = null
         durationMs = 0
+        clearActiveAudioTrack()
         try { player?.release() } catch (_: Exception) { }
         player = null
         lastActiveRouteKey = null
@@ -522,7 +595,7 @@ class MainActivity : Activity() {
         statusView.text = "Memuat dengan mesin Media3: " + t.title + "…"
         showMetadata(t.uri, t); loadArtwork(t)
         try {
-            val exo = ExoPlayer.Builder(this).build()
+            val exo = createHiFiPlayer()
             player = exo
             exo.setHandleAudioBecomingNoisy(true)
             exo.addListener(object : Player.Listener {
@@ -725,13 +798,17 @@ class MainActivity : Activity() {
 
     private fun refreshAudioInfo() {
         val devices = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList() } catch (_: Exception) { emptyList() }
-        val active: AudioDeviceInfo? = null
+        val isPlayingNow = try { player?.isPlaying == true } catch (_: Exception) { false }
+        val outputTrack = activeAudioTrack
+        val outputTrackPlaying = try { isPlayingNow && outputTrack != null && outputTrack.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
+        val active = try { if (outputTrackPlaying) outputTrack?.routedDevice else null } catch (_: Exception) { null }
         val route = when {
             active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "Belum ada stream"
-            else -> "Rute aktif belum dapat diverifikasi melalui API publik Media3"
+            !isPlayingNow -> "Tidak sedang memutar; rute aktif tidak sedang diukur"
+            outputTrack == null -> "AudioTrack Media3 belum tersedia untuk diperiksa"
+            else -> "AudioTrack aktif, tetapi Android belum melaporkan perangkat rute"
         }
-        val isPlayingNow = try { player?.isPlaying == true } catch (_: Exception) { false }
         val playbackState = when {
             player == null -> "tidak ada player"
             !prepared -> "player belum siap"
@@ -747,8 +824,17 @@ class MainActivity : Activity() {
                 else -> "mode=" + audioManager.mode
             }
         } catch (_: Exception) { "tidak tersedia" }
-        val sessionId = "dikelola Media3; ID tidak diekspos melalui Player API stabil"
-        val activeCapabilities = if (active == null) "Kapabilitas perangkat aktif: tidak dapat dibaca karena rute aktif tidak dilaporkan." else describeCapabilities(active)
+        val sessionId = try { if (outputTrackPlaying) outputTrack?.audioSessionId?.toString() ?: "tidak tersedia" else "tidak aktif" } catch (_: Exception) { "tidak tersedia" }
+        val outputRate = try { if (outputTrackPlaying) outputTrack?.sampleRate else null } catch (_: Exception) { null }
+        val outputEncoding = try { if (outputTrackPlaying) outputTrack?.audioFormat?.let { encodingName(it) } else null } catch (_: Exception) { null }
+        val outputChannels = try { if (outputTrackPlaying) outputTrack?.channelCount else null } catch (_: Exception) { null }
+        val outputBufferFrames = try { if (outputTrackPlaying) outputTrack?.bufferSizeInFrames else null } catch (_: Exception) { null }
+        val outputPerformance = try {
+            if (outputTrackPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) outputTrack?.performanceMode?.let {
+                when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> "POWER_SAVING"; else -> "NONE/UNKNOWN" }
+            } else null
+        } catch (_: Exception) { null }
+        val activeCapabilities = if (active == null) "Kapabilitas perangkat aktif: belum dapat dikaitkan dengan rute aktual." else describeCapabilities(active)
         val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
         val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
@@ -762,13 +848,17 @@ class MainActivity : Activity() {
         routeInfo.text = "Status: " + (if (isPlayingNow) "SEDANG MEMUTAR" else "tidak memutar") +
             "\nRute aktif aktual: " + route + "\n" + wiredText +
             "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
+            "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
+                (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding tidak terbaca") +
+                    " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
+                    " frame / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
             "\nAudioManager mode: " + audioMode +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
             "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
             "\n" + activeCapabilities + "\n\nPerangkat output tersedia/terdeteksi (bukan berarti semuanya aktif):\n" +
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
-            "\n\nBit depth stream aktif dan status bit-perfect belum dapat diverifikasi lewat API publik ini."
+            "\n\nAudioTrack menunjukkan format yang dikonfigurasi untuk stream aplikasi. Audio HAL/DSP/DAC masih dapat melakukan konversi; ini bukan bukti bit-perfect atau sample rate fisik DAC."
         if (::audioInfoInline.isInitialized) {
             val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Pilih lagu untuk membaca metadata file."
             audioInfoInline.text = "INFO FILE / LAGU\n$fileDetails\n\nINFO OUTPUT / ROUTE\n${routeInfo.text}"
@@ -958,14 +1048,28 @@ class MainActivity : Activity() {
     }
 
     private fun updateActiveRoute() {
-        val routeKey = if (player == null) "no-player" else "route-not-exposed-by-media3-player-api"
+        val track = activeAudioTrack
+        val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
+        val active = try { if (playing) track?.routedDevice else null } catch (_: Exception) { null }
+        val routeKey = when {
+            player == null -> "no-player"
+            !playing -> "not-playing"
+            active != null -> "${active.id}:${active.type}:${deviceName(active)}"
+            else -> "audio-track-route-unreported"
+        }
         if (routeKey != lastActiveRouteKey) {
-            val previous = lastActiveRouteKey; lastActiveRouteKey = routeKey
-            val label = if (player == null) "Belum ada stream" else "Rute aktif tidak diekspos oleh Media3 Player API"
+            val previous = lastActiveRouteKey
+            lastActiveRouteKey = routeKey
+            val label = when {
+                player == null -> "Belum ada stream"
+                !playing -> "Tidak sedang memutar"
+                active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
+                else -> "AudioTrack aktif; perangkat rute belum dilaporkan"
+            }
             if (::routeSummary.isInitialized) routeSummary.text = label
-            if (previous != null) {
-                lastDeviceEvent = "Mesin pemutar berubah; rute aktual tidak tersedia melalui Player API."
-                recordDiagnostic("OUTPUT_ROUTE_NOT_EXPOSED previous=" + previous + " current=" + routeKey)
+            if (previous != null && previous != routeKey) {
+                lastDeviceEvent = "Rute AudioTrack: " + label
+                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey)
             }
             if (::routeInfo.isInitialized) refreshAudioInfo()
         }
@@ -1033,6 +1137,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         handler.removeCallbacks(ticker)
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
+        clearActiveAudioTrack()
         try { player?.release() } catch (_: Exception) { }
         try { mediaSession?.isActive = false; mediaSession?.release() } catch (_: Exception) { }
         mediaSession = null
