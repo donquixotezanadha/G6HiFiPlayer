@@ -1459,7 +1459,7 @@ class MainActivity : Activity() {
         }
     }
     private fun showAlbumOptions(album: String, indices: List<Int>) {
-        val dialog = AlertDialog(this)
+        val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(14))
