@@ -166,7 +166,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); background = shape(accentColor, 20)
         })
         header.addView(brand)
-        header.addView(text("MUSIC PLAYER / BUILD 0.12.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
+        header.addView(text("MUSIC PLAYER / BUILD 0.14.0", 11f, MUTED, true).apply { setPadding(0, dp(5), 0, 0) })
         root.addView(header)
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(4), dp(8), dp(10)) }
         navPlayer = navButton("PLAYER") { show("player") }
@@ -275,7 +275,9 @@ class MainActivity : Activity() {
         logActions.addView(action("SALIN LOG", false) { copyAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
         logActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         logActions.addView(action("KIRIM LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        detail.addView(logActions); audioPanel.addView(detail)
+        detail.addView(logActions)
+        detail.addView(action("KUMPULKAN & KIRIM DIAGNOSTIK", true) { collectAndShareDiagnostics() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
+        audioPanel.addView(detail)
         val lg = card(); lg.addView(text("PEMERIKSAAN AUDIO LG", 11f, accentColor, true))
         lg.addView(text("Mencari konfigurasi LG yang dapat dibaca dan menguji dukungan direct playback. Hasilnya bukan bukti jalur lagu yang sedang aktif.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
         lg.addView(action("SCAN KONFIGURASI LG", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
@@ -1056,7 +1058,7 @@ class MainActivity : Activity() {
         intent.getStringExtra("notification_action")?.let { handleNotificationAction(it) }
     }
 
-    private fun scanAudioConfiguration() {
+    private fun scanAudioConfiguration(showDialog: Boolean = true) {
         val paths = listOf(
             "/vendor/etc/audio_output_policy.conf",
             "/vendor/etc/audio/mixer_paths.xml",
@@ -1138,10 +1140,18 @@ class MainActivity : Activity() {
         report.append("\nadb shell dumpsys media.audio_policy")
         report.append("\nKirim kedua keluaran itu bersama log aplikasi. Jika keluaran sistem tidak memuat nama backend atau output thread yang relevan, verifikasi fisik DAC mungkin memerlukan akses vendor/root; jangan simpulkan DAC aktif hanya dari rate AudioTrack.")
         lastAudioConfigLog = report.toString()
-        AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
-            .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
-            .setNegativeButton("KIRIM LOG") { _, _ -> shareText(lastAudioConfigLog) }
-            .setPositiveButton("TUTUP", null).show()
+        if (showDialog) {
+            AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
+                .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
+                .setNegativeButton("KIRIM LOG") { _, _ -> shareText(lastAudioConfigLog) }
+                .setPositiveButton("TUTUP", null).show()
+        }
+    }
+
+    private fun collectAndShareDiagnostics() {
+        refreshAudioInfo()
+        scanAudioConfiguration(showDialog = false)
+        shareAudioLog()
     }
 
     private fun updateActiveRoute() {
