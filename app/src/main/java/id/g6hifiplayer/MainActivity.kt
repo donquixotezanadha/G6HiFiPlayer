@@ -68,6 +68,7 @@ class MainActivity : Activity() {
     private val artworkExecutor = Executors.newSingleThreadExecutor()
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
+    private var lastActiveRouteKey: String? = null
     private var lastAudioConfigLog = "Belum ada hasil scan konfigurasi audio."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
@@ -704,10 +705,18 @@ class MainActivity : Activity() {
         val devices = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList() } catch (_: Exception) { emptyList() }
         val active = try { player?.routedDevice } catch (_: Exception) { null }
         val route = when {
-            active != null -> deviceName(active) + " • " + deviceType(active.type)
+            active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
             player == null -> "Belum ada stream"
-            else -> "Rute aktif belum dilaporkan"
+            else -> "Rute aktif belum dilaporkan oleh MediaPlayer"
         }
+        val playbackState = when {
+            player == null -> "tidak ada player"
+            !prepared -> "player belum siap"
+            try { player?.isPlaying == true } catch (_: Exception) { false } -> "memutar"
+            else -> "jeda / tidak memutar"
+        }
+        val sessionId = try { player?.audioSessionId?.toString() ?: "tidak tersedia" } catch (_: Exception) { "tidak tersedia" }
+        val activeCapabilities = if (active == null) "Kapabilitas perangkat aktif: tidak dapat dibaca karena rute aktif tidak dilaporkan." else describeCapabilities(active)
         val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Tidak dilaporkan"
         val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Tidak dilaporkan"
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
@@ -720,8 +729,10 @@ class MainActivity : Activity() {
         routeSummary.text = route
         routeInfo.text = "Status: " + (if (try { player?.isPlaying == true } catch (_: Exception) { false }) "SEDANG MEMUTAR" else "tidak memutar") +
             "\nRute aktif MediaPlayer: " + route + "\n" + wiredText +
+            "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
             "\nSample rate sumber: " + (sourceRate?.toString() ?: "Belum terbaca") + " Hz" +
-            "\nSample rate default Android: " + defaultRate + " Hz\nBuffer default: " + buffer + " frame\nPerangkat output terdeteksi:\n" +
+            "\nSample rate default Android (properti sistem, bukan rate stream aktual): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
+            "\n" + activeCapabilities + "\n\nPerangkat output tersedia/terdeteksi (bukan berarti semuanya aktif):\n" +
             (if (devices.isEmpty()) "Tidak ada perangkat dilaporkan." else devices.joinToString("\n") { "• " + describe(it) }) +
             "\nPeristiwa terakhir: " + lastDeviceEvent + "\n\n" + rateNote +
             "\n\nBit depth stream aktif dan status bit-perfect belum dapat diverifikasi lewat API publik ini."
@@ -885,7 +896,22 @@ class MainActivity : Activity() {
 
     private fun updateActiveRoute() {
         val active = try { player?.routedDevice } catch (_: Exception) { null }
-        if (active != null) routeSummary.text = deviceName(active) + " • " + deviceType(active.type)
+        val routeKey = if (active == null) {
+            if (player == null) "no-player" else "route-unreported"
+        } else "${active.id}:${active.type}:${deviceName(active)}"
+        if (routeKey != lastActiveRouteKey) {
+            val previous = lastActiveRouteKey
+            lastActiveRouteKey = routeKey
+            val label = if (active == null) {
+                if (player == null) "Belum ada stream" else "Rute aktif belum dilaporkan"
+            } else deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
+            if (::routeSummary.isInitialized) routeSummary.text = label
+            if (previous != null) {
+                lastDeviceEvent = "Rute MediaPlayer berubah: " + label
+                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey)
+            }
+            if (::routeInfo.isInitialized) refreshAudioInfo()
+        }
     }
     private fun show(which: String) {
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
@@ -916,6 +942,20 @@ class MainActivity : Activity() {
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun describe(d: AudioDeviceInfo) = deviceName(d) + " (" + deviceType(d.type) + ", type=" + d.type + ", id=" + d.id + ")"
+    private fun describeCapabilities(d: AudioDeviceInfo): String {
+        val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
+        val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
+        val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString(", ") { encodingName(it) } ?: "tidak dilaporkan" } catch (_: Exception) { "tidak tersedia" }
+        return "Kapabilitas yang dilaporkan untuk perangkat aktif (bukan bukti format stream aktif):\nSample rates: " + rates + " Hz\nJumlah kanal: " + channels + "\nEncoding: " + encodings
+    }
+    private fun encodingName(encoding: Int) = when (encoding) {
+        AudioFormat.ENCODING_PCM_8BIT -> "PCM 8-bit"
+        AudioFormat.ENCODING_PCM_16BIT -> "PCM 16-bit"
+        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "PCM 24-bit packed"
+        AudioFormat.ENCODING_PCM_32BIT -> "PCM 32-bit"
+        AudioFormat.ENCODING_PCM_FLOAT -> "PCM float"
+        else -> "encoding=" + encoding
+    }
     private fun deviceName(d: AudioDeviceInfo) = d.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Perangkat audio"
     private fun deviceType(type: Int) = when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
