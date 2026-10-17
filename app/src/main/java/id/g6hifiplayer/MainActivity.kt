@@ -48,6 +48,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.animation.DecelerateInterpolator
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -511,7 +512,6 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         header.addView(text("UP NEXT", 20f, WHITE, true), LinearLayout.LayoutParams(0, dp(48), 1f))
-        header.addView(iconAction("⌄") { closeQueueOverlay() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         surface.addView(header)
 
         val mini = LinearLayout(this).apply {
@@ -580,16 +580,45 @@ class MainActivity : Activity() {
 
     private fun openQueueOverlay() {
         if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
+        if (queuePanel.visibility == View.VISIBLE) return
+        queuePanel.animate().cancel()
         queuePanel.visibility = View.VISIBLE
         queuePanel.bringToFront()
         renderQueueRows()
-        recordDiagnostic("QUEUE_OVERLAY opened=true")
+        queuePanel.post {
+            val travel = queuePanel.height.toFloat().coerceAtLeast(dp(160).toFloat())
+            queuePanel.translationY = -travel
+            queuePanel.alpha = 0.94f
+            queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            queuePanel.animate()
+                .translationY(0f)
+                .alpha(1f)
+                .setDuration(230L)
+                .setInterpolator(DecelerateInterpolator())
+                .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }
+                .start()
+        }
+        recordDiagnostic("QUEUE_OVERLAY opened=true animation=property-230ms")
     }
 
     private fun closeQueueOverlay() {
         if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
-        queuePanel.visibility = View.GONE
-        recordDiagnostic("QUEUE_OVERLAY opened=false")
+        queuePanel.animate().cancel()
+        val travel = queuePanel.height.toFloat().coerceAtLeast(dp(160).toFloat())
+        queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        queuePanel.animate()
+            .translationY(-travel)
+            .alpha(0.94f)
+            .setDuration(200L)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                queuePanel.visibility = View.GONE
+                queuePanel.translationY = 0f
+                queuePanel.alpha = 1f
+                queuePanel.setLayerType(View.LAYER_TYPE_NONE, null)
+            }
+            .start()
+        recordDiagnostic("QUEUE_OVERLAY opened=false animation=property-200ms")
     }
 
     private fun updateQueueMiniPlayer() {
