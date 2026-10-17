@@ -131,6 +131,7 @@ class MainActivity : Activity() {
             val details = addedDevices.joinToString { describe(it) }
             lastDeviceEvent = "Perangkat output terhubung: " + details
             recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
+            activeAudioTrack?.let { preferWiredHeadphoneRoute(it, "perangkat output ditambahkan") }
             updateActiveRoute(); refreshAudioInfo()
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
@@ -550,6 +551,9 @@ class MainActivity : Activity() {
             try { previous.removeOnRoutingChangedListener(previousListener) } catch (_: Exception) { }
         }
         activeAudioTrack = track
+        // Android may not report routedDevice on this LG Android 9 HAL. Ask policy to
+        // prefer the connected 3.5 mm device, but this is not proof of DIRECT/DAC use.
+        preferWiredHeadphoneRoute(track, "AudioTrack dibuat")
         val listener = object : AudioRouting.OnRoutingChangedListener {
             override fun onRoutingChanged(router: AudioRouting) {
                 val routed = try { router.routedDevice } catch (_: Exception) { null }
@@ -568,6 +572,26 @@ class MainActivity : Activity() {
                 "channels=${try { track.channelCount } catch (_: Exception) { -1 }} " +
                 "bufferFrames=${try { track.bufferSizeInFrames } catch (_: Exception) { -1 }} " +
                 "session=${try { track.audioSessionId } catch (_: Exception) { -1 }}"
+        )
+        handler.post { updateActiveRoute(); refreshAudioInfo() }
+    }
+
+    private fun preferWiredHeadphoneRoute(track: AudioTrack, reason: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val outputs = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) } catch (_: Exception) { emptyArray<AudioDeviceInfo>() }
+        val wired = outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
+            ?: outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
+        if (wired == null) {
+            recordDiagnostic("WIRED_ROUTE_PREFERENCE skipped reason=$reason connectedWiredDevice=false")
+            return
+        }
+        val accepted = try { track.setPreferredDevice(wired) } catch (e: Exception) {
+            recordDiagnostic("WIRED_ROUTE_PREFERENCE failed device=${describe(wired)} reason=$reason", e)
+            false
+        }
+        recordDiagnostic(
+            "WIRED_ROUTE_PREFERENCE requested=${describe(wired)} accepted=$accepted reason=$reason " +
+                "note=policy-hint-only-not-proof-of-DIRECT-or-Quad-DAC"
         )
         handler.post { updateActiveRoute(); refreshAudioInfo() }
     }
@@ -866,6 +890,9 @@ class MainActivity : Activity() {
         val outputEncoding = try { if (outputTrackPlaying) outputTrack?.audioFormat?.let { encodingName(it) } else null } catch (_: Exception) { null }
         val outputChannels = try { if (outputTrackPlaying) outputTrack?.channelCount else null } catch (_: Exception) { null }
         val outputBufferFrames = try { if (outputTrackPlaying) outputTrack?.bufferSizeInFrames else null } catch (_: Exception) { null }
+        // Buffer capacity converted to time; this is not measured end-to-end latency.
+        val outputBufferCapacityMs = if (outputTrackPlaying && outputBufferFrames != null && outputRate != null && outputRate > 0)
+            outputBufferFrames * 1000.0 / outputRate else null
         val outputPerformance = try {
             if (outputTrackPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) outputTrack?.performanceMode?.let {
                 when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> "POWER_SAVING"; else -> "NONE/UNKNOWN" }
@@ -894,7 +921,8 @@ class MainActivity : Activity() {
             "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
                 (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding tidak terbaca") +
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
-                    " frame / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
+                    " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms kapasitas", it) } ?: "durasi tidak tersedia") +
+                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "tidak tersedia") else "tidak sedang aktif") +
             "\nAudioManager mode: " + audioMode +
             "\nStatus API rute: " + (when { active != null -> "AudioTrack melaporkan rute aktual"; !outputTrackPlaying -> "AudioTrack tidak sedang dalam status PLAYING"; lastRouteApiError != null -> "API rute gagal: " + lastRouteApiError; else -> "getRoutedDevice() mengembalikan null; rute aktif tidak dapat dipastikan" }) +
             "\nStatus backend LG Quad DAC: TIDAK TERKONFIRMASI oleh API publik (nama backend HAL tidak diekspos ke aplikasi biasa)." +
@@ -1047,6 +1075,7 @@ class MainActivity : Activity() {
             "/system/vendor/etc/audio_policy_configuration.xml",
             "/system/vendor/etc/mixer_paths.xml",
             "/system/vendor/etc/audio_platform_info.xml",
+            "/system/vendor/etc/audio_platform_info_extcodec.xml",
             "/vendor/etc/audio_policy.conf",
             "/vendor/etc/audio_policy_configuration.xml",
             "/vendor/etc/mixer_paths.xml",
@@ -1102,7 +1131,8 @@ class MainActivity : Activity() {
         } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
         report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti Media3 sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
-        report.append("\n\nSTATUS BACKEND LG QUAD DAC: tidak dapat dibaca melalui API publik aplikasi Android biasa. AudioTrack.getRoutedDevice() hanya mengidentifikasi perangkat output Android (mis. headphone), bukan backend HAL seperti SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC.")
+        report.append("\n\nINTERPRETASI KHUSUS LG G6: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC bersama backend headphones tert-mi2s-headphones dan SEC_MI2S_RX menunjukkan konfigurasi kandidat jalur Quad DAC. File konfigurasi hanya membuktikan jalur didefinisikan, bukan bahwa stream ini sedang menggunakannya.")
+        report.append("\nSTATUS BACKEND LG QUAD DAC: tidak terkonfirmasi melalui API publik. Preferensi perangkat kabel hanya meminta AudioPolicy memilih jack 3,5 mm; ini tidak memaksa AUDIO_OUTPUT_FLAG_DIRECT dan tidak membuktikan backend HAL/DAC.")
         report.append("\n\nUntuk memeriksa backend saat lagu sedang diputar melalui jack 3,5 mm, jalankan dari komputer dengan USB debugging aktif:")
         report.append("\nadb shell dumpsys media.audio_flinger")
         report.append("\nadb shell dumpsys media.audio_policy")
