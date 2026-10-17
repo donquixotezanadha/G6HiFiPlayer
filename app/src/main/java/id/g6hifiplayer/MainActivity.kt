@@ -367,10 +367,6 @@ class MainActivity : Activity() {
     private fun makeSongsPanel() {
         val heading = flatSection()
         heading.addView(text("SONGS", 18f, WHITE, true))
-        heading.addView(action("SHOW ALL SONGS", false) {
-            selectedAlbum = null
-            renderSongs()
-        }, LinearLayout.LayoutParams(-1, dp(40)).apply { topMargin = dp(8) })
         songRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(2), dp(4), dp(2), dp(8)) }
         heading.addView(songRows)
         songsPanel.addView(heading)
