@@ -454,9 +454,9 @@ class MainActivity : Activity() {
 
     private fun makeQueuePanel() {
         val head = card()
-        head.addView(text("ANTRIAN PUTAR", 18f, WHITE, true))
+        head.addView(text("PLAYBACK QUEUE", 18f, WHITE, true))
         head.addView(text("Tracks waiting to be played.", 12f, MUTED, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        head.addView(action("BERSIHKAN ANTRIAN", false) {
+        head.addView(action("CLEAR QUEUE", false) {
             playbackQueue = emptyList()
             playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
             renderQueueRows()
@@ -494,7 +494,7 @@ class MainActivity : Activity() {
         val info = card(); info.addView(text("FILE INFORMATION", 11f, accentColor, true))
         fileInfo = text("No file selected.", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
         info.addView(fileInfo)
-        info.addView(action("PILIH FILE AUDIO", false) { pickFile() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(16) })
+        info.addView(action("CHOOSE AUDIO FILE", false) { pickFile() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(16) })
         filePanel.addView(info)
     }
 
@@ -875,7 +875,7 @@ class MainActivity : Activity() {
             override fun onRoutingChanged(router: AudioRouting) {
                 val routed = try { router.routedDevice } catch (_: Exception) { null }
                 val label = routed?.let { describe(it) } ?: "route not reported by AudioTrack"
-                lastDeviceEvent = "Rute aktual AudioTrack berubah: " + label
+                lastDeviceEvent = "AudioTrack route changed: " + label
                 recordDiagnostic("AUDIOTRACK_ROUTING_CHANGED route=" + label)
                 handler.post { updateActiveRoute(); refreshAudioInfo() }
             }
@@ -974,7 +974,7 @@ class MainActivity : Activity() {
                             syncPlaybackIcon(false)
                             val q = playbackOrder.indexOf(currentIndex)
                             if (q >= 0 && q + 1 < playbackOrder.size) playTrackAt(playbackOrder[q + 1], true)
-                            else { statusView.text = "Album/antrean selesai."; refreshAudioInfo(); updatePlaybackNotification(false) }
+                            else { statusView.text = "Album/queue finished."; refreshAudioInfo(); updatePlaybackNotification(false) }
                         }
                     }
                 }
@@ -1235,7 +1235,7 @@ class MainActivity : Activity() {
             append(if (devices.isEmpty()) "no output devices reported" else devices.joinToString { describe(it) })
             append("\nIndikasi legacy AudioManager: ").append(legacyHints)
             append("\nRegistered headphones/jack: ").append(if (connectedWired.isEmpty()) "none" else connectedWired.joinToString { describe(it) })
-            append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "tidak" else connectedBluetooth.joinToString { describe(it) })
+            append("\nBluetooth terdaftar: ").append(if (connectedBluetooth.isEmpty()) "none" else connectedBluetooth.joinToString { describe(it) })
             append("\nPENTING: daftar/flag di atas menunjukkan koneksi atau petunjuk legacy, bukan rute aktif stream.")
         }
         val route = when {
@@ -1291,15 +1291,15 @@ class MainActivity : Activity() {
         }
         routeSummary.text = route
         routeInfo.text = "Status: " + (if (isPlayingNow) "PLAYING" else "not playing") +
-            "\nRute aktif aktual: " + route + "\n" + wiredText +
+            "\nActual active route: " + route + "\n" + wiredText +
             "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
-            "\nAudioTrack output aktif (konfigurasi track, bukan pengukuran DAC): " +
+            "\nActive AudioTrack output (track configuration, not a DAC measurement): " +
                 (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding unreadable") +
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
                     " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms capacity", it) } ?: "duration unavailable") +
                     "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") else "inactive") +
             "\nAudioManager mode: " + audioMode +
-            "\nStatus API rute: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
+            "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
             "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
             "\n" + connectionSummary +
             "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
@@ -1321,7 +1321,7 @@ class MainActivity : Activity() {
             val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
             val bitPerfectText = when {
                 playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLING / NOT BIT-PERFECT"
-                else -> "● BELUM TERKONFIRMASI BIT-PERFECT"
+                else -> "● BIT-PERFECT NOT CONFIRMED"
             }
             val compact = "$extension$bitrateLabel • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
             audioInfoInline.text = compact
@@ -1433,9 +1433,9 @@ class MainActivity : Activity() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(false)
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Sebelumnya", activityIntent("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", activityIntent("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Pause" else "Play", activityIntent("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Berikutnya", activityIntent("next", 6103)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", activityIntent("next", 6103)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss notification", activityIntent("dismiss", 6104)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
@@ -1501,11 +1501,11 @@ class MainActivity : Activity() {
             val file = File(path)
             try {
                 if (!file.exists()) {
-                    report.append("\n").append(path).append("\nStatus: tidak ada pada jalur ini.\n")
+                    report.append("\n").append(path).append("\nStatus: not present at this path.\n")
                     continue
                 }
                 if (!file.isFile || !file.canRead()) {
-                    report.append("\n").append(path).append("\nStatus: ada tetapi tidak dapat dibaca oleh aplikasi biasa.\n")
+                    report.append("\n").append(path).append("\nStatus: present but inaccessible to a regular app.\n")
                     continue
                 }
                 val matches = file.useLines { lines ->
@@ -1517,10 +1517,10 @@ class MainActivity : Activity() {
                 if (matches.isEmpty()) report.append("No lines matched the audio search keywords.\n")
                 else matches.forEach { report.append(it.trim()).append('\n') }
             } catch (e: Exception) {
-                report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "no details").append(").\n")
+                report.append("\n").append(path).append("\nStatus: failed to read (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "no details").append(").\n")
             }
         }
-        report.append("\nDirect playback PCM stereo (dukungan sistem, bukan stream aktif):\n")
+        report.append("\nDirect playback PCM stereo (system capability, not the active stream):\n")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
             for (rate in listOf(44100, 48000, 96000, 192000)) {
