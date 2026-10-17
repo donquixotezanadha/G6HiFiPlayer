@@ -441,7 +441,7 @@ class MainActivity : Activity() {
                     addLibraryTrackRow(albumRows, entry, true)
                 }
                 if (albumEntries.size > visibleTrackLimit) {
-                    albumRows.addView(action("MUAT LAGU BERIKUTNYA (\${albumEntries.size - visibleTrackLimit} tersisa)", false) {
+                    albumRows.addView(action("MUAT LAGU BERIKUTNYA (${albumEntries.size - visibleTrackLimit} tersisa)", false) {
                         visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(albumEntries.size)
                         renderLibrary()
                     }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(8) })
@@ -455,7 +455,7 @@ class MainActivity : Activity() {
                 addLibraryTrackRow(trackRows, entry, false)
             }
             if (tracks.size > visibleTrackLimit) {
-                trackRows.addView(action("MUAT LAGU BERIKUTNYA (\${tracks.size - visibleTrackLimit} tersisa)", false) {
+                trackRows.addView(action("MUAT LAGU BERIKUTNYA (${tracks.size - visibleTrackLimit} tersisa)", false) {
                     visibleTrackLimit = (visibleTrackLimit + 80).coerceAtMost(tracks.size)
                     renderLibrary()
                 }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
@@ -646,7 +646,7 @@ class MainActivity : Activity() {
             "\n\nBit depth stream aktif dan status bit-perfect belum dapat diverifikasi lewat API publik ini."
         if (::audioInfoInline.isInitialized) {
             val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Pilih lagu untuk membaca metadata file."
-            audioInfoInline.text = "INFO FILE / LAGU\n$fileDetails\n\nINFO OUTPUT / ROUTE\n\${routeInfo.text}"
+            audioInfoInline.text = "INFO FILE / LAGU\n$fileDetails\n\nINFO OUTPUT / ROUTE\n${routeInfo.text}"
         }
     }
 
