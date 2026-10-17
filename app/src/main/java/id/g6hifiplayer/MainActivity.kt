@@ -613,44 +613,39 @@ class MainActivity : Activity() {
         if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
         if (queuePanel.visibility == View.VISIBLE) return
         queuePanel.animate().cancel()
-        val travel = (playerPanel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels).toFloat()
-            .coerceAtLeast(dp(160).toFloat())
-        // Prepare expensive queue rows before the first animated frame to avoid a stalled swipe.
         renderQueueRows()
+        val travel = (queuePanel.height.takeIf { it > 0 } ?: (resources.displayMetrics.heightPixels - dp(64))).toFloat()
+            .coerceAtLeast(dp(160).toFloat())
         queuePanel.translationY = -travel
-        queuePanel.alpha = 0.92f
-        queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        queuePanel.alpha = 1f
         queuePanel.visibility = View.VISIBLE
         queuePanel.bringToFront()
-        queuePanel.animate()
-            .translationY(0f)
-            .alpha(1f)
-            .setDuration(320L)
-            .setInterpolator(DecelerateInterpolator(1.5f))
-            .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }
-            .start()
-        recordDiagnostic("QUEUE_OVERLAY opened=true animation=property-260ms")
+        queuePanel.postOnAnimation {
+            if (queuePanel.visibility != View.VISIBLE) return@postOnAnimation
+            queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            queuePanel.animate().cancel()
+            queuePanel.animate().translationY(0f).setDuration(300L)
+                .setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f))
+                .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }.start()
+        }
+        recordDiagnostic("QUEUE_OVERLAY opened=true animation=300ms-cubic")
     }
 
     private fun closeQueueOverlay() {
         if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
         queuePanel.animate().cancel()
-        val travel = (playerPanel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels).toFloat()
+        val travel = (queuePanel.height.takeIf { it > 0 } ?: (resources.displayMetrics.heightPixels - dp(64))).toFloat()
             .coerceAtLeast(dp(160).toFloat())
         queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        queuePanel.animate()
-            .translationY(-travel)
-            .alpha(0.94f)
-            .setDuration(260L)
-            .setInterpolator(DecelerateInterpolator())
+        queuePanel.animate().translationY(-travel).setDuration(240L)
+            .setInterpolator(android.view.animation.PathInterpolator(0.4f, 0f, 1f, 1f))
             .withEndAction {
                 queuePanel.visibility = View.GONE
                 queuePanel.translationY = 0f
                 queuePanel.alpha = 1f
                 queuePanel.setLayerType(View.LAYER_TYPE_NONE, null)
-            }
-            .start()
-        recordDiagnostic("QUEUE_OVERLAY opened=false animation=property-200ms")
+            }.start()
+        recordDiagnostic("QUEUE_OVERLAY opened=false animation=240ms-cubic")
     }
 
     private fun updateQueueMiniPlayer() {
