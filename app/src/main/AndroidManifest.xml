@@ -4,7 +4,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="G6 HiFi Player 0.5"
+        android:label="G6 HiFi Player 0.6"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
 
