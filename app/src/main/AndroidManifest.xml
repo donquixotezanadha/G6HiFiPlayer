@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="false"
@@ -23,7 +24,10 @@
             </intent-filter>
         </activity>
         <receiver android:name="id.g6hifiplayer.G6MusicWidgetProvider" android:exported="true">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_player_4x2" />
         </receiver>
         <receiver android:name="id.g6hifiplayer.G6CompactWidgetProvider" android:exported="true">
