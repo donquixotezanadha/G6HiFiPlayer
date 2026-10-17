@@ -61,7 +61,7 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
-    private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?)
+    private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?, val trackNumber: Int = Int.MAX_VALUE)
     private var player: ExoPlayer? = null
     @Volatile private var activeAudioTrack: AudioTrack? = null
     private var audioTrackRoutingListener: AudioRouting.OnRoutingChangedListener? = null
@@ -88,7 +88,10 @@ class MainActivity : Activity() {
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var visibleTrackLimit = 80
-    private val artworkExecutor = Executors.newSingleThreadExecutor()
+    private val artworkExecutor = Executors.newFixedThreadPool(3)
+    // Keep current-player artwork independent of the library thumbnails backlog.
+    private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
+    private val artworkBytesCache = java.util.Collections.synchronizedMap(java.util.LinkedHashMap<String, ByteArray>(16, 0.75f, true))
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
     private var lastDeviceEvent = "Belum ada perubahan perangkat."
     private var lastActiveRouteKey: String? = null
@@ -230,7 +233,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
         hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
-        titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+        titleView = text("Belum ada lagu dipilih", 20f, WHITE, true).apply { setPadding(0, dp(2), 0, dp(1)); maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END }
         artistView = text("Pilih folder musik atau satu file", 14f, MUTED, false)
         albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(2), 0, dp(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
         hero.addView(titleView); hero.addView(artistView); hero.addView(albumView)
@@ -406,7 +409,7 @@ class MainActivity : Activity() {
             try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count) } }
             catch (e: Exception) { error = e.javaClass.simpleName + ": " + (e.message ?: "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
-            val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.title.lowercase(Locale.ROOT) })
+            val sorted = found.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
                 tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = emptyList()
                 try { renderLibrary() } catch (e: Throwable) {
@@ -458,15 +461,16 @@ class MainActivity : Activity() {
     private fun readTrack(uri: Uri, coverUri: Uri?, folderName: String?): Track {
         val r = MediaMetadataRetriever()
         var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Audio lokal"
-        var artist = "Artis tidak tersedia"; var album = folderName ?: "Album tidak diketahui"
+        var artist = "Artis tidak tersedia"; var album = folderName ?: "Album tidak diketahui"; var trackNumber = Int.MAX_VALUE
         try {
             r.setDataSource(this, uri)
             fun meta(key: Int) = r.extractMetadata(key)?.takeIf { it.isNotBlank() }
             title = meta(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: title
             artist = meta(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: artist
             album = meta(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: album
+            trackNumber = meta(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.substringBefore("/")?.toIntOrNull() ?: Int.MAX_VALUE
         } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
-        return Track(uri, title, artist, album, coverUri)
+        return Track(uri, title, artist, album, coverUri, trackNumber)
     }
 
     private fun renderLibrary() {
@@ -515,7 +519,10 @@ class MainActivity : Activity() {
                         playTrackAt(queue.first(), true, queue)
                         show("player")
                     }
-                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(7) })
+                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(5) })
+                albumRows.addView(action("＋  TAMBAHKAN ALBUM KE ANTRIAN", false) {
+                    addAlbumToQueue(albumEntries.map { it.index }, album)
+                }, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(7) })
                 albumEntries.take(visibleTrackLimit).forEach { entry ->
                     addLibraryTrackRow(albumRows, entry, true, albumEntries.map { it.index })
                 }
@@ -554,11 +561,15 @@ class MainActivity : Activity() {
         }
         val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
-        val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0) }
+        val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
         row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
         val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Tambahkan ${t.title} ke antrian" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
-        row.setOnClickListener { playTrackAt(entry.index, true, queueIndices); show("player") }
+        row.setOnClickListener {
+            val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
+            playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
+            show("player")
+        }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         loadArtworkInto(cover, t)
     }
@@ -657,10 +668,18 @@ class MainActivity : Activity() {
 
     private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null) {
         if (index !in tracks.indices) return
-        // Album/song playback order is separate from the explicitly managed queue tab.
+        // Starting any song from an album places the complete album in the visible queue.
         val requestedOrder = queue?.filter { it in tracks.indices }?.distinct().orEmpty()
-        if (requestedOrder.isNotEmpty() && index in requestedOrder) playbackOrder = requestedOrder
-        else if (playbackOrder.isEmpty() || index !in playbackOrder) playbackOrder = tracks.indices.toList()
+        if (requestedOrder.isNotEmpty() && index in requestedOrder) {
+            playbackOrder = requestedOrder
+            playbackQueue = requestedOrder
+            if (::queueRows.isInitialized) renderQueueRows()
+        } else if (playbackOrder.isEmpty() || index !in playbackOrder) {
+            val albumOrder = tracks.withIndex().filter { it.value.album == tracks[index].album }.map { it.index }
+            playbackOrder = albumOrder.ifEmpty { listOf(index) }
+            playbackQueue = playbackOrder
+            if (::queueRows.isInitialized) renderQueueRows()
+        }
         currentIndex = index
         val t = tracks[index]
         pendingAutoplay = autoplay
@@ -852,17 +871,28 @@ class MainActivity : Activity() {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
+    private fun readArtworkBytes(track: Track): ByteArray? {
+        val key = track.uri.toString()
+        synchronized(artworkBytesCache) { artworkBytesCache[key]?.let { return it } }
+        var bytes: ByteArray? = null
+        val retriever = MediaMetadataRetriever()
+        try { retriever.setDataSource(this@MainActivity, track.uri); bytes = retriever.embeddedPicture }
+        catch (_: Exception) { }
+        finally { try { retriever.release() } catch (_: Exception) { } }
+        if (bytes == null && track.coverUri != null) {
+            try { contentResolver.openInputStream(track.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
+        }
+        // Keep the in-memory cache bounded; exceptionally large embedded covers are not retained.
+        if (bytes != null && bytes!!.size <= 8 * 1024 * 1024) synchronized(artworkBytesCache) {
+            artworkBytesCache[key] = bytes!!
+            while (artworkBytesCache.size > 24) artworkBytesCache.remove(artworkBytesCache.keys.iterator().next())
+        }
+        return bytes
+    }
+
     private fun loadArtworkInto(target: ImageView, track: Track) {
         artworkExecutor.execute {
-            var bytes: ByteArray? = null
-            val retriever = MediaMetadataRetriever()
-            try { retriever.setDataSource(this@MainActivity, track.uri); bytes = retriever.embeddedPicture }
-            catch (_: Exception) { }
-            finally { try { retriever.release() } catch (_: Exception) { } }
-            if (bytes == null && track.coverUri != null) {
-                try { contentResolver.openInputStream(track.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
-            }
-            val bitmap = bytes?.let { decodeArtwork(it) }
+            val bitmap = readArtworkBytes(track)?.let { decodeArtwork(it) }
             handler.post {
                 if (bitmap != null && !isFinishing && target.isAttachedToWindow) { target.setImageBitmap(bitmap) }
                 else bitmap?.recycle()
@@ -873,13 +903,9 @@ class MainActivity : Activity() {
     private fun loadArtwork(t: Track) {
         val token = ++artToken
         artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
-        artworkExecutor.execute {
-            var bytes: ByteArray? = null
-            val r = MediaMetadataRetriever()
-            try { r.setDataSource(this@MainActivity, t.uri); bytes = r.embeddedPicture } catch (_: Exception) { }
-            finally { try { r.release() } catch (_: Exception) { } }
-            if (bytes == null && t.coverUri != null) try { contentResolver.openInputStream(t.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
-            val bitmap = bytes?.let { decodeArtwork(it) }
+        // Dedicated executor means library thumbnails can never block Now Playing artwork.
+        playbackArtworkExecutor.execute {
+            val bitmap = readArtworkBytes(t)?.let { decodeArtwork(it) }
             handler.post {
                 if (token != artToken) { bitmap?.recycle(); return@post }
                 if (bitmap != null && !isFinishing) {
@@ -1299,16 +1325,25 @@ class MainActivity : Activity() {
     }
     private fun addToQueue(index: Int) {
         if (index !in tracks.indices) return
-        playbackQueue = (playbackQueue + index).distinct()
+        val albumIndices = tracks.withIndex().filter { it.value.album == tracks[index].album }.map { it.index }
+        playbackQueue = (playbackQueue + albumIndices.ifEmpty { listOf(index) }).distinct()
         renderQueueRows()
-        Toast.makeText(this, "Ditambahkan ke antrian: ${tracks[index].title}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Album ditambahkan ke antrian: ${tracks[index].album}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun addAlbumToQueue(indices: List<Int>, album: String) {
+        val valid = indices.filter { it in tracks.indices }.distinct()
+        if (valid.isEmpty()) return
+        playbackQueue = (playbackQueue + valid).distinct()
+        renderQueueRows()
+        Toast.makeText(this, "Album ditambahkan ke antrian: $album", Toast.LENGTH_SHORT).show()
     }
 
     private fun renderQueueRows() {
         if (!::queueRows.isInitialized) return
         queueRows.removeAllViews()
         val queue = playbackQueue.filter { it in tracks.indices }
-        if (queue.isEmpty()) return
+        if (queue.isEmpty()) { queueRows.addView(text("Antrian masih kosong. Putar lagu atau tambahkan album dari tab ALBUM.", 13f, MUTED, false)); return }
         queue.forEachIndexed { position, trackIndex ->
             val track = tracks[trackIndex]
             val row = LinearLayout(this).apply {
