@@ -250,8 +250,8 @@ class MainActivity : Activity() {
 
     private fun makePlayerPanel() {
         playerBackdropImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            alpha = 0.22f
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            alpha = 1f
             setBackgroundColor(BG)
             contentDescription = "Faded album artwork background"
         }
@@ -259,8 +259,8 @@ class MainActivity : Activity() {
         val backdropGradient = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x18FFFFFF, 0xDDF8F8FC.toInt(), BG)
-                else intArrayOf(0x18000000, 0xD9000000.toInt(), BG)
+                if (lightTheme) intArrayOf(0x00FFFFFF, 0x55F8F8FC, 0xDDF8F8FC.toInt(), BG)
+                else intArrayOf(0x00000000, 0x55000000, 0xDD000000.toInt(), BG)
             )
             isClickable = false
         }
@@ -271,12 +271,10 @@ class MainActivity : Activity() {
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
         val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)); gravity = Gravity.CENTER_HORIZONTAL }
-        val frame = FrameLayout(this).apply { background = shape(ART, 22); clipToOutline = true }
-        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
+        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
-        frame.addView(artImage, FrameLayout.LayoutParams(-1, -1)); frame.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
-        val artworkSize = minOf(292, ((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 56).coerceAtLeast(220))
-        hero.addView(frame, LinearLayout.LayoutParams(dp(artworkSize), dp(artworkSize)).apply { topMargin = dp(14); bottomMargin = dp(16) })
+        artPlaceholder.background = shape(if (lightTheme) 0x55FFFFFF else 0x55000000, 18)
+        hero.addView(View(this), LinearLayout.LayoutParams(1, dp(18)))
         audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
         }
