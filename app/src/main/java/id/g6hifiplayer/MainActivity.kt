@@ -1531,7 +1531,7 @@ class MainActivity : Activity() {
                 report.append(rate).append(" Hz / PCM 16-bit: ").append(if (supported) "reported as supported by the API" else "not reported as supported").append('\n')
             }
         } else report.append("The direct-playback API is unavailable on this Android version.\n")
-        report.append("\nReadable configuration files: ").append(readable).append(" dari ").append(paths.size)
+        report.append("\nReadable configuration files: ").append(readable).append(" of ").append(paths.size)
         report.append("\nConfiguration files indicate capabilities declared by the system; they do not prove Media3 is using DIRECT_HD/direct_pcm_24 or that the DAC receives a specific sample rate.")
         report.append("\n\nLG G6-SPECIFIC INTERPRETATION: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC together with the headphones backend tert-mi2s-headphones and SEC_MI2S_RX indicates a possible Quad DAC path configuration. Configuration files only show that a path is defined, not that the current stream is using it.")
         report.append("\nLG QUAD DAC BACKEND STATUS: not confirmed through the public API. Wired-device preference only asks AudioPolicy to select the 3.5 mm jack; it does not force AUDIO_OUTPUT_FLAG_DIRECT or prove the HAL/DAC backend.")
@@ -1735,10 +1735,10 @@ class MainActivity : Activity() {
     private fun deviceType(type: Int) = when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
         AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker internal"
-        AudioDeviceInfo.TYPE_WIRED_HEADSET -> "headset berkabel"
-        AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "headphone berkabel"
+        AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired headset"
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "wired headphones"
         AudioDeviceInfo.TYPE_USB_DEVICE -> "USB audio"
-        AudioDeviceInfo.TYPE_USB_HEADSET -> "headset USB"
+        AudioDeviceInfo.TYPE_USB_HEADSET -> "USB headset"
         AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth A2DP"
         AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth SCO"
         else -> "other device"
