@@ -36,6 +36,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -646,8 +647,7 @@ class MainActivity : Activity() {
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
         fun recolor(view: View) {
             if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
-            if (view is LinearLayout) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
-            if (view is FrameLayout) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
+            if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
         }
         recolor(window.decorView)
         if (::albumRows.isInitialized && ::trackRows.isInitialized) renderLibrary()
