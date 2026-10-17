@@ -1323,7 +1323,7 @@ class MainActivity : Activity() {
                 playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLING / NOT BIT-PERFECT"
                 else -> "● BIT-PERFECT NOT CONFIRMED"
             }
-            val compact = "$extension$bitrateLabel • sumber $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
+            val compact = "$extension$bitrateLabel • source $sourceKhz kHz → output $outputKhz kHz • $routeLabel   $bitPerfectText"
             audioInfoInline.text = compact
             val start = compact.indexOf(bitPerfectText)
             if (start >= 0) {
