@@ -179,7 +179,7 @@ class MainActivity : Activity() {
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.decorView.systemUiVisibility = (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
@@ -1598,7 +1598,7 @@ class MainActivity : Activity() {
     }
     private fun show(which: String) {
         // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (which == "player") View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN else 0) or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.decorView.systemUiVisibility = (if (which == "player") View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN else 0) or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         window.statusBarColor = if (which == "player") Color.TRANSPARENT else BG
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
