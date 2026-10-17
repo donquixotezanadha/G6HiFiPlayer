@@ -203,7 +203,7 @@ class MainActivity : Activity() {
         listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach { nav.addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), statusBarInset, dp(10), dp(8)) }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
         playerPanel = FrameLayout(this).apply {
             // Only the artwork layer extends into the status-bar area; content remains inset.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
@@ -215,6 +215,9 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
+        songsPanel.setPadding(dp(10), statusBarInset, dp(10), dp(8))
+        queuePanel.setPadding(dp(10), statusBarInset, dp(10), dp(8))
+        settingsPanel.setPadding(dp(10), statusBarInset, dp(10), dp(8))
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
@@ -256,52 +259,90 @@ class MainActivity : Activity() {
     }
 
     private fun makePlayerPanel() {
+        // Full-bleed artwork is exclusive to Now Playing; the bottom dock stays fixed.
         playerBackdropImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            alpha = 1f
-            setBackgroundColor(BG)
-            contentDescription = "Faded album artwork background"
+            setBackgroundColor(accentColor)
+            contentDescription = "Album artwork background"
         }
+        playerPanel.setBackgroundColor(accentColor)
         playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
+
         val backdropGradient = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x00FFFFFF, 0x55F8F8FC, 0xDDF8F8FC.toInt(), BG)
-                else intArrayOf(0x00000000, 0x55000000, 0xDD000000.toInt(), BG)
+                if (lightTheme) intArrayOf(0x00000000, 0x22F8F8FC, 0xBDF8F8FC.toInt(), BG)
+                else intArrayOf(0x00000000, 0x18000000, 0xA8000000.toInt(), Color.BLACK)
             )
             isClickable = false
         }
         playerPanel.addView(backdropGradient, FrameLayout.LayoutParams(-1, -1))
+
+        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
+        artPlaceholder = text("NO MUSIC PLAYING", 22f, WHITE, true).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(20), dp(20), dp(20), dp(220))
+            background = android.graphics.drawable.ColorDrawable(accentColor)
+        }
+        playerPanel.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
+
         val foreground = FrameLayout(this).apply {
-            setPadding(dp(4), dp(2), dp(4), dp(8))
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
-        val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(3), dp(8), dp(6)); gravity = Gravity.CENTER_HORIZONTAL }
-        val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        val playerHeader = text("NOW PLAYING", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }
-        hero.addView(playerHeader, LinearLayout.LayoutParams(-1, -2))
-        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
-        artPlaceholder = text("G6\nQUAD DAC / HI-RES", 24f, MUTED, true).apply { gravity = Gravity.CENTER }
-        artPlaceholder.background = shape(if (lightTheme) 0x55FFFFFF else 0x55000000, 18)
-        hero.addView(View(this), LinearLayout.LayoutParams(1, dp(2)))
-        audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
-            setPadding(dp(4), dp(2), dp(4), dp(4)); visibility = View.VISIBLE; setTextIsSelectable(true)
+        val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
+            if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        hero.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-        titleView = text("NO MUSIC PLAYING", 20f, WHITE, true).apply { setPadding(dp(14), dp(14), dp(14), dp(14)); maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; background = shape(accentColor, 14) }
-        artistView = text("", 14f, MUTED, false)
-        albumView = text("", 12f, MUTED, false).apply { setPadding(0, dp(2), 0, dp(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
-        hero.addView(titleView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(4) }); hero.addView(artistView); hero.addView(albumView)
-        val times = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        elapsed = text("0:00", 11f, MUTED, false); duration = text("0:00", 11f, MUTED, false)
-        times.addView(elapsed, LinearLayout.LayoutParams(0, -2, 1f)); times.addView(duration); hero.addView(times)
+        val playerHeader = text("NOW PLAYING", 22f, WHITE, true).apply {
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+        }
+        foreground.addView(playerHeader, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
+            topMargin = statusBarInset
+        })
+
+        audioInfoInline = text("FLAC • source — kHz → output — kHz • status unverified", 9f, MUTED, false).apply {
+            setPadding(0, dp(2), 0, dp(4))
+            visibility = View.VISIBLE
+            setTextIsSelectable(true)
+        }
+        titleView = text("", 20f, WHITE, true).apply {
+            setPadding(0, 0, 0, dp(2))
+            maxLines = 2; isSingleLine = false
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        }
+        artistView = text("", 15f, MUTED, false)
+        albumView = text("", 13f, MUTED, false).apply {
+            setPadding(0, dp(2), 0, 0); maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        val metadata = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), 0, dp(18), 0)
+        }
+        metadata.addView(titleView, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
+        metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
+        metadata.addView(albumView, LinearLayout.LayoutParams(-1, -2))
+
+        val times = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(18), 0, dp(18), 0)
+        }
+        elapsed = text("0:00", 11f, MUTED, false)
+        duration = text("0:00", 11f, MUTED, false)
+        times.addView(elapsed, LinearLayout.LayoutParams(0, -2, 1f))
+        times.addView(duration, LinearLayout.LayoutParams(-2, -2))
+
         seek = SeekBar(this).apply {
             max = 1
             progressTintList = ColorStateList.valueOf(accentColor)
             thumbTintList = ColorStateList.valueOf(accentColor)
             progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+            setPadding(dp(18), 0, dp(18), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) { if (fromUser) elapsed.text = time(value) }
+                override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
+                    if (fromUser) elapsed.text = time(value)
+                }
                 override fun onStartTrackingTouch(bar: SeekBar?) { seeking = true }
                 override fun onStopTrackingTouch(bar: SeekBar?) {
                     if (prepared && bar != null) player?.seekTo(bar.progress.coerceIn(0, durationMs).toLong())
@@ -309,40 +350,56 @@ class MainActivity : Activity() {
                 }
             })
         }
-        hero.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5); bottomMargin = dp(12) })
-        val transport = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(10)) }
-        transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+
+        val transport = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(6), dp(18), dp(6))
+        }
+        transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(48), 1f))
         playView = ImageView(this).apply {
             contentDescription = "Play or pause"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(dp(9), dp(9), dp(9), dp(9))
-            background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
+            background = RippleDrawable(
+                ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000),
+                shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null
+            )
             imageTintList = ColorStateList.valueOf(accentColor)
             isClickable = true; isFocusable = true
             setOnClickListener { togglePlayback() }
         }
         syncPlaybackIcon()
-        transport.addView(playView, LinearLayout.LayoutParams(0, dp(44), 1.1f))
-        transport.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        val spacer = View(this)
-        foreground.addView(hero, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply { topMargin = statusBarInset })
-        foreground.addView(spacer, FrameLayout.LayoutParams(1, 1, Gravity.TOP))
-        foreground.addView(transport, FrameLayout.LayoutParams(-1, dp(76), Gravity.BOTTOM))
-        val state = card(); state.visibility = View.GONE; state.addView(text("PLAYBACK STATUS", 11f, MUTED, true))
-        statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false).apply { setPadding(0, dp(8), 0, 0) }
-        state.addView(statusView); foreground.addView(state, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1, Gravity.TOP))
-        foreground.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            val controlsHeight = transport.height.takeIf { it > 0 } ?: dp(76)
-            val topHeight = hero.height
-            spacer.layoutParams = FrameLayout.LayoutParams(1, (foreground.height - topHeight - controlsHeight - dp(12)).coerceAtLeast(0), Gravity.TOP).apply { topMargin = topHeight }
+        transport.addView(playView, LinearLayout.LayoutParams(0, dp(56), 1.35f))
+        transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        val bottomDock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(10), 0, dp(8))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                if (lightTheme) intArrayOf(0x00F8F8FC, 0xE6F8F8FC.toInt(), 0xFFF8F8FC.toInt())
+                else intArrayOf(0x00000000, 0xD9000000.toInt(), Color.BLACK)
+            )
         }
+        bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
+            leftMargin = dp(18); rightMargin = dp(18); bottomMargin = dp(5)
+        })
+        bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
+        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1); bottomMargin = dp(2) })
+        bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2))
+
+        foreground.addView(bottomDock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1))
+        statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
+        // The no-track state is represented by the accent-colored artwork area, not the title field.
     }
 
     private fun makeLibraryPanel() {
-        libraryPanel.setPadding(dp(2), dp(2), dp(2), dp(2))
+        val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
+        libraryPanel.setPadding(dp(10), inset + dp(2), dp(10), dp(8))
+        libraryPanel.addView(text("ALBUM", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
