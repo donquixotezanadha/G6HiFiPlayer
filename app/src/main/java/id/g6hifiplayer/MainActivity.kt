@@ -88,7 +88,7 @@ class MainActivity : Activity() {
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var albumGridColumns = 2
-    private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(12 * 1024 * 1024) {
+    private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
     }
     private var visibleTrackLimit = 80
@@ -942,12 +942,16 @@ class MainActivity : Activity() {
         if (::albumRows.isInitialized && ::trackRows.isInitialized) renderLibrary()
     }
 
-    private fun decodeArtwork(bytes: ByteArray): android.graphics.Bitmap? {
+    private fun decodeArtwork(
+        bytes: ByteArray,
+        maxDimension: Int = 1200,
+        config: android.graphics.Bitmap.Config = android.graphics.Bitmap.Config.ARGB_8888
+    ): android.graphics.Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         var sample = 1
-        while (bounds.outWidth / sample > 900 || bounds.outHeight / sample > 900) sample *= 2
-        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1); inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }
+        while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1); inPreferredConfig = config }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
@@ -971,14 +975,14 @@ class MainActivity : Activity() {
     }
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
-        val key = track.uri.toString()
+        val key = "thumb:" + track.uri.toString()
         val cached = bitmapArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
             target.setImageBitmap(cached)
             return
         }
         artworkExecutor.execute {
-            val bitmap = readArtworkBytes(track)?.let { decodeArtwork(it) }
+            val bitmap = readArtworkBytes(track)?.let { decodeArtwork(it, 480, android.graphics.Bitmap.Config.RGB_565) }
             if (bitmap != null) bitmapArtworkCache.put(key, bitmap)
             handler.post {
                 if (bitmap != null && !isFinishing && target.isAttachedToWindow) target.setImageBitmap(bitmap)
@@ -991,8 +995,8 @@ class MainActivity : Activity() {
         artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
-            val key = t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it) }?.also { bitmapArtworkCache.put(key, it) }
+            val key = "player:" + t.uri.toString()
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
