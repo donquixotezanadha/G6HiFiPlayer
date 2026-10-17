@@ -47,6 +47,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -115,7 +116,7 @@ class MainActivity : Activity() {
     private lateinit var songRows: LinearLayout
     private lateinit var songSearchInput: EditText
     private var songSearchQuery = ""
-    private lateinit var queuePanel: LinearLayout
+    private lateinit var queuePanel: FrameLayout
     private lateinit var settingsPanel: LinearLayout
     private lateinit var queueRows: LinearLayout
     private lateinit var audioPanel: LinearLayout
@@ -123,7 +124,11 @@ class MainActivity : Activity() {
     private lateinit var navPlayer: ImageView
     private lateinit var navLibrary: ImageView
     private lateinit var navSongs: ImageView
-    private lateinit var navAudio: ImageView
+    private lateinit var queueMiniArt: ImageView
+    private lateinit var queueMiniTitle: TextView
+    private lateinit var queueMiniArtist: TextView
+    private lateinit var queueMiniProgress: ProgressBar
+    private var currentPage = "player"
     private lateinit var navFile: ImageView
     private lateinit var titleView: TextView
     private lateinit var artistView: TextView
@@ -152,6 +157,7 @@ class MainActivity : Activity() {
                 if (!seeking) {
                     val pos = try { p.currentPosition.toInt() } catch (_: Exception) { 0 }
                     if (seek.progress != pos) seek.progress = pos
+                    if (::queueMiniProgress.isInitialized && queueMiniProgress.max > 0) queueMiniProgress.progress = pos.coerceIn(0, queueMiniProgress.max)
                     val label = time(pos)
                     if (elapsed.text.toString() != label) elapsed.text = label
                 }
@@ -207,27 +213,26 @@ class MainActivity : Activity() {
         navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { show("player") }
         navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
         navSongs = navButton(android.R.drawable.ic_menu_agenda, "Songs") { show("songs") }
-        navAudio = navButton(android.R.drawable.ic_menu_sort_by_size, "Queue") { show("queue") }
         navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
-        listOf(navPlayer, navLibrary, navSongs, navAudio, navFile).forEach {
+        listOf(navPlayer, navLibrary, navSongs, navFile).forEach {
             nav.addView(it, LinearLayout.LayoutParams(0, -1, 1f))
         }
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
-        playerPanel = FrameLayout(this).apply {
-            // Only the artwork layer extends into the status-bar area; content remains inset.
+        playerPanel = SwipeFrameLayout(this, onSwipeDown = { openQueueOverlay() }, onSwipeUp = { closeQueueOverlay() }).apply {
+            // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        queuePanel = FrameLayout(this)
         audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
+        playerPanel.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         songsPanel.setPadding(dp(16), statusBarInset, dp(16), dp(8))
-        queuePanel.setPadding(dp(16), statusBarInset + dp(2), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
@@ -282,7 +287,7 @@ class MainActivity : Activity() {
         settingsPanel.addView(batteryCard)
         settingsPanel.addView(filePanel)
         settingsPanel.addView(audioPanel)
-        content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(queuePanel); content.addView(settingsPanel)
+        content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(settingsPanel)
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         // A fixed-height, opaque bottom bar keeps its geometry stable while tabs change.
@@ -487,22 +492,119 @@ class MainActivity : Activity() {
     }
 
     private fun makeQueuePanel() {
-        // Use the same flat black surface and horizontal inset as Albums and Songs.
         queuePanel.setBackgroundColor(BG)
-        queuePanel.addView(text("PLAYBACK QUEUE", 18f, WHITE, true).apply {
-            setPadding(dp(4), dp(8), dp(4), dp(8))
-        })
-        queuePanel.addView(text("Tracks waiting to be played.", 12f, MUTED, false).apply {
-            setPadding(dp(4), 0, dp(4), dp(10))
-        })
-        queuePanel.addView(action("CLEAR QUEUE", false) {
+        queuePanel.visibility = View.GONE
+        val surface = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = android.graphics.drawable.ColorDrawable(BG)
+        }
+        val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
+            if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
+        }
+        surface.setPadding(dp(16), statusInset + dp(8), dp(16), dp(8))
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(text("UP NEXT", 20f, WHITE, true), LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(iconAction("⌄") { closeQueueOverlay() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        surface.addView(header)
+
+        val mini = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = shape(CARD, 14)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { togglePlayback() }
+        }
+        queueMiniArt = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = shape(ART, 8)
+            contentDescription = "Currently playing artwork"
+        }
+        mini.addView(queueMiniArt, LinearLayout.LayoutParams(dp(52), dp(52)))
+        val miniInfo = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), 0, dp(8), 0)
+        }
+        queueMiniTitle = text("Nothing playing", 13f, WHITE, true).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        queueMiniArtist = text("", 11f, MUTED, false).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        queueMiniProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1
+            progress = 0
+            progressTintList = ColorStateList.valueOf(accentColor)
+            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+        }
+        miniInfo.addView(queueMiniTitle)
+        miniInfo.addView(queueMiniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
+        miniInfo.addView(queueMiniProgress, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(7) })
+        mini.addView(miniInfo, LinearLayout.LayoutParams(0, -2, 1f))
+        mini.addView(iconAction("Ⅱ") { togglePlayback() }, LinearLayout.LayoutParams(dp(38), dp(48)))
+        surface.addView(mini, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+
+        val queueActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        queueActions.addView(text("PLAYBACK QUEUE", 12f, MUTED, true), LinearLayout.LayoutParams(0, dp(38), 1f))
+        queueActions.addView(action("CLEAR", false) {
             playbackQueue = emptyList()
             playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
             renderQueueRows()
             Toast.makeText(this, "Queue cleared.", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(10) })
+        }, LinearLayout.LayoutParams(dp(82), dp(36)))
+        surface.addView(queueActions)
+
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel.addView(queueRows)
+        val queueScroll = ScrollView(this).apply {
+            clipToPadding = false
+            isFillViewport = false
+            addView(queueRows, ViewGroup.LayoutParams(-1, -2))
+        }
+        surface.addView(queueScroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
+        updateQueueMiniPlayer()
+    }
+
+    private fun openQueueOverlay() {
+        if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
+        queuePanel.visibility = View.VISIBLE
+        queuePanel.bringToFront()
+        renderQueueRows()
+        recordDiagnostic("QUEUE_OVERLAY opened=true")
+    }
+
+    private fun closeQueueOverlay() {
+        if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
+        queuePanel.visibility = View.GONE
+        recordDiagnostic("QUEUE_OVERLAY opened=false")
+    }
+
+    private fun updateQueueMiniPlayer() {
+        if (!::queueMiniTitle.isInitialized) return
+        if (currentIndex !in tracks.indices) {
+            queueMiniTitle.text = "Nothing playing"
+            queueMiniArtist.text = "Choose a track to begin"
+            queueMiniArt.setImageDrawable(null)
+            queueMiniProgress.max = 1
+            queueMiniProgress.progress = 0
+            return
+        }
+        val track = tracks[currentIndex]
+        queueMiniTitle.text = track.title
+        queueMiniArtist.text = track.artist
+        val total = try { player?.duration?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: durationMs } catch (_: Exception) { durationMs }
+        queueMiniProgress.max = total.coerceAtLeast(1)
+        queueMiniProgress.progress = try { player?.currentPosition?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt()?.coerceIn(0, queueMiniProgress.max) ?: 0 } catch (_: Exception) { 0 }
+        loadArtworkInto(queueMiniArt, track)
     }
 
     private fun makeAudioPanel() {
@@ -1592,7 +1694,7 @@ class MainActivity : Activity() {
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", activityIntent("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Pause" else "Play", activityIntent("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", activityIntent("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss notification", activityIntent("dismiss", 6104)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Close player", dismissBroadcastIntent()).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
@@ -1600,6 +1702,12 @@ class MainActivity : Activity() {
         }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, builder.build())
     }
+    private fun dismissBroadcastIntent(): PendingIntent {
+        val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        val intent = Intent(this, NotificationActionReceiver::class.java).putExtra("notification_action", "dismiss")
+        return PendingIntent.getBroadcast(this, 6104, intent, flags)
+    }
+
     private fun stopAndDismissPlayback() {
         pendingAutoplay = false
         prepared = false
@@ -1773,20 +1881,24 @@ class MainActivity : Activity() {
         }
     }
     private fun show(which: String) {
+        if (which == "queue") {
+            show("player")
+            openQueueOverlay()
+            return
+        }
+        currentPage = which
+        if (::queuePanel.isInitialized) queuePanel.visibility = View.GONE
         // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         window.statusBarColor = if (which == "player") Color.TRANSPARENT else BG
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
         songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
-        queuePanel.visibility = if (which == "queue") View.VISIBLE else View.GONE
         settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
         navState(navPlayer, which == "player")
         navState(navLibrary, which == "library")
         navState(navSongs, which == "songs")
-        navState(navAudio, which == "queue")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
-        if (which == "queue") renderQueueRows()
         if (which == "songs") renderSongs()
     }
     private fun navButton(iconRes: Int, description: String, click: () -> Unit) = ImageView(this).apply {
@@ -1827,6 +1939,7 @@ class MainActivity : Activity() {
 
     private fun renderQueueRows() {
         if (!::queueRows.isInitialized) return
+        updateQueueMiniPlayer()
         queueRows.removeAllViews()
         val queue = playbackQueue.filter { it in tracks.indices }
         if (queue.isEmpty()) { queueRows.addView(text("The queue is empty. Add an album from the Albums tab.", 13f, MUTED, false)); return }
@@ -1934,6 +2047,43 @@ class MainActivity : Activity() {
         return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60)
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+    override fun onBackPressed() {
+        if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
+            closeQueueOverlay()
+            return
+        }
+        if (currentPage != "player") {
+            show("player")
+            return
+        }
+        super.onBackPressed()
+    }
+
+    private inner class SwipeFrameLayout(
+        context: Context,
+        private val onSwipeDown: () -> Unit,
+        private val onSwipeUp: () -> Unit
+    ) : FrameLayout(context) {
+        private var downX = 0f
+        private var downY = 0f
+
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                downX = event.x
+                downY = event.y
+            }
+            val handled = super.dispatchTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val dx = event.x - downX
+                val dy = event.y - downY
+                if (kotlin.math.abs(dy) > dp(72) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.25f) {
+                    if (dy > 0) onSwipeDown() else onSwipeUp()
+                }
+            }
+            return handled
+        }
+    }
+
     override fun onDestroy() {
         handler.removeCallbacks(ticker)
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
