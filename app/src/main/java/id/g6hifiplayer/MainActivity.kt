@@ -303,7 +303,7 @@ class MainActivity : Activity() {
 
     private fun appVersionLabel(): String = try {
         val info = packageManager.getPackageInfo(packageName, 0)
-        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+        val code = info.longVersionCode
         "${info.versionName ?: "unknown"} ($code)"
     } catch (_: Exception) { "unknown" }
 
