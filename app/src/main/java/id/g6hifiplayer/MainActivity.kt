@@ -1069,13 +1069,13 @@ class MainActivity : Activity() {
             .setContentTitle(track.title)
             .setContentText(track.artist + " • " + track.album)
             .setContentIntent(contentIntent)
+            .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(isPlaying)
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Sebelumnya", activityIntent("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Jeda" else "Putar", activityIntent("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Berikutnya", activityIntent("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Tutup", activityIntent("dismiss", 6104)).build())
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         if (cover != null) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
