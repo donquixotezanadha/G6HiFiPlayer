@@ -34,16 +34,17 @@ internal class FfmpegAudioDecoder(context: Context) {
                     ?.take(8)
                     ?.filter { it.isLetterOrDigit() }
                     ?.ifBlank { "audio" } ?: "audio"
-                input = File(appContext.cacheDir, "ffmpeg-input-$key.$extension")
+                val inputFile = File(appContext.cacheDir, "ffmpeg-input-$key.$extension")
+                input = inputFile
                 appContext.contentResolver.openInputStream(uri).use { source ->
                     requireNotNull(source) { "Cannot open source audio URI" }.use { stream ->
-                        input.outputStream().use { target -> stream.copyTo(target) }
+                        inputFile.outputStream().use { target -> stream.copyTo(target) }
                     }
                 }
 
                 val tempOutput = File(appContext.cacheDir, "ffmpeg-pcm-$key.tmp.wav")
                 tempOutput.delete()
-                val command = "-y -hide_banner -loglevel error -i ${quote(input.absolutePath)} " +
+                val command = "-y -hide_banner -loglevel error -i ${quote(inputFile.absolutePath)} " +
                     "-map 0:a:0 -vn -c:a pcm_s24le ${quote(tempOutput.absolutePath)}"
                 val session = FFmpegKit.execute(command)
                 check(ReturnCode.isSuccess(session.returnCode) && tempOutput.isFile && tempOutput.length() > 44L) {
