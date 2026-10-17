@@ -41,3 +41,27 @@ Version: `0.41.0`
 ### Verification status
 
 Source changes and workflow configuration have been committed to the Build 41 branch. GitHub Actions must complete successfully before an APK is considered built. Device verification is still required for album tap/back, long queue scrolling, persistent mini-player dock, Play/Pause synchronization, bottom-tab alignment, swipe-up/down and Android Back transition smoothness on the LG G6 (LGM-G600L / Android 9). Do not treat source-level checks as proof of runtime behavior.
+
+
+## Build 42 — tab indicator and mini-player gesture
+
+Branch: `build-42-tabbar-swipe-player`  
+Version: `0.42.0`
+
+Build 41 is the accepted checkpoint for the user-confirmed fixes: Album taps now open a dedicated album track list; scan progress lives in Albums; Queue transitions are noticeably smoother; Queue scrolling and its dock were restructured; remaining issues were narrowed to the bottom-tab active indicator and a swipe-up gesture on the Queue mini-player.
+
+### Build 42 changes
+
+- Widened the selected bottom-tab capsule by reducing horizontal inset from 25dp to 12dp and vertical inset from 7dp to 4dp. Icon cells remain equally weighted; the active marker should read as a centered capsule rather than a small circle.
+- Added an upward-dominant swipe gesture to the Queue mini-player dock. A swipe of at least 32dp with a vertical-dominant trajectory closes Queue using the existing animated close transition; ordinary taps remain wired to return to Now Playing.
+- Preserved Build 41 album detail, album scan progress, queue layout/scroll, transition timing, and navigation behavior.
+
+### Verification checklist
+
+- Confirm selected capsule is centered and has visible side margins on all four tabs; check portrait 18:9 device layout.
+- Open Queue and swipe upward from the mini-player dock; verify the Queue closes smoothly to Now Playing.
+- Tap mini-player without swiping; verify ordinary tap behavior still works.
+- Scroll Queue to the end, then use Android Back and swipe-down/up transitions.
+- Confirm album detail/back, scan progress, playback controls and queue dock are unchanged.
+
+Source and workflow commits are not a substitute for running the APK on the LG G6 (LGM-G600L, Android 9). Await GitHub Actions success before distributing an APK.
