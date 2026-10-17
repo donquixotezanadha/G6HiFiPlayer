@@ -860,20 +860,50 @@ class MainActivity : Activity() {
     }
 
     private fun scanAudioConfiguration() {
-        val paths = listOf("/vendor/etc/audio_output_policy.conf", "/vendor/etc/audio_policy.conf", "/vendor/etc/audio_policy_configuration.xml", "/system/etc/audio_policy.conf", "/system/etc/audio_policy_configuration.xml")
+        val paths = listOf(
+            "/vendor/etc/audio_output_policy.conf",
+            "/vendor/etc/audio_policy.conf",
+            "/vendor/etc/audio_policy_configuration.xml",
+            "/vendor/etc/mixer_paths.xml",
+            "/vendor/etc/mixer_paths_wcd9335.xml",
+            "/vendor/etc/mixer_paths_wcd9340.xml",
+            "/vendor/etc/audio_platform_info.xml",
+            "/vendor/etc/audio_platform_info_extcodec.xml",
+            "/vendor/etc/audio_effects.conf",
+            "/vendor/etc/audio_effects.xml",
+            "/system/etc/audio_policy.conf",
+            "/system/etc/audio_policy_configuration.xml",
+            "/system/etc/audio_effects.conf",
+            "/system/etc/audio_effects.xml"
+        )
+        val keys = listOf("direct_pcm", "direct_hd", "pcm_8_24", "pcm_24", "192000", "176400", "96000",
+            "88200", "flag_dsd", "supports_pcm", "samplingrates", "sampling_rates", "audio_output_flag_direct",
+            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340")
         val report = StringBuilder()
         var readable = 0
-        for (path in paths) try {
+        for (path in paths) {
             val file = File(path)
-            if (!file.isFile || !file.canRead()) continue
-            val matches = file.readLines().filter {
-                val line = it.lowercase(Locale.ROOT)
-                listOf("direct_pcm_24", "direct_hd", "pcm_8_24", "pcm_24", "192000", "96000", "flag_dsd", "supports_pcm").any { key -> line.contains(key) }
-            }.take(18)
-            readable++; report.append("\n").append(file).append('\n')
-            if (matches.isEmpty()) report.append("File terbaca; tidak ada baris relevan yang cocok.\n")
-            else matches.forEach { report.append(it.trim()).append('\n') }
-        } catch (_: Exception) { }
+            try {
+                if (!file.exists()) {
+                    report.append("\n").append(path).append("\nStatus: tidak ada pada jalur ini.\n")
+                    continue
+                }
+                if (!file.isFile || !file.canRead()) {
+                    report.append("\n").append(path).append("\nStatus: ada tetapi tidak dapat dibaca oleh aplikasi biasa.\n")
+                    continue
+                }
+                val matches = file.useLines { lines ->
+                    lines.filter { line -> keys.any { key -> line.lowercase(Locale.ROOT).contains(key) } }
+                        .take(24).toList()
+                }
+                readable++
+                report.append("\n").append(path).append('\n').append("Status: terbaca.\n")
+                if (matches.isEmpty()) report.append("Tidak ada baris yang cocok dengan kata kunci audio yang dicari.\n")
+                else matches.forEach { report.append(it.trim()).append('\n') }
+            } catch (e: Exception) {
+                report.append("\n").append(path).append("\nStatus: gagal dibaca (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "tanpa detail").append(").\n")
+            }
+        }
         report.append("\nDirect playback PCM stereo (dukungan sistem, bukan stream aktif):\n")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
@@ -886,7 +916,7 @@ class MainActivity : Activity() {
             }
         } else report.append("API direct-playback tidak tersedia pada Android versi ini.\n")
         report.append("\nFile konfigurasi yang dapat dibaca: ").append(readable).append(" dari ").append(paths.size)
-        report.append("\nKonfigurasi bukan bukti MediaPlayer sedang memakai DIRECT_HD atau direct_pcm_24.")
+        report.append("\nKonfigurasi adalah petunjuk kemampuan yang dinyatakan sistem, bukan bukti MediaPlayer sedang memakai DIRECT_HD/direct_pcm_24 atau DAC menerima sample rate tertentu.")
         lastAudioConfigLog = report.toString()
         AlertDialog.Builder(this).setTitle("Hasil scan audio LG").setMessage(lastAudioConfigLog)
             .setNeutralButton("SALIN LOG") { _, _ -> copyText(lastAudioConfigLog) }
