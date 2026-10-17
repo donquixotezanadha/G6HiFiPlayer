@@ -301,6 +301,12 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun appVersionLabel(): String = try {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+        "${info.versionName ?: "unknown"} ($code)"
+    } catch (_: Exception) { "unknown" }
+
     private fun recordDiagnostic(event: String, error: Throwable? = null) {
         val timestamp = System.currentTimeMillis()
         val detail = buildString {
@@ -614,7 +620,7 @@ class MainActivity : Activity() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
         val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Informasi file belum tersedia."
         val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
-        copyText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
+        copyText("G6 HiFi Player — DIAGNOSTIK AUDIO / SCAN\nWaktu: ${System.currentTimeMillis()}\nPerangkat: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nVersi aplikasi: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nKONFIGURASI LG:\n$lastAudioConfigLog\n\nEVENT TERAKHIR:\n$events")
     }
     private fun shareAudioLog() {
         val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Informasi route belum tersedia."
