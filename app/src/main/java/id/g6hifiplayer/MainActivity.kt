@@ -750,6 +750,28 @@ class MainActivity : Activity() {
             gridRow?.addView(cell, lp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
+        selectedAlbum?.let { album ->
+            val entries = groupedAlbums[album].orEmpty().sortedWith(
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+            )
+            if (entries.isEmpty()) {
+                selectedAlbum = null
+            } else {
+                albumRows.addView(text(album, 18f, WHITE, true).apply {
+                    setPadding(dp(12), dp(12), dp(12), dp(8)); maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, LinearLayout.LayoutParams(-1, -2))
+                val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(2), dp(8), dp(8)) }
+                albumActions.addView(action("PLAY ALBUM", true) {
+                    val order = entries.map { it.index }
+                    if (order.isNotEmpty()) { playTrackAt(order.first(), true, order); show("player") }
+                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+                albumActions.addView(action("ADD TO QUEUE", false) { addAlbumToQueue(entries.map { it.index }, album) }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
+                entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
+            }
+        }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 
