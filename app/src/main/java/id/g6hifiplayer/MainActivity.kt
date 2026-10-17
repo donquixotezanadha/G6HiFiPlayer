@@ -90,7 +90,6 @@ class MainActivity : Activity() {
     private var albumGridColumns = 2
     private val bitmapArtworkCache = android.util.LruCache<String, android.graphics.Bitmap>(12 * 1024 * 1024) { _, bitmap -> bitmap.byteCount }
     private var visibleTrackLimit = 80
-    private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(3)
     // Keep current-player artwork independent of the library thumbnails backlog.
     private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
