@@ -992,7 +992,7 @@ class MainActivity : Activity() {
             val key = t.uri.toString()
             val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
-                if (token != artToken) { bitmap?.recycle(); return@post }
+                if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
                     artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE; applyArtworkAccent(bitmap)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
