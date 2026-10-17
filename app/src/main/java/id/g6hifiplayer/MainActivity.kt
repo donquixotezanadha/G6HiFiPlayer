@@ -509,30 +509,32 @@ class MainActivity : Activity() {
                 isFocusable = true
                 contentDescription = if (selectedAlbum == album) "Tutup album $album" else "Buka album $album"
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
-            albumRow.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8); isClickable = true; isFocusable = true; contentDescription = "Artwork $album" }
+            albumRow.addView(cover, LinearLayout.LayoutParams(dp(76), dp(76)))
             val label = text((if (selectedAlbum == album) "▾ " else "▸ ") + album + "\n" + albumEntries.size + " lagu", 13f, if (selectedAlbum == album) accentColor else WHITE, true)
                 .apply { setPadding(dp(12), 0, 0, 0) }
             albumRow.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-            albumRow.setOnClickListener {
+            val expandAlbum = {
                 selectedAlbum = if (selectedAlbum == album) null else album
                 visibleTrackLimit = 80
                 renderLibrary()
+            }
+            albumRow.setOnClickListener { expandAlbum() }
+            cover.setOnClickListener { expandAlbum() }
+            val albumIndices = albumEntries.map { it.index }
+            cover.setOnLongClickListener {
+                AlertDialog.Builder(this).setTitle(album)
+                    .setItems(arrayOf("▶ Putar seluruh album", "＋ Tambahkan album ke antrian")) { _, which ->
+                        if (which == 0) {
+                            if (albumIndices.isNotEmpty()) { playTrackAt(albumIndices.first(), true, albumIndices); show("player") }
+                        } else addAlbumToQueue(albumIndices, album)
+                    }.show()
+                true
             }
             albumRows.addView(albumRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
             albumEntries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
 
             if (selectedAlbum == album) {
-                albumRows.addView(action("▶  PUTAR SELURUH ALBUM", true) {
-                    val queue = albumEntries.map { it.index }
-                    if (queue.isNotEmpty()) {
-                        playTrackAt(queue.first(), true, queue)
-                        show("player")
-                    }
-                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(5); bottomMargin = dp(5) })
-                albumRows.addView(action("＋  TAMBAHKAN ALBUM KE ANTRIAN", false) {
-                    addAlbumToQueue(albumEntries.map { it.index }, album)
-                }, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(7) })
                 albumEntries.take(visibleTrackLimit).forEach { entry ->
                     addLibraryTrackRow(albumRows, entry, true, albumEntries.map { it.index })
                 }
