@@ -367,17 +367,26 @@ class MainActivity : Activity() {
         val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
         albumRows.addView(rowButton("Semua album • " + tracks.size + " lagu", selectedAlbum == null) { selectedAlbum = null; renderLibrary() })
         albums.forEach { album ->
-            val count = tracks.count { it.album == album }
-            albumRows.addView(rowButton(album + " • " + count + " lagu", selectedAlbum == album) { selectedAlbum = album; renderLibrary() })
+            val albumTracks = tracks.filter { it.album == album }
+            val albumRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); background = shape(if (selectedAlbum == album) LINE else BG, 12); isClickable = true; isFocusable = true }
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
+            albumRow.addView(cover, LinearLayout.LayoutParams(dp(58), dp(58)))
+            val label = text(album + "\n" + albumTracks.size + " lagu", 13f, if (selectedAlbum == album) ACCENT else WHITE, true).apply { setPadding(dp(12), 0, 0, 0) }
+            albumRow.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            albumRow.setOnClickListener { selectedAlbum = album; renderLibrary() }
+            albumRows.addView(albumRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+            albumTracks.firstOrNull()?.let { loadArtworkInto(cover, it) }
         }
         tracks.withIndex().filter { selectedAlbum == null || it.value.album == selectedAlbum }.forEach { entry ->
             val t = entry.value
-            val row = text(t.title + "\n" + t.artist + " • " + t.album, 13f, WHITE, true).apply {
-                setPadding(dp(12), dp(12), dp(12), dp(12)); background = shape(if (entry.index == currentIndex) LINE else BG, 12)
-                isClickable = true; isFocusable = true
-                setOnClickListener { playTrackAt(entry.index, true); show("player") }
-            }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); background = shape(if (entry.index == currentIndex) LINE else BG, 12); isClickable = true; isFocusable = true }
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
+            row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
+            val label = text(t.title + "\n" + t.artist + " • " + t.album, 12f, WHITE, true).apply { setPadding(dp(10), 0, 0, 0) }
+            row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            row.setOnClickListener { playTrackAt(entry.index, true); show("player") }
             trackRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+            loadArtworkInto(cover, t)
         }
     }
     private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) ACCENT else WHITE, selected).apply {
@@ -466,6 +475,23 @@ class MainActivity : Activity() {
         } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
         sourceRate = rate.toIntOrNull()
         fileInfo.text = "Judul: " + t.title + "\nArtis: " + t.artist + "\nAlbum: " + t.album + "\nDurasi: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSample rate sumber: " + rate + " Hz\nKanal: " + channels + "\nBitrate: " + bitrate + " bit/s (jika dilaporkan)\nURI: " + uri
+    }
+
+    private fun loadArtworkInto(target: ImageView, track: Track) {
+        Thread {
+            var bytes: ByteArray? = null
+            val retriever = MediaMetadataRetriever()
+            try { retriever.setDataSource(this@MainActivity, track.uri); bytes = retriever.embeddedPicture }
+            catch (_: Exception) { }
+            finally { try { retriever.release() } catch (_: Exception) { } }
+            if (bytes == null && track.coverUri != null) {
+                try { contentResolver.openInputStream(track.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
+            }
+            val bitmap = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+            handler.post {
+                if (bitmap != null && !isFinishing) target.setImageBitmap(bitmap)
+            }
+        }.start()
     }
 
     private fun loadArtwork(t: Track) {
