@@ -217,14 +217,14 @@ class MainActivity : Activity() {
             clipChildren = false
             clipToPadding = false
         }
-        navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { show("player") }
+        navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) closeQueueOverlay() else show("player") }
         navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
         navSongs = navButton(android.R.drawable.ic_menu_agenda, "Songs") { show("songs") }
         navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
         listOf(navPlayer, navLibrary, navSongs, navFile).forEach {
             nav.addView(it, LinearLayout.LayoutParams(0, -1, 1f))
         }
-        val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true }
+        val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
         playerPanel = SwipeFrameLayout(this, onSwipeDown = { openQueueOverlay() }, onSwipeUp = { closeQueueOverlay() }).apply {
@@ -233,12 +233,11 @@ class MainActivity : Activity() {
         }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel = FrameLayout(this)
+        queuePanel = SwipeFrameLayout(this, onSwipeDown = { }, onSwipeUp = { closeQueueOverlay() })
         audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        playerPanel.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         songsPanel.setPadding(dp(16), statusBarInset, dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
         settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
@@ -288,8 +287,12 @@ class MainActivity : Activity() {
         settingsPanel.addView(audioPanel)
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(settingsPanel)
         scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        // A fixed-height, opaque bottom bar keeps its geometry stable while tabs change.
+        // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
+        // This gives its internal ScrollView independent gesture ownership and stable height.
+        val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
+        contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
+        root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
         setContentView(root); show("player"); renderLibrary()
     }
@@ -532,7 +535,7 @@ class MainActivity : Activity() {
             )
             isClickable = true
             isFocusable = true
-            setOnClickListener { show("player") }
+            setOnClickListener { closeQueueOverlay() }
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -986,11 +989,24 @@ class MainActivity : Activity() {
             if (entries.isEmpty()) {
                 selectedAlbum = null
             } else {
-                albumRows.addView(text(album, 18f, WHITE, true).apply {
-                    setPadding(dp(8), dp(12), dp(8), dp(8))
+                val detailHeader = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, dp(10))
+                }
+                detailHeader.addView(action("‹ ALBUMS", false) {
+                    selectedAlbum = null
+                    renderLibrary()
+                }, LinearLayout.LayoutParams(dp(112), dp(42)))
+                detailHeader.addView(text(album, 18f, WHITE, true).apply {
                     maxLines = 2
                     ellipsize = android.text.TextUtils.TruncateAt.END
-                }, LinearLayout.LayoutParams(-1, -2))
+                    setPadding(dp(10), 0, 0, 0)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                albumRows.addView(detailHeader, LinearLayout.LayoutParams(-1, -2))
+                albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
+                    setPadding(dp(4), 0, 0, dp(10))
+                })
                 val albumActions = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     setPadding(dp(4), dp(2), dp(4), dp(8))
@@ -1005,9 +1021,8 @@ class MainActivity : Activity() {
                 }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
                 entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
-                albumRows.addView(View(this), LinearLayout.LayoutParams(-1, dp(1)).apply {
-                    topMargin = dp(12); bottomMargin = dp(8)
-                }.also { /* spacer separates the open album from the remaining grid */ })
+                librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
+                return
             }
         }
 
@@ -1033,7 +1048,7 @@ class MainActivity : Activity() {
                 isFocusable = true
                 contentDescription = "Open songs in album $album"
                 setOnClickListener {
-                    selectedAlbum = if (selectedAlbum == album) null else album
+                    selectedAlbum = album
                     renderLibrary()
                     show("library")
                 }
@@ -2020,7 +2035,12 @@ class MainActivity : Activity() {
             return
         }
         currentPage = which
-        if (::queuePanel.isInitialized) queuePanel.visibility = View.GONE
+        if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
+            queuePanel.animate().cancel()
+            queuePanel.visibility = View.GONE
+            queuePanel.translationY = 0f
+            queuePanel.alpha = 1f
+        }
         // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         window.statusBarColor = if (which == "player") Color.TRANSPARENT else BG
@@ -2040,8 +2060,21 @@ class MainActivity : Activity() {
         // Four-tab layout: keep navigation glyphs visually secondary to Now Playing controls.
         setPadding(0, 0, 0, 0)
         setImageResource(iconRes)
-        // Keep a generous full-tab touch target while making the four glyphs uniform and centered.
-        post { val iconSize = dp(25); setImageSize(iconSize, iconSize) }
+        // Use native CENTER scaling after layout; a cached MATRIX used stale view dimensions
+        // and caused the selected play icon to drift over its active background.
+        scaleType = ImageView.ScaleType.CENTER
+        post {
+            val d = drawable?.mutate()
+            if (d != null) {
+                val target = dp(25)
+                val w = d.intrinsicWidth.coerceAtLeast(1)
+                val h = d.intrinsicHeight.coerceAtLeast(1)
+                val scale = minOf(target.toFloat() / w, target.toFloat() / h)
+                d.setBounds(0, 0, (w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1))
+                setImageDrawable(d)
+                scaleType = ImageView.ScaleType.CENTER
+            }
+        }
         imageTintList = ColorStateList.valueOf(MUTED)
         background = navBackground(false)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
@@ -2210,6 +2243,11 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
             closeQueueOverlay()
+            return
+        }
+        if (currentPage == "library" && selectedAlbum != null) {
+            selectedAlbum = null
+            renderLibrary()
             return
         }
         if (currentPage != "player") {
