@@ -1036,6 +1036,7 @@ class MainActivity : Activity() {
             val exo = createHiFiPlayer()
             player = exo
             exo.setHandleAudioBecomingNoisy(true)
+            var ffmpegFallbackAttempted = false
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     when (state) {
@@ -1048,6 +1049,7 @@ class MainActivity : Activity() {
                             if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Playing • " + t.title }
                             else syncPlaybackIcon(false)
                             pendingAutoplay = false
+                            mediaSession?.isActive = true
                             refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
                         }
                         Player.STATE_ENDED -> {
@@ -1062,9 +1064,44 @@ class MainActivity : Activity() {
                     if (prepared) { syncPlaybackIcon(isPlaying); refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
                 }
                 override fun onPlayerError(error: PlaybackException) {
-                    prepared = false; playView.isEnabled = true
-                    statusView.text = "Media3 playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format or decoder")
-                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR code=${error.errorCodeName}", error); refreshAudioInfo()
+                    prepared = false
+                    if (!ffmpegFallbackAttempted) {
+                        ffmpegFallbackAttempted = true
+                        playView.isEnabled = false
+                        statusView.text = "Native decoder failed; trying FFmpeg fallback…"
+                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=${t.uri} code=${error.errorCodeName}", error)
+                        FfmpegAudioDecoder(this@MainActivity).decodeToWav(t.uri) { result ->
+                            handler.post {
+                                if (player !== exo || isFinishing) {
+                                    result.getOrNull()?.delete()
+                                    return@post
+                                }
+                                result.onSuccess { wav ->
+                                    try {
+                                        exo.stop()
+                                        exo.clearMediaItems()
+                                        exo.setMediaItem(MediaItem.fromUri(Uri.fromFile(wav)))
+                                        exo.prepare()
+                                        statusView.text = "FFmpeg PCM fallback • preparing " + t.title
+                                        recordDiagnostic("FFMPEG_FALLBACK_READY file=${wav.name} note=decoded-to-24bit-PCM-WAV-no-explicit-resampling")
+                                    } catch (e: Exception) {
+                                        playView.isEnabled = true
+                                        statusView.text = "FFmpeg fallback could not start: " + (e.message ?: e.javaClass.simpleName)
+                                        recordDiagnostic("FFMPEG_FALLBACK_PLAYER_FAILED", e)
+                                    }
+                                }.onFailure { e ->
+                                    playView.isEnabled = true
+                                    statusView.text = "Audio decode failed (Media3 + FFmpeg): " + (e.message ?: e.javaClass.simpleName)
+                                    recordDiagnostic("FFMPEG_FALLBACK_FAILED", e)
+                                }
+                            }
+                        }
+                    } else {
+                        playView.isEnabled = true
+                        statusView.text = "Media3/FFmpeg playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format")
+                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_AFTER_FFMPEG code=${error.errorCodeName}", error)
+                    }
+                    refreshAudioInfo()
                 }
             })
             exo.setMediaItem(MediaItem.fromUri(t.uri)); exo.prepare()
@@ -1072,7 +1109,7 @@ class MainActivity : Activity() {
             playView.isEnabled = true; statusView.text = "Unable to open file: " + e.message
             recordDiagnostic("MEDIA3_INITIALIZATION_FAILED", e)
         }
-        renderLibrary()
+        // Avoid rebuilding the entire album grid for every playback state change.
     }
     private fun playPrevious() {
         if (tracks.isEmpty()) { statusView.text = "Choose a folder or audio file first."; return }
@@ -1485,7 +1522,7 @@ class MainActivity : Activity() {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() {
                     val activity = activeInstance ?: return
-                    if (activity.player?.isPlaying != true) activity.togglePlayback()
+                    if (activity.player != null && activity.prepared && activity.player?.isPlaying != true) activity.togglePlayback()
                 }
                 override fun onPause() {
                     val activity = activeInstance ?: return
@@ -1497,7 +1534,7 @@ class MainActivity : Activity() {
                     activeInstance?.player?.let { p -> try { p.seekTo(pos.coerceIn(0L, activityDuration(p).toLong())) } catch (_: Exception) { } }
                 }
             })
-            isActive = true
+            isActive = false
         }
     }
     private fun activityDuration(p: ExoPlayer): Int = try { p.duration.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() } catch (_: Exception) { 0 }
@@ -1561,12 +1598,42 @@ class MainActivity : Activity() {
         }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, builder.build())
     }
+    private fun stopAndDismissPlayback() {
+        pendingAutoplay = false
+        prepared = false
+        seeking = false
+        clearActiveAudioTrack()
+        try { player?.stop(); player?.clearMediaItems(); player?.release() } catch (_: Exception) { }
+        player = null
+        currentIndex = -1
+        sourceRate = null
+        sourceBitrate = null
+        durationMs = 0
+        playView.isEnabled = false
+        syncPlaybackIcon(false)
+        titleView.text = "Nothing playing"
+        artistView.text = ""
+        albumView.text = ""
+        elapsed.text = "0:00"
+        duration.text = "0:00"
+        seek.progress = 0
+        seek.max = 1
+        statusView.text = "Playback stopped."
+        try {
+            mediaSession?.setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_STOPPED, 0L, 0f).setActions(0L).build())
+            mediaSession?.isActive = false
+        } catch (_: Exception) { }
+        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
+        refreshAudioInfo()
+        recordDiagnostic("NOTIFICATION_DISMISS playback=stopped player=released mediaSession=inactive")
+    }
+
     private fun handleNotificationAction(action: String) {
         when (action) {
             "previous" -> playPrevious()
             "next" -> playNext()
             "toggle" -> togglePlayback()
-            "dismiss" -> { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { } }
+            "dismiss" -> stopAndDismissPlayback()
         }
     }
     override fun onNewIntent(intent: Intent) {
