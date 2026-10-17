@@ -50,6 +50,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -110,6 +111,8 @@ class MainActivity : Activity() {
     private lateinit var libraryPanel: LinearLayout
     private lateinit var songsPanel: LinearLayout
     private lateinit var songRows: LinearLayout
+    private lateinit var songSearchInput: EditText
+    private var songSearchQuery = ""
     private lateinit var queuePanel: LinearLayout
     private lateinit var settingsPanel: LinearLayout
     private lateinit var queueRows: LinearLayout
@@ -382,13 +385,14 @@ class MainActivity : Activity() {
                 else intArrayOf(0x00000000, 0xD9000000.toInt(), Color.BLACK)
             )
         }
-        bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(18); rightMargin = dp(18); bottomMargin = dp(5)
-        })
+        // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
-        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1); bottomMargin = dp(2) })
-        bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2))
+        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
+        bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
+        bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1) })
+        bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
+            leftMargin = dp(18); rightMargin = dp(18); topMargin = dp(4); bottomMargin = dp(2)
+        })
 
         foreground.addView(bottomDock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1))
@@ -423,8 +427,27 @@ class MainActivity : Activity() {
 
     private fun makeSongsPanel() {
         val heading = flatSection()
-        heading.addView(text("SONGS", 18f, WHITE, true))
-        songRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(2), dp(4), dp(2), dp(8)) }
+        heading.addView(text("SONGS", 18f, WHITE, true).apply { setPadding(0, 0, 0, dp(8)) })
+        songSearchInput = EditText(this).apply {
+            hint = "Search songs, artists, albums"
+            textSize = 14f
+            setTextColor(WHITE)
+            setHintTextColor(MUTED)
+            singleLine = true
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = shape(LINE, 14)
+            setText(songSearchQuery)
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {
+                    songSearchQuery = text?.toString().orEmpty()
+                    renderSongs()
+                }
+                override fun afterTextChanged(text: android.text.Editable?) {}
+            })
+        }
+        heading.addView(songSearchInput, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(8) })
+        songRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(4), 0, dp(8)) }
         heading.addView(songRows)
         songsPanel.addView(heading)
     }
@@ -707,9 +730,9 @@ class MainActivity : Activity() {
                 isClickable = true; isFocusable = true
                 contentDescription = "Open songs in album $album"
                 setOnClickListener {
-                    selectedAlbum = album
-                    renderSongs()
-                    show("songs")
+                    selectedAlbum = if (selectedAlbum == album) null else album
+                    renderLibrary()
+                    show("library")
                 }
                 setOnLongClickListener {
                     showAlbumOptions(album, indices)
@@ -737,32 +760,30 @@ class MainActivity : Activity() {
             songRows.addView(text("No songs yet. Scan your music folder in Settings.", 13f, MUTED, false))
             return
         }
-        val grouped = tracks.withIndex().groupBy { it.value.album }
-        val albums = grouped.keys.filter { selectedAlbum == null || it == selectedAlbum }.sortedBy { it.lowercase(Locale.ROOT) }
-        if (selectedAlbum != null) {
-            songRows.addView(text(selectedAlbum!!, 15f, accentColor, true).apply { setPadding(dp(4), dp(8), dp(4), dp(8)) })
+        val query = songSearchQuery.trim().lowercase(Locale.ROOT)
+        val filtered = tracks.withIndex().filter { (_, track) ->
+            query.isEmpty() || track.title.lowercase(Locale.ROOT).contains(query) ||
+                track.artist.lowercase(Locale.ROOT).contains(query) || track.album.lowercase(Locale.ROOT).contains(query)
         }
-        albums.forEach { album ->
+        if (filtered.isEmpty()) {
+            songRows.addView(text("No songs match the search.", 13f, MUTED, false).apply { setPadding(dp(4), dp(12), dp(4), dp(12)) })
+            return
+        }
+        val grouped = filtered.groupBy { it.value.album }
+        grouped.keys.sortedBy { it.lowercase(Locale.ROOT) }.forEach { album ->
             val entries = grouped[album].orEmpty().sortedWith(
-                compareBy<IndexedValue<Track>> { it.value.trackNumber }
-                    .thenBy { it.value.title.lowercase(Locale.ROOT) }
+                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
             )
-            if (selectedAlbum == null) {
-                val heading = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(4), dp(12), dp(4), dp(6))
-                }
-                heading.addView(text(album, 14f, WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
-                heading.addView(text(entries.size.toString(), 11f, MUTED, false))
-                heading.isClickable = true
-                heading.setOnClickListener { selectedAlbum = album; renderSongs() }
-                songRows.addView(heading)
+            val heading = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(4), dp(12), dp(4), dp(6))
             }
-            entries.forEach { entry -> addLibraryTrackRow(songRows, entry, selectedAlbum != null, entries.map { it.index }) }
+            heading.addView(text(album, 14f, WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
+            heading.addView(text(entries.size.toString(), 11f, MUTED, false))
+            songRows.addView(heading)
+            entries.forEach { entry -> addLibraryTrackRow(songRows, entry, false, entries.map { it.index }) }
         }
     }
-
     private fun addLibraryTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, nested: Boolean, queueIndices: List<Int>) {
         val t = entry.value
         val row = LinearLayout(this).apply {
