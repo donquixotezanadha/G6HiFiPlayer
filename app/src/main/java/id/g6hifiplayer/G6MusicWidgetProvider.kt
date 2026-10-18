@@ -16,31 +16,22 @@ import java.io.File
 /** Home-screen widgets retain the last rendered track even after the app process exits. */
 open class G6MusicWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        // Do not replace persisted playback information with placeholder data when the launcher
-        // creates/recreates a widget. Re-render the last known state instead.
         renderSavedState(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            // One short render after boot; no service, polling, timer, or persistent process.
             renderSavedState(context)
             return
         }
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
-        // Launchers may deliver multiple taps while the player state/UI is still catching up.
-        // Accept the first toggle immediately, suppress only near-simultaneous duplicate broadcasts.
         if (action == "toggle") {
             val now = SystemClock.elapsedRealtime()
             val accepted = synchronized(toggleGuard) {
                 val previous = lastWidgetToggleAtMs
-                if (previous != Long.MIN_VALUE && now - previous < WIDGET_TOGGLE_DEBOUNCE_MS) {
-                    false
-                } else {
-                    lastWidgetToggleAtMs = now
-                    true
-                }
+                if (previous != Long.MIN_VALUE && now - previous < WIDGET_TOGGLE_DEBOUNCE_MS) false
+                else { lastWidgetToggleAtMs = now; true }
             }
             if (!accepted) return
         }
@@ -54,66 +45,39 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
         private var lastWidgetToggleAtMs = Long.MIN_VALUE
         private const val PREFS = "g6_widget_state"
         private const val ART_FILE = "g6_widget_artwork.jpg"
-        private const val ACCENT = 0xFF6662C6.toInt()
         private const val THUMB_SIZE = 256
 
-        fun refresh(
-            context: Context,
-            title: String,
-            artist: String,
-            album: String,
-            playing: Boolean,
-            artwork: Bitmap?,
-            light: Boolean,
-            position: Int,
-            duration: Int
-        ) {
+        fun refresh(context: Context, title: String, artist: String, album: String, playing: Boolean,
+                    artwork: Bitmap?, light: Boolean, position: Int, duration: Int) {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val targetHasTrack = title.isNotBlank() && title != "G6HiFiPlayer"
             val sameTrack = prefs.getBoolean("has_track", false) == targetHasTrack &&
-                prefs.getString("title", null) == title &&
-                prefs.getString("artist", null) == artist &&
+                prefs.getString("title", null) == title && prefs.getString("artist", null) == artist &&
                 prefs.getString("album", null) == album
             val sameTheme = prefs.getBoolean("light", light) == light
             val canRefreshPlaybackOnly = sameTrack && sameTheme
-            // Persist only a small widget thumbnail. Sending the Now Playing bitmap (up to
-            // 960x960) through RemoteViews can exceed Binder's transaction limit on Android 9.
             if (artwork != null && !artwork.isRecycled) {
                 val artworkIdentity = listOf(title, artist, album).joinToString("\u001F")
                 val savedIdentity = prefs.getString("artwork_identity", null)
                 val artworkFile = File(context.filesDir, ART_FILE)
-                // Persist once per track, not on every play/pause/notification refresh.
                 if (savedIdentity != artworkIdentity || !artworkFile.exists()) {
                     try {
                         val ratio = minOf(1f, THUMB_SIZE.toFloat() / maxOf(artwork.width, artwork.height).coerceAtLeast(1))
-                        val thumb = if (ratio < 1f) Bitmap.createScaledBitmap(
-                            artwork,
+                        val thumb = if (ratio < 1f) Bitmap.createScaledBitmap(artwork,
                             (artwork.width * ratio).toInt().coerceAtLeast(1),
-                            (artwork.height * ratio).toInt().coerceAtLeast(1),
-                            true
-                        ) else artwork
+                            (artwork.height * ratio).toInt().coerceAtLeast(1), true) else artwork
                         context.openFileOutput(ART_FILE, Context.MODE_PRIVATE).use { out ->
                             thumb.compress(Bitmap.CompressFormat.JPEG, 84, out)
                         }
                         prefs.edit().putString("artwork_identity", artworkIdentity).apply()
                         if (thumb !== artwork) thumb.recycle()
-                    } catch (_: Exception) {
-                        // Keep the last valid artwork file if writing a new thumbnail fails.
-                    }
+                    } catch (_: Exception) { }
                 }
             }
-            prefs.edit()
-                .putBoolean("has_track", title.isNotBlank() && title != "G6HiFiPlayer")
-                .putString("title", title)
-                .putString("artist", artist)
-                .putString("album", album)
-                .putBoolean("playing", playing)
-                .putBoolean("light", light)
-                .putInt("position", position.coerceAtLeast(0))
-                .putInt("duration", duration.coerceAtLeast(0))
-                .apply()
-            // Play/pause events are frequent and do not require decoding/resending artwork.
-            // Partial RemoteViews updates make the widget button respond without an artwork I/O pass.
+            prefs.edit().putBoolean("has_track", targetHasTrack).putString("title", title)
+                .putString("artist", artist).putString("album", album).putBoolean("playing", playing)
+                .putBoolean("light", light).putInt("position", position.coerceAtLeast(0))
+                .putInt("duration", duration.coerceAtLeast(0)).apply()
             if (canRefreshPlaybackOnly) {
                 refreshPlaybackViews(context, playing, position, duration, light)
                 return
@@ -126,30 +90,34 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             val total = duration.coerceAtLeast(1)
             val pos = position.coerceIn(0, total)
             val image = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
-
+            val iconColor = if (light) Color.BLACK else Color.WHITE
             val wideIds = manager.getAppWidgetIds(ComponentName(context, G6MusicWidgetProvider::class.java))
             if (wideIds.isNotEmpty()) {
                 val views = RemoteViews(context.packageName, R.layout.widget_player_4x2).apply {
+                    setImageViewResource(R.id.widget_previous, R.drawable.ic_widget_previous_24)
                     setImageViewResource(R.id.widget_play, image)
+                    setImageViewResource(R.id.widget_next, R.drawable.ic_widget_next_24)
+                    setInt(R.id.widget_previous, "setColorFilter", iconColor)
+                    setInt(R.id.widget_play, "setColorFilter", iconColor)
+                    setInt(R.id.widget_next, "setColorFilter", iconColor)
                     setProgressBar(R.id.widget_progress, total, pos, false)
                     setTextViewText(R.id.widget_elapsed, time(pos))
                     setTextViewText(R.id.widget_duration, time(duration))
                 }
                 manager.partiallyUpdateAppWidget(wideIds, views)
             }
-
             val compactIds = manager.getAppWidgetIds(ComponentName(context, G6CompactWidgetProvider::class.java))
             if (compactIds.isNotEmpty()) {
                 val views = RemoteViews(context.packageName, R.layout.widget_player_2x2).apply {
                     setImageViewResource(R.id.widget_play, image)
-                    setInt(R.id.widget_play, "setColorFilter", if (light) Color.BLACK else Color.WHITE)
-                    setInt(R.id.widget_play_overlay, "setBackgroundResource", if (light) R.drawable.widget_play_overlay_light else R.drawable.widget_play_overlay_dark)
+                    setInt(R.id.widget_play, "setColorFilter", iconColor)
+                    setInt(R.id.widget_play_overlay, "setBackgroundResource",
+                        if (light) R.drawable.widget_play_overlay_light else R.drawable.widget_play_overlay_dark)
                 }
                 manager.partiallyUpdateAppWidget(compactIds, views)
             }
         }
 
-        /** Update only time/progress views while playback continues; avoid resending album art. */
         fun refreshProgress(context: Context, position: Int, duration: Int) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, G6MusicWidgetProvider::class.java))
@@ -161,7 +129,6 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                 setTextViewText(R.id.widget_elapsed, time(pos))
                 setTextViewText(R.id.widget_duration, time(duration))
             }
-            // Partial updates merge with the last complete RemoteViews rendered by refresh().
             manager.partiallyUpdateAppWidget(ids, views)
         }
 
@@ -179,7 +146,6 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             val artwork = if (hasTrack) try {
                 File(context.filesDir, ART_FILE).takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.absolutePath) }
             } catch (_: Exception) { null } else null
-
             val manager = AppWidgetManager.getInstance(context)
             listOf(G6MusicWidgetProvider::class.java, G6CompactWidgetProvider::class.java).forEach { cls ->
                 val ids = manager.getAppWidgetIds(ComponentName(context, cls))
@@ -198,7 +164,8 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         views.setTextColor(R.id.widget_title, if (light) Color.BLACK else Color.WHITE)
                         views.setTextColor(R.id.widget_artist, if (light) 0xFF555555.toInt() else 0xFFDDDDDD.toInt())
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-                        views.setInt(R.id.widget_play_overlay, "setBackgroundResource", if (light) R.drawable.widget_play_overlay_light else R.drawable.widget_play_overlay_dark)
+                        views.setInt(R.id.widget_play_overlay, "setBackgroundResource",
+                            if (light) R.drawable.widget_play_overlay_light else R.drawable.widget_play_overlay_dark)
                         views.setInt(R.id.widget_play, "setColorFilter", if (light) Color.BLACK else Color.WHITE)
                     } else {
                         views.setTextViewText(R.id.widget_title, title)
@@ -208,8 +175,15 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         views.setProgressBar(R.id.widget_progress, duration.coerceAtLeast(1), position.coerceIn(0, duration.coerceAtLeast(1)), false)
                         if (artwork != null) views.setImageViewBitmap(R.id.widget_art, artwork)
                         else views.setImageViewResource(R.id.widget_art, R.drawable.widget_empty_art)
+                        views.setImageViewResource(R.id.widget_previous, R.drawable.ic_widget_previous_24)
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-                        views.setInt(R.id.widget_card, "setBackgroundResource", if (!hasTrack) R.drawable.widget_card_accent else if (light) R.drawable.widget_card_light else R.drawable.widget_card_dark)
+                        views.setImageViewResource(R.id.widget_next, R.drawable.ic_widget_next_24)
+                        val iconColor = if (light) Color.BLACK else Color.WHITE
+                        views.setInt(R.id.widget_previous, "setColorFilter", iconColor)
+                        views.setInt(R.id.widget_play, "setColorFilter", iconColor)
+                        views.setInt(R.id.widget_next, "setColorFilter", iconColor)
+                        views.setInt(R.id.widget_card, "setBackgroundResource",
+                            if (!hasTrack) R.drawable.widget_card_accent else if (light) R.drawable.widget_card_light else R.drawable.widget_card_dark)
                         views.setTextColor(R.id.widget_title, if (!hasTrack) Color.WHITE else if (light) Color.BLACK else Color.WHITE)
                         views.setTextViewText(R.id.widget_title, if (hasTrack) title else "NO MUSIC PLAYING")
                         views.setTextColor(R.id.widget_artist, if (light) 0xFF666666.toInt() else 0xFFAAAAAA.toInt())
@@ -223,11 +197,9 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         bind(context, views, R.id.widget_previous, "previous")
                         bind(context, views, R.id.widget_next, "next")
                     }
-                    val open = PendingIntent.getActivity(
-                        context, 20 + if (compact) 1 else 0,
+                    val open = PendingIntent.getActivity(context, 20 + if (compact) 1 else 0,
                         Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                        flags()
-                    )
+                        flags())
                     views.setOnClickPendingIntent(if (compact) R.id.widget_art else R.id.widget_card, open)
                     manager.updateAppWidget(id, views)
                 }
