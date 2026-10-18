@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build65-v0.65.0-widget-fixes-arm64-apk
+          name: G6HiFiPlayer-Nightly-Build66-v0.66.0-widget-performance-rounding-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 65 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Nightly Build 66 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 65 is based on Build 64. It adds track metadata to the compact widget and updates the wide widget progress/time every five seconds using partial RemoteViews updates. Audio engine, FFmpeg dependencies, sample-rate, buffer, output-mode, and DAC-path logic are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Nightly Build 66 is based on Build 65. It reduces the wide widget progress update interval to one second, applies the app purple accent to progress, and rounds widget clipping. Audio engine, FFmpeg dependencies, sample-rate, buffer, output-mode, and DAC-path logic are unchanged." >> "$GITHUB_STEP_SUMMARY"
