@@ -1539,9 +1539,20 @@ class MainActivity : Activity() {
         val p = player
         if (p == null || !prepared) { statusView.text = "Choose a track from the library first."; return }
         try {
-            if (p.isPlaying) { p.pause(); syncPlaybackIcon(false); statusView.text = "Dijeda" }
-            else { p.play(); syncPlaybackIcon(true); statusView.text = "Playing" }
-            refreshAudioInfo()
+            if (p.isPlaying) {
+                p.pause()
+                syncPlaybackIcon(false)
+                statusView.text = "Dijeda"
+            } else {
+                // Starting playback again must re-enable the notification after the user dismissed it.
+                notificationDismissed = false
+                p.play()
+                syncPlaybackIcon(true)
+                statusView.text = "Playing"
+            }
+            // Keep transport controls snappy: route/device diagnostics can be comparatively expensive.
+            // Playback listener updates the notification immediately; refresh diagnostics on the next UI turn.
+            handler.post { if (!isFinishing) refreshAudioInfo() }
             updatePlaybackNotification(try { p.isPlaying } catch (_: Exception) { false })
         } catch (e: Exception) { statusView.text = "Playback failed: " + e.message }
     }
@@ -2465,7 +2476,7 @@ class MainActivity : Activity() {
         private const val KEY_LAST_TRACK_URI = "last_playback_track_uri"
         private const val KEY_LAST_POSITION_MS = "last_playback_position_ms"
         private var activeInstance: MainActivity? = null
-        @JvmStatic fun notificationAction(action: String) { activeInstance?.handleNotificationAction(action) }
+        @JvmStatic fun notificationAction(action: String) { val activity = activeInstance ?: return; activity.handler.post { if (!activity.isFinishing && !activity.isDestroyed) activity.handleNotificationAction(action) } }
         private const val REQUEST_FOLDER = 1002
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
