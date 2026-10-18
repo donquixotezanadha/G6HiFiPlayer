@@ -192,7 +192,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
-        window.statusBarColor = Color.TRANSPARENT
+        // Subtle translucent status bar blends with the page while keeping system icons legible.
+        window.statusBarColor = if (lightTheme) 0xD9F8F8FC.toInt() else 0xD9000000.toInt()
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
         window.decorView.systemUiVisibility = (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
@@ -247,7 +248,7 @@ class MainActivity : Activity() {
         themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
             lightTheme = !lightTheme
             accentColor = DEFAULT_ACCENT
-            window.statusBarColor = Color.TRANSPARENT
+            window.statusBarColor = if (lightTheme) 0xD9F8F8FC.toInt() else 0xD9000000.toInt()
             window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
             getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
@@ -331,11 +332,13 @@ class MainActivity : Activity() {
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        val playerHeader = text("NOW PLAYING", 22f, WHITE, true).apply {
+        val playerHeader = text("NOW PLAYING", 22f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
             setPadding(dp(18), dp(8), dp(18), dp(8))
+            background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
+            gravity = Gravity.CENTER_VERTICAL
         }
-        foreground.addView(playerHeader, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-            topMargin = statusBarInset
+        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            topMargin = statusBarInset + dp(8)
         })
 
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
@@ -412,7 +415,8 @@ class MainActivity : Activity() {
             setOnClickListener { togglePlayback() }
         }
         syncPlaybackIcon()
-        transport.addView(playView, LinearLayout.LayoutParams(0, dp(56), 1.35f))
+        // Keep the play control a compact rounded square; do not scale its glyph.
+        transport.addView(playView, LinearLayout.LayoutParams(dp(56), dp(56)))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         val bottomDock = LinearLayout(this).apply {
