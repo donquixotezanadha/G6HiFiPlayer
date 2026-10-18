@@ -193,9 +193,9 @@ class MainActivity : Activity() {
         lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         // Subtle translucent status bar blends with the page while keeping system icons legible.
-        window.statusBarColor = if (lightTheme) 0xD9F8F8FC.toInt() else 0xD9000000.toInt()
+        window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-        window.decorView.systemUiVisibility = (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
@@ -248,7 +248,7 @@ class MainActivity : Activity() {
         themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
             lightTheme = !lightTheme
             accentColor = DEFAULT_ACCENT
-            window.statusBarColor = if (lightTheme) 0xD9F8F8FC.toInt() else 0xD9000000.toInt()
+            window.statusBarColor = Color.TRANSPARENT
             window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
             getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
@@ -333,11 +333,13 @@ class MainActivity : Activity() {
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
         val playerHeader = text("NOW PLAYING", 22f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
-            setPadding(dp(18), dp(8), dp(18), dp(8))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
-        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+            leftMargin = dp(16)
             topMargin = statusBarInset + dp(8)
         })
 
@@ -416,7 +418,7 @@ class MainActivity : Activity() {
         }
         syncPlaybackIcon()
         // Keep the play control a compact rounded square; do not scale its glyph.
-        transport.addView(playView, LinearLayout.LayoutParams(dp(56), dp(56)))
+        transport.addView(playView, LinearLayout.LayoutParams(dp(68), dp(56)))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         val bottomDock = LinearLayout(this).apply {
@@ -486,7 +488,7 @@ class MainActivity : Activity() {
 
     private fun makeSongsPanel() {
         val heading = flatSection()
-        heading.addView(text("SONGS", 18f, WHITE, true).apply { setPadding(0, 0, 0, dp(8)) })
+        heading.addView(text("SONGS", 22f, WHITE, true).apply { setPadding(0, 0, 0, dp(8)) })
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
@@ -2069,7 +2071,7 @@ class MainActivity : Activity() {
         }
         // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
-        window.statusBarColor = if (which == "player") Color.TRANSPARENT else BG
+        window.statusBarColor = Color.TRANSPARENT
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
         songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
@@ -2086,30 +2088,20 @@ class MainActivity : Activity() {
         // Four-tab layout: keep navigation glyphs visually secondary to Now Playing controls.
         setPadding(0, 0, 0, 0)
         setImageResource(iconRes)
-        // Use native CENTER scaling after layout; a cached MATRIX used stale view dimensions
-        // and caused the selected play icon to drift over its active background.
-        scaleType = ImageView.ScaleType.CENTER
-        post {
-            val d = drawable?.mutate()
-            if (d != null) {
-                val target = dp(25)
-                val w = d.intrinsicWidth.coerceAtLeast(1)
-                val h = d.intrinsicHeight.coerceAtLeast(1)
-                val scale = minOf(target.toFloat() / w, target.toFloat() / h)
-                d.setBounds(0, 0, (w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1))
-                setImageDrawable(d)
-                scaleType = ImageView.ScaleType.CENTER
-            }
-        }
+        // Keep the tab touch target full-width while scaling the glyph to 25dp and
+        // explicitly centering its matrix after the final tab dimensions are known.
+        scaleType = ImageView.ScaleType.MATRIX
+        post { setImageSize(dp(25), dp(25)) }
         imageTintList = ColorStateList.valueOf(MUTED)
         background = navBackground(false)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun navBackground(selected: Boolean): RippleDrawable {
-        // A broad symmetric capsule; 25dp insets made the selected background look like a dot.
+        // Symmetric horizontal insets keep the selected rectangle centered inside
+        // each equal-width tab; icon sizing is independent from this background.
         val pill = android.graphics.drawable.InsetDrawable(
-            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 22),
-            dp(12), dp(4), dp(12), dp(4)
+            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 16),
+            dp(16), dp(4), dp(16), dp(4)
         )
         return RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), pill, null)
     }
