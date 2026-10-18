@@ -244,9 +244,9 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
-        settingsPanel.setPadding(0, statusBarInset + dp(2), 0, dp(8))
-        settingsPanel.addView(text("SETTINGS", 18f, WHITE, true).apply { setPadding(dp(20), dp(12), dp(8), dp(10)) })
+        songsPanel.setPadding(dp(16), statusBarInset + dp(12), dp(16), dp(8))
+        settingsPanel.setPadding(0, statusBarInset + dp(12), 0, dp(8))
+        settingsPanel.addView(text("SETTINGS", 18f, WHITE, true).apply { setPadding(dp(20), dp(8), dp(8), dp(8)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -340,7 +340,7 @@ class MainActivity : Activity() {
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
         val playerHeader = text("NOW PLAYING", 18f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
-            // Keep all page headers consistent, slightly smaller, and a touch lower.
+            // Shared header typography and vertical rhythm for all main tabs.
             setPadding(dp(4), dp(8), dp(8), dp(8))
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
@@ -483,8 +483,8 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
-        libraryPanel.addView(text("ALBUM", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(10)) }, LinearLayout.LayoutParams(-1, -2))
+        libraryPanel.setPadding(dp(16), inset + dp(12), dp(16), dp(8))
+        libraryPanel.addView(text("ALBUM", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -521,7 +521,7 @@ class MainActivity : Activity() {
     }
 
     private fun makeSongsPanel() {
-        val heading = flatSection().apply { setPadding(0, dp(4), 0, dp(12)) }
+        val heading = flatSection().apply { setPadding(0, dp(10), 0, dp(12)) }
         heading.addView(text("SONGS", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) })
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
@@ -557,12 +557,12 @@ class MainActivity : Activity() {
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        surface.setPadding(dp(16), statusInset + dp(10), dp(16), dp(8))
+        surface.setPadding(dp(16), statusInset + dp(12), dp(16), dp(8))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(text("UP NEXT", 18f, WHITE, true), LinearLayout.LayoutParams(0, dp(46), 1f))
+        header.addView(text("UP NEXT", 18f, WHITE, true), LinearLayout.LayoutParams(0, dp(44), 1f))
         surface.addView(header)
 
         val mini = LinearLayout(this).apply {
