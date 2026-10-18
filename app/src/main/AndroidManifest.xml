@@ -31,9 +31,5 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_player_4x2" />
         </receiver>
-        <receiver android:name="id.g6hifiplayer.G6CompactWidgetProvider" android:exported="true">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_player_2x2" />
-        </receiver>
     </application>
 </manifest>
