@@ -986,6 +986,7 @@ class MainActivity : Activity() {
             val exo = createHiFiPlayer()
             player = exo
             exo.setHandleAudioBecomingNoisy(true)
+            var ffmpegFallbackAttempted = false
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     when (state) {
@@ -1012,9 +1013,46 @@ class MainActivity : Activity() {
                     if (prepared) { syncPlaybackIcon(isPlaying); refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
                 }
                 override fun onPlayerError(error: PlaybackException) {
-                    prepared = false; playView.isEnabled = true
-                    statusView.text = "Media3 playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format or decoder")
-                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR code=${error.errorCodeName}", error); refreshAudioInfo()
+                    prepared = false
+                    if (!ffmpegFallbackAttempted) {
+                        ffmpegFallbackAttempted = true
+                        val shouldResumePlayback = pendingAutoplay || exo.playWhenReady || exo.isPlaying
+                        playView.isEnabled = false
+                        statusView.text = "Native decoder failed; trying FFmpeg fallback…"
+                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=${t.uri} code=${error.errorCodeName}", error)
+                        FfmpegAudioDecoder(this@MainActivity).decodeToWav(t.uri) { result ->
+                            handler.post {
+                                if (player !== exo || isFinishing) {
+                                    result.getOrNull()?.delete()
+                                    return@post
+                                }
+                                result.onSuccess { wav ->
+                                    try {
+                                        exo.stop()
+                                        exo.clearMediaItems()
+                                        pendingAutoplay = shouldResumePlayback
+                                        exo.setMediaItem(MediaItem.fromUri(Uri.fromFile(wav)))
+                                        exo.prepare()
+                                        statusView.text = "FFmpeg PCM fallback • preparing " + t.title
+                                        recordDiagnostic("FFMPEG_FALLBACK_READY file=${wav.name} note=decoded-to-24bit-PCM-WAV-no-explicit-resampling")
+                                    } catch (e: Exception) {
+                                        playView.isEnabled = true
+                                        statusView.text = "FFmpeg fallback could not start: " + (e.message ?: e.javaClass.simpleName)
+                                        recordDiagnostic("FFMPEG_FALLBACK_PLAYER_FAILED", e)
+                                    }
+                                }.onFailure { e ->
+                                    playView.isEnabled = true
+                                    statusView.text = "Audio decode failed (Media3 + FFmpeg): " + (e.message ?: e.javaClass.simpleName)
+                                    recordDiagnostic("FFMPEG_FALLBACK_FAILED", e)
+                                }
+                            }
+                        }
+                    } else {
+                        playView.isEnabled = true
+                        statusView.text = "Media3/FFmpeg playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format")
+                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_AFTER_FFMPEG code=${error.errorCodeName}", error)
+                    }
+                    refreshAudioInfo()
                 }
             })
             exo.setMediaItem(MediaItem.fromUri(t.uri)); exo.prepare()
