@@ -130,7 +130,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             val wideIds = manager.getAppWidgetIds(ComponentName(context, G6MusicWidgetProvider::class.java))
             if (wideIds.isNotEmpty()) {
                 val controlColor = if (light) Color.BLACK else Color.WHITE
-                val views = RemoteViews(context.packageName, R.layout.widget_player_4x2).apply {
+                val views = RemoteViews(context.packageName, R.layout.widget_player_4x1).apply {
                     setImageViewResource(R.id.widget_play, image)
                     setInt(R.id.widget_previous, "setColorFilter", controlColor)
                     setInt(R.id.widget_play, "setColorFilter", controlColor)
@@ -160,7 +160,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val total = duration.coerceAtLeast(1)
             val pos = position.coerceIn(0, total)
-            val views = RemoteViews(context.packageName, R.layout.widget_player_4x2).apply {
+            val views = RemoteViews(context.packageName, R.layout.widget_player_4x1).apply {
                 setProgressBar(R.id.widget_progress, total, pos, false)
                 setTextViewText(R.id.widget_elapsed, time(pos))
                 setTextViewText(R.id.widget_duration, time(duration))
@@ -190,7 +190,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                 if (ids.isEmpty()) return@forEach
                 val compact = cls == G6CompactWidgetProvider::class.java
                 ids.forEach { id ->
-                    val views = RemoteViews(context.packageName, if (compact) R.layout.widget_player_2x2 else R.layout.widget_player_4x2)
+                    val views = RemoteViews(context.packageName, if (compact) R.layout.widget_player_2x2 else R.layout.widget_player_4x1)
                     if (compact) {
                         if (artwork != null) views.setImageViewBitmap(R.id.widget_art, artwork)
                         else views.setImageViewResource(R.id.widget_art, R.drawable.widget_empty_art)
