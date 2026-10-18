@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 73 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 77 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Build 77 is based on the responsive Build 73 checkpoint. It exposes only one home-screen widget, a compact 4x1 layout with 44dp artwork, centered metadata/progress, and balanced previous/play/next hit areas. Playback/notification action logic, debounce timing, and audio engine are unchanged. Control icons are tintable drawables and are recolored for light/dark themes. Verify launcher rendering and taps on device." >> "$GITHUB_STEP_SUMMARY"
