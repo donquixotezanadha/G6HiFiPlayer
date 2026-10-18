@@ -116,6 +116,7 @@ class MainActivity : Activity() {
     private lateinit var albumScanSummary: TextView
     private lateinit var audioInfoInline: TextView
     private lateinit var playerPanel: FrameLayout
+    private lateinit var statusBarScrim: View
     private lateinit var libraryPanel: LinearLayout
     private lateinit var songsPanel: LinearLayout
     private lateinit var songRows: LinearLayout
@@ -342,6 +343,13 @@ class MainActivity : Activity() {
             leftMargin = dp(16)
             topMargin = statusBarInset + dp(8)
         })
+        // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
+        // Keep the actual system bar transparent so the scrim is visible on Android 9.
+        statusBarScrim = View(this).apply {
+            setBackgroundColor(if (lightTheme) 0x33000000 else 0x66000000)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        foreground.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
 
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
             gravity = Gravity.CENTER
@@ -417,8 +425,8 @@ class MainActivity : Activity() {
             setOnClickListener { togglePlayback() }
         }
         syncPlaybackIcon()
-        // Keep the play control a compact rounded square; do not scale its glyph.
-        transport.addView(playView, LinearLayout.LayoutParams(dp(68), dp(56)))
+        // Slightly lengthen the rounded rectangle versus Build 44 without returning to the oversized original.
+        transport.addView(playView, LinearLayout.LayoutParams(dp(76), dp(56)))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         val bottomDock = LinearLayout(this).apply {
@@ -2069,7 +2077,8 @@ class MainActivity : Activity() {
             queuePanel.translationY = 0f
             queuePanel.alpha = 1f
         }
-        // Only the Now Playing artwork extends behind the status bar; other tabs keep standard insets.
+        // Only Now Playing uses the translucent scrim; all pages retain a transparent system bar
+        // so the activity can draw its page-specific background beneath it.
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         window.statusBarColor = Color.TRANSPARENT
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
@@ -2088,9 +2097,12 @@ class MainActivity : Activity() {
         // Four-tab layout: keep navigation glyphs visually secondary to Now Playing controls.
         setPadding(0, 0, 0, 0)
         setImageResource(iconRes)
-        // Keep the tab touch target full-width while scaling the glyph to 25dp and
-        // explicitly centering its matrix after the final tab dimensions are known.
+        // Keep the tab touch target full-width; recompute the icon matrix whenever
+        // the final measured tab bounds change, rather than relying on one early post.
         scaleType = ImageView.ScaleType.MATRIX
+        addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            (view as? ImageView)?.setImageSize(dp(25), dp(25))
+        }
         post { setImageSize(dp(25), dp(25)) }
         imageTintList = ColorStateList.valueOf(MUTED)
         background = navBackground(false)
