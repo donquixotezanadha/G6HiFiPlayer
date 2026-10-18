@@ -178,7 +178,7 @@ class MainActivity : Activity() {
                     val label = time(pos)
                     if (elapsed.text.toString() != label) elapsed.text = label
                     val widgetNow = System.currentTimeMillis()
-                    if (p.isPlaying && widgetNow - lastWidgetProgressUpdateAtMs >= 5000L) {
+                    if (p.isPlaying && widgetNow - lastWidgetProgressUpdateAtMs >= 1000L) {
                         lastWidgetProgressUpdateAtMs = widgetNow
                         G6MusicWidgetProvider.refreshProgress(this@MainActivity, pos, durationMs)
                     }
