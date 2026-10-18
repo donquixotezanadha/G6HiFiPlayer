@@ -127,16 +127,16 @@ class MainActivity : Activity() {
     private lateinit var queueRows: LinearLayout
     private lateinit var audioPanel: LinearLayout
     private lateinit var filePanel: LinearLayout
-    private lateinit var navPlayer: ImageView
-    private lateinit var navLibrary: ImageView
-    private lateinit var navSongs: ImageView
+    private lateinit var navPlayer: FrameLayout
+    private lateinit var navLibrary: FrameLayout
+    private lateinit var navSongs: FrameLayout
     private lateinit var queueMiniArt: ImageView
     private lateinit var queueMiniTitle: TextView
     private lateinit var queueMiniArtist: TextView
     private lateinit var queueMiniProgress: ProgressBar
     private lateinit var queueMiniPlayView: ImageView
     private var currentPage = "player"
-    private lateinit var navFile: ImageView
+    private lateinit var navFile: FrameLayout
     private lateinit var titleView: TextView
     private lateinit var artistView: TextView
     private lateinit var albumView: TextView
@@ -242,7 +242,7 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset, dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
-        settingsPanel.addView(text("SETTINGS", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
+        settingsPanel.addView(text("SETTINGS", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -333,15 +333,16 @@ class MainActivity : Activity() {
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        val playerHeader = text("NOW PLAYING", 22f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+        val playerHeader = text("NOW PLAYING", 20f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
+            // Match the text inset and top baseline used by the Albums/Songs headers.
+            setPadding(dp(4), dp(8), dp(8), dp(8))
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
         foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
             leftMargin = dp(16)
-            topMargin = statusBarInset + dp(8)
+            topMargin = statusBarInset + dp(2)
         })
         // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
         // Keep the actual system bar transparent so the scrim is visible on Android 9.
@@ -458,7 +459,7 @@ class MainActivity : Activity() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
         libraryPanel.setPadding(dp(16), inset + dp(2), dp(16), dp(8))
-        libraryPanel.addView(text("ALBUM", 22f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }, LinearLayout.LayoutParams(-1, -2))
+        libraryPanel.addView(text("ALBUM", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -496,7 +497,7 @@ class MainActivity : Activity() {
 
     private fun makeSongsPanel() {
         val heading = flatSection()
-        heading.addView(text("SONGS", 22f, WHITE, true).apply { setPadding(0, 0, 0, dp(8)) })
+        heading.addView(text("SONGS", 20f, WHITE, true).apply { setPadding(0, 0, 0, dp(8)) })
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
@@ -2091,20 +2092,19 @@ class MainActivity : Activity() {
         navState(navFile, which == "settings" || which == "audio" || which == "file")
         if (which == "songs") renderSongs()
     }
-    private fun navButton(iconRes: Int, description: String, click: () -> Unit) = ImageView(this).apply {
+    private fun navButton(iconRes: Int, description: String, click: () -> Unit) = FrameLayout(this).apply {
         contentDescription = description
-        scaleType = ImageView.ScaleType.CENTER_INSIDE
-        // Four-tab layout: keep navigation glyphs visually secondary to Now Playing controls.
-        setPadding(0, 0, 0, 0)
-        setImageResource(iconRes)
-        // Keep the tab touch target full-width; recompute the icon matrix whenever
-        // the final measured tab bounds change, rather than relying on one early post.
-        scaleType = ImageView.ScaleType.MATRIX
-        addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
-            (view as? ImageView)?.setImageSize(dp(25), dp(25))
+        // Keep the whole equal-width tab as the touch target. The icon is a separate,
+        // fixed-size child centered by FrameLayout gravity, never by a drawable matrix.
+        clipChildren = false
+        clipToPadding = false
+        val icon = ImageView(this@MainActivity).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setImageResource(iconRes)
+            imageTintList = ColorStateList.valueOf(MUTED)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        post { setImageSize(dp(25), dp(25)) }
-        imageTintList = ColorStateList.valueOf(MUTED)
+        addView(icon, FrameLayout.LayoutParams(dp(25), dp(25), Gravity.CENTER))
         background = navBackground(false)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -2117,23 +2117,11 @@ class MainActivity : Activity() {
         )
         return RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), pill, null)
     }
-    private fun ImageView.setImageSize(widthPx: Int, heightPx: Int) {
-        // Scale only the icon artwork; keep the tab's full layout as its touch target.
-        val icon = drawable ?: return
-        val intrinsicW = icon.intrinsicWidth.takeIf { it > 0 }?.toFloat() ?: widthPx.toFloat()
-        val intrinsicH = icon.intrinsicHeight.takeIf { it > 0 }?.toFloat() ?: heightPx.toFloat()
-        val scale = minOf(widthPx / intrinsicW, heightPx / intrinsicH)
-        scaleType = ImageView.ScaleType.MATRIX
-        imageMatrix = android.graphics.Matrix().apply {
-            setScale(scale, scale)
-            postTranslate((width - intrinsicW * scale) / 2f, (height - intrinsicH * scale) / 2f)
-        }
-    }
-
     private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
 
-    private fun navState(view: ImageView, selected: Boolean) {
-        view.imageTintList = ColorStateList.valueOf(if (selected) accentColor else MUTED)
+    private fun navState(view: FrameLayout, selected: Boolean) {
+        (view.getChildAt(0) as? ImageView)?.imageTintList =
+            ColorStateList.valueOf(if (selected) accentColor else MUTED)
         view.background = navBackground(selected)
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
