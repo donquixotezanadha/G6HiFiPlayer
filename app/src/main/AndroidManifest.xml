@@ -12,6 +12,10 @@
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
 
+        <receiver
+            android:name="id.g6hifiplayer.NotificationActionReceiver"
+            android:exported="false" />
+
         <activity
             android:name="id.g6hifiplayer.MainActivity"
             android:launchMode="singleTop"
