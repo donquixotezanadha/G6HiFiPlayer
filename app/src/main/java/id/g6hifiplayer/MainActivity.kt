@@ -69,6 +69,7 @@ class MainActivity : Activity() {
     @Volatile private var activeAudioTrack: AudioTrack? = null
     private var audioTrackRoutingListener: AudioRouting.OnRoutingChangedListener? = null
     private var mediaSession: MediaSession? = null
+    private val notificationWidgetExecutor = Executors.newSingleThreadExecutor()
     private var sourceRate: Int? = null
     private var sourceBitrate: Int? = null
     private var durationMs = 0
@@ -180,11 +181,40 @@ class MainActivity : Activity() {
             handler.postDelayed(this, 350)
         }
     }
+    private val wiredDisconnectCheck = Runnable {
+        // AudioDeviceCallback can arrive before Android finishes updating its device list.
+        // Recheck after a short debounce so a transient route handoff does not pause playback.
+        val outputs = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }
+            catch (_: Exception) { emptyArray<AudioDeviceInfo>() }
+        val wiredStillConnected = outputs.any {
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+        }
+        if (!wiredStillConnected) {
+            val p = player
+            val wasScheduledToPlay = pendingAutoplay || p?.playWhenReady == true || p?.isPlaying == true
+            if (wasScheduledToPlay) {
+                pendingAutoplay = false
+                try { p?.pause() } catch (e: Exception) {
+                    recordDiagnostic("WIRED_UNPLUG_PAUSE_FAILED", e)
+                }
+                syncPlaybackIcon(false)
+                statusView.text = "Playback paused • headphone jack disconnected"
+                recordDiagnostic("WIRED_UNPLUG_PLAYBACK_STOPPED action=pause preventSpeakerFallback=true")
+                updatePlaybackNotification(false)
+            }
+        } else {
+            recordDiagnostic("WIRED_UNPLUG_CHECK_CANCELLED wiredDeviceStillConnected=true")
+        }
+        updateActiveRoute()
+        refreshAudioInfo()
+    }
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             val details = addedDevices.joinToString { describe(it) }
             lastDeviceEvent = "Output device connected: " + details
             recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
+            handler.removeCallbacks(wiredDisconnectCheck)
             activeAudioTrack?.let { preferWiredHeadphoneRoute(it, "output device added") }
             updateActiveRoute(); refreshAudioInfo()
         }
@@ -192,6 +222,15 @@ class MainActivity : Activity() {
             val details = removedDevices.joinToString { describe(it) }
             lastDeviceEvent = "Output device disconnected: " + details
             recordDiagnostic("AUDIO_DEVICE_REMOVED devices=" + details)
+            val wiredRemoved = removedDevices.any {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+            }
+            if (wiredRemoved) {
+                recordDiagnostic("WIRED_UNPLUG_DETECTED debounceMs=120 action=verify-then-pause")
+                handler.removeCallbacks(wiredDisconnectCheck)
+                handler.postDelayed(wiredDisconnectCheck, 120L)
+            }
             updateActiveRoute(); refreshAudioInfo()
         }
     }
@@ -206,7 +245,7 @@ class MainActivity : Activity() {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         activeInstance = this
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
-        buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, null)
+        buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, handler)
         createNotificationChannel()
         createMediaSession()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
@@ -1558,10 +1597,9 @@ class MainActivity : Activity() {
                 syncPlaybackIcon(true)
                 statusView.text = "Playing"
             }
-            // Keep transport controls snappy: route/device diagnostics can be comparatively expensive.
-            // Playback listener updates the notification immediately; refresh diagnostics on the next UI turn.
+            // Player.Listener publishes the state transition. Avoid a second synchronous
+            // notification/widget rebuild on the UI thread; this keeps notification taps responsive.
             handler.post { if (!isFinishing) refreshAudioInfo() }
-            updatePlaybackNotification(try { p.isPlaying } catch (_: Exception) { false })
         } catch (e: Exception) { statusView.text = "Playback failed: " + e.message }
     }
 
@@ -1987,11 +2025,29 @@ class MainActivity : Activity() {
         val widgetBitmap = try {
             (artImage.drawable as? BitmapDrawable)?.bitmap
         } catch (_: Exception) { null }
-        G6MusicWidgetProvider.refresh(
-            this, track.title, track.artist, track.album, isPlaying, widgetBitmap, lightTheme,
-            try { player?.currentPosition?.toInt() ?: 0 } catch (_: Exception) { 0 },
-            try { player?.duration?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
-        )
+        val widgetContext = applicationContext
+        val widgetTitle = track.title
+        val widgetArtist = track.artist
+        val widgetAlbum = track.album
+        val widgetLightTheme = lightTheme
+        val widgetPosition = try { player?.currentPosition?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
+        val widgetDuration = try { player?.duration?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
+        // Widget rendering may write artwork to disk and rebuild RemoteViews. Serialize it away
+        // from the UI thread so a notification Play/Pause tap does not wait on file I/O.
+        try {
+            notificationWidgetExecutor.execute {
+                try {
+                    G6MusicWidgetProvider.refresh(
+                        widgetContext, widgetTitle, widgetArtist, widgetAlbum, isPlaying,
+                        widgetBitmap, widgetLightTheme, widgetPosition, widgetDuration
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.w("G6HiFiPlayer", "Async widget refresh failed", e)
+                }
+            }
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            android.util.Log.w("G6HiFiPlayer", "Widget refresh skipped during shutdown")
+        }
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun actionIntent(action: String, requestCode: Int): PendingIntent {
             val intent = Intent(this, NotificationActionReceiver::class.java).apply {
@@ -2002,7 +2058,8 @@ class MainActivity : Activity() {
         val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }, flags)
-        recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} engine=Media3/ExoPlayer trackRoute=queried-separately backend=not-exposed-by-public-api")
+        // Avoid rebuilding and persisting the full diagnostic event snapshot for every toggle.
+        android.util.Log.d("G6HiFiPlayer", "NOTIFICATION_UPDATE playing=" + isPlaying + " title=" + track.title)
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         val metadata = MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
@@ -2089,8 +2146,8 @@ class MainActivity : Activity() {
             "next" -> { notificationDismissed = false; playNext() }
             "toggle" -> {
                 notificationDismissed = false
+                // Player.Listener owns notification publication to avoid duplicate, laggy updates.
                 togglePlayback()
-                updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
             }
             "dismiss" -> {
                 notificationDismissed = true
@@ -2487,6 +2544,8 @@ class MainActivity : Activity() {
         persistPlaybackState(force = true)
         handler.removeCallbacks(ticker)
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
+        handler.removeCallbacks(wiredDisconnectCheck)
+        notificationWidgetExecutor.shutdown()
         clearActiveAudioTrack()
         try { player?.release() } catch (_: Exception) { }
         try { mediaSession?.isActive = false; mediaSession?.release() } catch (_: Exception) { }
@@ -2502,7 +2561,16 @@ class MainActivity : Activity() {
         private const val KEY_LAST_TRACK_URI = "last_playback_track_uri"
         private const val KEY_LAST_POSITION_MS = "last_playback_position_ms"
         private var activeInstance: MainActivity? = null
-        @JvmStatic fun notificationAction(action: String) { val activity = activeInstance ?: return; activity.handler.post { if (!activity.isFinishing && !activity.isDestroyed) activity.handleNotificationAction(action) } }
+        @JvmStatic fun notificationAction(action: String) {
+            val activity = activeInstance ?: return
+            val dispatch = Runnable {
+                if (!activity.isFinishing && !activity.isDestroyed) activity.handleNotificationAction(action)
+            }
+            // BroadcastReceiver callbacks normally arrive on the main thread. Avoid another queue
+            // hop in that case; never touch views off-main.
+            if (Looper.myLooper() == Looper.getMainLooper()) dispatch.run()
+            else activity.handler.post(dispatch)
+        }
         private const val REQUEST_FOLDER = 1002
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
