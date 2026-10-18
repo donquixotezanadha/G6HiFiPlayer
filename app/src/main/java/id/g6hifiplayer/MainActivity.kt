@@ -80,6 +80,8 @@ class MainActivity : Activity() {
     private var playbackOrder: List<Int> = emptyList()
     private var selectedAlbum: String? = null
     private var artToken = 0
+    // Explicitly dismissed notifications stay hidden until a new track is selected.
+    private var notificationDismissed = false
     private var accentColor = DEFAULT_ACCENT
     private var lightTheme = false
     private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
@@ -963,6 +965,7 @@ class MainActivity : Activity() {
             playbackQueue = playbackOrder
         }
         currentIndex = index
+        notificationDismissed = false
         if (::queueRows.isInitialized) renderQueueRows()
         val t = tracks[index]
         pendingAutoplay = autoplay
@@ -1421,27 +1424,34 @@ class MainActivity : Activity() {
     private fun activityDuration(p: ExoPlayer): Int = try { p.duration.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() } catch (_: Exception) { 0 }
 
     private fun updatePlaybackNotification(isPlaying: Boolean) {
-        if (!prepared || currentIndex !in tracks.indices) return
+        if (notificationDismissed || !prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
-        fun activityIntent(action: String, requestCode: Int): PendingIntent {
-            val intent = Intent(this, MainActivity::class.java).apply {
+        fun actionIntent(action: String, requestCode: Int): PendingIntent {
+            val intent = Intent(this, NotificationActionReceiver::class.java).apply {
                 putExtra("notification_action", action)
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            return PendingIntent.getActivity(this, requestCode, intent, flags)
+            return PendingIntent.getBroadcast(this, requestCode, intent, flags)
         }
         val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }, flags)
         recordDiagnostic("NOTIFICATION_UPDATE playing=$isPlaying title=${track.title} sourceRate=${sourceRate ?: -1} engine=Media3/ExoPlayer trackRoute=queried-separately backend=not-exposed-by-public-api")
-        val session = mediaSession
-        session?.setMetadata(MediaMetadata.Builder()
+        val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
+        val metadata = MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
             .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
             .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
             .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs.toLong())
-            .build())
+        // Android lock-screen artwork comes from MediaSession metadata. Android controls
+        // the system blur treatment; publish the artwork using the standard metadata keys.
+        if (cover != null && !cover.isRecycled) {
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, cover)
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, cover)
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, cover)
+        }
+        val session = mediaSession
+        session?.setMetadata(metadata.build())
         val state = if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
         session?.setPlaybackState(PlaybackState.Builder()
             .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SEEK_TO)
@@ -1460,12 +1470,11 @@ class MainActivity : Activity() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(false)
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", activityIntent("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Pause" else "Play", activityIntent("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", activityIntent("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss notification", activityIntent("dismiss", 6104)).build())
-        val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
-        if (cover != null) builder.setLargeIcon(cover)
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", actionIntent("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Pause" else "Play", actionIntent("toggle", 6102)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", actionIntent("next", 6103)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss notification", actionIntent("dismiss", 6104)).build())
+        if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
             builder.setStyle(Notification.MediaStyle().setMediaSession(session?.sessionToken).setShowActionsInCompactView(0, 1, 2))
         }
@@ -1473,10 +1482,17 @@ class MainActivity : Activity() {
     }
     private fun handleNotificationAction(action: String) {
         when (action) {
-            "previous" -> playPrevious()
-            "next" -> playNext()
-            "toggle" -> togglePlayback()
-            "dismiss" -> { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { } }
+            "previous" -> { notificationDismissed = false; playPrevious() }
+            "next" -> { notificationDismissed = false; playNext() }
+            "toggle" -> {
+                notificationDismissed = false
+                togglePlayback()
+                updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+            }
+            "dismiss" -> {
+                notificationDismissed = true
+                try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
+            }
         }
     }
     override fun onNewIntent(intent: Intent) {
