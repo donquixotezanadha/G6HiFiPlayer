@@ -399,12 +399,26 @@ class MainActivity : Activity() {
             // Preserve the live timeline when the UI is rebuilt after a theme switch.
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
-            minHeight = dp(3)
-            maxHeight = dp(3)
-            minimumHeight = dp(3)
-            progressTintList = ColorStateList.valueOf(accentColor)
+            // Match the mini-player's 3dp track while preserving a comfortable SeekBar touch area.
+            minimumHeight = dp(24)
+            val trackBackground = GradientDrawable().apply {
+                setColor(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+                cornerRadius = dp(2).toFloat()
+            }
+            val trackProgress = GradientDrawable().apply {
+                setColor(accentColor)
+                cornerRadius = dp(2).toFloat()
+            }
+            progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(
+                trackBackground,
+                android.graphics.drawable.ClipDrawable(trackProgress, Gravity.START, android.graphics.drawable.ClipDrawable.HORIZONTAL)
+            )).apply {
+                setId(0, android.R.id.background)
+                setId(1, android.R.id.progress)
+                setLayerInset(0, 0, dp(10), 0, dp(10))
+                setLayerInset(1, 0, dp(10), 0, dp(10))
+            }
             thumbTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
             setPadding(dp(18), 0, dp(18), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
