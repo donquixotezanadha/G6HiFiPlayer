@@ -132,10 +132,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                 val controlColor = if (light) Color.BLACK else Color.WHITE
                 val views = RemoteViews(context.packageName, R.layout.widget_player_4x1).apply {
                     setImageViewResource(R.id.widget_play, image)
-                    setInt(R.id.widget_previous, "setColorFilter", controlColor)
                     setInt(R.id.widget_play, "setColorFilter", controlColor)
-                    setInt(R.id.widget_next, "setColorFilter", controlColor)
-                    setProgressBar(R.id.widget_progress, total, pos, false)
                     setTextViewText(R.id.widget_elapsed, time(pos))
                     setTextViewText(R.id.widget_duration, time(duration))
                 }
@@ -161,7 +158,6 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             val total = duration.coerceAtLeast(1)
             val pos = position.coerceIn(0, total)
             val views = RemoteViews(context.packageName, R.layout.widget_player_4x1).apply {
-                setProgressBar(R.id.widget_progress, total, pos, false)
                 setTextViewText(R.id.widget_elapsed, time(pos))
                 setTextViewText(R.id.widget_duration, time(duration))
             }
@@ -209,27 +205,21 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         views.setTextViewText(R.id.widget_artist, listOf(artist, album).filter { it.isNotBlank() }.joinToString(" • "))
                         views.setTextViewText(R.id.widget_elapsed, time(position))
                         views.setTextViewText(R.id.widget_duration, time(duration))
-                        views.setProgressBar(R.id.widget_progress, duration.coerceAtLeast(1), position.coerceIn(0, duration.coerceAtLeast(1)), false)
                         if (artwork != null) views.setImageViewBitmap(R.id.widget_art, artwork)
                         else views.setImageViewResource(R.id.widget_art, R.drawable.widget_empty_art)
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
                         val controlColor = if (light) Color.BLACK else Color.WHITE
-                        views.setInt(R.id.widget_previous, "setColorFilter", controlColor)
                         views.setInt(R.id.widget_play, "setColorFilter", controlColor)
-                        views.setInt(R.id.widget_next, "setColorFilter", controlColor)
                         views.setInt(R.id.widget_card, "setBackgroundResource", if (!hasTrack) R.drawable.widget_card_accent else if (light) R.drawable.widget_card_light else R.drawable.widget_card_dark)
                         views.setTextColor(R.id.widget_title, if (!hasTrack) Color.WHITE else if (light) Color.BLACK else Color.WHITE)
                         views.setTextViewText(R.id.widget_title, if (hasTrack) title else "NO MUSIC PLAYING")
                         views.setTextColor(R.id.widget_artist, if (light) 0xFF666666.toInt() else 0xFFAAAAAA.toInt())
                         views.setViewVisibility(R.id.widget_artist, if (hasTrack) android.view.View.VISIBLE else android.view.View.GONE)
-                        views.setViewVisibility(R.id.widget_progress, if (hasTrack) android.view.View.VISIBLE else android.view.View.GONE)
                         views.setViewVisibility(R.id.widget_elapsed, if (hasTrack) android.view.View.VISIBLE else android.view.View.GONE)
                         views.setViewVisibility(R.id.widget_duration, if (hasTrack) android.view.View.VISIBLE else android.view.View.GONE)
                     }
                     bind(context, views, R.id.widget_play, "toggle")
                     if (!compact) {
-                        bind(context, views, R.id.widget_previous, "previous")
-                        bind(context, views, R.id.widget_next, "next")
                     }
                     val open = PendingIntent.getActivity(
                         context, 20 + if (compact) 1 else 0,
