@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build78-v0.78.0-three-tabs-arm64-apk
+          name: G6HiFiPlayer-Build79-v0.79.0-text-tabs-notification-responsive-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 78 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 79 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 78 is based on Build 77, retaining the responsive Build 73 playback/navigation behavior. Removes the Songs tab and its page from the active view hierarchy; remaining Now Playing, Albums, and Settings tabs use equal widths so the selection background stays centered without enlarging icons. Audio engine and widget touch handling are unchanged. Verify navigation performance and alignment on device." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 79 is based on Build 78. Keeps the three equal-width bottom-bar hit targets and centered selection pill, changes labels to Player / Albums / Setting, removes page-title headers, and avoids redundant MediaSession metadata/artwork rebuilds on Play/Pause. Verify notification response and navigation on device." >> "$GITHUB_STEP_SUMMARY"
