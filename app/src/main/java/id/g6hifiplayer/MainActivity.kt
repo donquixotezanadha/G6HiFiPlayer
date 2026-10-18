@@ -1456,7 +1456,14 @@ class MainActivity : Activity() {
                     }
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (prepared) { syncPlaybackIcon(isPlaying); refreshAudioInfo(); updatePlaybackNotification(isPlaying); updateActiveRoute() }
+                    if (prepared) {
+                        // A genuine transition back to playback must restore a notification dismissed earlier.
+                        if (isPlaying) notificationDismissed = false
+                        syncPlaybackIcon(isPlaying)
+                        refreshAudioInfo()
+                        updatePlaybackNotification(isPlaying)
+                        updateActiveRoute()
+                    }
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     prepared = false
