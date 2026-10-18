@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build83-v0.83.0-widget-title-spacing-arm64-apk
+          name: G6HiFiPlayer-Build84-v0.84.0-widget-visible-spacing-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 83 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 84 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 83 tightens the 4x1 widget spacing, keeps 72dp artwork and a single right-side play/pause button, raises title text to 17sp with one-line end ellipsis, preserves metadata at 12sp, and retains the existing rounded background and invert-theme control color. No playback or broadcast code changed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 84 makes the 4x1 widget spacing visibly tighter: 2dp horizontal card padding, 4dp artwork-to-text gap, 18sp one-line ellipsized title, 12sp metadata, and 46dp right-side play/pause target. Existing card drawable, theme inversion and playback/broadcast code remain unchanged." >> "$GITHUB_STEP_SUMMARY"
