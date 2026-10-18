@@ -164,8 +164,12 @@ class MainActivity : Activity() {
                 persistPlaybackState(force = false)
                 if (!seeking) {
                     val pos = try { p.currentPosition.toInt() } catch (_: Exception) { 0 }
-                    if (seek.progress != pos) seek.progress = pos
-                    if (::queueMiniProgress.isInitialized && queueMiniProgress.max > 0) queueMiniProgress.progress = pos.coerceIn(0, queueMiniProgress.max)
+                    if (seek.max != durationMs.coerceAtLeast(1)) seek.max = durationMs.coerceAtLeast(1)
+                    if (!seeking && seek.progress != pos) seek.progress = pos.coerceIn(0, seek.max)
+                    if (::queueMiniProgress.isInitialized) {
+                        if (queueMiniProgress.max != durationMs.coerceAtLeast(1)) queueMiniProgress.max = durationMs.coerceAtLeast(1)
+                        queueMiniProgress.progress = pos.coerceIn(0, queueMiniProgress.max)
+                    }
                     val label = time(pos)
                     if (elapsed.text.toString() != label) elapsed.text = label
                 }
@@ -240,9 +244,9 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        songsPanel.setPadding(dp(16), statusBarInset + dp(2), dp(16), dp(8))
+        songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(2), 0, dp(8))
-        settingsPanel.addView(text("SETTINGS", 20f, WHITE, true).apply { setPadding(dp(20), dp(8), dp(8), dp(14)) })
+        settingsPanel.addView(text("SETTINGS", 18f, WHITE, true).apply { setPadding(dp(20), dp(12), dp(8), dp(10)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -335,8 +339,8 @@ class MainActivity : Activity() {
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        val playerHeader = text("NOW PLAYING", 20f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
-            // Match the text inset and top baseline used by the Albums/Songs headers.
+        val playerHeader = text("NOW PLAYING", 18f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
+            // Keep all page headers consistent, slightly smaller, and a touch lower.
             setPadding(dp(4), dp(8), dp(8), dp(8))
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
@@ -344,7 +348,7 @@ class MainActivity : Activity() {
         }
         foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
             leftMargin = dp(16)
-            topMargin = statusBarInset + dp(2)
+            topMargin = statusBarInset + dp(6)
         })
         // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
         // Keep the actual system bar transparent so the scrim is visible on Android 9.
@@ -392,7 +396,12 @@ class MainActivity : Activity() {
         times.addView(duration, LinearLayout.LayoutParams(-2, -2))
 
         seek = SeekBar(this).apply {
-            max = 1
+            // Preserve the live timeline when the UI is rebuilt after a theme switch.
+            max = durationMs.coerceAtLeast(1)
+            progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
+            minHeight = dp(3)
+            maxHeight = dp(3)
+            minimumHeight = dp(3)
             progressTintList = ColorStateList.valueOf(accentColor)
             thumbTintList = ColorStateList.valueOf(accentColor)
             progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
@@ -460,8 +469,8 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), inset + dp(2), dp(16), dp(8))
-        libraryPanel.addView(text("ALBUM", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(14)) }, LinearLayout.LayoutParams(-1, -2))
+        libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
+        libraryPanel.addView(text("ALBUM", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(10)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -498,8 +507,8 @@ class MainActivity : Activity() {
     }
 
     private fun makeSongsPanel() {
-        val heading = flatSection().apply { setPadding(0, 0, 0, dp(12)) }
-        heading.addView(text("SONGS", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) })
+        val heading = flatSection().apply { setPadding(0, dp(4), 0, dp(12)) }
+        heading.addView(text("SONGS", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) })
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
@@ -534,12 +543,12 @@ class MainActivity : Activity() {
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        surface.setPadding(dp(16), statusInset + dp(8), dp(16), dp(8))
+        surface.setPadding(dp(16), statusInset + dp(10), dp(16), dp(8))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(text("UP NEXT", 20f, WHITE, true), LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(text("UP NEXT", 18f, WHITE, true), LinearLayout.LayoutParams(0, dp(46), 1f))
         surface.addView(header)
 
         val mini = LinearLayout(this).apply {
