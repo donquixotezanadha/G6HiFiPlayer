@@ -246,10 +246,7 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
-        settingsPanel.addView(text("SETTINGS", 18f, WHITE, true).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), 0, dp(8), 0)
-        }, LinearLayout.LayoutParams(-1, dp(44)))
+        settingsPanel.addView(pageHeader("SETTINGS", leftInsetDp = 20), LinearLayout.LayoutParams(-1, dp(44)))
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -346,6 +343,63 @@ class MainActivity : Activity() {
         loadArtwork(track)
     }
 
+
+    /** Common typography, weight, theme-aware color and left edge for every page header. */
+    private fun pageHeader(label: String, leftInsetDp: Int = 4) = text(
+        label, 18f, if (lightTheme) Color.BLACK else Color.WHITE, true
+    ).apply {
+        typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
+        gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        setPadding(dp(leftInsetDp), 0, dp(8), 0)
+    }
+
+    /**
+     * Explicit rounded progress track. The native SeekBar's minimumHeight does not change
+     * its thin drawable on Android 9, and a custom ClipDrawable previously failed to render.
+     */
+    private class RoundedProgressDrawable(
+        private val trackColor: Int,
+        private val playedColor: Int,
+        private val thicknessPx: Int
+    ) : android.graphics.drawable.Drawable() {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private val rect = android.graphics.RectF()
+
+        override fun draw(canvas: android.graphics.Canvas) {
+            val b = bounds
+            if (b.width() <= 0 || b.height() <= 0) return
+            val thickness = thicknessPx.coerceAtLeast(1).coerceAtMost(b.height())
+            val top = b.top + (b.height() - thickness) / 2f
+            val bottom = top + thickness
+            val radius = thickness / 2f
+            rect.set(b.left.toFloat(), top, b.right.toFloat(), bottom)
+            paint.color = trackColor
+            paint.alpha = android.graphics.Color.alpha(trackColor)
+            canvas.drawRoundRect(rect, radius, radius, paint)
+            val fraction = level.coerceIn(0, 10000) / 10000f
+            val playedRight = b.left + b.width() * fraction
+            if (playedRight > b.left) {
+                rect.set(b.left.toFloat(), top, playedRight, bottom)
+                paint.color = playedColor
+                paint.alpha = android.graphics.Color.alpha(playedColor)
+                canvas.drawRoundRect(rect, radius, radius, paint)
+            }
+        }
+
+        override fun onLevelChange(level: Int): Boolean {
+            invalidateSelf()
+            return true
+        }
+
+        override fun setAlpha(alpha: Int) { paint.alpha = alpha.coerceIn(0, 255); invalidateSelf() }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { paint.colorFilter = colorFilter; invalidateSelf() }
+        @Suppress("DEPRECATION")
+        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+        override fun getIntrinsicHeight(): Int = thicknessPx
+        override fun getIntrinsicWidth(): Int = -1
+    }
+
     private fun makePlayerPanel() {
         // Full-bleed artwork is exclusive to Now Playing; the bottom dock stays fixed.
         playerBackdropImage = ImageView(this).apply {
@@ -380,14 +434,9 @@ class MainActivity : Activity() {
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        val playerHeader = text("NOW PLAYING", 18f, if (lightTheme) Color.BLACK else Color.WHITE, true).apply {
-            // Shared header typography and vertical rhythm for all main tabs.
-            setPadding(dp(4), dp(8), dp(8), dp(8))
+        val playerHeader = pageHeader("NOW PLAYING").apply {
+            setPadding(dp(4), 0, dp(8), 0)
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
-            gravity = Gravity.CENTER_VERTICAL or Gravity.START
-            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-            // A touch heavier than the other headers, without increasing its size.
-            typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
         }
         foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START).apply {
             leftMargin = dp(16)
@@ -443,10 +492,13 @@ class MainActivity : Activity() {
             // The previous custom ClipDrawable made the Now Playing progress invisible.
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
-            progressTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+            // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
+            progressDrawable = RoundedProgressDrawable(
+                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
+                accentColor,
+                dp(5)
+            )
             thumbTintList = ColorStateList.valueOf(accentColor)
-            // Slightly increase native track thickness; keep the original rendering path.
             minimumHeight = dp(28)
             setPadding(dp(18), 0, dp(18), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -513,10 +565,7 @@ class MainActivity : Activity() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
         libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
-        libraryPanel.addView(text("ALBUM", 18f, WHITE, true).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), 0, dp(8), 0)
-        }, LinearLayout.LayoutParams(-1, dp(44)))
+        libraryPanel.addView(pageHeader("ALBUM"), LinearLayout.LayoutParams(-1, dp(44)))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -554,10 +603,7 @@ class MainActivity : Activity() {
 
     private fun makeSongsPanel() {
         val heading = flatSection().apply { setPadding(0, 0, 0, dp(12)) }
-        heading.addView(text("SONGS", 18f, WHITE, true).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), 0, dp(8), 0)
-        }, LinearLayout.LayoutParams(-1, dp(44)))
+        heading.addView(pageHeader("SONGS"), LinearLayout.LayoutParams(-1, dp(44)))
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
@@ -597,7 +643,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(text("UP NEXT", 18f, WHITE, true), LinearLayout.LayoutParams(0, dp(44), 1f))
+        header.addView(pageHeader("UP NEXT"), LinearLayout.LayoutParams(0, dp(44), 1f))
         surface.addView(header)
 
         val mini = LinearLayout(this).apply {
@@ -1574,8 +1620,13 @@ class MainActivity : Activity() {
         if (picked == accentColor) return
         accentColor = picked
         if (::seek.isInitialized) {
-            seek.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            seek.progressDrawable = RoundedProgressDrawable(
+                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
+                accentColor,
+                dp(5)
+            )
             seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            seek.invalidate()
         }
         if (::playView.isInitialized) {
             playView.imageTintList = ColorStateList.valueOf(accentColor)
