@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build60-v0.60.0-notification-pause-background-fix-arm64-apk
+          name: G6HiFiPlayer-Build61-v0.61.0-route-buffer-diagnostics-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 59 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 61 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 60 routes notification transport actions directly to the active player without launching MainActivity. Build 57 remains the checkpoint; Build 58 audio engine/dependency state is retained." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 61 adds explicit ROUTE UNCONFIRMED reporting plus AudioTrack buffer-capacity/system-buffer ratio and underrun diagnostics. It does not force buffer size or claim DAC/bit-perfect proof. Build 60 notification/UI behavior and Build 57 audio checkpoint are preserved." >> "$GITHUB_STEP_SUMMARY"
