@@ -435,10 +435,11 @@ class MainActivity : Activity() {
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
         val playerHeader = pageHeader("NOW PLAYING").apply {
-            setPadding(dp(4), 0, dp(8), 0)
+            // Let the rounded rectangle measure itself from the header text and compact padding.
+            setPadding(dp(12), dp(4), dp(12), dp(4))
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
         }
-        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START).apply {
+        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
             leftMargin = dp(16)
             topMargin = statusBarInset + dp(6)
         })
@@ -496,7 +497,7 @@ class MainActivity : Activity() {
             progressDrawable = RoundedProgressDrawable(
                 if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
                 accentColor,
-                dp(5)
+                dp(4)
             )
             thumbTintList = ColorStateList.valueOf(accentColor)
             minimumHeight = dp(28)
