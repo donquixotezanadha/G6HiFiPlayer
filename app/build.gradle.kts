@@ -29,6 +29,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
-    // Build 37 audio fallback: decode unsupported formats to 24-bit PCM WAV only after Media3 fails.
+    // FFmpeg fallback decoder for unsupported native formats.
     implementation("dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.7")
 }
