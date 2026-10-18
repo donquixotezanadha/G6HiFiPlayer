@@ -1223,11 +1223,13 @@ class MainActivity : Activity() {
                 if (bitmap != null && !isFinishing) {
                     artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
-                    applyArtworkAccent(bitmap)
+                    // Keep lock-screen media artwork in sync as soon as the cover is decoded.
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+                    applyArtworkAccent(bitmap)
                 } else {
                     artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
+                    if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
                 }
             }
         }
