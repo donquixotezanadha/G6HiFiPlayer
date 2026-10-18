@@ -89,6 +89,22 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             renderSavedState(context)
         }
 
+        /** Update only time/progress views while playback continues; avoid resending album art. */
+        fun refreshProgress(context: Context, position: Int, duration: Int) {
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, G6MusicWidgetProvider::class.java))
+            if (ids.isEmpty()) return
+            val total = duration.coerceAtLeast(1)
+            val pos = position.coerceIn(0, total)
+            val views = RemoteViews(context.packageName, R.layout.widget_player_4x2).apply {
+                setProgressBar(R.id.widget_progress, total, pos, false)
+                setTextViewText(R.id.widget_elapsed, time(pos))
+                setTextViewText(R.id.widget_duration, time(duration))
+            }
+            // Partial updates merge with the last complete RemoteViews rendered by refresh().
+            manager.partiallyUpdateAppWidget(ids, views)
+        }
+
         private fun renderSavedState(context: Context) {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean("has_track", false)
@@ -115,6 +131,12 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         if (artwork != null) views.setImageViewBitmap(R.id.widget_art, artwork)
                         else views.setImageViewResource(R.id.widget_art, R.drawable.widget_empty_art)
                         views.setInt(R.id.widget_art, "setBackgroundResource", R.drawable.widget_card_accent)
+                        views.setTextViewText(R.id.widget_title, if (hasTrack) title else "NO MUSIC PLAYING")
+                        views.setTextViewText(R.id.widget_artist, listOf(artist, album).filter { it.isNotBlank() }.joinToString(" • "))
+                        views.setViewVisibility(R.id.widget_artist, if (hasTrack && (artist.isNotBlank() || album.isNotBlank())) android.view.View.VISIBLE else android.view.View.GONE)
+                        views.setInt(R.id.widget_info_overlay, "setBackgroundColor", if (light) 0xCCFFFFFF.toInt() else 0xCC000000.toInt())
+                        views.setTextColor(R.id.widget_title, if (light) Color.BLACK else Color.WHITE)
+                        views.setTextColor(R.id.widget_artist, if (light) 0xFF555555.toInt() else 0xFFDDDDDD.toInt())
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
                         views.setInt(R.id.widget_play_circle, "setBackgroundColor", if (light) 0xCCFFFFFF.toInt() else 0xCC000000.toInt())
                         views.setInt(R.id.widget_play, "setColorFilter", if (light) Color.BLACK else Color.WHITE)
