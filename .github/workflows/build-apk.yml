@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["main", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -22,11 +22,6 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools"
-      - name: Install Android platform and build tools
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
       - name: Install Android platform and build tools
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - name: Set up Gradle
