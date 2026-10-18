@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_card_accent">
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_card_accent" android:clipToOutline="true">
     <ImageView android:id="@+id/widget_art" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="centerCrop" android:contentDescription="Album artwork" android:background="@drawable/widget_card_accent" android:src="@drawable/widget_empty_art"/>
     <LinearLayout android:id="@+id/widget_info_overlay" android:layout_width="match_parent" android:layout_height="wrap_content"
