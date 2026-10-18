@@ -240,9 +240,9 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        songsPanel.setPadding(dp(16), statusBarInset, dp(16), dp(8))
-        settingsPanel.setPadding(0, statusBarInset, 0, dp(8))
-        settingsPanel.addView(text("SETTINGS", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) })
+        songsPanel.setPadding(dp(16), statusBarInset + dp(2), dp(16), dp(8))
+        settingsPanel.setPadding(0, statusBarInset + dp(2), 0, dp(8))
+        settingsPanel.addView(text("SETTINGS", 20f, WHITE, true).apply { setPadding(dp(20), dp(8), dp(8), dp(14)) })
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -294,6 +294,8 @@ class MainActivity : Activity() {
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
+        // Shared semi-transparent status-bar overlay for Now Playing, Albums, Songs, and Settings.
+        contentStage.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
         setContentView(root); show("player"); renderLibrary()
@@ -350,7 +352,7 @@ class MainActivity : Activity() {
             setBackgroundColor(if (lightTheme) 0x33000000 else 0x66000000)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        foreground.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
+        // Attached to the shared page stage in buildUi so every tab gets the same translucent status bar.
 
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
             gravity = Gravity.CENTER
@@ -459,7 +461,7 @@ class MainActivity : Activity() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
         libraryPanel.setPadding(dp(16), inset + dp(2), dp(16), dp(8))
-        libraryPanel.addView(text("ALBUM", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), 0, dp(14)) }, LinearLayout.LayoutParams(-1, -2))
+        libraryPanel.addView(text("ALBUM", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(14)) }, LinearLayout.LayoutParams(-1, -2))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -496,8 +498,8 @@ class MainActivity : Activity() {
     }
 
     private fun makeSongsPanel() {
-        val heading = flatSection()
-        heading.addView(text("SONGS", 20f, WHITE, true).apply { setPadding(0, 0, 0, dp(8)) })
+        val heading = flatSection().apply { setPadding(0, dp(2), 0, dp(12)) }
+        heading.addView(text("SONGS", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) })
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
