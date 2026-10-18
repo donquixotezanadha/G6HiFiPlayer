@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-71-widget-visual-touch-fix", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-header-playback-progress-fix", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build67-v0.67.0-widget-touch-debounce-rounded-layouts-arm64-apk
+          name: G6HiFiPlayer-Build71-v0.71.0-widget-visual-touch-fix-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 67 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 71 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 67 is based on Build 66. It debounces repeated compact/wide-widget Play/Pause actions for 500 ms, gives the 4x2 widget larger 30dp corners with additional artwork and progress insets, and makes the 2x2 artwork circular with an overlapping rounded-rectangle Play/Pause control. Audio engine, FFmpeg dependencies, sample-rate, buffer, output-mode, and DAC-path logic are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 71 is based on Build 67. It preserves the Build 67 widget action dispatch/debounce and audio engine, balances 4x2 widget spacing, increases metadata/control legibility, and hides the title on 2x2 so the compact overlay only shows secondary metadata. Notification actions remain broadcast-based and do not open the activity." >> "$GITHUB_STEP_SUMMARY"
