@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.os.SystemClock
 import android.widget.RemoteViews
 import java.io.File
 
@@ -28,11 +29,29 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             return
         }
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
+        // Launchers may deliver multiple taps while the player state/UI is still catching up.
+        // Accept the first toggle immediately, then absorb duplicate toggles for a short window.
+        if (action == "toggle") {
+            val now = SystemClock.elapsedRealtime()
+            val accepted = synchronized(toggleGuard) {
+                val previous = lastWidgetToggleAtMs
+                if (previous != Long.MIN_VALUE && now - previous < WIDGET_TOGGLE_DEBOUNCE_MS) {
+                    false
+                } else {
+                    lastWidgetToggleAtMs = now
+                    true
+                }
+            }
+            if (!accepted) return
+        }
         MainActivity.notificationAction(action)
     }
 
     companion object {
         const val EXTRA_ACTION = "widget_action"
+        private const val WIDGET_TOGGLE_DEBOUNCE_MS = 500L
+        private val toggleGuard = Any()
+        private var lastWidgetToggleAtMs = Long.MIN_VALUE
         private const val PREFS = "g6_widget_state"
         private const val ART_FILE = "g6_widget_artwork.jpg"
         private const val ACCENT = 0xFF6662C6.toInt()
@@ -130,7 +149,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                     if (compact) {
                         if (artwork != null) views.setImageViewBitmap(R.id.widget_art, artwork)
                         else views.setImageViewResource(R.id.widget_art, R.drawable.widget_empty_art)
-                        views.setInt(R.id.widget_art, "setBackgroundResource", R.drawable.widget_card_accent)
+                        views.setInt(R.id.widget_art, "setBackgroundResource", R.drawable.widget_art_circle)
                         views.setTextViewText(R.id.widget_title, if (hasTrack) title else "NO MUSIC PLAYING")
                         views.setTextViewText(R.id.widget_artist, listOf(artist, album).filter { it.isNotBlank() }.joinToString(" • "))
                         views.setViewVisibility(R.id.widget_artist, if (hasTrack && (artist.isNotBlank() || album.isNotBlank())) android.view.View.VISIBLE else android.view.View.GONE)
@@ -138,7 +157,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         views.setTextColor(R.id.widget_title, if (light) Color.BLACK else Color.WHITE)
                         views.setTextColor(R.id.widget_artist, if (light) 0xFF555555.toInt() else 0xFFDDDDDD.toInt())
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-                        views.setInt(R.id.widget_play_circle, "setBackgroundColor", if (light) 0xCCFFFFFF.toInt() else 0xCC000000.toInt())
+                        views.setInt(R.id.widget_play_overlay, "setBackgroundResource", if (light) R.drawable.widget_play_overlay_light else R.drawable.widget_play_overlay_dark)
                         views.setInt(R.id.widget_play, "setColorFilter", if (light) Color.BLACK else Color.WHITE)
                     } else {
                         views.setTextViewText(R.id.widget_title, title)
