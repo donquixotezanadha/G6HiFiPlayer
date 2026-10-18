@@ -78,6 +78,7 @@ class MainActivity : Activity() {
     private var pendingAutoplay = false
     private var pendingRestorePositionMs: Long? = null
     private var lastPlaybackPersistAtMs = 0L
+    private var lastWidgetProgressUpdateAtMs = 0L
     private var lastPlaybackRestoreAttempted = false
     private var tracks: List<Track> = emptyList()
     private var currentIndex = -1
@@ -176,6 +177,11 @@ class MainActivity : Activity() {
                     }
                     val label = time(pos)
                     if (elapsed.text.toString() != label) elapsed.text = label
+                    val widgetNow = System.currentTimeMillis()
+                    if (p.isPlaying && widgetNow - lastWidgetProgressUpdateAtMs >= 5000L) {
+                        lastWidgetProgressUpdateAtMs = widgetNow
+                        G6MusicWidgetProvider.refreshProgress(this@MainActivity, pos, durationMs)
+                    }
                 }
             }
             handler.postDelayed(this, 350)
