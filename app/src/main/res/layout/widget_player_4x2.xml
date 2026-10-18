@@ -84,7 +84,7 @@
         android:layout_height="40dp"
         android:padding="6dp"
         android:background="@android:color/transparent"
-        android:src="@android:drawable/ic_media_previous"
+        android:src="@drawable/ic_previous_24"
         android:contentDescription="Previous" />
 
     <ImageButton
@@ -102,6 +102,6 @@
         android:layout_height="40dp"
         android:padding="6dp"
         android:background="@android:color/transparent"
-        android:src="@android:drawable/ic_media_next"
+        android:src="@drawable/ic_next_24"
         android:contentDescription="Next" />
 </LinearLayout>
