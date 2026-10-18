@@ -33,5 +33,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build54-v0.54.0-audio-restored-debug-apk
+          name: G6HiFiPlayer-Build55-v0.55.0-notification-lockscreen-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk

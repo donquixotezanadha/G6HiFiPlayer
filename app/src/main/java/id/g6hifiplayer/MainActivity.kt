@@ -1255,7 +1255,7 @@ class MainActivity : Activity() {
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
             val key = "player:" + t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 960, android.graphics.Bitmap.Config.RGB_565) }?.also { bitmapArtworkCache.put(key, it) }
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
@@ -1506,6 +1506,8 @@ class MainActivity : Activity() {
             .setSubText(null)
             .setContentInfo(null)
             .setContentIntent(contentIntent)
+            // Swiping the notification only hides it; playback continues unchanged.
+            .setDeleteIntent(actionIntent("dismiss", 6104))
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
