@@ -111,6 +111,7 @@ class MainActivity : Activity() {
     private var lastDeviceEvent = "No device changes reported yet."
     private var lastActiveRouteKey: String? = null
     private var lastRouteApiError: String? = null
+    private var lastBufferDiagnosticKey: String? = null
     private var lastLegacyRouteHints = "Not checked yet"
     private var lastAudioConfigLog = "No audio configuration scan results yet."
     private lateinit var scanProgress: ProgressBar
@@ -1814,7 +1815,7 @@ class MainActivity : Activity() {
             player == null -> "No active stream"
             !isPlayingNow -> "Not playing; active routing is not being measured"
             outputTrack == null -> "Media3 AudioTrack is not available for inspection"
-            else -> "AudioTrack is active, but Android has not reported a routed device"
+            else -> "ROUTE UNCONFIRMED — AudioTrack is active, but Android has not reported a routed device"
         }
         val playbackState = when {
             player == null -> "no player"
@@ -1847,6 +1848,16 @@ class MainActivity : Activity() {
         val activeCapabilities = if (active == null) "Active device capabilities cannot yet be linked to the actual route." else describeCapabilities(active)
         val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Not reported"
         val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Not reported"
+        val systemBufferFrames = buffer.toIntOrNull()
+        val bufferRatio = if (outputTrackPlaying && outputBufferFrames != null && systemBufferFrames != null && systemBufferFrames > 0) outputBufferFrames.toDouble() / systemBufferFrames else null
+        val outputUnderruns = try { if (outputTrackPlaying) outputTrack?.underrunCount else null } catch (_: Exception) { null }
+        if (outputTrackPlaying) {
+            val key = "session=${sessionId};rate=${outputRate};bufferFrames=${outputBufferFrames};systemFrames=${systemBufferFrames};underruns=${outputUnderruns};mode=${outputPerformance}"
+            if (key != lastBufferDiagnosticKey) {
+                recordDiagnostic("AUDIOTRACK_BUFFER_DIAGNOSTIC $key ratioToSystemBuffer=${bufferRatio?.let { String.format(Locale.US, "%.1fx", it) } ?: "unavailable"} note=buffer-capacity-not-measured-latency; no-buffer-size-forcing")
+                lastBufferDiagnosticKey = key
+            }
+        }
         val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
         val wiredText = if (wired.isEmpty()) "Wired jack: not detected" else "Wired jack detected: " + wired.joinToString { describe(it) }
         val rateNote = when {
@@ -1868,9 +1879,12 @@ class MainActivity : Activity() {
                 (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding unreadable") +
                     " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer " + (outputBufferFrames?.toString() ?: "?") +
                     " frame (~" + (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms capacity", it) } ?: "duration unavailable") +
-                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") else "inactive") +
+                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") +
+                    " / underruns " + (outputUnderruns?.toString() ?: "unavailable") +
+                    " / rasio ke buffer sistem " + (bufferRatio?.let { String.format(Locale.US, "%.1fx", it) } ?: "unavailable")
+                    else "inactive") +
             "\nAudioManager mode: " + audioMode +
-            "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "getRoutedDevice() returned null; the active route cannot be confirmed" }) +
+            "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "ROUTE UNCONFIRMED — getRoutedDevice() returned null; the active route cannot be confirmed" }) +
             "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
             "\n" + connectionSummary +
             "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
