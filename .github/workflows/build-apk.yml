@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build58-v0.58.0-audio-dependency-trim-arm64-apk
+          name: G6HiFiPlayer-Build59-v0.59.0-notification-controls-fix-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 58 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 59 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "This test build targets arm64-v8a and uses the audio-only FFmpeg fallback package. Build 57 remains the baseline." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 59 fixes notification action delivery when MainActivity is not active. Build 57 remains the baseline; Build 58 audio engine/dependency state is retained." >> "$GITHUB_STEP_SUMMARY"
