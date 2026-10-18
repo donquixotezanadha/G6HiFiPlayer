@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_card_accent" android:clipToOutline="true">
-    <ImageView android:id="@+id/widget_art" android:layout_width="match_parent" android:layout_height="match_parent"
-        android:scaleType="centerCrop" android:contentDescription="Album artwork" android:background="@drawable/widget_card_accent" android:src="@drawable/widget_empty_art"/>
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_art_circle" android:clipToOutline="true">
+    <ImageView android:id="@+id/widget_art" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_margin="5dp"
+        android:scaleType="centerCrop" android:background="@drawable/widget_art_circle" android:clipToOutline="true" android:contentDescription="Album artwork" android:src="@drawable/widget_empty_art"/>
     <LinearLayout android:id="@+id/widget_info_overlay" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="bottom" android:orientation="vertical" android:visibility="gone" android:paddingStart="10dp" android:paddingEnd="76dp"
         android:paddingTop="8dp" android:paddingBottom="8dp" android:background="#CC000000">
@@ -12,8 +12,8 @@
         <TextView android:id="@+id/widget_artist" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:maxLines="1" android:ellipsize="end" android:textSize="10sp" android:textColor="#FFDDDDDD"/>
     </LinearLayout>
-    <FrameLayout android:id="@+id/widget_play_circle" android:layout_width="60dp" android:layout_height="60dp"
-        android:layout_gravity="bottom|end" android:layout_margin="10dp" android:background="@drawable/widget_play_circle">
+    <FrameLayout android:id="@+id/widget_play_overlay" android:layout_width="70dp" android:layout_height="54dp"
+        android:layout_gravity="bottom|end" android:layout_margin="8dp" android:background="@drawable/widget_play_overlay_dark" android:clipToOutline="true">
         <ImageButton android:id="@+id/widget_play" android:layout_width="match_parent" android:layout_height="match_parent"
             android:padding="16dp" android:background="@android:color/transparent" android:src="@drawable/ic_play_24"
             android:tint="#FFFFFF" android:contentDescription="Play or pause"/>
