@@ -69,6 +69,13 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
             duration: Int
         ) {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val targetHasTrack = title.isNotBlank() && title != "G6HiFiPlayer"
+            val sameTrack = prefs.getBoolean("has_track", false) == targetHasTrack &&
+                prefs.getString("title", null) == title &&
+                prefs.getString("artist", null) == artist &&
+                prefs.getString("album", null) == album
+            val sameTheme = prefs.getBoolean("light", light) == light
+            val canRefreshPlaybackOnly = sameTrack && sameTheme
             // Persist only a small widget thumbnail. Sending the Now Playing bitmap (up to
             // 960x960) through RemoteViews can exceed Binder's transaction limit on Android 9.
             if (artwork != null && !artwork.isRecycled) {
@@ -105,7 +112,41 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                 .putInt("position", position.coerceAtLeast(0))
                 .putInt("duration", duration.coerceAtLeast(0))
                 .apply()
+            // Play/pause events are frequent and do not require decoding/resending artwork.
+            // Partial RemoteViews updates make the widget button respond without an artwork I/O pass.
+            if (canRefreshPlaybackOnly) {
+                refreshPlaybackViews(context, playing, position, duration, light)
+                return
+            }
             renderSavedState(context)
+        }
+
+        private fun refreshPlaybackViews(context: Context, playing: Boolean, position: Int, duration: Int, light: Boolean) {
+            val manager = AppWidgetManager.getInstance(context)
+            val total = duration.coerceAtLeast(1)
+            val pos = position.coerceIn(0, total)
+            val image = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
+
+            val wideIds = manager.getAppWidgetIds(ComponentName(context, G6MusicWidgetProvider::class.java))
+            if (wideIds.isNotEmpty()) {
+                val views = RemoteViews(context.packageName, R.layout.widget_player_4x2).apply {
+                    setImageViewResource(R.id.widget_play, image)
+                    setProgressBar(R.id.widget_progress, total, pos, false)
+                    setTextViewText(R.id.widget_elapsed, time(pos))
+                    setTextViewText(R.id.widget_duration, time(duration))
+                }
+                manager.partiallyUpdateAppWidget(wideIds, views)
+            }
+
+            val compactIds = manager.getAppWidgetIds(ComponentName(context, G6CompactWidgetProvider::class.java))
+            if (compactIds.isNotEmpty()) {
+                val views = RemoteViews(context.packageName, R.layout.widget_player_2x2).apply {
+                    setImageViewResource(R.id.widget_play, image)
+                    setInt(R.id.widget_play, "setColorFilter", if (light) Color.BLACK else Color.WHITE)
+                    setInt(R.id.widget_play_overlay, "setBackgroundResource", if (light) R.drawable.widget_play_overlay_light else R.drawable.widget_play_overlay_dark)
+                }
+                manager.partiallyUpdateAppWidget(compactIds, views)
+            }
         }
 
         /** Update only time/progress views while playback continues; avoid resending album art. */
