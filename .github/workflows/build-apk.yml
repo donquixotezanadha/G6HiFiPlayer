@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player"]
+    branches: ["main", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui"]
   pull_request:
     branches: ["main"]
 
@@ -33,5 +33,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build42-v0.42.0-debug-apk
+          name: G6HiFiPlayer-Build43-v0.43.0-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
