@@ -7,15 +7,15 @@
         android:layout_gravity="bottom" android:orientation="vertical" android:visibility="gone" android:paddingStart="10dp" android:paddingEnd="76dp"
         android:paddingTop="8dp" android:paddingBottom="8dp" android:background="#CC000000">
         <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:maxLines="1" android:ellipsize="end" android:text="NO MUSIC PLAYING" android:textStyle="bold"
+            android:visibility="gone" android:maxLines="1" android:ellipsize="end" android:text="NO MUSIC PLAYING" android:textStyle="bold"
             android:textSize="13sp" android:textColor="#FFFFFF"/>
         <TextView android:id="@+id/widget_artist" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:maxLines="1" android:ellipsize="end" android:textSize="10sp" android:textColor="#FFDDDDDD"/>
+            android:gravity="center_vertical" android:maxLines="1" android:ellipsize="end" android:textSize="12sp" android:textColor="#FFDDDDDD"/>
     </LinearLayout>
     <FrameLayout android:id="@+id/widget_play_overlay" android:layout_width="70dp" android:layout_height="54dp"
         android:layout_gravity="bottom|end" android:layout_margin="8dp" android:background="@drawable/widget_play_overlay_dark" android:clipToOutline="true">
         <ImageButton android:id="@+id/widget_play" android:layout_width="match_parent" android:layout_height="match_parent"
-            android:padding="16dp" android:background="@android:color/transparent" android:src="@drawable/ic_play_24"
+            android:padding="15dp" android:background="@android:color/transparent" android:src="@drawable/ic_play_24"
             android:tint="#FFFFFF" android:contentDescription="Play or pause"/>
     </FrameLayout>
 </FrameLayout>
