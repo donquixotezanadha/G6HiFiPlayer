@@ -498,7 +498,7 @@ class MainActivity : Activity() {
     }
 
     private fun makeSongsPanel() {
-        val heading = flatSection().apply { setPadding(0, dp(2), 0, dp(12)) }
+        val heading = flatSection().apply { setPadding(0, 0, 0, dp(12)) }
         heading.addView(text("SONGS", 20f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) })
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
