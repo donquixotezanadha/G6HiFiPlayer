@@ -1459,7 +1459,15 @@ class MainActivity : Activity() {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (prepared) {
                         // A genuine transition back to playback must restore a notification dismissed earlier.
-                        if (isPlaying) notificationDismissed = false
+                        if (isPlaying) {
+                            notificationDismissed = false
+                            // Re-apply the wired-device preference after playback actually starts.
+                            // AudioTrack can be created before AudioPolicy finishes establishing its route;
+                            // this remains a routing hint, not a request for DIRECT output or proof of DAC use.
+                            activeAudioTrack?.let { track ->
+                                preferWiredHeadphoneRoute(track, "playback started")
+                            }
+                        }
                         syncPlaybackIcon(isPlaying)
                         refreshAudioInfo()
                         updatePlaybackNotification(isPlaying)
