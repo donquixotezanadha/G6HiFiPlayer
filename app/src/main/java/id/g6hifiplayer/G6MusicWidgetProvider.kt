@@ -30,7 +30,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
         }
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
         // Launchers may deliver multiple taps while the player state/UI is still catching up.
-        // Accept the first toggle immediately, then absorb duplicate toggles for a short window.
+        // Accept the first toggle immediately, suppress only near-simultaneous duplicate broadcasts.
         if (action == "toggle") {
             val now = SystemClock.elapsedRealtime()
             val accepted = synchronized(toggleGuard) {
@@ -49,7 +49,7 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val EXTRA_ACTION = "widget_action"
-        private const val WIDGET_TOGGLE_DEBOUNCE_MS = 500L
+        private const val WIDGET_TOGGLE_DEBOUNCE_MS = 180L
         private val toggleGuard = Any()
         private var lastWidgetToggleAtMs = Long.MIN_VALUE
         private const val PREFS = "g6_widget_state"
