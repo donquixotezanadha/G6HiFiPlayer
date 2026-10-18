@@ -214,7 +214,12 @@ class MainActivity : Activity() {
             val details = addedDevices.joinToString { describe(it) }
             lastDeviceEvent = "Output device connected: " + details
             recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
-            handler.removeCallbacks(wiredDisconnectCheck)
+            val wiredAdded = addedDevices.any {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+            }
+            // A speaker-added event can accompany jack removal; it must not cancel the stop check.
+            if (wiredAdded) handler.removeCallbacks(wiredDisconnectCheck)
             activeAudioTrack?.let { preferWiredHeadphoneRoute(it, "output device added") }
             updateActiveRoute(); refreshAudioInfo()
         }
