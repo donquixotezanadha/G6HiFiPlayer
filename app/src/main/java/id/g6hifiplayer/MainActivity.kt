@@ -244,9 +244,12 @@ class MainActivity : Activity() {
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
-        songsPanel.setPadding(dp(16), statusBarInset + dp(12), dp(16), dp(8))
-        settingsPanel.setPadding(0, statusBarInset + dp(12), 0, dp(8))
-        settingsPanel.addView(text("SETTINGS", 18f, WHITE, true).apply { setPadding(dp(20), dp(8), dp(8), dp(8)) })
+        songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
+        settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
+        settingsPanel.addView(text("SETTINGS", 18f, WHITE, true).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(8), 0)
+        }, LinearLayout.LayoutParams(-1, dp(44)))
         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -302,7 +305,45 @@ class MainActivity : Activity() {
         contentStage.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
-        setContentView(root); show("player"); renderLibrary()
+        setContentView(root); show("player"); renderLibrary(); restoreNowPlayingMetadata()
+    }
+
+
+    /**
+     * Rebind the selected track to newly-created Now Playing views after a UI/theme rebuild.
+     * buildUi() recreates TextViews, so the live player can keep playing while its metadata
+     * would otherwise be left blank.
+     */
+    private fun restoreNowPlayingMetadata() {
+        if (!::titleView.isInitialized || !::artistView.isInitialized || !::albumView.isInitialized ||
+            !::seek.isInitialized || !::elapsed.isInitialized || !::duration.isInitialized) return
+        if (currentIndex !in tracks.indices) {
+            if (player == null) {
+                titleView.text = "Nothing playing"
+                artistView.text = ""
+                albumView.text = ""
+                elapsed.text = "0:00"
+                duration.text = "0:00"
+                seek.max = 1
+                seek.progress = 0
+            }
+            return
+        }
+        val track = tracks[currentIndex]
+        titleView.text = track.title
+        artistView.text = track.artist
+        albumView.text = track.album
+        val position = try { player?.currentPosition?.toInt()?.coerceAtLeast(0) ?: 0 } catch (_: Exception) { 0 }
+        val liveDuration = try {
+            player?.duration?.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt()
+        } catch (_: Exception) { null }
+        if (liveDuration != null) durationMs = liveDuration
+        seek.max = durationMs.coerceAtLeast(1)
+        seek.progress = position.coerceIn(0, seek.max)
+        elapsed.text = time(position)
+        duration.text = time(durationMs)
+        syncPlaybackIcon()
+        loadArtwork(track)
     }
 
     private fun makePlayerPanel() {
@@ -345,8 +386,10 @@ class MainActivity : Activity() {
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            // A touch heavier than the other headers, without increasing its size.
+            typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
         }
-        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START).apply {
             leftMargin = dp(16)
             topMargin = statusBarInset + dp(6)
         })
@@ -469,8 +512,11 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), inset + dp(12), dp(16), dp(8))
-        libraryPanel.addView(text("ALBUM", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) }, LinearLayout.LayoutParams(-1, -2))
+        libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
+        libraryPanel.addView(text("ALBUM", 18f, WHITE, true).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(8), 0)
+        }, LinearLayout.LayoutParams(-1, dp(44)))
         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -507,8 +553,11 @@ class MainActivity : Activity() {
     }
 
     private fun makeSongsPanel() {
-        val heading = flatSection().apply { setPadding(0, dp(10), 0, dp(12)) }
-        heading.addView(text("SONGS", 18f, WHITE, true).apply { setPadding(dp(4), dp(8), dp(8), dp(8)) })
+        val heading = flatSection().apply { setPadding(0, 0, 0, dp(12)) }
+        heading.addView(text("SONGS", 18f, WHITE, true).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(8), 0)
+        }, LinearLayout.LayoutParams(-1, dp(44)))
         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
@@ -543,7 +592,7 @@ class MainActivity : Activity() {
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        surface.setPadding(dp(16), statusInset + dp(12), dp(16), dp(8))
+        surface.setPadding(dp(16), statusInset + dp(6), dp(16), dp(8))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
