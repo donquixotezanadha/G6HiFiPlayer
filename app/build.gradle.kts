@@ -11,10 +11,9 @@ android {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 67
-        versionName = "0.67.0"
+        versionCode = 71
+        versionName = "0.71.0"
 
-        // This build targets the 64-bit ARM LG G6. Avoid bundling unused x86_64 native libraries.
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -34,6 +33,5 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
-    // Audio-only FFmpeg fallback: no video or HTTPS-input feature set is needed by this local-file player.
     implementation("dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.7")
 }
