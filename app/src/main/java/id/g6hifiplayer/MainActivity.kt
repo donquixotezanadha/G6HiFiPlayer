@@ -201,7 +201,7 @@ class MainActivity : Activity() {
                 syncPlaybackIcon(false)
                 statusView.text = "Playback paused • headphone jack disconnected"
                 recordDiagnostic("WIRED_UNPLUG_PLAYBACK_STOPPED action=pause preventSpeakerFallback=true")
-                updatePlaybackNotification(false)
+                // Player.Listener publishes the paused state; do not rebuild the notification twice.
             }
         } else {
             recordDiagnostic("WIRED_UNPLUG_CHECK_CANCELLED wiredDeviceStillConnected=true")
