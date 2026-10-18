@@ -1855,7 +1855,7 @@ class MainActivity : Activity() {
         if (outputTrackPlaying) {
             val key = "session=${sessionId};rate=${outputRate};bufferSizeFrames=${outputBufferSizeFrames};bufferCapacityFrames=${outputBufferCapacityFrames};systemFrames=${systemBufferFrames};underruns=${outputUnderruns};mode=${outputPerformance}"
             if (key != lastBufferDiagnosticKey) {
-                recordDiagnostic("AUDIOTRACK_BUFFER_DIAGNOSTIC $key bufferSizeToSystemBufferRatio=${bufferRatio?.let { String.format(Locale.US, "%.1fx", it) } ?: "unavailable"} note=buffer-size-and-capacity-are-distinct-frame-counts; capacity-time-is-not-measured-latency; no-buffer-size-forcing")
+                recordDiagnostic("AUDIOTRACK_BUFFER_DIAGNOSTIC $key bufferSizeToSystemBufferRatio=${bufferRatio?.let { String.format(Locale.US, "%.1fx", it) } ?: "unavailable"} note=AudioTrack-bufferSizeInFrames-is-current-track-buffer-setting; bufferCapacityInFrames-is-maximum-track-capacity; PROPERTY_OUTPUT_FRAMES_PER_BUFFER-is-a-system-property-not-a-measurement-of-this-track-buffer; capacity-time-is-not-measured-latency; no-buffer-size-forcing")
                 lastBufferDiagnosticKey = key
             }
         }
@@ -1887,6 +1887,7 @@ class MainActivity : Activity() {
                     else "inactive") +
             "\nAudioManager mode: " + audioMode +
             "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "ROUTE UNCONFIRMED — getRoutedDevice() returned null; Android has not exposed the active route (not proof of disconnection)" }) +
+            "\nActive DIRECT output mode: NOT EXPOSED by the public AudioTrack/Media3 inspection used here; capability checks do not identify the mode selected for this stream." +
             "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
             "\n" + connectionSummary +
             "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
@@ -2166,6 +2167,7 @@ class MainActivity : Activity() {
             }
         }
         report.append("\nDirect playback PCM stereo (system capability, not the active stream):\n")
+        report.append("IMPORTANT: isDirectPlaybackSupported() reports whether a format is supported by the device/API; it does not reveal whether the current Media3 AudioTrack was opened with DIRECT output flags. The active output mode is not exposed by the public inspection APIs used by this app.\n")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
             for (rate in listOf(44100, 48000, 96000, 192000)) {
@@ -2178,6 +2180,7 @@ class MainActivity : Activity() {
         } else report.append("The direct-playback API is unavailable on this Android version.\n")
         report.append("\nReadable configuration files: ").append(readable).append(" of ").append(paths.size)
         report.append("\nConfiguration files indicate capabilities declared by the system; they do not prove Media3 is using DIRECT_HD/direct_pcm_24 or that the DAC receives a specific sample rate.")
+        report.append("\nBUFFER DATA PROVENANCE: bufferSizeInFrames and bufferCapacityInFrames come from the active AudioTrack object; PROPERTY_OUTPUT_FRAMES_PER_BUFFER is a separate AudioManager system property. These values are not interchangeable, and capacity-derived time is not measured end-to-end latency.")
         report.append("\n\nLG G6-SPECIFIC INTERPRETATION: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC together with the headphones backend tert-mi2s-headphones and SEC_MI2S_RX indicates a possible Quad DAC path configuration. Configuration files only show that a path is defined, not that the current stream is using it.")
         report.append("\nLG QUAD DAC BACKEND STATUS: not confirmed through the public API. Wired-device preference only asks AudioPolicy to select the 3.5 mm jack; it does not force AUDIO_OUTPUT_FLAG_DIRECT or prove the HAL/DAC backend.")
         report.append("\n\nTo inspect the backend while playing through the 3.5 mm jack, run these commands from a computer with USB debugging enabled:")
