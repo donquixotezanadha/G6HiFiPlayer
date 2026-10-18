@@ -434,12 +434,15 @@ class MainActivity : Activity() {
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
+        // Match every other tab's 44dp header slot and text left edge. The compact
+        // rounded background wraps the text, while the slot keeps its vertical alignment stable.
         val playerHeader = pageHeader("NOW PLAYING").apply {
-            // Let the rounded rectangle measure itself from the header text and compact padding.
-            setPadding(dp(12), dp(4), dp(12), dp(4))
+            setPadding(dp(4), dp(4), dp(8), dp(4))
             background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
         }
-        foreground.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+        val playerHeaderSlot = FrameLayout(this)
+        playerHeaderSlot.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START))
+        foreground.addView(playerHeaderSlot, FrameLayout.LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START).apply {
             leftMargin = dp(16)
             topMargin = statusBarInset + dp(6)
         })
