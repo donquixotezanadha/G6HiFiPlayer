@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build67-v0.67.0-widget-touch-debounce-rounded-layouts-arm64-apk
+          name: G6HiFiPlayer-Build72-v0.72.0-widget-touch-latency-layout-balance-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 67 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 72 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 67 is based on Build 66. It debounces repeated compact/wide-widget Play/Pause actions for 500 ms, gives the 4x2 widget larger 30dp corners with additional artwork and progress insets, and makes the 2x2 artwork circular with an overlapping rounded-rectangle Play/Pause control. Audio engine, FFmpeg dependencies, sample-rate, buffer, output-mode, and DAC-path logic are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 72 is based on Build 67. It shortens the widget duplicate-toggle suppression window to 180 ms, balances 4x2 widget outer padding and transport sizing, and adjusts 2x2 artwork/control insets while keeping the title hidden. Audio engine, FFmpeg dependencies, sample-rate, buffer, output-mode, and DAC-path logic are unchanged. User-device touch latency and final launcher rendering still require on-device verification." >> "$GITHUB_STEP_SUMMARY"
