@@ -280,7 +280,9 @@ class MainActivity : Activity() {
         navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
         navSongs = navButton(android.R.drawable.ic_menu_agenda, "Songs") { show("songs") }
         navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
-        listOf(navPlayer, navLibrary, navSongs, navFile).forEach {
+        // Three-tab navigation: removing Songs reduces page-switch rebuild work.
+        // Equal weights keep the existing icon size and center each remaining hit target.
+        listOf(navPlayer, navLibrary, navFile).forEach {
             nav.addView(it, LinearLayout.LayoutParams(0, -1, 1f))
         }
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
@@ -344,7 +346,7 @@ class MainActivity : Activity() {
         settingsPanel.addView(batteryCard)
         settingsPanel.addView(filePanel)
         settingsPanel.addView(audioPanel)
-        content.addView(playerPanel); content.addView(libraryPanel); content.addView(songsPanel); content.addView(settingsPanel)
+        content.addView(playerPanel); content.addView(libraryPanel); content.addView(settingsPanel)
         scroll.addView(content)
         // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
         // This gives its internal ScrollView independent gesture ownership and stable height.
@@ -2325,9 +2327,7 @@ class MainActivity : Activity() {
         settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
         navState(navPlayer, which == "player")
         navState(navLibrary, which == "library")
-        navState(navSongs, which == "songs")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
-        if (which == "songs") renderSongs()
     }
     private fun navButton(iconRes: Int, description: String, click: () -> Unit) = FrameLayout(this).apply {
         contentDescription = description
