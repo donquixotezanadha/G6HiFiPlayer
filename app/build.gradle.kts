@@ -11,8 +11,8 @@ android {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 35
-        versionName = "0.35.0"
+        versionCode = 54
+        versionName = "0.54.0"
     }
 
     compileOptions {
