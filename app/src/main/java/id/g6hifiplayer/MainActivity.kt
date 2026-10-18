@@ -88,6 +88,8 @@ class MainActivity : Activity() {
     private var selectedAlbum: String? = null
     // A dismissed notification stays hidden until the user starts another track.
     private var notificationDismissed = false
+    // Avoid rebuilding MediaSession metadata/artwork on every Play/Pause notification tap.
+    private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
     private var lightTheme = false
@@ -276,10 +278,10 @@ class MainActivity : Activity() {
             clipChildren = false
             clipToPadding = false
         }
-        navPlayer = navButton(android.R.drawable.ic_media_play, "Now playing") { if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) closeQueueOverlay() else show("player") }
-        navLibrary = navButton(android.R.drawable.ic_menu_gallery, "Albums") { show("library") }
-        navSongs = navButton(android.R.drawable.ic_menu_agenda, "Songs") { show("songs") }
-        navFile = navButton(android.R.drawable.ic_menu_preferences, "Settings") { show("settings") }
+        navPlayer = navButton("Player", "Player") { if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) closeQueueOverlay() else show("player") }
+        navLibrary = navButton("Albums", "Albums") { show("library") }
+        navSongs = navButton("Songs", "Songs") { show("songs") }
+        navFile = navButton("Setting", "Setting") { show("settings") }
         // Three-tab navigation: removing Songs reduces page-switch rebuild work.
         // Equal weights keep the existing icon size and center each remaining hit target.
         listOf(navPlayer, navLibrary, navFile).forEach {
@@ -301,8 +303,7 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
-        settingsPanel.addView(pageHeader("SETTINGS", leftInsetDp = 20), LinearLayout.LayoutParams(-1, dp(44)))
-        val themeCard = card()
+         val themeCard = card()
         themeCard.addView(text("APP THEME", 12f, MUTED, true))
         themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
         themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
@@ -489,19 +490,7 @@ class MainActivity : Activity() {
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        // Match every other tab's 44dp header slot and text left edge. The compact
-        // rounded background wraps the text, while the slot keeps its vertical alignment stable.
-        val playerHeader = pageHeader("NOW PLAYING").apply {
-            setPadding(dp(4), dp(4), dp(8), dp(4))
-            background = shape(if (lightTheme) Color.WHITE else Color.BLACK, 12)
-        }
-        val playerHeaderSlot = FrameLayout(this)
-        playerHeaderSlot.addView(playerHeader, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START))
-        foreground.addView(playerHeaderSlot, FrameLayout.LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START).apply {
-            leftMargin = dp(16)
-            topMargin = statusBarInset + dp(6)
-        })
-        // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
+         // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
         // Keep the actual system bar transparent so the scrim is visible on Android 9.
         statusBarScrim = View(this).apply {
             setBackgroundColor(if (lightTheme) 0x33000000 else 0x66000000)
@@ -624,8 +613,7 @@ class MainActivity : Activity() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
         libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
-        libraryPanel.addView(pageHeader("ALBUM"), LinearLayout.LayoutParams(-1, dp(44)))
-        val gridControls = LinearLayout(this).apply {
+         val gridControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(2), 0, dp(10))
@@ -662,8 +650,7 @@ class MainActivity : Activity() {
 
     private fun makeSongsPanel() {
         val heading = flatSection().apply { setPadding(0, 0, 0, dp(12)) }
-        heading.addView(pageHeader("SONGS"), LinearLayout.LayoutParams(-1, dp(44)))
-        songSearchInput = EditText(this).apply {
+         songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
             setTextColor(WHITE)
@@ -702,8 +689,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(pageHeader("UP NEXT"), LinearLayout.LayoutParams(0, dp(44), 1f))
-        surface.addView(header)
+         surface.addView(header)
 
         val mini = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -2074,19 +2060,25 @@ class MainActivity : Activity() {
         // Avoid rebuilding and persisting the full diagnostic event snapshot for every toggle.
         android.util.Log.d("G6HiFiPlayer", "NOTIFICATION_UPDATE playing=" + isPlaying + " title=" + track.title)
         val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
-        val metadata = MediaMetadata.Builder()
-            .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
-            .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
-            .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
-            .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs.toLong())
-        // Publish the real album cover to MediaSession; Android may apply its own lock-screen blur.
-        if (cover != null && !cover.isRecycled) {
-            metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, cover)
-            metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, cover)
-            metadata.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, cover)
-        }
         val session = mediaSession
-        session?.setMetadata(metadata.build())
+        // Track metadata does not change during Play/Pause. Avoid rebuilding the metadata
+        // bundle and copying artwork on every notification tap.
+        val metadataKey = track.uri.toString() + ":" + (cover?.let { System.identityHashCode(it) } ?: 0)
+        if (metadataKey != lastNotificationMetadataKey) {
+            val metadata = MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
+                .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
+                .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs.toLong())
+            // Publish the real album cover to MediaSession; Android may apply its own lock-screen blur.
+            if (cover != null && !cover.isRecycled) {
+                metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, cover)
+                metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, cover)
+                metadata.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, cover)
+            }
+            session?.setMetadata(metadata.build())
+            lastNotificationMetadataKey = metadataKey
+        }
         val state = if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
         session?.setPlaybackState(PlaybackState.Builder()
             .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SEEK_TO)
@@ -2329,19 +2321,19 @@ class MainActivity : Activity() {
         navState(navLibrary, which == "library")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
     }
-    private fun navButton(iconRes: Int, description: String, click: () -> Unit) = FrameLayout(this).apply {
+    private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
         contentDescription = description
-        // Keep the whole equal-width tab as the touch target. The icon is a separate,
-        // fixed-size child centered by FrameLayout gravity, never by a drawable matrix.
+        // Preserve Build 78 equal-width hit targets and the centered selection pill;
+        // replace only the icon content with a centered text label.
         clipChildren = false
         clipToPadding = false
-        val icon = ImageView(this@MainActivity).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setImageResource(iconRes)
-            imageTintList = ColorStateList.valueOf(MUTED)
+        val tabLabel = text(label, 13f, MUTED, true).apply {
+            gravity = Gravity.CENTER
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            maxLines = 1
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        addView(icon, FrameLayout.LayoutParams(dp(25), dp(25), Gravity.CENTER))
+        addView(tabLabel, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
         background = navBackground(false)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -2357,8 +2349,7 @@ class MainActivity : Activity() {
     private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
 
     private fun navState(view: FrameLayout, selected: Boolean) {
-        (view.getChildAt(0) as? ImageView)?.imageTintList =
-            ColorStateList.valueOf(if (selected) accentColor else MUTED)
+        (view.getChildAt(0) as? TextView)?.setTextColor(if (selected) accentColor else MUTED)
         view.background = navBackground(selected)
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
