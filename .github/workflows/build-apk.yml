@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build59-v0.59.0-notification-controls-fix-arm64-apk
+          name: G6HiFiPlayer-Build60-v0.60.0-notification-pause-background-fix-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -44,4 +44,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Download G6HiFiPlayer Build 59 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 59 fixes notification action delivery when MainActivity is not active. Build 57 remains the baseline; Build 58 audio engine/dependency state is retained." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 60 routes notification transport actions directly to the active player without launching MainActivity. Build 57 remains the checkpoint; Build 58 audio engine/dependency state is retained." >> "$GITHUB_STEP_SUMMARY"
