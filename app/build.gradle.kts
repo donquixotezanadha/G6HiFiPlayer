@@ -11,8 +11,8 @@ android {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 75
-        versionName = "0.75.0"
+        versionCode = 76
+        versionName = "0.76.0"
 
         // This build targets the 64-bit ARM LG G6. Avoid bundling unused x86_64 native libraries.
         ndk {
