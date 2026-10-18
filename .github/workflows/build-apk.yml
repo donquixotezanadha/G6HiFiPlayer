@@ -30,12 +30,15 @@ jobs:
           gradle-version: "8.9"
       - name: Build debug APK
         run: gradle clean assembleDebug --stacktrace
+      - name: Verify APK exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
           name: G6HiFiPlayer-Build70-v0.70.0-widget-layout-material-shape-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
       - name: Publish direct artifact link
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
@@ -44,4 +47,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Download G6HiFiPlayer Build 70 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 70 fixes the 2x2 circular artwork clipping, changes the play control to a 64dp Material-style rounded square, and further balances the 4x2 widget outer insets while enlarging artwork and shortening the progress bar. Audio engine and playback responsiveness are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 70 fixes the 2x2 circular artwork clipping, changes the play control to a 64dp Material-style rounded square, and further balances the 4x2 widget outer insets while enlarging artwork and shortening the progress bar. The workflow verifies that the APK exists before uploading. Audio engine and playback responsiveness are unchanged." >> "$GITHUB_STEP_SUMMARY"
