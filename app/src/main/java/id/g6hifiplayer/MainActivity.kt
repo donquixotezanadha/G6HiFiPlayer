@@ -93,13 +93,19 @@ class MainActivity : Activity() {
     private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
+    // Experimental theme-only integration. Playback/audio classes are intentionally untouched.
     private var lightTheme = false
-    private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
-    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
-    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
-    private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
-    private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
+    private var overlayBackgroundColor: Int? = null
+    private var overlayTextColor: Int? = null
+    private var overlayMutedTextColor: Int? = null
+    private var overlayAccentColor: Int? = null
+    private var themeOverlayStatus = "Overlay not checked"
+    private val BG get() = overlayBackgroundColor ?: 0xFF000000.toInt()
+    private val CARD get() = 0xFF101014.toInt()
+    private val ART get() = 0xFF181820.toInt()
+    private val LINE get() = 0xFF292932.toInt()
+    private val WHITE get() = overlayTextColor ?: 0xFFF3F3FA.toInt()
+    private val MUTED get() = overlayMutedTextColor ?: 0xFFA4A4B2.toInt()
     private var albumGridColumns = 2
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
@@ -249,9 +255,44 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun loadThemeOverlayColors() {
+        try {
+            val overlayResources = packageManager.getResourcesForApplication(THEME_OVERLAY_PACKAGE)
+            fun findColor(names: List<String>): Pair<Int, String>? {
+                for (name in names) {
+                    val id = overlayResources.getIdentifier(name, "color", THEME_OVERLAY_PACKAGE)
+                    if (id != 0) {
+                        try {
+                            return Pair(overlayResources.getColor(id, theme), name)
+                        } catch (_: Exception) { /* Try the next candidate if this resource is not a simple color. */ }
+                    }
+                }
+                return null
+            }
+            val bg = findColor(listOf("app_background_color", "app_bg_color", "music_background_color", "main_background_color", "background_color", "background"))
+            val primary = findColor(listOf("app_text_color", "primary_text_color", "text_color", "noti_title_text_color"))
+            val muted = findColor(listOf("secondary_text_color", "text_secondary_color", "noti_artist_text_color"))
+            val accent = findColor(listOf("app_color_accent", "tab_accent_color", "music_playnow_progress_color"))
+            overlayBackgroundColor = bg?.first
+            overlayTextColor = primary?.first
+            overlayMutedTextColor = muted?.first
+            overlayAccentColor = accent?.first
+            themeOverlayStatus = "Package accessible. Background: ${bg?.second ?: "fallback"}; text: ${primary?.second ?: "fallback"}; muted: ${muted?.second ?: "fallback"}; accent: ${accent?.second ?: "fallback"}."
+        } catch (e: Exception) {
+            overlayBackgroundColor = null
+            overlayTextColor = null
+            overlayMutedTextColor = null
+            overlayAccentColor = null
+            themeOverlayStatus = "Overlay inaccessible: ${e.javaClass.simpleName}. Using built-in fallback colors."
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
+        loadThemeOverlayColors()
+        accentColor = overlayAccentColor ?: DEFAULT_ACCENT
+        // Experimental build has one fixed dark appearance; the theme toggle is removed.
+        lightTheme = false
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         // Subtle translucent status bar blends with the page while keeping system icons legible.
         window.statusBarColor = Color.TRANSPARENT
@@ -311,21 +352,11 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
-         val themeCard = card()
-        themeCard.addView(text("APP THEME", 12f, MUTED, true))
-        themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
-            lightTheme = !lightTheme
-            accentColor = DEFAULT_ACCENT
-            window.statusBarColor = Color.TRANSPARENT
-            window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
-            getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
-            buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
-            if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
-            syncPlaybackIcon()
-        }, LinearLayout.LayoutParams(-1, dp(44)))
-        settingsPanel.addView(themeCard)
+        val overlayCard = card()
+        overlayCard.addView(text("LG THEME OVERLAY TEST", 12f, MUTED, true))
+        overlayCard.addView(text("Source: com.lge.wsdeveloper.ux8.bunny.music", 12f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(4)) })
+        overlayCard.addView(text(themeOverlayStatus, 12f, WHITE, false))
+        settingsPanel.addView(overlayCard)
         val scanCard = card()
         scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
         scanCard.addView(text("Choose a music folder to scan albums and subfolders. The last folder is checked automatically when the app opens.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
