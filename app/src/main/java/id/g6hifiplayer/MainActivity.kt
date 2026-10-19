@@ -2765,6 +2765,7 @@ class MainActivity : Activity() {
                 }
             }
         }
+        private const val THEME_OVERLAY_PACKAGE = "com.lge.wsdeveloper.ux8.bunny.music"
         private const val REQUEST_FOLDER = 1002
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
