@@ -1883,9 +1883,37 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Swap artwork only after the next bitmap is ready. Keeping the current drawable visible
+     * avoids the blank flash caused by clearing the ImageView at media-item transition time.
+     * A short crossfade is used only when an old cover is already on screen.
+     */
+    private fun setArtworkWithCrossfade(target: ImageView, bitmap: android.graphics.Bitmap) {
+        val current = target.drawable
+        val oldDrawable = when (current) {
+            is android.graphics.drawable.TransitionDrawable -> current.getDrawable(1)
+            else -> current
+        }
+        val nextDrawable = android.graphics.drawable.BitmapDrawable(resources, bitmap)
+        if (target.visibility == View.VISIBLE && oldDrawable != null) {
+            val transition = android.graphics.drawable.TransitionDrawable(arrayOf(oldDrawable, nextDrawable)).apply {
+                isCrossFadeEnabled = true
+            }
+            target.setImageDrawable(transition)
+            transition.startTransition(140)
+        } else {
+            target.setImageDrawable(nextDrawable)
+        }
+    }
+
     private fun loadArtwork(t: Track) {
         val token = ++artToken
-        artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
+        // Do not clear the previous cover while decoding the next one. Show the placeholder
+        // only on the first load, when there is no artwork to preserve.
+        if (artImage.drawable == null || artImage.visibility != View.VISIBLE) {
+            artImage.visibility = View.GONE
+            artPlaceholder.visibility = View.VISIBLE
+        }
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
             val key = "player:" + t.uri.toString()
@@ -1893,12 +1921,20 @@ class MainActivity : Activity() {
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
-                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
-                    if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+                    setArtworkWithCrossfade(artImage, bitmap)
+                    artImage.visibility = View.VISIBLE
+                    artPlaceholder.visibility = View.GONE
+                    if (::playerBackdropImage.isInitialized) {
+                        setArtworkWithCrossfade(playerBackdropImage, bitmap)
+                    }
                     applyArtworkAccent(bitmap)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
                 } else {
-                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
+                    artImage.visibility = View.GONE
+                    artImage.setImageDrawable(null)
+                    artPlaceholder.visibility = View.VISIBLE
+                    artPlaceholder.text = "NO COVER ART"
+                    artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
                 }
             }
