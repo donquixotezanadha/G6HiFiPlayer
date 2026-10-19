@@ -1890,7 +1890,8 @@ class MainActivity : Activity() {
         playbackArtworkExecutor.execute {
             val key = "player:" + t.uri.toString()
             // A 1200px ceiling is sufficient for the full-screen backdrop on the target phone and
-            // avoids decoding/caching unnecessarily large 1600px ARGB bitmaps on track changes.\n            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            // avoids decoding/caching unnecessarily large 1600px ARGB bitmaps on track changes.
+            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
