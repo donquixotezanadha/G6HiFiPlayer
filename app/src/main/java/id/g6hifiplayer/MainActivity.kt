@@ -92,7 +92,7 @@ class MainActivity : Activity() {
     // Avoid rebuilding MediaSession metadata/artwork on every Play/Pause notification tap.
     private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
-    private var accentColor = DEFAULT_ACCENT
+    private var accentColor = 0xFF19B3A6.toInt()
     // Experimental theme-only integration. Playback/audio classes are intentionally untouched.
     private var lightTheme = false
     private var overlayBackgroundColor: Int? = null
@@ -100,12 +100,12 @@ class MainActivity : Activity() {
     private var overlayMutedTextColor: Int? = null
     private var overlayAccentColor: Int? = null
     private var themeOverlayStatus = "Overlay not checked"
-    private val BG get() = overlayBackgroundColor ?: 0xFF000000.toInt()
+    private val BG get() = overlayBackgroundColor ?: 0xFF06272B.toInt()
     private val CARD get() = 0xFF101014.toInt()
     private val ART get() = 0xFF181820.toInt()
     private val LINE get() = 0xFF292932.toInt()
-    private val WHITE get() = overlayTextColor ?: 0xFFF3F3FA.toInt()
-    private val MUTED get() = overlayMutedTextColor ?: 0xFFA4A4B2.toInt()
+    private val WHITE get() = overlayTextColor ?: 0xFFF3F7F7.toInt()
+    private val MUTED get() = overlayMutedTextColor ?: 0xFFA6B8B9.toInt()
     private var albumGridColumns = 2
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
@@ -255,6 +255,40 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun isUsableColor(color: Int): Boolean {
+        val luminance = relativeLuminance(color)
+        return luminance < 0.22
+    }
+
+    private fun relativeLuminance(color: Int): Double {
+        fun channel(value: Int): Double {
+            val c = value / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(Color.red(color)) + 0.7152 * channel(Color.green(color)) + 0.0722 * channel(Color.blue(color))
+    }
+
+    private fun contrastRatio(foreground: Int, background: Int): Double {
+        val a = relativeLuminance(foreground)
+        val b = relativeLuminance(background)
+        return (maxOf(a, b) + 0.05) / (minOf(a, b) + 0.05)
+    }
+
+    private fun syncThemeFromOverlay() {
+        loadThemeOverlayColors()
+        accentColor = overlayAccentColor ?: 0xFF19B3A6.toInt()
+        // Rebuild visible UI only; the service-owned player and queue are not recreated.
+        buildUi()
+        show(currentPage)
+        refreshAudioInfo()
+        renderLibrary()
+        renderSongs()
+        if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
+        syncPlaybackIcon()
+        if (::themeOverlayStatus.isInitialized) { /* status is refreshed below on the rebuilt settings page */ }
+        show("settings")
+    }
+
     private fun loadThemeOverlayColors() {
         try {
             val overlayResources = packageManager.getResourcesForApplication(THEME_OVERLAY_PACKAGE)
@@ -269,15 +303,16 @@ class MainActivity : Activity() {
                 }
                 return null
             }
-            val bg = findColor(listOf("app_background_color", "app_bg_color", "music_background_color", "main_background_color", "background_color", "background"))
-            val primary = findColor(listOf("app_text_color", "primary_text_color", "text_color", "noti_title_text_color"))
-            val muted = findColor(listOf("secondary_text_color", "text_secondary_color", "noti_artist_text_color"))
-            val accent = findColor(listOf("app_color_accent", "tab_accent_color", "music_playnow_progress_color"))
-            overlayBackgroundColor = bg?.first
-            overlayTextColor = primary?.first
-            overlayMutedTextColor = muted?.first
-            overlayAccentColor = accent?.first
-            themeOverlayStatus = "Package accessible. Background: ${bg?.second ?: "fallback"}; text: ${primary?.second ?: "fallback"}; muted: ${muted?.second ?: "fallback"}; accent: ${accent?.second ?: "fallback"}."
+            // Never use notification-only colors as global UI text colors.
+            val bg = findColor(listOf("app_background_color", "app_bg_color", "music_background_color", "main_background_color", "background_color"))
+            val primary = findColor(listOf("app_primary_text_color", "app_text_color", "primary_text_color", "text_color"))
+            val muted = findColor(listOf("app_secondary_text_color", "secondary_text_color", "text_secondary_color"))
+            val accent = findColor(listOf("tab_accent_color", "music_playnow_progress_color", "app_color_accent"))
+            overlayBackgroundColor = bg?.first?.takeIf { isUsableColor(it) }
+            overlayTextColor = primary?.first?.takeIf { contrastRatio(it, overlayBackgroundColor ?: 0xFF06272B.toInt()) >= 4.0 }
+            overlayMutedTextColor = muted?.first?.takeIf { contrastRatio(it, overlayBackgroundColor ?: 0xFF06272B.toInt()) >= 2.4 }
+            overlayAccentColor = accent?.first?.takeIf { contrastRatio(it, overlayBackgroundColor ?: 0xFF06272B.toInt()) >= 2.0 }
+            themeOverlayStatus = "Package accessible. Background: ${bg?.second ?: "fallback"}; text: ${primary?.second ?: "fallback"}; muted: ${muted?.second ?: "fallback"}; accent: ${accent?.second ?: "fallback"}. Use SYNC after changing LG theme."
         } catch (e: Exception) {
             overlayBackgroundColor = null
             overlayTextColor = null
@@ -290,7 +325,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         loadThemeOverlayColors()
-        accentColor = overlayAccentColor ?: DEFAULT_ACCENT
+        accentColor = overlayAccentColor ?: 0xFF19B3A6.toInt()
         // Experimental build has one fixed dark appearance; the theme toggle is removed.
         lightTheme = false
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
@@ -353,8 +388,10 @@ class MainActivity : Activity() {
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
         val overlayCard = card()
-        overlayCard.addView(text("LG THEME OVERLAY TEST", 12f, MUTED, true))
-        overlayCard.addView(text("Source: com.lge.wsdeveloper.ux8.bunny.music", 12f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(4)) })
+        overlayCard.addView(text("LG MUSIC THEME SYNC", 12f, MUTED, true))
+        overlayCard.addView(text("Change your LG system theme first, then tap Sync to reread the overlay colors.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(8)) })
+        overlayCard.addView(action("SYNC LG THEME NOW", true) { syncThemeFromOverlay() }, LinearLayout.LayoutParams(-1, dp(46)))
+        overlayCard.addView(text("Source: com.lge.wsdeveloper.ux8.bunny.music", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, dp(3)) })
         overlayCard.addView(text(themeOverlayStatus, 12f, WHITE, false))
         settingsPanel.addView(overlayCard)
         val scanCard = card()
