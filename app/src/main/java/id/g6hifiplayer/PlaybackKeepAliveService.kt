@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioTrack
+import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
@@ -153,8 +154,22 @@ class PlaybackKeepAliveService : Service() {
     private fun buildNotification(player: ExoPlayer?): Notification {
         val session = ensureMediaSession(applicationContext)
         val itemMetadata = player?.currentMediaItem?.mediaMetadata
-        val title = itemMetadata?.title?.toString()?.takeIf { it.isNotBlank() } ?: "Music playback"
-        val artist = itemMetadata?.artist?.toString().orEmpty()
+        // MainActivity publishes the real tagged cover into this service-owned MediaSession.
+        // Read it back when rebuilding the foreground notification so a Pause state update
+        // cannot replace the artwork-bearing notification with an artwork-free one.
+        val sessionMetadata = try { session.controller.metadata } catch (_: Exception) { null }
+        val title = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?.takeIf { it.isNotBlank() }
+            ?: itemMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: "Music playback"
+        val artist = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            ?.takeIf { it.isNotBlank() }
+            ?: itemMetadata?.artist?.toString().orEmpty()
+        val cover = try {
+            sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+        } catch (_: Exception) { null }
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun actionPending(action: String, code: Int): PendingIntent {
             val intent = Intent(this, NotificationActionReceiver::class.java).putExtra("notification_action", action)
@@ -178,6 +193,10 @@ class PlaybackKeepAliveService : Service() {
                 if (playing) "Pause" else "Play", actionPending("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", actionPending("next", 6103)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Close player", actionPending("close", 6104)).build())
+        // Preserve the last known artwork on state-only updates (especially PLAYING -> PAUSED).
+        // The service can publish before MainActivity's next UI callback, so read MediaSession's
+        // stored bitmap rather than depending on an Activity view still being attached.
+        if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setStyle(Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
         }
