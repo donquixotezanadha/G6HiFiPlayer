@@ -262,6 +262,8 @@ class MainActivity : Activity() {
             previous.playerListener = null
         }
         activeInstance = this
+        PlaybackKeepAliveService.setAudioTrackCallback { track -> MainActivity.onServiceAudioTrackCreated(track) }
+        PlaybackKeepAliveService.setPlaybackStoppedCallback { MainActivity.onServicePlaybackStopped() }
         player = PlaybackKeepAliveService.existingPlayer()
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, handler)
@@ -1646,18 +1648,20 @@ class MainActivity : Activity() {
         }
     }
     private fun playPrevious() {
-        if (tracks.isEmpty()) { statusView.text = "Choose a folder or audio file first."; return }
-        if (playbackOrder.isEmpty()) playbackOrder = tracks.indices.toList()
-        val position = playbackOrder.indexOf(currentIndex).let { if (it < 0) 0 else it }
-        val target = playbackOrder[(position - 1 + playbackOrder.size) % playbackOrder.size]
-        playTrackAt(target, true)
+        val p = player
+        if (tracks.isEmpty() || p == null || p.mediaItemCount == 0) {
+            statusView.text = "Choose a folder or audio file first."
+            return
+        }
+        PlaybackKeepAliveService.dispatchAction(applicationContext, "previous")
     }
     private fun playNext() {
-        if (tracks.isEmpty()) { statusView.text = "Choose a folder or audio file first."; return }
-        if (playbackOrder.isEmpty()) playbackOrder = tracks.indices.toList()
-        val position = playbackOrder.indexOf(currentIndex).let { if (it < 0) -1 else it }
-        val target = playbackOrder[(position + 1).mod(playbackOrder.size)]
-        playTrackAt(target, true)
+        val p = player
+        if (tracks.isEmpty() || p == null || p.mediaItemCount == 0) {
+            statusView.text = "Choose a folder or audio file first."
+            return
+        }
+        PlaybackKeepAliveService.dispatchAction(applicationContext, "next")
     }
     private fun syncPlaybackIcon(isPlaying: Boolean? = null) {
         if (!::playView.isInitialized) return
@@ -1686,26 +1690,9 @@ class MainActivity : Activity() {
     private fun togglePlayback() {
         val p = player
         if (p == null || !prepared) { statusView.text = "Choose a track from the library first."; return }
-        try {
-            if (p.isPlaying) {
-                p.pause()
-                syncPlaybackIcon(false)
-                statusView.text = "Dijeda"
-            } else {
-                // Starting playback again must re-enable the notification after the user dismissed it.
-                notificationDismissed = false
-                p.play()
-                syncPlaybackIcon(true)
-                statusView.text = "Playing"
-            }
-            // Player.Listener publishes the state transition. Avoid a second synchronous
-            // notification/widget rebuild on the UI thread; this keeps notification taps responsive.
-            handler.post { if (!isFinishing) refreshAudioInfo() }
-        } catch (e: Exception) {
-            recordDiagnostic("PLAYBACK_TOGGLE_FAILED", e)
-            try { statusView.text = "Playback failed: " + (e.message ?: e.javaClass.simpleName) } catch (_: Exception) { }
-            syncPlaybackIcon(try { p.isPlaying } catch (_: Exception) { false })
-        }
+        // The service is the sole transport-command owner. Player.Listener updates the UI.
+        notificationDismissed = false
+        PlaybackKeepAliveService.dispatchAction(applicationContext, "toggle")
     }
 
     private fun showMetadata(uri: Uri, t: Track) {
