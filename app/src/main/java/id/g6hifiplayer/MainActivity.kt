@@ -1542,6 +1542,11 @@ class MainActivity : Activity() {
                                     exo.replaceMediaItem(mediaPosition, MediaItem.Builder()
                                         .setMediaId(failedTrack.uri.toString())
                                         .setUri(Uri.fromFile(wav))
+                                        .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder()
+                                            .setTitle(failedTrack.title)
+                                            .setArtist(failedTrack.artist)
+                                            .setAlbumTitle(failedTrack.album)
+                                            .build())
                                         .build())
                                     pendingAutoplay = resume
                                     exo.prepare()
@@ -1619,7 +1624,16 @@ class MainActivity : Activity() {
             exo.setHandleAudioBecomingNoisy(true)
             attachPlaybackListener(exo, track)
             val items = playbackOrder.map { trackIndex ->
-                MediaItem.Builder().setMediaId(tracks[trackIndex].uri.toString()).setUri(tracks[trackIndex].uri).build()
+                val itemTrack = tracks[trackIndex]
+                MediaItem.Builder()
+                    .setMediaId(itemTrack.uri.toString())
+                    .setUri(itemTrack.uri)
+                    .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(itemTrack.title)
+                        .setArtist(itemTrack.artist)
+                        .setAlbumTitle(itemTrack.album)
+                        .build())
+                    .build()
             }
             val startPosition = playbackOrder.indexOf(index).coerceAtLeast(0)
             exo.setMediaItems(items, startPosition, 0L)
@@ -2089,27 +2103,9 @@ class MainActivity : Activity() {
         }
     }
     private fun createMediaSession() {
-        mediaSession = MediaSession(this, "G6HiFiPlayer").apply {
-            setCallback(object : MediaSession.Callback() {
-                override fun onPlay() {
-                    val activity = activeInstance ?: return
-                    if (activity.player != null && activity.prepared && activity.player?.isPlaying != true) activity.togglePlayback()
-                }
-                override fun onPause() {
-                    val activity = activeInstance ?: return
-                    if (activity.player?.isPlaying == true) activity.togglePlayback()
-                }
-                override fun onSkipToNext() { activeInstance?.playNext() }
-                override fun onSkipToPrevious() { activeInstance?.playPrevious() }
-                override fun onSeekTo(pos: Long) {
-                    activeInstance?.player?.let { p -> try { p.seekTo(pos.coerceIn(0L, activityDuration(p).toLong())) } catch (_: Exception) { } }
-                }
-            })
-            isActive = false
-        }
+        // The playback service owns the session and all transport callbacks.
+        mediaSession = PlaybackKeepAliveService.getOrCreateMediaSession(applicationContext)
     }
-    private fun activityDuration(p: ExoPlayer): Int = try { p.duration.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() } catch (_: Exception) { 0 }
-
     private fun updatePlaybackNotification(isPlaying: Boolean) {
         if (notificationDismissed || !prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
@@ -2186,7 +2182,7 @@ class MainActivity : Activity() {
             .setContentInfo(null)
             .setContentIntent(contentIntent)
             // Swiping away the notification hides it without stopping playback.
-            .setDeleteIntent(actionIntent("close", 6104))
+            .setDeleteIntent(actionIntent("dismiss", 6105))
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
@@ -2662,7 +2658,9 @@ class MainActivity : Activity() {
             try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
             handler.removeCallbacks(wiredDisconnectCheck)
             clearActiveAudioTrack()
-            recordDiagnostic("ACTIVITY_DESTROYED playback=retained serviceOwnsPlayer=true")
+            if (activeInstance === this) activeInstance = null
+            mediaSession = null
+            recordDiagnostic("ACTIVITY_DESTROYED playback=retained serviceOwnsPlayer=true mediaSession=service-owned")
             super.onDestroy()
             return
         }
@@ -2672,9 +2670,8 @@ class MainActivity : Activity() {
         notificationWidgetExecutor.shutdown()
         clearActiveAudioTrack()
         // PlaybackKeepAliveService owns the ExoPlayer; Activity teardown never releases it.
-        try { mediaSession?.isActive = false; mediaSession?.release() } catch (_: Exception) { }
+        // The service, not this Activity, owns the MediaSession and foreground notification.
         mediaSession = null
-        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
         if (activeInstance === this) activeInstance = null
         player = null
         super.onDestroy()
@@ -2711,19 +2708,8 @@ class MainActivity : Activity() {
         }
 
         @JvmStatic fun notificationAction(action: String) {
-            val activity = activeInstance ?: return
-            // A task removed from Recents can destroy the Activity object while its playback
-            // owner is intentionally retained. Do not reject transport commands solely because
-            // isDestroyed is true: that was the reason notification controls became inert.
-            val dispatch = Runnable {
-                if (!activity.isFinishing || activity.player?.let { it.isPlaying || it.playWhenReady } == true) {
-                    activity.handleNotificationAction(action)
-                }
-            }
-            // BroadcastReceiver callbacks normally arrive on the main thread. Avoid another queue
-            // hop in that case; never touch views off-main.
-            if (Looper.myLooper() == Looper.getMainLooper()) dispatch.run()
-            else activity.handler.post(dispatch)
+            // Compatibility entry point for widget/legacy callers; dispatch directly to service.
+            PlaybackKeepAliveService.dispatchAction(activeInstance?.applicationContext, action)
         }
         private const val REQUEST_FOLDER = 1002
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
