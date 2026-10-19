@@ -2560,6 +2560,17 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         persistPlaybackState(force = true)
         handler.removeCallbacks(ticker)
+
+        // Removing the task can destroy the Activity while the foreground playback session
+        // must continue. Keep the live owner, AudioTrack routing callback, MediaSession and
+        // player intact until explicit Close or a task removal while playback is inactive.
+        val keepPlaybackAlive = player?.let { it.isPlaying || it.playWhenReady } == true
+        if (keepPlaybackAlive) {
+            recordDiagnostic("ACTIVITY_DESTROYED playback=retained reason=active-foreground-session")
+            super.onDestroy()
+            return
+        }
+
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
         handler.removeCallbacks(wiredDisconnectCheck)
         notificationWidgetExecutor.shutdown()
@@ -2569,7 +2580,8 @@ class MainActivity : Activity() {
         mediaSession = null
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
         if (activeInstance === this) activeInstance = null
-        player = null; super.onDestroy()
+        player = null
+        super.onDestroy()
     }
     companion object {
         private const val REQUEST_AUDIO = 1001
@@ -2578,6 +2590,25 @@ class MainActivity : Activity() {
         private const val KEY_LAST_TRACK_URI = "last_playback_track_uri"
         private const val KEY_LAST_POSITION_MS = "last_playback_position_ms"
         private var activeInstance: MainActivity? = null
+
+        /**
+         * Returns true when a Recent Apps dismissal must not tear down an active playback
+         * session. A paused/inactive session may be closed with the task.
+         */
+        @JvmStatic fun handleRecentTaskRemoval(): Boolean {
+            val activity = activeInstance ?: return false
+            val active = try {
+                activity.player?.let { it.isPlaying || it.playWhenReady } == true
+            } catch (_: Exception) { false }
+            if (active) {
+                activity.recordDiagnostic("RECENTS_TASK_REMOVED playback=kept-alive foreground-service=retained")
+                return true
+            }
+            activity.recordDiagnostic("RECENTS_TASK_REMOVED playback=inactive action=close-session")
+            activity.stopAndDismissPlayback()
+            return false
+        }
+
         @JvmStatic fun notificationAction(action: String) {
             val activity = activeInstance ?: return
             val dispatch = Runnable {
