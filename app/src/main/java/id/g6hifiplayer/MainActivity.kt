@@ -1803,7 +1803,8 @@ class MainActivity : Activity() {
     }
 
     private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        val picked = DEFAULT_ACCENT
+        // Prefer the installed LG overlay accent; use the app default only when unavailable.
+        val picked = overlayAccentColor ?: DEFAULT_ACCENT
         if (picked == accentColor) return
         accentColor = picked
         if (::seek.isInitialized) {
@@ -1821,7 +1822,7 @@ class MainActivity : Activity() {
             syncPlaybackIcon()
         }
         if (::scanProgress.isInitialized) {
-            scanProgress.progressTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
+            scanProgress.progressTintList = ColorStateList.valueOf(accentColor)
             scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
         }
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
