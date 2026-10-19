@@ -79,9 +79,13 @@ class PlaybackKeepAliveService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // A deliberate swipe-away from Recents is treated as a full close, not as Pause.
-        MainActivity.notificationAction("close")
-        stopSelf()
+        // Recents removal is not a Close command while audio is actively playing.
+        // Keep the foreground service alive; only clean up an inactive session.
+        val keepAlive = MainActivity.handleRecentTaskRemoval()
+        if (!keepAlive) {
+            stopForegroundCompat()
+            stopSelf()
+        }
         super.onTaskRemoved(rootIntent)
     }
 
