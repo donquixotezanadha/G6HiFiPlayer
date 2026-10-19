@@ -2237,6 +2237,32 @@ class MainActivity : Activity() {
         recordDiagnostic("PLAYER_CLOSE playback=stopped player=released mediaSession=inactive foregroundService=stopped")
     }
 
+    private fun resetPlaybackUiAfterServiceStop() {
+        pendingAutoplay = false
+        prepared = false
+        seeking = false
+        clearActiveAudioTrack()
+        playerListener?.let { listener -> player?.let { p -> try { p.removeListener(listener) } catch (_: Exception) { } } }
+        playerListener = null
+        player = null
+        currentIndex = -1
+        sourceRate = null
+        sourceBitrate = null
+        durationMs = 0
+        if (::playView.isInitialized) {
+            playView.isEnabled = false
+            syncPlaybackIcon(false)
+        }
+        if (::titleView.isInitialized) titleView.text = "Nothing playing"
+        if (::artistView.isInitialized) artistView.text = ""
+        if (::albumView.isInitialized) albumView.text = ""
+        if (::elapsed.isInitialized) elapsed.text = "0:00"
+        if (::duration.isInitialized) duration.text = "0:00"
+        if (::seek.isInitialized) { seek.progress = 0; seek.max = 1 }
+        if (::statusView.isInitialized) statusView.text = "Playback stopped."
+        mediaSession = PlaybackKeepAliveService.getOrCreateMediaSession(applicationContext)
+    }
+
     private fun handleNotificationAction(action: String) {
         when (action) {
             "previous" -> { notificationDismissed = false; playPrevious() }
@@ -2710,6 +2736,16 @@ class MainActivity : Activity() {
         @JvmStatic fun notificationAction(action: String) {
             // Compatibility entry point for widget/legacy callers; dispatch directly to service.
             PlaybackKeepAliveService.dispatchAction(activeInstance?.applicationContext, action)
+        }
+
+        @JvmStatic fun onServicePlaybackStopped() {
+            val activity = activeInstance ?: return
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    activity.resetPlaybackUiAfterServiceStop()
+                    try { activity.finishAndRemoveTask() } catch (_: Exception) { activity.finish() }
+                }
+            }
         }
         private const val REQUEST_FOLDER = 1002
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
