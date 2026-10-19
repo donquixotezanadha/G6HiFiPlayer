@@ -1007,11 +1007,13 @@ class MainActivity : Activity() {
         val live = player ?: PlaybackKeepAliveService.existingPlayer()
         if (live != null && live.mediaItemCount > 0) {
             val restoredOrder = (0 until live.mediaItemCount).mapNotNull { position ->
-                val uri = live.getMediaItemAt(position).localConfiguration?.uri
-                library.indexOfFirst { it.uri == uri }.takeIf { it >= 0 }
+                val item = live.getMediaItemAt(position)
+                val uri = item.localConfiguration?.uri
+                library.indexOfFirst { it.uri == uri || it.uri.toString() == item.mediaId }.takeIf { it >= 0 }
             }.distinct()
-            val currentUri = live.currentMediaItem?.localConfiguration?.uri
-            val restoredIndex = library.indexOfFirst { it.uri == currentUri }
+            val currentItem = live.currentMediaItem
+            val currentUri = currentItem?.localConfiguration?.uri
+            val restoredIndex = library.indexOfFirst { it.uri == currentUri || it.uri.toString() == currentItem?.mediaId }
             if (restoredIndex >= 0) {
                 lastPlaybackRestoreAttempted = true
                 playbackOrder = restoredOrder.ifEmpty { listOf(restoredIndex) }
@@ -1451,7 +1453,10 @@ class MainActivity : Activity() {
         val listener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val uri = mediaItem?.localConfiguration?.uri
-                val itemPosition = playbackOrder.indexOfFirst { tracks.getOrNull(it)?.uri == uri }
+                val mediaId = mediaItem?.mediaId
+                val itemPosition = playbackOrder.indexOfFirst { index ->
+                    tracks.getOrNull(index)?.let { it.uri == uri || it.uri.toString() == mediaId } == true
+                }
                 if (itemPosition >= 0) {
                     currentIndex = playbackOrder[itemPosition]
                     val activeTrack = tracks.getOrNull(currentIndex) ?: return
@@ -1534,7 +1539,10 @@ class MainActivity : Activity() {
                                 try {
                                     val mediaPosition = exo.currentMediaItemIndex
                                     if (mediaPosition !in 0 until exo.mediaItemCount) throw IllegalStateException("Current queue item is unavailable")
-                                    exo.replaceMediaItem(mediaPosition, MediaItem.fromUri(Uri.fromFile(wav)))
+                                    exo.replaceMediaItem(mediaPosition, MediaItem.Builder()
+                                        .setMediaId(failedTrack.uri.toString())
+                                        .setUri(Uri.fromFile(wav))
+                                        .build())
                                     pendingAutoplay = resume
                                     exo.prepare()
                                     statusView.text = "FFmpeg PCM fallback • preparing " + failedTrack.title
