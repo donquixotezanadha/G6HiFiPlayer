@@ -1431,6 +1431,7 @@ class MainActivity : Activity() {
 
     private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null) {
         if (index !in tracks.indices) return
+        startPlaybackKeepAlive()
         // Starting any song from an album places the complete album in the visible queue.
         val requestedOrder = queue?.filter { it in tracks.indices }?.distinct().orEmpty()
         if (requestedOrder.isNotEmpty() && index in requestedOrder) {
@@ -1578,6 +1579,17 @@ class MainActivity : Activity() {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
+        }
+    }
+
+    private fun startPlaybackKeepAlive() {
+        val serviceIntent = Intent(this, PlaybackKeepAliveService::class.java).setAction(PlaybackKeepAliveService.ACTION_START)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent)
+            else startService(serviceIntent)
+            recordDiagnostic("PLAYBACK_SERVICE_START_REQUESTED foreground=true")
+        } catch (e: Exception) {
+            recordDiagnostic("PLAYBACK_SERVICE_START_FAILED", e)
         }
     }
 
@@ -2094,15 +2106,15 @@ class MainActivity : Activity() {
             .setContentInfo(null)
             .setContentIntent(contentIntent)
             // Swiping away the notification hides it without stopping playback.
-            .setDeleteIntent(actionIntent("dismiss", 6104))
+            .setDeleteIntent(actionIntent("close", 6104))
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
-            .setOngoing(false)
+            .setOngoing(true)
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", actionIntent("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Pause" else "Play", actionIntent("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", actionIntent("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss notification", actionIntent("dismiss", 6104)).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Close player", actionIntent("close", 6104)).build())
         if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
         if (Build.VERSION.SDK_INT >= 21) {
             builder.setStyle(Notification.MediaStyle().setMediaSession(session?.sessionToken).setShowActionsInCompactView(0, 1, 2))
@@ -2140,9 +2152,11 @@ class MainActivity : Activity() {
             mediaSession?.setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_STOPPED, 0L, 0f).setActions(0L).build())
             mediaSession?.isActive = false
         } catch (_: Exception) { }
+        try { stopService(Intent(this, PlaybackKeepAliveService::class.java)) } catch (_: Exception) { }
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
+        try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, lightTheme, 0, 0) } catch (_: Exception) { }
         refreshAudioInfo()
-        recordDiagnostic("NOTIFICATION_DISMISS playback=stopped player=released mediaSession=inactive")
+        recordDiagnostic("PLAYER_CLOSE playback=stopped player=released mediaSession=inactive foregroundService=stopped")
     }
 
     private fun handleNotificationAction(action: String) {
@@ -2154,9 +2168,10 @@ class MainActivity : Activity() {
                 // Player.Listener owns notification publication to avoid duplicate, laggy updates.
                 togglePlayback()
             }
-            "dismiss" -> {
+            "close", "dismiss" -> {
                 notificationDismissed = true
-                try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
+                stopAndDismissPlayback()
+                try { finishAndRemoveTask() } catch (_: Exception) { finish() }
             }
         }
     }
@@ -2501,7 +2516,7 @@ class MainActivity : Activity() {
             show("player")
             return
         }
-        super.onBackPressed()
+        handleNotificationAction("close")
     }
 
     private inner class SwipeFrameLayout(
