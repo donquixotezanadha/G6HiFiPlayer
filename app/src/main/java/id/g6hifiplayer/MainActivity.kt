@@ -1611,7 +1611,11 @@ class MainActivity : Activity() {
             // Player.Listener publishes the state transition. Avoid a second synchronous
             // notification/widget rebuild on the UI thread; this keeps notification taps responsive.
             handler.post { if (!isFinishing) refreshAudioInfo() }
-        } catch (e: Exception) { statusView.text = "Playback failed: " + e.message }
+        } catch (e: Exception) {
+            recordDiagnostic("PLAYBACK_TOGGLE_FAILED", e)
+            try { statusView.text = "Playback failed: " + (e.message ?: e.javaClass.simpleName) } catch (_: Exception) { }
+            syncPlaybackIcon(try { p.isPlaying } catch (_: Exception) { false })
+        }
     }
 
     private fun showMetadata(uri: Uri, t: Track) {
@@ -2374,9 +2378,14 @@ class MainActivity : Activity() {
     }
     private fun addToQueue(index: Int) {
         if (index !in tracks.indices) return
-        val albumIndices = tracks.withIndex().filter { it.value.album == tracks[index].album }.map { it.index }
+        val albumIndices = tracks.withIndex()
+            .filter { it.value.album == tracks[index].album }
+            .map { it.index }
         playbackQueue = (playbackQueue + albumIndices.ifEmpty { listOf(index) }).distinct()
+        // The visible queue and the sequence used by STATE_ENDED/Next must be identical.
+        playbackOrder = playbackQueue.toList()
         renderQueueRows()
+        recordDiagnostic("QUEUE_ALBUM_ADDED album=${tracks[index].album} tracks=${albumIndices.size} queueSize=${playbackOrder.size}")
         Toast.makeText(this, "Album added to queue: ${tracks[index].album}", Toast.LENGTH_SHORT).show()
     }
 
@@ -2384,7 +2393,11 @@ class MainActivity : Activity() {
         val valid = indices.filter { it in tracks.indices }.distinct()
         if (valid.isEmpty()) return
         playbackQueue = (playbackQueue + valid).distinct()
+        // Keep queue display and playback traversal in sync; otherwise playback can stop at
+        // the end of the original album even though another album is visibly queued.
+        playbackOrder = playbackQueue.toList()
         renderQueueRows()
+        recordDiagnostic("QUEUE_ALBUM_ADDED album=$album tracks=${valid.size} queueSize=${playbackOrder.size}")
         Toast.makeText(this, "Album added to queue: $album", Toast.LENGTH_SHORT).show()
     }
 
@@ -2611,8 +2624,13 @@ class MainActivity : Activity() {
 
         @JvmStatic fun notificationAction(action: String) {
             val activity = activeInstance ?: return
+            // A task removed from Recents can destroy the Activity object while its playback
+            // owner is intentionally retained. Do not reject transport commands solely because
+            // isDestroyed is true: that was the reason notification controls became inert.
             val dispatch = Runnable {
-                if (!activity.isFinishing && !activity.isDestroyed) activity.handleNotificationAction(action)
+                if (!activity.isFinishing || activity.player?.let { it.isPlaying || it.playWhenReady } == true) {
+                    activity.handleNotificationAction(action)
+                }
             }
             // BroadcastReceiver callbacks normally arrive on the main thread. Avoid another queue
             // hop in that case; never touch views off-main.
