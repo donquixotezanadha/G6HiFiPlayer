@@ -49,7 +49,12 @@ class PlaybackKeepAliveService : Service() {
             ACTION_TOGGLE -> sharedPlayer?.let { if (it.isPlaying || it.playWhenReady) it.pause() else it.play() }
             ACTION_PLAY -> sharedPlayer?.play()
             ACTION_PAUSE -> sharedPlayer?.pause()
-            ACTION_NEXT -> sharedPlayer?.let { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
+            ACTION_NEXT -> sharedPlayer?.let {
+                if (it.mediaItemCount > 0) {
+                    if (it.hasNextMediaItem()) it.seekToNextMediaItem()
+                    else it.seekToDefaultPosition(0)
+                }
+            }
             ACTION_PREVIOUS -> sharedPlayer?.let {
                 if (it.currentPosition > PREVIOUS_RESTART_THRESHOLD_MS) it.seekTo(0L)
                 else if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem()
