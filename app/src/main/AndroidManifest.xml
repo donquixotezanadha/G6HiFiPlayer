@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="id.g6hifiplayer">
+    package="id.lgg6adaptif">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -12,12 +12,12 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Music"
+        android:label="lgg6adaptif"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
 
         <activity
-            android:name="id.g6hifiplayer.MainActivity"
+            android:name="id.lgg6adaptif.MainActivity"
             android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
@@ -26,11 +26,11 @@
             </intent-filter>
         </activity>
         <service
-            android:name="id.g6hifiplayer.PlaybackKeepAliveService"
+            android:name="id.lgg6adaptif.PlaybackKeepAliveService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
-        <receiver android:name="id.g6hifiplayer.NotificationActionReceiver" android:exported="false" />
-        <receiver android:name="id.g6hifiplayer.G6MusicWidgetProvider" android:exported="true">
+        <receiver android:name="id.lgg6adaptif.NotificationActionReceiver" android:exported="false" />
+        <receiver android:name="id.lgg6adaptif.G6MusicWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
