@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioTrack
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
@@ -91,7 +92,7 @@ class PlaybackKeepAliveService : Service() {
         try { mediaSession?.isActive = false } catch (_: Exception) { }
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
         try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, false, 0, 0) } catch (_: Exception) { }
-        try { MainActivity.onServicePlaybackStopped() } catch (_: Exception) { }
+        try { playbackStoppedCallback?.invoke() } catch (e: Exception) { android.util.Log.w(TAG, "UI stop callback failed", e) }
         stopForegroundCompat()
         stopSelf()
     }
@@ -211,6 +212,11 @@ class PlaybackKeepAliveService : Service() {
         @Volatile private var sharedPlayer: ExoPlayer? = null
         @Volatile private var serviceInstance: PlaybackKeepAliveService? = null
         @Volatile private var mediaSession: MediaSession? = null
+        @Volatile private var audioTrackCallback: ((AudioTrack) -> Unit)? = null
+        @Volatile private var playbackStoppedCallback: (() -> Unit)? = null
+
+        fun setAudioTrackCallback(callback: ((AudioTrack) -> Unit)?) { audioTrackCallback = callback }
+        fun setPlaybackStoppedCallback(callback: (() -> Unit)?) { playbackStoppedCallback = callback }
 
         fun existingPlayer(): ExoPlayer? = sharedPlayer
 
@@ -269,7 +275,7 @@ class PlaybackKeepAliveService : Service() {
                     ): AudioSink {
                         val base = AudioTrackAudioOutputProvider.Builder(context).build()
                         val tracking = TrackingAudioOutputProvider(base) { track ->
-                            MainActivity.onServiceAudioTrackCreated(track)
+                            audioTrackCallback?.invoke(track)
                         }
                         return DefaultAudioSink.Builder(context)
                             .setEnableFloatOutput(enableFloatOutput)
