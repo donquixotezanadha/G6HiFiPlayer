@@ -8,11 +8,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "id.g6hifiplayer"
+        applicationId = "id.lgg6adaptif"
         minSdk = 28
         targetSdk = 35
-        versionCode = 91
-        versionName = "0.91.0"
+        versionCode = 1
+        versionName = "0.01"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
