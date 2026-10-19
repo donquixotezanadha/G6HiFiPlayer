@@ -285,7 +285,6 @@ class MainActivity : Activity() {
         renderSongs()
         if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
         syncPlaybackIcon()
-        if (::themeOverlayStatus.isInitialized) { /* status is refreshed below on the rebuilt settings page */ }
         show("settings")
     }
 
