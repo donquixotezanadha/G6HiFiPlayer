@@ -1889,7 +1889,7 @@ class MainActivity : Activity() {
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
             val key = "player:" + t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            // A 1200px ceiling is sufficient for the full-screen backdrop on the target phone and\n            // avoids decoding/caching unnecessarily large 1600px ARGB bitmaps on track changes.\n            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
