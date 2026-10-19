@@ -91,6 +91,7 @@ class PlaybackKeepAliveService : Service() {
         try { mediaSession?.isActive = false } catch (_: Exception) { }
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
         try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, false, 0, 0) } catch (_: Exception) { }
+        try { MainActivity.onServicePlaybackStopped() } catch (_: Exception) { }
         stopForegroundCompat()
         stopSelf()
     }
