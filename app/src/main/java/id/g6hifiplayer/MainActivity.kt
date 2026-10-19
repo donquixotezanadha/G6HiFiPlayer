@@ -2247,7 +2247,7 @@ class MainActivity : Activity() {
         if (::duration.isInitialized) duration.text = "0:00"
         if (::seek.isInitialized) { seek.progress = 0; seek.max = 1 }
         if (::statusView.isInitialized) statusView.text = "Playback stopped."
-        mediaSession = PlaybackKeepAliveService.getOrCreateMediaSession(applicationContext)
+        mediaSession = null
     }
 
     private fun handleNotificationAction(action: String) {
