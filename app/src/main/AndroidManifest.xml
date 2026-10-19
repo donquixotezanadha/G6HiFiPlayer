@@ -12,7 +12,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Music"
+        android:label="g6playerexp"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
 
