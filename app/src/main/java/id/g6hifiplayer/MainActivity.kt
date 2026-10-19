@@ -66,6 +66,7 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?, val trackNumber: Int = Int.MAX_VALUE)
     private var player: ExoPlayer? = null
+    private var playerListener: Player.Listener? = null
     @Volatile private var activeAudioTrack: AudioTrack? = null
     private var audioTrackRoutingListener: AudioRouting.OnRoutingChangedListener? = null
     private var mediaSession: MediaSession? = null
@@ -256,7 +257,12 @@ class MainActivity : Activity() {
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        activeInstance?.let { previous ->
+            previous.player?.let { oldPlayer -> previous.playerListener?.let { oldPlayer.removeListener(it) } }
+            previous.playerListener = null
+        }
         activeInstance = this
+        player = PlaybackKeepAliveService.existingPlayer()
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, handler)
         createNotificationChannel()
@@ -998,6 +1004,41 @@ class MainActivity : Activity() {
 
     private fun restoreLastPlayback(library: List<Track>) {
         if (lastPlaybackRestoreAttempted || library.isEmpty()) return
+        val live = player ?: PlaybackKeepAliveService.existingPlayer()
+        if (live != null && live.mediaItemCount > 0) {
+            val restoredOrder = (0 until live.mediaItemCount).mapNotNull { position ->
+                val uri = live.getMediaItemAt(position).localConfiguration?.uri
+                library.indexOfFirst { it.uri == uri }.takeIf { it >= 0 }
+            }.distinct()
+            val currentUri = live.currentMediaItem?.localConfiguration?.uri
+            val restoredIndex = library.indexOfFirst { it.uri == currentUri }
+            if (restoredIndex >= 0) {
+                lastPlaybackRestoreAttempted = true
+                playbackOrder = restoredOrder.ifEmpty { listOf(restoredIndex) }
+                playbackQueue = playbackOrder.toList()
+                currentIndex = restoredIndex
+                player = live
+                notificationDismissed = false
+                val activeTrack = library[restoredIndex]
+                titleView.text = activeTrack.title
+                artistView.text = activeTrack.artist
+                albumView.text = activeTrack.album
+                pendingAutoplay = false
+                prepared = live.playbackState == Player.STATE_READY
+                attachPlaybackListener(live, activeTrack)
+                showMetadata(activeTrack.uri, activeTrack)
+                loadArtwork(activeTrack)
+                syncPlaybackIcon(live.isPlaying)
+                if (prepared) {
+                    durationMs = live.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
+                    duration.text = time(durationMs)
+                    seek.max = durationMs.coerceAtLeast(1)
+                    playView.isEnabled = true
+                }
+                recordDiagnostic("SERVICE_PLAYER_REATTACHED index=" + restoredIndex + " queue=" + playbackOrder.size + " playing=" + live.isPlaying + " positionMs=" + live.currentPosition)
+                return
+            }
+        }
         val prefs = getPreferences(MODE_PRIVATE)
         val savedUri = prefs.getString(KEY_LAST_TRACK_URI, null)?.takeIf { it.isNotBlank() } ?: return
         val index = library.indexOfFirst { it.uri.toString() == savedUri }
@@ -1342,31 +1383,6 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
     }
 
-    @OptIn(UnstableApi::class)
-    private fun createHiFiPlayer(): ExoPlayer {
-        val renderersFactory = object : DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioOutputPlaybackParams: Boolean
-            ): AudioSink {
-                val baseProvider = AudioTrackAudioOutputProvider.Builder(context).build()
-                val trackingProvider = TrackingAudioOutputProvider(baseProvider) { track ->
-                    attachActiveAudioTrack(track)
-                }
-                return DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
-                    .setAudioOutputProvider(trackingProvider)
-                    .build()
-            }
-        }
-        // Disable float PCM: the LG G6 direct_pcm policy lists integer PCM formats, not PCM_FLOAT.
-        // This improves format compatibility but does NOT force AUDIO_OUTPUT_FLAG_DIRECT or prove Quad DAC use.
-        renderersFactory.setEnableAudioFloatOutput(false)
-        return ExoPlayer.Builder(this, renderersFactory).build()
-    }
-
     private fun attachActiveAudioTrack(track: AudioTrack) {
         val previous = activeAudioTrack
         val previousListener = audioTrackRoutingListener
@@ -1429,10 +1445,127 @@ class MainActivity : Activity() {
         activeAudioTrack = null
     }
 
+    private fun attachPlaybackListener(exo: ExoPlayer, initialTrack: Track) {
+        playerListener?.let { try { exo.removeListener(it) } catch (_: Exception) { } }
+        var ffmpegFallbackAttempted = false
+        val listener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val uri = mediaItem?.localConfiguration?.uri
+                val itemPosition = playbackOrder.indexOfFirst { tracks.getOrNull(it)?.uri == uri }
+                if (itemPosition >= 0) {
+                    currentIndex = playbackOrder[itemPosition]
+                    val activeTrack = tracks.getOrNull(currentIndex) ?: return
+                    notificationDismissed = false
+                    titleView.text = activeTrack.title
+                    artistView.text = activeTrack.artist
+                    albumView.text = activeTrack.album
+                    sourceRate = null
+                    sourceBitrate = null
+                    showMetadata(activeTrack.uri, activeTrack)
+                    loadArtwork(activeTrack)
+                    if (::queueRows.isInitialized) renderQueueRows()
+                    recordDiagnostic("GAPLESS_MEDIA_ITEM_TRANSITION index=" + currentIndex + " playlistIndex=" + itemPosition + " reason=" + reason)
+                    if (exo.playbackState == Player.STATE_READY) {
+                        prepared = true
+                        durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
+                        duration.text = time(durationMs)
+                        seek.max = durationMs.coerceAtLeast(1)
+                        updatePlaybackNotification(exo.isPlaying)
+                    }
+                }
+            }
+            override fun onPlaybackStateChanged(state: Int) {
+                when (state) {
+                    Player.STATE_READY -> {
+                        prepared = true
+                        val activeTrack = tracks.getOrNull(currentIndex) ?: initialTrack
+                        durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
+                        seek.max = durationMs.coerceAtLeast(1)
+                        duration.text = time(durationMs)
+                        pendingRestorePositionMs?.let { savedPosition ->
+                            val bounded = if (durationMs > 0) savedPosition.coerceAtMost(durationMs.toLong()) else savedPosition
+                            try { exo.seekTo(bounded) } catch (e: Exception) { recordDiagnostic("LAST_PLAYBACK_SEEK_RESTORE_FAILED positionMs=" + bounded, e) }
+                            pendingRestorePositionMs = null
+                            recordDiagnostic("LAST_PLAYBACK_RESTORE_POSITION_APPLIED positionMs=" + bounded + " durationMs=" + durationMs)
+                        }
+                        playView.isEnabled = true
+                        statusView.text = if (exo.isPlaying || (pendingAutoplay && exo.playWhenReady)) "Playing • " + activeTrack.title
+                            else "Ready • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "source sample rate unknown")
+                        if (pendingAutoplay) exo.play()
+                        pendingAutoplay = false
+                        mediaSession?.isActive = true
+                        refreshAudioInfo()
+                        updatePlaybackNotification(exo.isPlaying)
+                    }
+                    Player.STATE_ENDED -> {
+                        syncPlaybackIcon(false)
+                        statusView.text = "Album/queue finished."
+                        refreshAudioInfo()
+                        updatePlaybackNotification(false)
+                    }
+                }
+            }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (prepared) {
+                    if (isPlaying) notificationDismissed = false
+                    syncPlaybackIcon(isPlaying)
+                    refreshAudioInfo()
+                    updatePlaybackNotification(isPlaying)
+                    updateActiveRoute()
+                }
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                val failedIndex = currentIndex
+                val failedTrack = tracks.getOrNull(failedIndex) ?: initialTrack
+                if (!ffmpegFallbackAttempted) {
+                    ffmpegFallbackAttempted = true
+                    val resume = pendingAutoplay || exo.playWhenReady || exo.isPlaying
+                    prepared = false
+                    playView.isEnabled = false
+                    statusView.text = "Native decoder failed; trying FFmpeg fallback…"
+                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=" + failedTrack.uri + " code=" + error.errorCodeName, error)
+                    FfmpegAudioDecoder(this@MainActivity).decodeToWav(failedTrack.uri) { result ->
+                        handler.post {
+                            if (player !== exo || isFinishing || currentIndex != failedIndex) {
+                                result.getOrNull()?.delete()
+                                return@post
+                            }
+                            result.onSuccess { wav ->
+                                try {
+                                    val mediaPosition = exo.currentMediaItemIndex
+                                    if (mediaPosition !in 0 until exo.mediaItemCount) throw IllegalStateException("Current queue item is unavailable")
+                                    exo.replaceMediaItem(mediaPosition, MediaItem.fromUri(Uri.fromFile(wav)))
+                                    pendingAutoplay = resume
+                                    exo.prepare()
+                                    statusView.text = "FFmpeg PCM fallback • preparing " + failedTrack.title
+                                    recordDiagnostic("FFMPEG_FALLBACK_READY file=" + wav.name + " queuePreserved=true no-explicit-resampling=true")
+                                } catch (e: Exception) {
+                                    playView.isEnabled = true
+                                    statusView.text = "FFmpeg fallback could not start: " + (e.message ?: e.javaClass.simpleName)
+                                    recordDiagnostic("FFMPEG_FALLBACK_PLAYER_FAILED", e)
+                                }
+                            }.onFailure { e ->
+                                playView.isEnabled = true
+                                statusView.text = "Audio decode failed (Media3 + FFmpeg): " + (e.message ?: e.javaClass.simpleName)
+                                recordDiagnostic("FFMPEG_FALLBACK_FAILED", e)
+                            }
+                        }
+                    }
+                } else {
+                    playView.isEnabled = true
+                    statusView.text = "Media3/FFmpeg playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format")
+                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR_AFTER_FFMPEG code=" + error.errorCodeName, error)
+                }
+                refreshAudioInfo()
+            }
+        }
+        playerListener = listener
+        exo.addListener(listener)
+    }
+
     private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null) {
         if (index !in tracks.indices) return
         startPlaybackKeepAlive()
-        // Starting any song from an album places the complete album in the visible queue.
         val requestedOrder = queue?.filter { it in tracks.indices }?.distinct().orEmpty()
         if (requestedOrder.isNotEmpty() && index in requestedOrder) {
             playbackOrder = requestedOrder
@@ -1442,118 +1575,53 @@ class MainActivity : Activity() {
             playbackOrder = albumOrder.ifEmpty { listOf(index) }
             playbackQueue = playbackOrder
         }
+        if (index !in playbackOrder) {
+            playbackOrder = listOf(index)
+            playbackQueue = playbackOrder
+        }
         persistPlaybackState(force = true)
         currentIndex = index
         notificationDismissed = false
         if (::queueRows.isInitialized) renderQueueRows()
-        val t = tracks[index]
+        val track = tracks[index]
         pendingAutoplay = autoplay
         prepared = false
         sourceRate = null
         sourceBitrate = null
         durationMs = 0
-        clearActiveAudioTrack()
-        try { player?.release() } catch (_: Exception) { }
-        player = null
         lastActiveRouteKey = null
-        titleView.text = t.title; titleView.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT); titleView.gravity = Gravity.START or Gravity.CENTER_VERTICAL; titleView.setPadding(0, dp(2), 0, dp(1)); artistView.text = t.artist; albumView.text = t.album
-        elapsed.text = "0:00"; duration.text = "0:00"; seek.progress = 0; seek.max = 1
-        playView.isEnabled = false; syncPlaybackIcon(false)
-        statusView.text = "Loading with the Media3 engine: " + t.title + "…"
-        showMetadata(t.uri, t); loadArtwork(t)
+        titleView.text = track.title
+        titleView.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        titleView.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        titleView.setPadding(0, dp(2), 0, dp(1))
+        artistView.text = track.artist
+        albumView.text = track.album
+        elapsed.text = "0:00"
+        duration.text = "0:00"
+        seek.progress = 0
+        seek.max = 1
+        playView.isEnabled = false
+        syncPlaybackIcon(false)
+        statusView.text = "Loading with the Media3 engine: " + track.title + "…"
+        showMetadata(track.uri, track)
+        loadArtwork(track)
         try {
-            val exo = createHiFiPlayer()
+            val exo = PlaybackKeepAliveService.getOrCreatePlayer(applicationContext)
             player = exo
             exo.setHandleAudioBecomingNoisy(true)
-            var ffmpegFallbackAttempted = false
-            exo.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    when (state) {
-                        Player.STATE_READY -> {
-                            prepared = true
-                            durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
-                            seek.max = durationMs.coerceAtLeast(1); this@MainActivity.duration.text = time(durationMs)
-                            pendingRestorePositionMs?.let { savedPosition ->
-                                val boundedPosition = if (durationMs > 0) savedPosition.coerceAtMost(durationMs.toLong()) else savedPosition
-                                try { exo.seekTo(boundedPosition) } catch (e: Exception) { recordDiagnostic("LAST_PLAYBACK_SEEK_RESTORE_FAILED positionMs=$boundedPosition", e) }
-                                pendingRestorePositionMs = null
-                                recordDiagnostic("LAST_PLAYBACK_RESTORE_POSITION_APPLIED positionMs=$boundedPosition durationMs=$durationMs")
-                            }
-                            playView.isEnabled = true
-                            statusView.text = "Ready • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "source sample rate unknown")
-                            if (pendingAutoplay) { exo.play(); syncPlaybackIcon(true); statusView.text = "Playing • " + t.title }
-                            else syncPlaybackIcon(false)
-                            pendingAutoplay = false
-                            mediaSession?.isActive = true
-                            refreshAudioInfo(); updatePlaybackNotification(exo.isPlaying)
-                        }
-                        Player.STATE_ENDED -> {
-                            syncPlaybackIcon(false)
-                            val q = playbackOrder.indexOf(currentIndex)
-                            if (q >= 0 && q + 1 < playbackOrder.size) playTrackAt(playbackOrder[q + 1], true)
-                            else { statusView.text = "Album/queue finished."; refreshAudioInfo(); updatePlaybackNotification(false) }
-                        }
-                    }
-                }
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (prepared) {
-                        // A genuine transition back to playback must restore a notification dismissed earlier.
-                        if (isPlaying) notificationDismissed = false
-                        syncPlaybackIcon(isPlaying)
-                        refreshAudioInfo()
-                        updatePlaybackNotification(isPlaying)
-                        updateActiveRoute()
-                    }
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    prepared = false
-                    if (!ffmpegFallbackAttempted) {
-                        ffmpegFallbackAttempted = true
-                        val shouldResumePlayback = pendingAutoplay || exo.playWhenReady || exo.isPlaying
-                        playView.isEnabled = false
-                        statusView.text = "Native decoder failed; trying FFmpeg fallback…"
-                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=${t.uri} code=${error.errorCodeName}", error)
-                        FfmpegAudioDecoder(this@MainActivity).decodeToWav(t.uri) { result ->
-                            handler.post {
-                                if (player !== exo || isFinishing) {
-                                    result.getOrNull()?.delete()
-                                    return@post
-                                }
-                                result.onSuccess { wav ->
-                                    try {
-                                        exo.stop()
-                                        exo.clearMediaItems()
-                                        pendingAutoplay = shouldResumePlayback
-                                        exo.setMediaItem(MediaItem.fromUri(Uri.fromFile(wav)))
-                                        exo.prepare()
-                                        statusView.text = "FFmpeg PCM fallback • preparing " + t.title
-                                        recordDiagnostic("FFMPEG_FALLBACK_READY file=${wav.name} note=decoded-to-24bit-PCM-WAV-no-explicit-resampling")
-                                    } catch (e: Exception) {
-                                        playView.isEnabled = true
-                                        statusView.text = "FFmpeg fallback could not start: " + (e.message ?: e.javaClass.simpleName)
-                                        recordDiagnostic("FFMPEG_FALLBACK_PLAYER_FAILED", e)
-                                    }
-                                }.onFailure { e ->
-                                    playView.isEnabled = true
-                                    statusView.text = "Audio decode failed (Media3 + FFmpeg): " + (e.message ?: e.javaClass.simpleName)
-                                    recordDiagnostic("FFMPEG_FALLBACK_FAILED", e)
-                                }
-                            }
-                        }
-                    } else {
-                        playView.isEnabled = true
-                        statusView.text = "Media3/FFmpeg playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format")
-                        recordDiagnostic("MEDIA3_PLAYBACK_ERROR_AFTER_FFMPEG code=${error.errorCodeName}", error)
-                    }
-                    refreshAudioInfo()
-                }
-            })
-            exo.setMediaItem(MediaItem.fromUri(t.uri)); exo.prepare()
+            attachPlaybackListener(exo, track)
+            val items = playbackOrder.map { trackIndex ->
+                MediaItem.Builder().setMediaId(tracks[trackIndex].uri.toString()).setUri(tracks[trackIndex].uri).build()
+            }
+            val startPosition = playbackOrder.indexOf(index).coerceAtLeast(0)
+            exo.setMediaItems(items, startPosition, 0L)
+            exo.prepare()
+            recordDiagnostic("PLAYBACK_QUEUE_SUBMITTED serviceOwned=true items=" + items.size + " startIndex=" + startPosition + " gapless=Media3-playlist")
         } catch (e: Exception) {
-            playView.isEnabled = true; statusView.text = "Unable to open file: " + e.message
+            playView.isEnabled = true
+            statusView.text = "Unable to open file: " + e.message
             recordDiagnostic("MEDIA3_INITIALIZATION_FAILED", e)
         }
-        // Avoid rebuilding the entire album grid for every playback state change.
     }
     private fun playPrevious() {
         if (tracks.isEmpty()) { statusView.text = "Choose a folder or audio file first."; return }
@@ -2136,7 +2204,9 @@ class MainActivity : Activity() {
         prepared = false
         seeking = false
         clearActiveAudioTrack()
-        try { player?.stop(); player?.clearMediaItems(); player?.release() } catch (_: Exception) { }
+        try { PlaybackKeepAliveService.stopPlayback(this) } catch (_: Exception) { }
+        playerListener?.let { listener -> player?.let { p -> try { p.removeListener(listener) } catch (_: Exception) { } } }
+        playerListener = null
         player = null
         currentIndex = -1
         sourceRate = null
@@ -2577,9 +2647,14 @@ class MainActivity : Activity() {
         // Removing the task can destroy the Activity while the foreground playback session
         // must continue. Keep the live owner, AudioTrack routing callback, MediaSession and
         // player intact until explicit Close or a task removal while playback is inactive.
+        playerListener?.let { listener -> player?.let { p -> try { p.removeListener(listener) } catch (_: Exception) { } } }
+        playerListener = null
         val keepPlaybackAlive = player?.let { it.isPlaying || it.playWhenReady } == true
         if (keepPlaybackAlive) {
-            recordDiagnostic("ACTIVITY_DESTROYED playback=retained reason=active-foreground-session")
+            try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
+            handler.removeCallbacks(wiredDisconnectCheck)
+            clearActiveAudioTrack()
+            recordDiagnostic("ACTIVITY_DESTROYED playback=retained serviceOwnsPlayer=true")
             super.onDestroy()
             return
         }
@@ -2588,7 +2663,7 @@ class MainActivity : Activity() {
         handler.removeCallbacks(wiredDisconnectCheck)
         notificationWidgetExecutor.shutdown()
         clearActiveAudioTrack()
-        try { player?.release() } catch (_: Exception) { }
+        // PlaybackKeepAliveService owns the ExoPlayer; Activity teardown never releases it.
         try { mediaSession?.isActive = false; mediaSession?.release() } catch (_: Exception) { }
         mediaSession = null
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
@@ -2603,6 +2678,11 @@ class MainActivity : Activity() {
         private const val KEY_LAST_TRACK_URI = "last_playback_track_uri"
         private const val KEY_LAST_POSITION_MS = "last_playback_position_ms"
         private var activeInstance: MainActivity? = null
+
+        @JvmStatic
+        internal fun onServiceAudioTrackCreated(track: AudioTrack) {
+            activeInstance?.attachActiveAudioTrack(track)
+        }
 
         /**
          * Returns true when a Recent Apps dismissal must not tear down an active playback
