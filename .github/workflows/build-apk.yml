@@ -44,4 +44,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Download G6HiFiPlayer Build 90 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 89 moves ExoPlayer lifetime ownership to PlaybackKeepAliveService and submits the ordered track queue as one Media3 playlist for gapless transitions. The LG integer-PCM AudioSink and FFmpeg fallback are retained." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 90 routes transport actions and MediaSession callbacks directly through PlaybackKeepAliveService, with no Activity lookup for playback controls. The ordered Media3 playlist, LG integer-PCM AudioSink and FFmpeg fallback are retained." >> "$GITHUB_STEP_SUMMARY"
