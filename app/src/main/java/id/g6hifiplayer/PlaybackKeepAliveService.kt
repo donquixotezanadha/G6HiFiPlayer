@@ -308,7 +308,11 @@ class PlaybackKeepAliveService : Service() {
                             .build()
                     }
                 }
-                renderersFactory.setEnableAudioFloatOutput(false)
+                // Experimental high-resolution path: allow Media3 to retain >16-bit PCM
+                // as float output instead of forcing its integer-PCM processor to 16-bit.
+                // Android 9 does not expose packed-24 AudioTrack publicly, so the actual HAL
+                // route/format must be verified on the LG G6 before claiming DIRECT or bit-perfect.
+                renderersFactory.setEnableAudioFloatOutput(true)
                 val player = ExoPlayer.Builder(appContext, renderersFactory).build().apply {
                     setHandleAudioBecomingNoisy(true)
                 }
