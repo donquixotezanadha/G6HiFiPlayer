@@ -93,19 +93,26 @@ class MainActivity : Activity() {
     private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
     private var accentColor = 0xFF19B3A6.toInt()
-    // Experimental theme-only integration. Playback/audio classes are intentionally untouched.
+    // Artwork-derived theme. No album names, fixed cover colors, or LG overlay resources drive this palette.
     private var lightTheme = false
+    private var adaptiveBackgroundColor: Int? = null
+    private var adaptiveCardColor: Int? = null
+    private var adaptiveArtColor: Int? = null
+    private var adaptiveLineColor: Int? = null
+    private var adaptiveTextColor: Int? = null
+    private var adaptiveMutedTextColor: Int? = null
+    private var adaptivePaletteKey: String? = null
     private var overlayBackgroundColor: Int? = null
     private var overlayTextColor: Int? = null
     private var overlayMutedTextColor: Int? = null
     private var overlayAccentColor: Int? = null
-    private var themeOverlayStatus = "Overlay not checked"
-    private val BG get() = overlayBackgroundColor ?: 0xFF06272B.toInt()
-    private val CARD get() = 0xFF101014.toInt()
-    private val ART get() = 0xFF181820.toInt()
-    private val LINE get() = 0xFF292932.toInt()
-    private val WHITE get() = overlayTextColor ?: 0xFFF3F7F7.toInt()
-    private val MUTED get() = overlayMutedTextColor ?: 0xFFA6B8B9.toInt()
+    private var themeOverlayStatus = "Artwork adaptive palette"
+    private val BG get() = adaptiveBackgroundColor ?: overlayBackgroundColor ?: 0xFF101014.toInt()
+    private val CARD get() = adaptiveCardColor ?: 0xFF1A1A20.toInt()
+    private val ART get() = adaptiveArtColor ?: 0xFF22222A.toInt()
+    private val LINE get() = adaptiveLineColor ?: 0xFF383840.toInt()
+    private val WHITE get() = adaptiveTextColor ?: overlayTextColor ?: 0xFFF5F5F5.toInt()
+    private val MUTED get() = adaptiveMutedTextColor ?: overlayMutedTextColor ?: 0xFFB8B8C0.toInt()
     private var albumGridColumns = 2
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
@@ -1838,42 +1845,113 @@ class MainActivity : Activity() {
         return if (bestScore >= 0.38f) bestColor else DEFAULT_ACCENT
     }
 
-    private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        // Prefer the installed LG overlay accent; use the app default only when unavailable.
-        val picked = overlayAccentColor ?: DEFAULT_ACCENT
-        if (picked == accentColor) return
-        accentColor = picked
+    private fun applyArtworkAccent(bitmap: android.graphics.Bitmap, palette: androidx.palette.graphics.Palette? = null) {
+        val p = palette ?: try { androidx.palette.graphics.Palette.from(bitmap).maximumColorCount(16).generate() } catch (_: Exception) { null }
+        if (p == null) return
+
+        val dominant = p.dominantSwatch?.rgb ?: p.getDominantColor(0xFF202028.toInt())
+        val hsl = FloatArray(3)
+        Color.colorToHSV(dominant, hsl)
+        val lum = relativeLuminance(dominant)
+        // Bright artwork produces a light theme; dark artwork produces a dark theme.
+        // Saturation is used to distinguish genuinely colorful covers from grayscale covers.
+        val nextLight = lum >= 0.43
+        val mono = hsl[1] < 0.12f
+        val nextAccent = when {
+            mono -> if (nextLight) blendColor(dominant, Color.BLACK, 0.30f) else blendColor(dominant, Color.WHITE, 0.42f)
+            p.vibrantSwatch != null -> p.vibrantSwatch!!.rgb
+            p.mutedSwatch != null -> p.mutedSwatch!!.rgb
+            else -> dominant
+        }
+        val nextBg = if (nextLight) blendColor(dominant, Color.WHITE, 0.82f) else blendColor(dominant, Color.BLACK, 0.78f)
+        val nextCard = if (nextLight) blendColor(dominant, Color.WHITE, 0.90f) else blendColor(dominant, Color.BLACK, 0.62f)
+        val nextArt = if (nextLight) blendColor(dominant, Color.WHITE, 0.72f) else blendColor(dominant, Color.BLACK, 0.48f)
+        val nextLine = if (nextLight) blendColor(dominant, Color.BLACK, 0.18f) else blendColor(dominant, Color.WHITE, 0.20f)
+        val preferredText = if (nextLight) Color.BLACK else Color.WHITE
+        val oppositeText = if (nextLight) Color.WHITE else Color.BLACK
+        val nextText = if (contrastRatio(preferredText, nextBg) >= 4.5) preferredText else oppositeText
+        val nextMuted = if (contrastRatio(blendColor(nextText, nextBg, 0.28f), nextBg) >= 3.0)
+            blendColor(nextText, nextBg, 0.28f)
+        else nextText
+
+        val paletteKey = listOf(dominant, nextBg, nextCard, nextArt, nextLine, nextText, nextMuted, nextAccent, nextLight).joinToString(":")
+        if (paletteKey == adaptivePaletteKey) return
+        adaptivePaletteKey = paletteKey
+        lightTheme = nextLight
+        adaptiveBackgroundColor = nextBg
+        adaptiveCardColor = nextCard
+        adaptiveArtColor = nextArt
+        adaptiveLineColor = nextLine
+        adaptiveTextColor = nextText
+        adaptiveMutedTextColor = nextMuted
+        accentColor = nextAccent
+        overlayBackgroundColor = null
+        overlayTextColor = null
+        overlayMutedTextColor = null
+        overlayAccentColor = null
+        themeOverlayStatus = "Artwork palette active • " + if (mono) "monochrome" else "colorful" +
+            " • contrast " + String.format(Locale.US, "%.2f", contrastRatio(nextText, nextBg))
+
+        // Recreate visual surfaces with the new palette only when the extracted palette changes.
+        // The player/queue instance is retained; playback and audio routing are not touched.
+        if (::root.isInitialized) {
+            val page = currentPage
+            buildUi()
+            show(page)
+            if (currentIndex in tracks.indices) {
+                val active = tracks[currentIndex]
+                artImage.setImageBitmap(bitmap)
+                artImage.visibility = View.VISIBLE
+                artPlaceholder.visibility = View.GONE
+                if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+            }
+            renderLibrary()
+            renderSongs()
+        }
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(
-                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
-                accentColor,
-                dp(5)
-            )
-            seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) blendColor(nextBg, Color.BLACK, 0.12f) else blendColor(nextBg, Color.WHITE, 0.18f), accentColor, dp(5))
+            seek.thumbTintList = ColorStateList.valueOf(accentColor)
             seek.invalidate()
         }
         if (::playView.isInitialized) {
-            playView.imageTintList = ColorStateList.valueOf(accentColor)
-            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
+            playView.imageTintList = ColorStateList.valueOf(if (contrastRatio(accentColor, nextCard) >= 3.0) accentColor else nextText)
+            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(nextCard, 16), null)
             syncPlaybackIcon()
         }
         if (::scanProgress.isInitialized) {
             scanProgress.progressTintList = ColorStateList.valueOf(accentColor)
-            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(nextLine)
         }
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
-        if (::titleView.isInitialized) titleView.setTextColor(accentColor)
-        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
+        if (::titleView.isInitialized) titleView.setTextColor(if (contrastRatio(accentColor, nextBg) >= 3.0) accentColor else nextText)
+        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(nextMuted)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
-        fun recolor(view: View) {
-            if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
-            if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
-        }
-        recolor(window.decorView)
-        if (::albumRows.isInitialized) renderLibrary()
-        if (::songRows.isInitialized) renderSongs()
+        if (::root.isInitialized) recolorAdaptiveText(window.decorView)
     }
 
+    private fun recolorAdaptiveText(view: View) {
+        if (view is TextView && view.tag == "g6_dynamic_accent_text") {
+            view.setTextColor(if (contrastRatio(accentColor, BG) >= 3.0) accentColor else WHITE)
+        }
+        if (view is ViewGroup) for (i in 0 until view.childCount) recolorAdaptiveText(view.getChildAt(i))
+    }
+
+    private fun relativeLuminance(color: Int): Double {
+        fun channel(v: Int): Double {
+            val c = v / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(Color.red(color)) + 0.7152 * channel(Color.green(color)) + 0.0722 * channel(Color.blue(color))
+    }
+
+    private fun blendColor(a: Int, b: Int, amount: Float): Int {
+        val f = amount.coerceIn(0f, 1f)
+        return Color.rgb(
+            (Color.red(a) * (1f - f) + Color.red(b) * f).toInt().coerceIn(0, 255),
+            (Color.green(a) * (1f - f) + Color.green(b) * f).toInt().coerceIn(0, 255),
+            (Color.blue(a) * (1f - f) + Color.blue(b) * f).toInt().coerceIn(0, 255)
+        )
+    }
     private fun decodeArtwork(
         bytes: ByteArray,
         maxDimension: Int = 1200,
@@ -1958,12 +2036,14 @@ class MainActivity : Activity() {
         playbackArtworkExecutor.execute {
             val key = "player:" + t.uri.toString()
             val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            // Palette quantization is intentionally performed off the UI thread.
+            val palette = try { if (bitmap != null) androidx.palette.graphics.Palette.from(bitmap).maximumColorCount(16).generate() else null } catch (_: Exception) { null }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
                     artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
-                    applyArtworkAccent(bitmap)
+                    applyArtworkAccent(bitmap, palette)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
                 } else {
                     artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
