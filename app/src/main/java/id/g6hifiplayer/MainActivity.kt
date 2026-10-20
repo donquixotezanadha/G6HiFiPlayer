@@ -94,12 +94,20 @@ class MainActivity : Activity() {
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
     private var lightTheme = false
-    private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
-    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
-    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
-    private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
-    private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
+    // Artwork palette overrides are null until the first cover has been decoded.
+    private var adaptiveBackgroundColor: Int? = null
+    private var adaptiveCardColor: Int? = null
+    private var adaptiveArtColor: Int? = null
+    private var adaptiveLineColor: Int? = null
+    private var adaptiveTextColor: Int? = null
+    private var adaptiveMutedTextColor: Int? = null
+    private var adaptivePaletteKey: String? = null
+    private val BG get() = adaptiveBackgroundColor ?: if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
+    private val CARD get() = adaptiveCardColor ?: if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
+    private val ART get() = adaptiveArtColor ?: if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
+    private val LINE get() = adaptiveLineColor ?: if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
+    private val WHITE get() = adaptiveTextColor ?: if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
+    private val MUTED get() = adaptiveMutedTextColor ?: if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var albumGridColumns = 2
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
@@ -477,8 +485,8 @@ class MainActivity : Activity() {
         val backdropGradient = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x00000000, 0x22F8F8FC, 0xBDF8F8FC.toInt(), BG)
-                else intArrayOf(0x00000000, 0x18000000, 0xA8000000.toInt(), Color.BLACK)
+                if (lightTheme) intArrayOf(0x00000000, (BG and 0x00FFFFFF) or 0x22000000, (BG and 0x00FFFFFF) or 0xB8000000.toInt(), BG)
+                else intArrayOf(0x00000000, (BG and 0x00FFFFFF) or 0x18000000, (BG and 0x00FFFFFF) or 0xA8000000.toInt(), BG)
             )
             isClickable = false
         }
@@ -1771,40 +1779,140 @@ class MainActivity : Activity() {
         return if (bestScore >= 0.38f) bestColor else DEFAULT_ACCENT
     }
 
-    private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        val picked = DEFAULT_ACCENT
-        if (picked == accentColor) return
-        accentColor = picked
+    private fun blendColor(foreground: Int, background: Int, backgroundFraction: Float): Int {
+        val f = backgroundFraction.coerceIn(0f, 1f)
+        val inv = 1f - f
+        return Color.rgb(
+            (Color.red(foreground) * inv + Color.red(background) * f).toInt().coerceIn(0, 255),
+            (Color.green(foreground) * inv + Color.green(background) * f).toInt().coerceIn(0, 255),
+            (Color.blue(foreground) * inv + Color.blue(background) * f).toInt().coerceIn(0, 255)
+        )
+    }
+
+    private fun relativeLuminance(color: Int): Double {
+        fun channel(v: Int): Double {
+            val c = v / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(Color.red(color)) + 0.7152 * channel(Color.green(color)) + 0.0722 * channel(Color.blue(color))
+    }
+
+    private fun contrastRatio(a: Int, b: Int): Double {
+        val x = relativeLuminance(a)
+        val y = relativeLuminance(b)
+        return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
+    }
+
+    private fun applyArtworkAccent(bitmap: android.graphics.Bitmap, palette: androidx.palette.graphics.Palette? = null) {
+        val p = palette ?: try {
+            androidx.palette.graphics.Palette.from(bitmap).maximumColorCount(16).generate()
+        } catch (_: Exception) { null } ?: return
+
+        // Judge the whole cover, not just Palette's dominant swatch: monochrome covers often
+        // contain a small colored logo/label which should not turn the whole UI colorful.
+        val width = bitmap.width
+        val height = bitmap.height
+        val hsv = FloatArray(3)
+        var sampled = 0
+        var chromatic = 0
+        var saturationSum = 0f
+        val sx = (width / 36).coerceAtLeast(1)
+        val sy = (height / 36).coerceAtLeast(1)
+        var y = 0
+        while (y < height) {
+            var x = 0
+            while (x < width) {
+                val pixel = bitmap.getPixel(x, y)
+                if (Color.alpha(pixel) > 180) {
+                    Color.colorToHSV(pixel, hsv)
+                    sampled++
+                    saturationSum += hsv[1]
+                    if (hsv[1] >= 0.22f && hsv[2] >= 0.12f) chromatic++
+                }
+                x += sx
+            }
+            y += sy
+        }
+        val chromaticRatio = if (sampled == 0) 0f else chromatic.toFloat() / sampled
+        val averageSaturation = if (sampled == 0) 0f else saturationSum / sampled
+        val mono = chromaticRatio < 0.12f && averageSaturation < 0.20f
+
+        val chosenSwatch = if (!mono) {
+            listOfNotNull(p.vibrantSwatch, p.lightVibrantSwatch, p.darkVibrantSwatch, p.mutedSwatch, p.dominantSwatch)
+                .firstOrNull { swatch ->
+                    Color.colorToHSV(swatch.rgb, hsv)
+                    hsv[1] >= 0.20f && hsv[2] >= 0.16f && hsv[2] <= 0.94f
+                } ?: p.dominantSwatch
+        } else p.dominantSwatch
+        val dominant = chosenSwatch?.rgb ?: p.getDominantColor(0xFF777777.toInt())
+        Color.colorToHSV(dominant, hsv)
+        val lum = relativeLuminance(dominant)
+        // Keep the established light/dark mode stable around mid-luminance artwork.
+        val nextLight = lum >= 0.46
+        val nextAccent = if (mono) {
+            if (nextLight) blendColor(dominant, Color.BLACK, 0.32f) else blendColor(dominant, Color.WHITE, 0.48f)
+        } else {
+            val saturated = dominant
+            val ahsv = FloatArray(3)
+            Color.colorToHSV(saturated, ahsv)
+            Color.HSVToColor(floatArrayOf(ahsv[0], ahsv[1].coerceIn(0.32f, 0.78f), ahsv[2].coerceIn(0.48f, 0.82f)))
+        }
+
+        val nextBg = if (nextLight) blendColor(dominant, Color.WHITE, 0.90f) else blendColor(dominant, Color.BLACK, 0.84f)
+        val nextCard = if (nextLight) blendColor(dominant, Color.WHITE, 0.95f) else blendColor(dominant, Color.BLACK, 0.70f)
+        val nextArt = if (nextLight) blendColor(dominant, Color.WHITE, 0.82f) else blendColor(dominant, Color.BLACK, 0.58f)
+        val nextLine = if (nextLight) blendColor(dominant, Color.BLACK, 0.20f) else blendColor(dominant, Color.WHITE, 0.24f)
+        val preferredText = if (contrastRatio(Color.BLACK, nextBg) >= contrastRatio(Color.WHITE, nextBg)) Color.BLACK else Color.WHITE
+        val nextMuted = blendColor(preferredText, nextBg, 0.32f)
+        val paletteKey = listOf(nextBg, nextCard, nextArt, nextLine, preferredText, nextMuted, nextAccent, nextLight).joinToString(":")
+        if (paletteKey == adaptivePaletteKey) return
+        adaptivePaletteKey = paletteKey
+
+        lightTheme = nextLight
+        adaptiveBackgroundColor = nextBg
+        adaptiveCardColor = nextCard
+        adaptiveArtColor = nextArt
+        adaptiveLineColor = nextLine
+        adaptiveTextColor = preferredText
+        adaptiveMutedTextColor = nextMuted
+        accentColor = nextAccent
+
+        window.statusBarColor = blendColor(nextBg, Color.BLACK, 0.06f)
+        window.navigationBarColor = if (nextLight) nextBg else Color.BLACK
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            (if (nextLight) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+
+        if (::playerPanel.isInitialized) {
+            // Rebuild palette-driven surfaces so buttons, tabs, list rows and Now Playing all
+            // receive the same palette; then restore the current page and the already-decoded art.
+            val page = currentPage
+            buildUi()
+            show(page)
+            if (currentIndex in tracks.indices) {
+                artImage.setImageBitmap(bitmap)
+                artImage.visibility = View.VISIBLE
+                artPlaceholder.visibility = View.GONE
+                if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+            }
+        }
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(
-                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
-                accentColor,
-                dp(5)
-            )
-            seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
-            seek.invalidate()
+            seek.progressDrawable = RoundedProgressDrawable(blendColor(nextBg, if (nextLight) Color.BLACK else Color.WHITE, 0.16f), accentColor, dp(5))
+            seek.thumbTintList = ColorStateList.valueOf(accentColor)
         }
         if (::playView.isInitialized) {
             playView.imageTintList = ColorStateList.valueOf(accentColor)
-            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
-            syncPlaybackIcon()
+            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(nextArt, 16), null)
         }
-        if (::scanProgress.isInitialized) {
-            scanProgress.progressTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
-            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
-        }
-        if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
         if (::titleView.isInitialized) titleView.setTextColor(accentColor)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
-        fun recolor(view: View) {
-            if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
-            if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
+        if (::playerPanel.isInitialized) {
+            playerPanel.setBackgroundColor(nextBg)
+            // Gradient is artwork-derived too; don't leave it tied to the original black/white theme.
+            playerPanel.findViewsWithText(mutableListOf<View>(), "", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
         }
-        recolor(window.decorView)
-        if (::albumRows.isInitialized) renderLibrary()
-        if (::songRows.isInitialized) renderSongs()
     }
+
 
     private fun decodeArtwork(
         bytes: ByteArray,
