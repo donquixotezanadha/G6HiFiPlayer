@@ -94,10 +94,16 @@ class MainActivity : Activity() {
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
     private var lightTheme = false
-    private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
-    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
-    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
+    // Keep the app predominantly black, with a restrained album-art hue carried through every surface.
+    private fun mixColor(base: Int, overlay: Int, amount: Float): Int {
+        val t = amount.coerceIn(0f, 1f)
+        fun channel(shift: Int): Int = (((base shr shift) and 0xFF) * (1f - t) + ((overlay shr shift) and 0xFF) * t).toInt().coerceIn(0, 255)
+        return android.graphics.Color.argb(255, channel(16), channel(8), channel(0))
+    }
+    private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else mixColor(Color.BLACK, accentColor, 0.045f)
+    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else mixColor(0xFF101014.toInt(), accentColor, 0.10f)
+    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else mixColor(0xFF181820.toInt(), accentColor, 0.13f)
+    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else mixColor(0xFF292932.toInt(), accentColor, 0.20f)
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var albumGridColumns = 2
@@ -123,6 +129,7 @@ class MainActivity : Activity() {
     private lateinit var scanProgressText: TextView
     private lateinit var albumScanSummary: TextView
     private lateinit var audioInfoInline: TextView
+    private lateinit var appRoot: LinearLayout
     private lateinit var playerPanel: FrameLayout
     private lateinit var statusBarScrim: View
     private lateinit var libraryPanel: LinearLayout
@@ -277,12 +284,13 @@ class MainActivity : Activity() {
     }
 
     private fun buildUi() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
+        appRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG); tag = "g6_adaptive_root" }
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(5), 0, dp(5))
             setBackgroundColor(BG)
+            tag = "g6_adaptive_nav"
             clipChildren = false
             clipToPadding = false
         }
@@ -302,12 +310,12 @@ class MainActivity : Activity() {
             // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
-        libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel = SwipeFrameLayout(this, onSwipeDown = { }, onSwipeUp = { closeQueueOverlay() })
-        audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "g6_adaptive_panel" }
+        songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "g6_adaptive_panel" }
+        queuePanel = SwipeFrameLayout(this, onSwipeDown = { }, onSwipeUp = { closeQueueOverlay() }).apply { tag = "g6_adaptive_panel" }
+        audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "g6_adaptive_panel" }
+        filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "g6_adaptive_panel" }
+        settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "g6_adaptive_panel" }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
@@ -349,9 +357,9 @@ class MainActivity : Activity() {
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         // Shared semi-transparent status-bar overlay for Now Playing, Albums, Songs, and Settings.
         contentStage.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
-        root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
-        setContentView(root); show("player"); renderLibrary(); restoreNowPlayingMetadata()
+        appRoot.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
+        appRoot.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
+        setContentView(appRoot); show("player"); renderLibrary(); restoreNowPlayingMetadata()
     }
 
 
@@ -453,10 +461,10 @@ class MainActivity : Activity() {
         // Full-bleed artwork is exclusive to Now Playing; the bottom dock stays fixed.
         playerBackdropImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(accentColor)
+            setBackgroundColor(BG)
             contentDescription = "Album artwork background"
         }
-        playerPanel.setBackgroundColor(accentColor)
+        playerPanel.setBackgroundColor(BG)
         playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
 
         val backdropGradient = View(this).apply {
@@ -580,6 +588,7 @@ class MainActivity : Activity() {
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(10), 0, dp(8))
+            tag = "g6_adaptive_dock"
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 if (lightTheme) intArrayOf(0x00F8F8FC, 0xE6F8F8FC.toInt(), 0xFFF8F8FC.toInt())
@@ -634,7 +643,7 @@ class MainActivity : Activity() {
         scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             isIndeterminate = true; visibility = View.GONE
             progressTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFE3E1F5.toInt() else 0xFF242238.toInt())
+            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFE3E1F5.toInt() else ART)
         }
         libraryPanel.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { bottomMargin = dp(6) })
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
@@ -651,6 +660,7 @@ class MainActivity : Activity() {
             setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = shape(LINE, 14)
+            tag = "g6_adaptive_input"
             setText(songSearchQuery)
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -1760,35 +1770,58 @@ class MainActivity : Activity() {
         val picked = vividArtworkColor(bitmap)
         if (picked == accentColor) return
         accentColor = picked
+
+        // Repaint tagged surfaces in place; do not rebuild the Activity or touch playback state.
+        fun recolor(view: View) {
+            when (view.tag as? String) {
+                "g6_adaptive_root", "g6_adaptive_nav", "g6_adaptive_panel" -> view.setBackgroundColor(BG)
+                "g6_adaptive_card" -> view.background = shape(CARD, 21)
+                "g6_adaptive_input" -> view.background = shape(LINE, 14)
+                "g6_adaptive_action_primary" -> {
+                    if (view is TextView) view.setTextColor(BG)
+                    view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(accentColor, 14), null)
+                }
+                "g6_adaptive_action_secondary" -> {
+                    if (view is TextView) view.setTextColor(WHITE)
+                    view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(LINE, 14), null)
+                }
+                "g6_adaptive_dock" -> view.background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    if (lightTheme) intArrayOf(0x00F8F8FC, 0xE6F8F8FC.toInt(), 0xFFF8F8FC.toInt())
+                    else intArrayOf(0x00000000, mixColor(BG, accentColor, 0.08f), BG)
+                )
+                "g6_dynamic_accent_text" -> if (view is TextView) view.setTextColor(accentColor)
+            }
+            if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
+        }
+        if (::appRoot.isInitialized) recolor(appRoot)
+        if (::playerPanel.isInitialized) playerPanel.setBackgroundColor(BG)
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(
-                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
-                accentColor,
-                dp(5)
-            )
-            seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) 0xFFD8D5F0.toInt() else ART, accentColor, dp(5))
+            seek.thumbTintList = ColorStateList.valueOf(accentColor)
             seek.invalidate()
         }
         if (::playView.isInitialized) {
             playView.imageTintList = ColorStateList.valueOf(accentColor)
-            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
+            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else mixColor(CARD, accentColor, 0.28f), 16), null)
             syncPlaybackIcon()
         }
         if (::scanProgress.isInitialized) {
-            scanProgress.progressTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
-            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+            scanProgress.progressTintList = ColorStateList.valueOf(accentColor)
+            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else ART)
         }
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
         if (::titleView.isInitialized) titleView.setTextColor(accentColor)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
-        if (::statusView.isInitialized) statusView.setTextColor(accentColor)
-        fun recolor(view: View) {
-            if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
-            if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
-        }
-        recolor(window.decorView)
+        if (::statusView.isInitialized) statusView.setTextColor(WHITE)
+        if (::playerBackdropImage.isInitialized) playerBackdropImage.setBackgroundColor(BG)
+        if (::artPlaceholder.isInitialized) artPlaceholder.background = android.graphics.drawable.ColorDrawable(BG)
+        if (::navPlayer.isInitialized) navState(navPlayer, currentPage == "player")
+        if (::navLibrary.isInitialized) navState(navLibrary, currentPage == "library")
+        if (::navFile.isInitialized) navState(navFile, currentPage in listOf("settings", "audio", "file"))
         if (::albumRows.isInitialized) renderLibrary()
         if (::songRows.isInitialized) renderSongs()
+        if (::queueRows.isInitialized) renderQueueRows()
     }
 
     private fun decodeArtwork(
@@ -2542,7 +2575,7 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) }
     }
     private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(CARD, 21)
+        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(CARD, 21); tag = "g6_adaptive_card"
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
     }
     private fun text(value: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply {
@@ -2551,6 +2584,7 @@ class MainActivity : Activity() {
         setLineSpacing(dp(2).toFloat(), 1f)
     }
     private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) BG else WHITE, true).apply {
+        tag = if (primary) "g6_adaptive_action_primary" else "g6_adaptive_action_secondary"
         gravity = Gravity.CENTER; background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (primary) accentColor else LINE, 14), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
