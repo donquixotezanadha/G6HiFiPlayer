@@ -1894,12 +1894,11 @@ class MainActivity : Activity() {
 
         // Recreate visual surfaces with the new palette only when the extracted palette changes.
         // The player/queue instance is retained; playback and audio routing are not touched.
-        if (::root.isInitialized) {
+        if (::playerPanel.isInitialized) {
             val page = currentPage
             buildUi()
             show(page)
             if (currentIndex in tracks.indices) {
-                val active = tracks[currentIndex]
                 artImage.setImageBitmap(bitmap)
                 artImage.visibility = View.VISIBLE
                 artPlaceholder.visibility = View.GONE
@@ -1926,7 +1925,7 @@ class MainActivity : Activity() {
         if (::titleView.isInitialized) titleView.setTextColor(if (contrastRatio(accentColor, nextBg) >= 3.0) accentColor else nextText)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(nextMuted)
         if (::statusView.isInitialized) statusView.setTextColor(accentColor)
-        if (::root.isInitialized) recolorAdaptiveText(window.decorView)
+        if (::playerPanel.isInitialized) recolorAdaptiveText(window.decorView)
     }
 
     private fun recolorAdaptiveText(view: View) {
