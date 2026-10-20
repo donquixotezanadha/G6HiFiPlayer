@@ -1909,7 +1909,6 @@ class MainActivity : Activity() {
         if (::playerPanel.isInitialized) {
             playerPanel.setBackgroundColor(nextBg)
             // Gradient is artwork-derived too; don't leave it tied to the original black/white theme.
-            playerPanel.findViewsWithText(mutableListOf<View>(), "", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
         }
     }
 
@@ -1993,20 +1992,50 @@ class MainActivity : Activity() {
 
     private fun loadArtwork(t: Track) {
         val token = ++artToken
-        artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
-        // Dedicated executor means library thumbnails can never block Now Playing artwork.
+        val key = "player:" + t.uri.toString()
+        // Prefer an already-decoded player image; if only the small library thumbnail is cached,
+        // show it immediately while the full-resolution player image is decoded in the background.
+        val cached = bitmapArtworkCache.get(key)?.takeUnless { it.isRecycled }
+        val thumbnail = if (cached == null) bitmapArtworkCache.get("thumb:" + t.uri.toString())?.takeUnless { it.isRecycled } else null
+        val immediate = cached ?: thumbnail
+        if (immediate != null) {
+            artImage.setImageBitmap(immediate)
+            artImage.visibility = View.VISIBLE
+            artPlaceholder.visibility = View.GONE
+            if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(immediate)
+        } else {
+            artImage.visibility = View.GONE
+            artImage.setImageDrawable(null)
+            artPlaceholder.visibility = View.VISIBLE
+        }
+
+        // The dedicated executor keeps library thumbnail decoding from delaying playback artwork.
         playbackArtworkExecutor.execute {
-            val key = "player:" + t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            val bitmap = cached ?: readArtworkBytes(t)
+                ?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }
+                ?.also { bitmapArtworkCache.put(key, it) }
+            // Generate palette away from the UI thread; a tiny sample avoids repeated large-image work.
+            val palette = try {
+                if (bitmap != null) {
+                    val sample = android.graphics.Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+                    try { androidx.palette.graphics.Palette.from(sample).maximumColorCount(12).generate() }
+                    finally { if (sample !== bitmap && !sample.isRecycled) sample.recycle() }
+                } else null
+            } catch (_: Exception) { null }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
-                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
+                    artImage.setImageBitmap(bitmap)
+                    artImage.visibility = View.VISIBLE
+                    artPlaceholder.visibility = View.GONE
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
-                    applyArtworkAccent(bitmap)
+                    applyArtworkAccent(bitmap, palette)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
-                } else {
-                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
+                } else if (immediate == null) {
+                    artImage.visibility = View.GONE
+                    artPlaceholder.visibility = View.VISIBLE
+                    artPlaceholder.text = "NO COVER ART"
+                    artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
                 }
             }
