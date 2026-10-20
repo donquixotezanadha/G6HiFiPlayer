@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "g6playerexp-v0.02-theme-sync", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "g6playerexp-v0.02-theme-sync", "g6playerexp-v0.98-adaptive-artwork-palette", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: g6playerexp-v0.02-theme-sync-arm64-apk
+          name: g6playerexp-v0.98-adaptive-artwork-palette-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download g6playerexp v0.02 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download g6playerexp v0.98 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Experimental v0.02 based on Build 91 through v0.01. Adds manual LG theme resync, safer text-color mapping and contrast-checked teal fallbacks; playback/audio behavior remains unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 98 experimental branch based on the Build 91 playback baseline. Derives a complete adaptive UI palette from each track artwork, including background, surfaces, accent and contrast-aware text. Playback/audio engine intentionally unchanged." >> "$GITHUB_STEP_SUMMARY"
