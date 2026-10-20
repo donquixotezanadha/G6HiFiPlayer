@@ -305,7 +305,9 @@ class PlaybackKeepAliveService : Service() {
                             // This is an explicit route request, not a bit-perfect claim.
                             .setAudioTrackBuilderModifier { audioTrackBuilder, outputConfig ->
                                 val current = outputConfig.audioAttributes
-                                val directRequestAttributes = AudioAttributes.Builder(current)
+                                val directRequestAttributes = AudioAttributes.Builder()
+                                    .setUsage(current.usage)
+                                    .setContentType(current.contentType)
                                     .setFlags(current.flags or AudioAttributes.FLAG_HW_AV_SYNC)
                                     .build()
                                 audioTrackBuilder.setAudioAttributes(directRequestAttributes)
