@@ -1889,7 +1889,7 @@ class MainActivity : Activity() {
         overlayTextColor = null
         overlayMutedTextColor = null
         overlayAccentColor = null
-        themeOverlayStatus = "Artwork palette active • " + if (mono) "monochrome" else "colorful" +
+        themeOverlayStatus = "Artwork palette active • " + (if (mono) "monochrome" else "colorful") +
             " • contrast " + String.format(Locale.US, "%.2f", contrastRatio(nextText, nextBg))
 
         // Recreate visual surfaces with the new palette only when the extracted palette changes.
@@ -1933,14 +1933,6 @@ class MainActivity : Activity() {
             view.setTextColor(if (contrastRatio(accentColor, BG) >= 3.0) accentColor else WHITE)
         }
         if (view is ViewGroup) for (i in 0 until view.childCount) recolorAdaptiveText(view.getChildAt(i))
-    }
-
-    private fun relativeLuminance(color: Int): Double {
-        fun channel(v: Int): Double {
-            val c = v / 255.0
-            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * channel(Color.red(color)) + 0.7152 * channel(Color.green(color)) + 0.0722 * channel(Color.blue(color))
     }
 
     private fun blendColor(a: Int, b: Int, amount: Float): Int {
