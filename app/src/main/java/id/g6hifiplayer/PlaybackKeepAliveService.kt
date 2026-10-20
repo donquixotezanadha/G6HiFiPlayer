@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioTrack
+import android.media.AudioAttributes
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -297,7 +298,19 @@ class PlaybackKeepAliveService : Service() {
                         enableFloatOutput: Boolean,
                         enableAudioOutputPlaybackParams: Boolean
                     ): AudioSink {
-                        val base = AudioTrackAudioOutputProvider.Builder(context).build()
+                        val base = AudioTrackAudioOutputProvider.Builder(context)
+                            // Build 1.2 direct-path experiment: Android's AudioPolicyManager
+                            // promotes HW_AV_SYNC requests to AUDIO_OUTPUT_FLAG_DIRECT. The LG
+                            // policy dump advertises direct_pcm profiles for wired headphones.
+                            // This is an explicit route request, not a bit-perfect claim.
+                            .setAudioTrackBuilderModifier { audioTrackBuilder, outputConfig ->
+                                val current = outputConfig.audioAttributes
+                                val directRequestAttributes = AudioAttributes.Builder(current)
+                                    .setFlags(current.flags or AudioAttributes.FLAG_HW_AV_SYNC)
+                                    .build()
+                                audioTrackBuilder.setAudioAttributes(directRequestAttributes)
+                            }
+                            .build()
                         val tracking = TrackingAudioOutputProvider(base) { track ->
                             audioTrackCallback?.invoke(track)
                         }
@@ -308,11 +321,11 @@ class PlaybackKeepAliveService : Service() {
                             .build()
                     }
                 }
-                // Build 1.1 A/B experiment: disable float output so Media3 uses its integer-PCM
-                // path instead of creating the 96 kHz PCM_FLOAT track observed in Build 1.0.
-                // This does NOT force AUDIO_OUTPUT_FLAG_DIRECT or packed-24 output. Android's
-                // public AudioTrack API does not expose a direct-output flag; confirm the real
-                // result from AudioFlinger (thread type, HAL rate, HAL format, and device).
+                // Build 1.2 experiment: request Android's HW_AV_SYNC output flag through AudioAttributes.
+                // On AOSP policy this implies AUDIO_OUTPUT_FLAG_DIRECT. Keep integer PCM output
+                // and verify the actual thread/HAL format from AudioFlinger on the LG G6.
+                // If the LG HAL rejects this request, playback may fail; do not label it DIRECT
+                // unless the device dump confirms it.
                 renderersFactory.setEnableAudioFloatOutput(false)
                 val player = ExoPlayer.Builder(appContext, renderersFactory).build().apply {
                     setHandleAudioBecomingNoisy(true)
