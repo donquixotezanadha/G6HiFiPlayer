@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioTrack
-import android.media.AudioAttributes
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -298,21 +297,10 @@ class PlaybackKeepAliveService : Service() {
                         enableFloatOutput: Boolean,
                         enableAudioOutputPlaybackParams: Boolean
                     ): AudioSink {
-                        val base = AudioTrackAudioOutputProvider.Builder(context)
-                            // Build 1.2 direct-path experiment: Android's AudioPolicyManager
-                            // promotes HW_AV_SYNC requests to AUDIO_OUTPUT_FLAG_DIRECT. The LG
-                            // policy dump advertises direct_pcm profiles for wired headphones.
-                            // This is an explicit route request, not a bit-perfect claim.
-                            .setAudioTrackBuilderModifier { audioTrackBuilder, outputConfig ->
-                                val current = outputConfig.audioAttributes
-                                val directRequestAttributes = AudioAttributes.Builder()
-                                    .setUsage(current.usage)
-                                    .setContentType(current.contentType)
-                                    .setFlags(current.flags or AudioAttributes.FLAG_HW_AV_SYNC)
-                                    .build()
-                                audioTrackBuilder.setAudioAttributes(directRequestAttributes)
-                            }
-                            .build()
+                        // Keep the known-working AudioTrack attributes. Build 102's
+                        // FLAG_HW_AV_SYNC experiment prevented playback on the LG G6.
+                        // Do not request a policy route through an unrelated sync flag.
+                        val base = AudioTrackAudioOutputProvider.Builder(context).build()
                         val tracking = TrackingAudioOutputProvider(base) { track ->
                             audioTrackCallback?.invoke(track)
                         }
@@ -323,11 +311,9 @@ class PlaybackKeepAliveService : Service() {
                             .build()
                     }
                 }
-                // Build 1.2 experiment: request Android's HW_AV_SYNC output flag through AudioAttributes.
-                // On AOSP policy this implies AUDIO_OUTPUT_FLAG_DIRECT. Keep integer PCM output
-                // and verify the actual thread/HAL format from AudioFlinger on the LG G6.
-                // If the LG HAL rejects this request, playback may fail; do not label it DIRECT
-                // unless the device dump confirms it.
+                // Playback-safe rollback after Build 102 failed to start audio on the LG G6.
+                // Direct output still needs a supported policy/API mechanism; do not use
+                // FLAG_HW_AV_SYNC as a substitute for AUDIO_OUTPUT_FLAG_DIRECT.
                 renderersFactory.setEnableAudioFloatOutput(false)
                 val player = ExoPlayer.Builder(appContext, renderersFactory).build().apply {
                     setHandleAudioBecomingNoisy(true)
