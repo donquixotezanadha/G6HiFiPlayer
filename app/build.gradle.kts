@@ -11,8 +11,8 @@ android {
         applicationId = "id.g6playerexp"
         minSdk = 28
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.02"
+        versionCode = 98
+        versionName = "0.98"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -33,5 +33,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.palette:palette:1.0.0")
     implementation("dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.7")
 }
