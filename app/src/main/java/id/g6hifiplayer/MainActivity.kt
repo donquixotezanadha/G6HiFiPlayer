@@ -311,21 +311,6 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
-         val themeCard = card()
-        themeCard.addView(text("APP THEME", 12f, MUTED, true))
-        themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
-            lightTheme = !lightTheme
-            accentColor = DEFAULT_ACCENT
-            window.statusBarColor = Color.TRANSPARENT
-            window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
-            getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
-            buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
-            if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
-            syncPlaybackIcon()
-        }, LinearLayout.LayoutParams(-1, dp(44)))
-        settingsPanel.addView(themeCard)
         val scanCard = card()
         scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
         scanCard.addView(text("Choose a music folder to scan albums and subfolders. The last folder is checked automatically when the app opens.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -1772,7 +1757,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        val picked = DEFAULT_ACCENT
+        val picked = vividArtworkColor(bitmap)
         if (picked == accentColor) return
         accentColor = picked
         if (::seek.isInitialized) {
