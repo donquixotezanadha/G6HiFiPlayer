@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import java.util.LinkedHashMap
 
 /** Service owns ExoPlayer lifetime, transport commands, MediaSession and fallback notification. */
 class PlaybackKeepAliveService : Service() {
@@ -29,9 +30,12 @@ class PlaybackKeepAliveService : Service() {
     private var serviceListener: Player.Listener? = null
     private var foregroundStarted = false
 
-    // Service-local in-memory cover cache. State-only notification updates reuse the current track's bitmap.
-    private var cachedCoverKey: String? = null
-    private var cachedCover: Bitmap? = null
+    // Bounded service-local LRU: reuse album art across tracks that share the same artwork identity.
+    private val coverCache = object : LinkedHashMap<String, Bitmap>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean =
+            size > COVER_CACHE_MAX_ENTRIES
+    }
+    private val coverCacheLock = Any()
 
     override fun onCreate() {
         super.onCreate()
@@ -190,26 +194,36 @@ class PlaybackKeepAliveService : Service() {
                 ?: "${item.mediaMetadata.title?.toString().orEmpty()}|${item.mediaMetadata.artist?.toString().orEmpty()}"
         } ?: "__no_active_track__"
 
-        // Clear a prior track's cover immediately on transition. Play/Pause updates for the same
-        // track reuse the cached bitmap instead of querying MediaSession metadata again.
-        if (cachedCoverKey != trackKey) {
-            cachedCoverKey = trackKey
-            cachedCover = null
+        // Reject stale MediaSession artwork during the brief track-transition window.
+        val sessionTitle = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
+        val itemTitle = itemMetadata?.title?.toString()?.trim().orEmpty()
+        val metadataMatchesTrack = sessionTitle.isBlank() || itemTitle.isBlank() ||
+            sessionTitle.equals(itemTitle, ignoreCase = true)
+
+        // Same-album tracks can share a bitmap; use an explicit artwork URI when available.
+        // If album metadata is missing, fall back to track identity to avoid unsafe reuse.
+        val artworkUri = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ART_URI)
+            ?: sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+        val album = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ALBUM)?.trim().orEmpty()
+        val albumArtist = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)?.trim().orEmpty()
+            .ifBlank { sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)?.trim().orEmpty() }
+        val artworkKey = when {
+            !artworkUri.isNullOrBlank() -> "uri:$artworkUri"
+            album.isNotBlank() -> "album:${album.lowercase()}|${albumArtist.lowercase()}"
+            else -> "track:$trackKey"
         }
-        var cover = cachedCover?.takeUnless { it.isRecycled }
-        if (cover == null) {
-            // Don't cache a previous track's artwork during the short metadata-transition window.
-            val sessionTitle = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
-            val itemTitle = itemMetadata?.title?.toString()?.trim().orEmpty()
-            val metadataMatchesTrack = sessionTitle.isBlank() || itemTitle.isBlank() ||
-                sessionTitle.equals(itemTitle, ignoreCase = true)
-            if (metadataMatchesTrack) {
-                cover = try {
-                    sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                        ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                        ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-                } catch (_: Exception) { null }
-                if (cover != null && !cover.isRecycled) cachedCover = cover
+
+        var cover: Bitmap? = if (metadataMatchesTrack) synchronized(coverCacheLock) {
+            coverCache[artworkKey]?.takeUnless { it.isRecycled }
+        } else null
+        if (cover == null && metadataMatchesTrack) {
+            cover = try {
+                sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                    ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                    ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+            } catch (_: Exception) { null }
+            if (cover != null && !cover.isRecycled) {
+                synchronized(coverCacheLock) { coverCache[artworkKey] = cover }
             }
         }
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
@@ -274,6 +288,7 @@ class PlaybackKeepAliveService : Service() {
         private const val NOTIFICATION_ID = 6106
         private const val TAG = "G6PlaybackService"
         private const val PREVIOUS_RESTART_THRESHOLD_MS = 3000L
+        private const val COVER_CACHE_MAX_ENTRIES = 8
         private val playerLock = Any()
         @Volatile private var sharedPlayer: ExoPlayer? = null
         @Volatile private var serviceInstance: PlaybackKeepAliveService? = null
