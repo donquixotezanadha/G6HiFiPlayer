@@ -183,7 +183,7 @@ class PlaybackKeepAliveService : Service() {
         val trackKey = player?.currentMediaItem?.let { item ->
             item.mediaId.takeIf { it.isNotBlank() }
                 ?: item.localConfiguration?.uri?.toString()
-                ?: "${item.mediaMetadata.title.orEmpty()}|${item.mediaMetadata.artist.orEmpty()}"
+                ?: "${item.mediaMetadata.title?.toString().orEmpty()}|${item.mediaMetadata.artist?.toString().orEmpty()}"
         } ?: "__no_active_track__"
 
         // Clear a prior track's cover immediately on transition. Play/Pause updates for the same
