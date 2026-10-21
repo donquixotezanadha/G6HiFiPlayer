@@ -93,7 +93,11 @@ class MainActivity : Activity() {
     private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
+    private var adaptiveGradientStart = 0xFF191923.toInt()
+    private var adaptiveGradientEnd = 0xFF08080C.toInt()
     private var lightTheme = false
+    private lateinit var backdropGradientView: View
+    private lateinit var bottomDockView: LinearLayout
     private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
     private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
@@ -474,15 +478,11 @@ class MainActivity : Activity() {
         playerPanel.setBackgroundColor(accentColor)
         playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
 
-        val backdropGradient = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x00000000, 0x22F8F8FC, 0xBDF8F8FC.toInt(), BG)
-                else intArrayOf(0x00000000, 0x18000000, 0xA8000000.toInt(), Color.BLACK)
-            )
+        backdropGradientView = View(this).apply {
+            background = createBackdropGradient()
             isClickable = false
         }
-        playerPanel.addView(backdropGradient, FrameLayout.LayoutParams(-1, -1))
+        playerPanel.addView(backdropGradientView, FrameLayout.LayoutParams(-1, -1))
 
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("NO MUSIC PLAYING", 22f, WHITE, true).apply {
@@ -592,15 +592,12 @@ class MainActivity : Activity() {
         transport.addView(playView, LinearLayout.LayoutParams(dp(76), dp(56)))
         transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
 
-        val bottomDock = LinearLayout(this).apply {
+        bottomDockView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(10), 0, dp(8))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x00F8F8FC, 0xE6F8F8FC.toInt(), 0xFFF8F8FC.toInt())
-                else intArrayOf(0x00000000, 0xD9000000.toInt(), Color.BLACK)
-            )
+            background = createBottomDockGradient()
         }
+        val bottomDock = bottomDockView
         // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
         bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
@@ -1772,9 +1769,27 @@ class MainActivity : Activity() {
     }
 
     private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        val picked = DEFAULT_ACCENT
-        if (picked == accentColor) return
-        accentColor = picked
+        val sampled = sampleArtworkColors(bitmap)
+        accentColor = sampled.first
+        adaptiveGradientStart = sampled.second
+        adaptiveGradientEnd = sampled.third
+
+        if (::backdropGradientView.isInitialized) {
+            backdropGradientView.background = createBackdropGradient()
+            backdropGradientView.invalidate()
+        }
+        if (::bottomDockView.isInitialized) {
+            bottomDockView.background = createBottomDockGradient()
+            bottomDockView.invalidate()
+        }
+        if (::playerPanel.isInitialized) playerPanel.setBackgroundColor(adaptiveGradientEnd)
+
+        // The lower gradient is deliberately darkened to keep player metadata readable.
+        if (::titleView.isInitialized) titleView.setTextColor(Color.WHITE)
+        if (::artistView.isInitialized) artistView.setTextColor(0xFFE0E0E8.toInt())
+        if (::albumView.isInitialized) albumView.setTextColor(0xFFBDBDC9.toInt())
+        if (::elapsed.isInitialized) elapsed.setTextColor(0xFFDEDEE8.toInt())
+        if (::duration.isInitialized) duration.setTextColor(0xFFDEDEE8.toInt())
         if (::seek.isInitialized) {
             seek.progressDrawable = RoundedProgressDrawable(
                 if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
@@ -1790,13 +1805,12 @@ class MainActivity : Activity() {
             syncPlaybackIcon()
         }
         if (::scanProgress.isInitialized) {
-            scanProgress.progressTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
+            scanProgress.progressTintList = ColorStateList.valueOf(accentColor)
             scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
         }
         if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
-        if (::titleView.isInitialized) titleView.setTextColor(accentColor)
-        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
-        if (::statusView.isInitialized) statusView.setTextColor(accentColor)
+        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(0xFFDEDEE8.toInt())
+        if (::statusView.isInitialized) statusView.setTextColor(Color.WHITE)
         fun recolor(view: View) {
             if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
             if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
@@ -1805,6 +1819,78 @@ class MainActivity : Activity() {
         if (::albumRows.isInitialized) renderLibrary()
         if (::songRows.isInitialized) renderSongs()
     }
+
+    /**
+     * Extract colors from a bounded pixel grid. This avoids a new runtime dependency and
+     * keeps work small even when displayed artwork is high resolution.
+     */
+    private fun sampleArtworkColors(bitmap: android.graphics.Bitmap): Triple<Int, Int, Int> {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= 0 || height <= 0) return Triple(DEFAULT_ACCENT, 0xFF191923.toInt(), 0xFF08080C.toInt())
+        var totalR = 0L; var totalG = 0L; var totalB = 0L; var totalCount = 0L
+        var bestColor = DEFAULT_ACCENT
+        var bestScore = -1.0
+        val hsv = FloatArray(3)
+        val stepX = (width / 32).coerceAtLeast(1)
+        val stepY = (height / 32).coerceAtLeast(1)
+        var y = 0
+        while (y < height) {
+            var x = 0
+            while (x < width) {
+                val color = bitmap.getPixel(x, y)
+                if (Color.alpha(color) > 24) {
+                    totalR += Color.red(color).toLong(); totalG += Color.green(color).toLong()
+                    totalB += Color.blue(color).toLong(); totalCount++
+                    Color.colorToHSV(color, hsv)
+                    val luminance = sampledLuminance(color)
+                    val luminanceFit = (1.0 - kotlin.math.abs(luminance - 0.42) / 0.58).coerceAtLeast(0.0)
+                    val score = hsv[1].toDouble() * luminanceFit
+                    if (score > bestScore) { bestScore = score; bestColor = color }
+                }
+                x += stepX
+            }
+            y += stepY
+        }
+        if (totalCount == 0L) return Triple(DEFAULT_ACCENT, 0xFF191923.toInt(), 0xFF08080C.toInt())
+        val average = Color.rgb((totalR / totalCount).toInt().coerceIn(0, 255),
+            (totalG / totalCount).toInt().coerceIn(0, 255), (totalB / totalCount).toInt().coerceIn(0, 255))
+        val accent = if (bestScore < 0.12) blendColors(average, DEFAULT_ACCENT, 0.28f)
+            else blendColors(bestColor, Color.WHITE, 0.08f)
+        val start = darkenColor(blendColors(average, accent, 0.42f), 0.58f)
+        val end = darkenColor(blendColors(average, accent, 0.18f), 0.76f)
+        return Triple(accent, start, end)
+    }
+
+    private fun sampledLuminance(color: Int): Double {
+        fun channel(value: Int): Double {
+            val c = value / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(Color.red(color)) + 0.7152 * channel(Color.green(color)) + 0.0722 * channel(Color.blue(color))
+    }
+
+    private fun blendColors(from: Int, to: Int, amount: Float): Int {
+        val t = amount.coerceIn(0f, 1f)
+        return Color.rgb((Color.red(from) * (1f - t) + Color.red(to) * t).toInt().coerceIn(0, 255),
+            (Color.green(from) * (1f - t) + Color.green(to) * t).toInt().coerceIn(0, 255),
+            (Color.blue(from) * (1f - t) + Color.blue(to) * t).toInt().coerceIn(0, 255))
+    }
+
+    private fun darkenColor(color: Int, factor: Float): Int = Color.rgb(
+        (Color.red(color) * factor).toInt().coerceIn(0, 255),
+        (Color.green(color) * factor).toInt().coerceIn(0, 255),
+        (Color.blue(color) * factor).toInt().coerceIn(0, 255))
+
+    private fun createBackdropGradient(): GradientDrawable = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        intArrayOf(0x00000000, (adaptiveGradientStart and 0x00FFFFFF) or 0x28000000,
+            (adaptiveGradientEnd and 0x00FFFFFF) or 0xA8000000.toInt(), adaptiveGradientEnd))
+
+    private fun createBottomDockGradient(): GradientDrawable = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        intArrayOf((adaptiveGradientStart and 0x00FFFFFF),
+            (adaptiveGradientStart and 0x00FFFFFF) or 0xD8000000.toInt(), adaptiveGradientEnd))
 
     private fun decodeArtwork(
         bytes: ByteArray,
@@ -1898,8 +1984,14 @@ class MainActivity : Activity() {
                     applyArtworkAccent(bitmap)
                     if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
                 } else {
-                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
+                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"
+                    accentColor = DEFAULT_ACCENT
+                    adaptiveGradientStart = 0xFF191923.toInt()
+                    adaptiveGradientEnd = 0xFF08080C.toInt()
+                    artPlaceholder.background = android.graphics.drawable.ColorDrawable(adaptiveGradientEnd)
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
+                    if (::backdropGradientView.isInitialized) backdropGradientView.background = createBackdropGradient()
+                    if (::bottomDockView.isInitialized) bottomDockView.background = createBottomDockGradient()
                 }
             }
         }
