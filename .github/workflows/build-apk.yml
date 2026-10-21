@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build107-AdaptiveArtwork-Experiment-arm64-apk
+          name: G6HiFiPlayer-Build108-AdaptiveArtwork-AudioExperiment-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Adaptive Artwork Experiment APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 108 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Experimental UI-only change based on Build 91: album artwork now drives the Now Playing gradient and accent colors. Playback/audio engine, queue, notification service, widgets, and database were not intentionally changed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 108 based on Build 91 playback baseline. Artwork palette is applied to adaptive page backgrounds and action controls. Audio output remains on the existing Media3 path in this commit; Direct PCM/bit-perfect is not claimed and requires separate device-verified integration." >> "$GITHUB_STEP_SUMMARY"
