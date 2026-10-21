@@ -78,10 +78,8 @@ class PlaybackKeepAliveService : Service() {
         // Execute transport first. Foreground promotion is required only once per service instance;
         // subsequent taps skip the extra foreground-notification rebuild.
         if (!foregroundStarted) ensureForeground()
-        sharedPlayer?.let {
-            publishSessionState(it)
-            publishNotification(it)
-        }
+        // Player.Listener publishes the resulting state. Avoid rebuilding MediaSession and
+        // the notification a second time here after the listener has already handled the action.
         return START_STICKY
     }
 
@@ -122,6 +120,12 @@ class PlaybackKeepAliveService : Service() {
         if (attachedPlayer === player && serviceListener != null) return
         try { attachedPlayer?.let { old -> serviceListener?.let { old.removeListener(it) } } } catch (_: Exception) { }
         val listener = object : Player.Listener {
+            // playWhenReady can change while buffering, before isPlaying changes. Observe it
+            // directly so Play/Pause state stays responsive without duplicate command-side work.
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                publishSessionState(player)
+                publishNotification(player)
+            }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 publishSessionState(player)
                 publishNotification(player)
