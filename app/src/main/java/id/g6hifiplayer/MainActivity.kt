@@ -306,12 +306,12 @@ class MainActivity : Activity() {
             // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
-        libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = createAdaptivePageGradient() }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         queuePanel = SwipeFrameLayout(this, onSwipeDown = { }, onSwipeUp = { closeQueueOverlay() })
         audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = createAdaptivePageGradient() }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
@@ -1783,6 +1783,9 @@ class MainActivity : Activity() {
             bottomDockView.invalidate()
         }
         if (::playerPanel.isInitialized) playerPanel.setBackgroundColor(adaptiveGradientEnd)
+        if (::libraryPanel.isInitialized) { libraryPanel.background = createAdaptivePageGradient(); libraryPanel.invalidate() }
+        if (::settingsPanel.isInitialized) { settingsPanel.background = createAdaptivePageGradient(); settingsPanel.invalidate() }
+        if (::songsPanel.isInitialized) { songsPanel.background = createAdaptivePageGradient(); songsPanel.invalidate() }
 
         // The lower gradient is deliberately darkened to keep player metadata readable.
         if (::titleView.isInitialized) titleView.setTextColor(Color.WHITE)
@@ -1813,6 +1816,13 @@ class MainActivity : Activity() {
         if (::statusView.isInitialized) statusView.setTextColor(Color.WHITE)
         fun recolor(view: View) {
             if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
+            if (view is TextView && view.tag == "g6_dynamic_action_primary") {
+                view.setTextColor(if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF08080C.toInt())
+                view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x44000000), shape(accentColor, 14), null)
+            } else if (view is TextView && view.tag == "g6_dynamic_action_secondary") {
+                view.setTextColor(WHITE)
+                view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(LINE, 14), null)
+            }
             if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
         }
         recolor(window.decorView)
@@ -1891,6 +1901,16 @@ class MainActivity : Activity() {
         GradientDrawable.Orientation.TOP_BOTTOM,
         intArrayOf(0x00000000, (adaptiveGradientStart and 0x00FFFFFF) or 0x28000000,
             (adaptiveGradientEnd and 0x00FFFFFF) or 0xA8000000.toInt(), adaptiveGradientEnd))
+
+    private fun createAdaptivePageGradient(): GradientDrawable = GradientDrawable(
+        GradientDrawable.Orientation.TL_BR,
+        intArrayOf(
+            (adaptiveGradientStart and 0x00FFFFFF) or 0x33000000,
+            (adaptiveGradientStart and 0x00FFFFFF) or 0x55000000,
+            (adaptiveGradientEnd and 0x00FFFFFF) or 0xCC000000.toInt(),
+            adaptiveGradientEnd
+        )
+    )
 
     private fun createBottomDockGradient(): GradientDrawable = GradientDrawable(
         GradientDrawable.Orientation.TOP_BOTTOM,
@@ -2663,6 +2683,7 @@ class MainActivity : Activity() {
         setLineSpacing(dp(2).toFloat(), 1f)
     }
     private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) BG else WHITE, true).apply {
+        tag = if (primary) "g6_dynamic_action_primary" else "g6_dynamic_action_secondary"
         gravity = Gravity.CENTER; background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (primary) accentColor else LINE, 14), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
