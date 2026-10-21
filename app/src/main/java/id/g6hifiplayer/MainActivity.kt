@@ -1817,7 +1817,7 @@ class MainActivity : Activity() {
         fun recolor(view: View) {
             if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
             if (view is TextView && view.tag == "g6_dynamic_action_primary") {
-                view.setTextColor(if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF08080C.toInt())
+                view.setTextColor(accentForeground())
                 view.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x44000000), shape(accentColor, 14), null)
             } else if (view is TextView && view.tag == "g6_dynamic_action_secondary") {
                 view.setTextColor(WHITE)
@@ -2682,7 +2682,9 @@ class MainActivity : Activity() {
         typeface = if (bold) Typeface.create("sans-serif", Typeface.BOLD) else Typeface.create("sans-serif", Typeface.NORMAL)
         setLineSpacing(dp(2).toFloat(), 1f)
     }
-    private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) BG else WHITE, true).apply {
+    private fun accentForeground(): Int = if (sampledLuminance(accentColor) > 0.48) 0xFF101014.toInt() else Color.WHITE
+
+    private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) accentForeground() else WHITE, true).apply {
         tag = if (primary) "g6_dynamic_action_primary" else "g6_dynamic_action_secondary"
         gravity = Gravity.CENTER; background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (primary) accentColor else LINE, 14), null)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
