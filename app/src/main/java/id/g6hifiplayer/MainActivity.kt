@@ -2017,6 +2017,7 @@ class MainActivity : Activity() {
                     else "inactive") +
             "\nAudioManager mode: " + audioMode +
             "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "ROUTE UNCONFIRMED — getRoutedDevice() returned null; Android has not exposed the active route (not proof of disconnection)" }) +
+            "\nDirect PCM request status: " + DirectPcmRequest.statusSummary() +
             "\nActive DIRECT output mode: NOT EXPOSED by the public AudioTrack/Media3 inspection used here; capability checks do not identify the mode selected for this stream." +
             "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
             "\n" + connectionSummary +
