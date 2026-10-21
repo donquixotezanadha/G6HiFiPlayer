@@ -1883,22 +1883,57 @@ class MainActivity : Activity() {
         }
     }
 
+    // Use a stable album-level key so the next track can reuse the exact decoded bitmap.
+    // Explicit cover URI is strongest; embedded covers fall back to normalized album + artist.
+    private fun playbackArtworkKey(track: Track): String {
+        val cover = track.coverUri?.toString()?.takeIf { it.isNotBlank() }
+        if (cover != null) return "player-album:cover:" + cover
+        val album = track.album.trim().lowercase(Locale.ROOT)
+        val artist = track.artist.trim().lowercase(Locale.ROOT)
+        if (album.isNotEmpty() && album != "unknown album") {
+            return "player-album:meta:" + album + "|" + artist
+        }
+        return "player-track:" + track.uri.toString()
+    }
+
+    private fun displayPlaybackArtwork(bitmap: android.graphics.Bitmap, token: Int) {
+        if (token != artToken || isFinishing || bitmap.isRecycled) return
+        artImage.setImageBitmap(bitmap)
+        artImage.visibility = View.VISIBLE
+        artPlaceholder.visibility = View.GONE
+        if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+        applyArtworkAccent(bitmap)
+        if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+    }
+
     private fun loadArtwork(t: Track) {
         val token = ++artToken
-        artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
+        val key = playbackArtworkKey(t)
+        // Same-album transitions take the memory-cache fast path on the UI thread; no blank
+        // placeholder while decoding the same cover again, and MediaSession gets it immediately.
+        val cached = bitmapArtworkCache.get(key)
+        if (cached != null && !cached.isRecycled) {
+            displayPlaybackArtwork(cached, token)
+            return
+        }
+
+        artImage.visibility = View.GONE
+        artImage.setImageDrawable(null)
+        artPlaceholder.visibility = View.VISIBLE
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
-            val key = "player:" + t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            val bitmap = bitmapArtworkCache.get(key)
+                ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }
+                    ?.also { bitmapArtworkCache.put(key, it) }
             handler.post {
                 if (token != artToken) return@post
                 if (bitmap != null && !isFinishing) {
-                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
-                    if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
-                    applyArtworkAccent(bitmap)
-                    if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+                    displayPlaybackArtwork(bitmap, token)
                 } else {
-                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
+                    artImage.visibility = View.GONE
+                    artPlaceholder.visibility = View.VISIBLE
+                    artPlaceholder.text = "NO COVER ART"
+                    artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
                     if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
                 }
             }
