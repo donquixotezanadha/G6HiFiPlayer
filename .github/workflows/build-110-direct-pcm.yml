@@ -1,9 +1,9 @@
-name: Build 1.10 DIRECT PCM experiment
+name: Build 1.11 DIRECT PCM audio experiment
 
 on:
   push:
     branches:
-      - build-110-direct-pcm-experiment
+      - build-111-direct-pcm-audio
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-1.10.0-direct-pcm-experiment
+          name: G6HiFiPlayer-1.11.0-direct-pcm-audio
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
