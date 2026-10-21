@@ -1816,8 +1816,13 @@ class MainActivity : Activity() {
             if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
         }
         recolor(window.decorView)
-        if (::albumRows.isInitialized) renderLibrary()
-        if (::songRows.isInitialized) renderSongs()
+        // Avoid rebuilding hidden library pages during track changes; only refresh the page
+        // currently visible so artwork color updates do not introduce UI stalls.
+        if (currentPage == "library" && ::albumRows.isInitialized) renderLibrary()
+        if (currentPage == "songs" && ::songRows.isInitialized) renderSongs()
+        if (::navPlayer.isInitialized) navState(navPlayer, currentPage == "player")
+        if (::navLibrary.isInitialized) navState(navLibrary, currentPage == "library")
+        if (::navFile.isInitialized) navState(navFile, currentPage == "settings" || currentPage == "audio" || currentPage == "file")
     }
 
     /**
