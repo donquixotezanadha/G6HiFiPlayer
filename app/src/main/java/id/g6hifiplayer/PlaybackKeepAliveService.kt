@@ -297,7 +297,11 @@ class PlaybackKeepAliveService : Service() {
                         enableFloatOutput: Boolean,
                         enableAudioOutputPlaybackParams: Boolean
                     ): AudioSink {
-                        val base = AudioTrackAudioOutputProvider.Builder(context).build()
+                        val providerBuilder = AudioTrackAudioOutputProvider.Builder(context)
+                        .setAudioTrackBuilderModifier { builder, config ->
+                            DirectPcmRequest.applyIfSupported(builder, config)
+                        }
+                        val base = providerBuilder.build()
                         val tracking = TrackingAudioOutputProvider(base) { track ->
                             audioTrackCallback?.invoke(track)
                         }
