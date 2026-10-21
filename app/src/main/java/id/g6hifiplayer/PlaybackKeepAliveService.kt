@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.content.pm.ServiceInfo
 import android.media.AudioTrack
 import android.media.MediaMetadata
@@ -26,6 +27,11 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 class PlaybackKeepAliveService : Service() {
     private var attachedPlayer: ExoPlayer? = null
     private var serviceListener: Player.Listener? = null
+    private var foregroundStarted = false
+
+    // Service-local in-memory cover cache. State-only notification updates reuse the current track's bitmap.
+    private var cachedCoverKey: String? = null
+    private var cachedCover: Bitmap? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -62,13 +68,20 @@ class PlaybackKeepAliveService : Service() {
                 else it.seekTo(0L)
             }
             ACTION_DISMISS -> {
-                // A notification dismissal never stops the foreground playback session.
+                // Keep the service foreground even if this is its first command.
+                if (!foregroundStarted) ensureForeground()
                 publishNotification(sharedPlayer)
                 return START_STICKY
             }
         }
-        ensureForeground()
-        sharedPlayer?.let { attachPlayer(it); publishSessionState(it); publishNotification(it) }
+
+        // Execute transport first. Foreground promotion is required only once per service instance;
+        // subsequent taps skip the extra foreground-notification rebuild.
+        if (!foregroundStarted) ensureForeground()
+        sharedPlayer?.let {
+            publishSessionState(it)
+            publishNotification(it)
+        }
         return START_STICKY
     }
 
@@ -80,10 +93,12 @@ class PlaybackKeepAliveService : Service() {
     }
 
     private fun ensureForeground() {
+        if (foregroundStarted) return
         val notification = buildNotification(sharedPlayer)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else startForeground(NOTIFICATION_ID, notification)
+        foregroundStarted = true
     }
 
     private fun stopSessionAndPlayer() {
@@ -165,11 +180,34 @@ class PlaybackKeepAliveService : Service() {
         val artist = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?.takeIf { it.isNotBlank() }
             ?: itemMetadata?.artist?.toString().orEmpty()
-        val cover = try {
-            sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-        } catch (_: Exception) { null }
+        val trackKey = player?.currentMediaItem?.let { item ->
+            item.mediaId.takeIf { it.isNotBlank() }
+                ?: item.localConfiguration?.uri?.toString()
+                ?: "${item.mediaMetadata.title.orEmpty()}|${item.mediaMetadata.artist.orEmpty()}"
+        } ?: "__no_active_track__"
+
+        // Clear a prior track's cover immediately on transition. Play/Pause updates for the same
+        // track reuse the cached bitmap instead of querying MediaSession metadata again.
+        if (cachedCoverKey != trackKey) {
+            cachedCoverKey = trackKey
+            cachedCover = null
+        }
+        var cover = cachedCover?.takeUnless { it.isRecycled }
+        if (cover == null) {
+            // Don't cache a previous track's artwork during the short metadata-transition window.
+            val sessionTitle = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
+            val itemTitle = itemMetadata?.title?.toString()?.trim().orEmpty()
+            val metadataMatchesTrack = sessionTitle.isBlank() || itemTitle.isBlank() ||
+                sessionTitle.equals(itemTitle, ignoreCase = true)
+            if (metadataMatchesTrack) {
+                cover = try {
+                    sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                        ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                        ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+                } catch (_: Exception) { null }
+                if (cover != null && !cover.isRecycled) cachedCover = cover
+            }
+        }
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun actionPending(action: String, code: Int): PendingIntent {
             val intent = Intent(this, NotificationActionReceiver::class.java).putExtra("notification_action", action)
