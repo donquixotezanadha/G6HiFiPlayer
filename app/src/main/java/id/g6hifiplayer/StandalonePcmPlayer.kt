@@ -57,9 +57,13 @@ internal class StandalonePcmPlayer {
                         "AudioTrack failed to initialize at ${info.sampleRate} Hz PCM16"
                     }
                     activeTrack = outputTrack
-                    report("PLAYING: custom WAV parser → PCM16 writer; source=${info.sampleRate} Hz / ${info.bitsPerSample}-bit / ${info.channels} ch; AudioTrack buffer=$bufferBytes bytes.")
-                    report("Output route: ${describeRoute(outputTrack)}. This does not prove DIRECT or bit-perfect.")
+                    report("WAV_PARSED rate=${info.sampleRate}Hz channels=${info.channels} bits=${info.bitsPerSample} blockAlign=${info.blockAlign} dataBytes=${info.dataSize} dataOffset=${info.dataOffset}")
+                    report("AUDIOTRACK_INITIALIZED state=${outputTrack.state} sampleRate=${outputTrack.sampleRate} channelCount=${outputTrack.channelCount} audioFormat=${outputTrack.audioFormat} sessionId=${outputTrack.audioSessionId} bufferBytes=${bufferBytes} minBufferBytes=${minBytes}")
+                    report("ROUTE ${describeRoute(outputTrack)}; route data does not prove DIRECT or bit-perfect.")
+                    var totalWritten = 0L
+                    val playbackStartedAt = System.currentTimeMillis()
                     outputTrack.play()
+                    report("AUDIOTRACK_PLAY_CALLED playState=${outputTrack.playState}")
 
                     wav.seek(info.dataOffset)
                     var remaining = info.dataSize
@@ -79,11 +83,17 @@ internal class StandalonePcmPlayer {
                             val written = outputTrack.write(outputBuffer, offset, outputBytes - offset, AudioTrack.WRITE_BLOCKING)
                             check(written > 0) { "AudioTrack.write failed: $written" }
                             offset += written
+                            totalWritten += written.toLong()
                         }
                         remaining -= aligned
                     }
-                    if (!token.get()) report("Finished: end of PCM stream reached; confirm audible playback on the device.")
-                    else report("Stopped.")
+                    val elapsedMs = System.currentTimeMillis() - playbackStartedAt
+                    if (!token.get()) {
+                        report("PLAYBACK_RESULT=STREAM_FINISHED bytesWritten=${totalWritten} sourceDataBytes=${info.dataSize} elapsedMs=${elapsedMs} playState=${outputTrack.playState} playbackHeadFrames=${outputTrack.playbackHeadPosition}")
+                        report("Finished: stream submitted to AudioTrack. Confirm whether sound was audible; this log alone does not prove audibility.")
+                    } else {
+                        report("PLAYBACK_RESULT=STOPPED bytesWritten=${totalWritten} elapsedMs=${elapsedMs}")
+                    }
                 }
             } catch (error: Throwable) {
                 if (!token.get()) report("ERROR: ${error.message ?: error.javaClass.simpleName}")
@@ -180,7 +190,28 @@ internal class StandalonePcmPlayer {
                             readU32(file)
                             blockAlign = readU16(file)
                             bits = readU16(file)
-                            require(formatTag == 1) { "WAV is not integer PCM (format tag=$formatTag)" }
+                            when (formatTag) {
+                                1 -> Unit // WAVE_FORMAT_PCM
+                                0xFFFE -> {
+                                    require(size >= 40) { "WAVE_FORMAT_EXTENSIBLE fmt chunk too short: $size" }
+                                    val extensionSize = readU16(file)
+                                    require(extensionSize >= 22) { "Invalid WAVE_FORMAT_EXTENSIBLE extension size=$extensionSize" }
+                                    readU16(file) // valid bits per sample
+                                    readU32(file) // channel mask
+                                    val guid = ByteArray(16)
+                                    file.readFully(guid)
+                                    val pcmGuidTail = byteArrayOf(
+                                        0, 0, 0, 0, 0, 0x10, 0, 0,
+                                        0x80.toByte(), 0, 0, 0xAA.toByte(), 0, 0x38, 0x9B.toByte(), 0x71
+                                    )
+                                    require((guid[0].toInt() and 0xFF) == 1 &&
+                                        guid[1].toInt() == 0 && guid[2].toInt() == 0 && guid[3].toInt() == 0 &&
+                                        guid.sliceArray(4..15).contentEquals(pcmGuidTail.sliceArray(4..15))) {
+                                        "WAV extensible subtype is not integer PCM"
+                                    }
+                                }
+                                else -> error("WAV is not integer PCM (format tag=$formatTag)")
+                            }
                         }
                         "data" -> {
                             dataOffset = start
