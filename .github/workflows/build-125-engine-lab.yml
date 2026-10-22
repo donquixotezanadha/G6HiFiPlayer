@@ -1,0 +1,45 @@
+name: Build G6 Engine Lab Build 1.25
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-125-standalone-pcm-engine-lab"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        run: gradle clean assembleDebug --stacktrace
+      - name: Upload Build 1.25 Engine Lab APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build125-Standalone-PCM-Engine-Lab
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish direct artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## Download G6 Engine Lab Build 1.25" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 1.25 Engine Lab APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Isolated from the stable Build 91 player. Uses a custom WAV parser and bounded PCM16 AudioTrack writer after FFmpeg decoding. First milestone is audible playback only; no DIRECT/bit-perfect claim." >> "$GITHUB_STEP_SUMMARY"
