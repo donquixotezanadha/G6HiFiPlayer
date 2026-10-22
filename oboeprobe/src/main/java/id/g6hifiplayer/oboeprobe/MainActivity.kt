@@ -48,9 +48,12 @@ class MainActivity : Activity() {
         root.addView(scroll, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
+        // Attach the constructed view hierarchy to the Activity; without this,
+        // Android displays the empty window (white screen) instead of the UI.
+        setContentView(root)
 
         content.addView(TextView(this).apply {
-            text = "Build 1.18 — Oboe diagnostics"
+            text = "Build 1.19 — Oboe diagnostics (UI fix)"
             textSize = 20f
         })
         content.addView(TextView(this).apply {
@@ -86,7 +89,7 @@ class MainActivity : Activity() {
         content.addView(output)
         record(
             "probeStarted=true\n" +
-                "appVersion=1.18.0-oboe-diagnostics\n" +
+                "appVersion=1.19.0-oboe-diagnostics-ui-fix\n" +
                 "deviceManufacturer=${Build.MANUFACTURER}\n" +
                 "deviceModel=${Build.MODEL}\n" +
                 "androidRelease=${Build.VERSION.RELEASE}\n" +
