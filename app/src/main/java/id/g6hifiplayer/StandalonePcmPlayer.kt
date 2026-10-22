@@ -201,7 +201,7 @@ internal class StandalonePcmPlayer {
                                     val guid = ByteArray(16)
                                     file.readFully(guid)
                                     val pcmGuidTail = byteArrayOf(
-                                        0, 0, 0, 0, 0, 0x10, 0, 0,
+                                        0, 0, 0, 0, 0, 0, 0x10, 0,
                                         0x80.toByte(), 0, 0, 0xAA.toByte(), 0, 0x38, 0x9B.toByte(), 0x71
                                     )
                                     require((guid[0].toInt() and 0xFF) == 1 &&
