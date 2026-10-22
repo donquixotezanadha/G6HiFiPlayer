@@ -17,6 +17,7 @@ std::mutex gMutex;
 AAudioStream* gStream = nullptr;
 ToneState* gTone = nullptr;
 std::string gLastReport = "No AAudio stream has been opened.";
+std::string gOpenPrefix;
 
 aaudio_data_callback_result_t dataCallback(
         AAudioStream*,
@@ -80,6 +81,7 @@ Java_id_g6hifiplayer_directprobe_MainActivity_nativeStart(
     std::lock_guard<std::mutex> lock(gMutex);
     stopLocked();
     gLastReport.clear();
+    gOpenPrefix.clear();
 
     ToneState* tone = new ToneState();
     tone->sampleRate = sampleRate;
@@ -127,14 +129,15 @@ Java_id_g6hifiplayer_directprobe_MainActivity_nativeStart(
            << ", requested device ID=" << deviceId
            << "\nrequestStart result: " << AAudio_convertResultToText(result)
            << " (" << result << ")";
-    gLastReport = streamReport(gStream, prefix.str());
+    gOpenPrefix = prefix.str();
+    gLastReport = streamReport(gStream, gOpenPrefix);
     return env->NewStringUTF(gLastReport.c_str());
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_id_g6hifiplayer_directprobe_MainActivity_nativeGetReport(JNIEnv* env, jobject) {
     std::lock_guard<std::mutex> lock(gMutex);
-    gLastReport = streamReport(gStream, gLastReport);
+    if (gStream != nullptr) gLastReport = streamReport(gStream, gOpenPrefix);
     return env->NewStringUTF(gLastReport.c_str());
 }
 
