@@ -1,9 +1,9 @@
-name: Build G6 Engine Lab Build 1.26
+name: Build G6 Engine Lab Build 1.27
 
 on:
   workflow_dispatch:
   push:
-    branches: ["build-126-pcm-playback-diagnostics"]
+    branches: ["build-127-ffmpegkit-init-diagnostics"]
 
 jobs:
   build:
@@ -28,18 +28,18 @@ jobs:
           gradle-version: "8.9"
       - name: Build debug APK
         run: gradle clean assembleDebug --stacktrace
-      - name: Upload Build 1.26 PCM Diagnostics APK
+      - name: Upload Build 1.27 PCM Diagnostics APK
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build126-PCM-Playback-Diagnostics
+          name: G6HiFiPlayer-Build127-FFmpegKit-Init-Diagnostics
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## Download G6 Engine Lab Build 1.25" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Download G6 Engine Lab Build 1.27" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download Build 1.26 PCM Diagnostics APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 1.27 PCM Diagnostics APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Isolated from the stable Build 91 player. Uses a PCM16 WAV decoding, detailed FFmpeg error logs, WAV parser validation, and playback-head drain wait. First milestone is audible playback only; no DIRECT/bit-perfect claim." >> "$GITHUB_STEP_SUMMARY"
+          echo "Isolated from the stable Build 91 player. Uses a PCM16 WAV decoding, exception chain and stack trace diagnostics, WAV parser validation, and playback-head drain wait. First milestone is audible playback only; no DIRECT/bit-perfect claim." >> "$GITHUB_STEP_SUMMARY"
