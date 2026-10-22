@@ -47,8 +47,10 @@ internal class FfmpegAudioDecoder(context: Context) {
                 val command = "-y -hide_banner -loglevel error -i ${quote(inputFile.absolutePath)} " +
                     "-map 0:a:0 -vn -c:a pcm_s16le ${quote(tempOutput.absolutePath)}"
                 val session = FFmpegKit.execute(command)
-                check(ReturnCode.isSuccess(session.returnCode) && tempOutput.isFile && tempOutput.length() > 44L) {
-                    "FFmpeg decode failed (return code ${session.returnCode})"
+                if (!ReturnCode.isSuccess(session.returnCode) || !tempOutput.isFile || tempOutput.length() <= 44L) {
+                    val logs = try { session.allLogsAsString ?: "" } catch (_: Exception) { "" }
+                    val detail = logs.takeLast(2400).ifBlank { "FFmpeg returned no diagnostic log." }
+                    throw IllegalStateException("FFmpeg decode failed (return code ${session.returnCode}; outputExists=${tempOutput.isFile}; outputBytes=${tempOutput.length()}). Details: ${detail}")
                 }
                 if (!tempOutput.renameTo(output)) {
                     tempOutput.copyTo(output, overwrite = true)
