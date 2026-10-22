@@ -10,6 +10,7 @@
 
 namespace {
 constexpr char kTag[] = "G6OboeProbe";
+constexpr double kPi = 3.14159265358979323846;
 std::mutex gMutex;
 std::shared_ptr<oboe::AudioStream> gStream;
 
@@ -22,8 +23,8 @@ public:
         const double sampleRate = static_cast<double>(stream->getSampleRate());
         for (int32_t frame = 0; frame < numFrames; ++frame) {
             const float sample = static_cast<float>(0.08 * std::sin(phase_));
-            phase_ += 2.0 * M_PI * 440.0 / sampleRate;
-            if (phase_ >= 2.0 * M_PI) phase_ -= 2.0 * M_PI;
+            phase_ += 2.0 * kPi * 440.0 / sampleRate;
+            if (phase_ >= 2.0 * kPi) phase_ -= 2.0 * M_PI;
             for (int32_t channel = 0; channel < channels; ++channel) {
                 output[frame * channels + channel] = sample;
             }
