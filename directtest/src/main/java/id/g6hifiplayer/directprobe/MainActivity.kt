@@ -33,6 +33,8 @@ class MainActivity : Activity() {
     private var selectedRate = 96000
     private var lastPreferredRouteResult = "not attempted"
     private var lastPolicyAudit = "Not scanned yet"
+    private var lastMinBufferResult = "not attempted"
+    private var lastBufferStrategy = "not attempted"
 
     private fun bytesPerFrame(encoding: Int): Int =
         if (encoding == AudioFormat.ENCODING_PCM_16BIT) 4 else 6
@@ -63,13 +65,13 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
         }
         val title = TextView(this).apply {
-            text = "G6 AudioTrack Policy Audit — Build 1.21"
+            text = "G6 AudioTrack Policy Audit — Build 1.22"
             textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
         }
         content.addView(title, params())
         content.addView(TextView(this).apply {
-            text = "Android 9 / PCM_24BIT_PACKED / stereo. Start one low-level 440 Hz test tone, then inspect the active AudioFlinger track. Stop the tone before unplugging headphones."
+            text = "Android 9 / PCM_24BIT_PACKED / stereo. Build 1.22 tests an explicit-buffer fallback when getMinBufferSize rejects a format. Start the low-level 440 Hz tone, then inspect the active AudioFlinger track."
             textSize = 14f
         }, params(top = 8))
 
@@ -126,11 +128,12 @@ class MainActivity : Activity() {
         content.addView(controls, params())
 
         content.addView(Button(this).apply {
-            text = "Copy diagnostics"
+            text = "Copy saved snapshot"
             setOnClickListener {
-                refreshReport()
+                // Copy the most recently saved snapshot only. Do not refresh, stop, or release AudioTrack here.
+                val snapshot = lastReport.ifBlank { buildReport() }
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("G6 AudioTrack Probe diagnostics", lastReport))
+                clipboard.setPrimaryClip(ClipData.newPlainText("G6 AudioTrack Probe diagnostics", snapshot))
                 Toast.makeText(this@MainActivity, "Diagnostics copied", Toast.LENGTH_SHORT).show()
             }
         }, params(top = 4))
@@ -161,20 +164,28 @@ class MainActivity : Activity() {
         val minBytes = try {
             AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, encoding)
         } catch (e: Exception) {
-            statusView.text = "FAILED: getMinBufferSize threw ${e.javaClass.simpleName}: ${e.message} for rate=$rate, format=${encodingLabel(encoding)}."
-            lastReport = statusView.text.toString()
-            Log.e(TAG, lastReport, e)
-            return
+            lastMinBufferResult = "threw ${e.javaClass.simpleName}: ${e.message}"
+            Log.e(TAG, "getMinBufferSize failed; trying explicit buffer fallback", e)
+            -2
         }
-        if (minBytes <= 0) {
-            statusView.text = "UNSUPPORTED/REJECTED: getMinBufferSize returned $minBytes for rate=$rate, format=${encodingLabel(encoding)}. No AudioTrack was opened."
-            lastReport = statusView.text.toString()
-            Log.e(TAG, lastReport)
-            return
+        if (lastMinBufferResult == "not attempted" || !lastMinBufferResult.startsWith("threw")) {
+            lastMinBufferResult = "getMinBufferSize returned $minBytes"
         }
 
         val frameBytes = bytesPerFrame(encoding)
-        val bufferBytes = max(minBytes, 1024 * frameBytes)
+        // A negative result means the helper could not calculate a supported minimum.
+        // Still make one controlled attempt with an explicit 4096-frame buffer; AudioTrack
+        // construction remains the authority on whether this configuration is accepted.
+        val bufferBytes = if (minBytes > 0) {
+            max(minBytes, 1024 * frameBytes)
+        } else {
+            4096 * frameBytes
+        }
+        lastBufferStrategy = if (minBytes > 0) {
+            "minimum helper accepted; requested bufferBytes=$bufferBytes"
+        } else {
+            "fallback: 4096 frames ($bufferBytes bytes); helper result=$minBytes"
+        }
         val track = try {
             AudioTrack.Builder()
                 .setAudioAttributes(
@@ -194,14 +205,14 @@ class MainActivity : Activity() {
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
         } catch (e: Exception) {
-            statusView.text = "FAILED to build AudioTrack: ${e.javaClass.simpleName}: ${e.message}"
+            statusView.text = "FAILED to build AudioTrack: ${e.javaClass.simpleName}: ${e.message}\n$lastMinBufferResult\n$lastBufferStrategy"
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport, e)
             return
         }
 
         if (track.state != AudioTrack.STATE_INITIALIZED) {
-            statusView.text = "FAILED: AudioTrack state=${track.state}; requested rate=$rate, format=PCM_24BIT_PACKED."
+            statusView.text = "FAILED: AudioTrack state=${track.state}; requested rate=$rate, format=${encodingLabel(encoding)}.\n$lastMinBufferResult\n$lastBufferStrategy"
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport)
             try { track.release() } catch (_: Exception) {}
@@ -271,7 +282,7 @@ class MainActivity : Activity() {
         }, "G6AudioTrackWriter").apply { isDaemon = true }
         writerThread?.start()
 
-        Log.i(TAG, "TEST_STARTED requestedRate=$rate encoding=$encoding(PCM_24BIT_PACKED) channelMask=STEREO bufferBytes=$bufferBytes")
+        Log.i(TAG, "TEST_STARTED requestedRate=$rate encoding=${encodingLabel(encoding)} channelMask=STEREO bufferBytes=$bufferBytes minBufferResult=$lastMinBufferResult strategy=$lastBufferStrategy")
         refreshReport()
     }
 
@@ -303,6 +314,8 @@ class MainActivity : Activity() {
         lines += "TEST: ${if (track == null) "NOT PLAYING" else "PLAYING"}"
         lines += "requested sample rate: $selectedRate"
         lines += "requested format: ${encodingLabel(selectedEncoding)}"
+        lines += "getMinBufferSize result: $lastMinBufferResult"
+        lines += "buffer strategy: $lastBufferStrategy"
         lines += "preferred wired route request: $lastPreferredRouteResult"
         if (track != null) {
             lines += "track state: ${track.state} (1=INITIALIZED)"
