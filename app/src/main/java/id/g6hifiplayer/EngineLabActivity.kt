@@ -47,7 +47,7 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.28"
+            text = "G6 Engine Lab · Build 1.29"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
@@ -108,13 +108,13 @@ class EngineLabActivity : Activity() {
             setOnClickListener {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.28 diagnostics")
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.29 diagnostics")
                     putExtra(Intent.EXTRA_TEXT, diagnosticsText())
                 }
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
             }
         }, matchWrap())
-        recordDiagnostic("APP_START build=1.28 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("APP_START build=1.29 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         setContentView(root)
     }
 
@@ -148,7 +148,7 @@ class EngineLabActivity : Activity() {
                         pcmPlayer.play(wav) { message ->
                             runOnUiThread {
                                 recordDiagnostic(message)
-                                if (message.startsWith("Finished") || message.startsWith("Stopped") || message.startsWith("ERROR")) {
+                                if (message.startsWith("PLAYBACK_RESULT=") || message.startsWith("PLAYBACK_ERROR") || message.startsWith("PLAYBACK_DRAIN_CONFIRMED")) {
                                     playButton.isEnabled = selectedUri != null
                                 }
                             }
@@ -176,7 +176,7 @@ class EngineLabActivity : Activity() {
     }
 
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.28 diagnostics\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.29 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
