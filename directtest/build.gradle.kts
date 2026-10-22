@@ -11,8 +11,8 @@ android {
         applicationId = "id.g6hifiplayer.directprobe"
         minSdk = 28
         targetSdk = 28
-        versionCode = 120
-        versionName = "1.20.0"
+        versionCode = 121
+        versionName = "1.21.0"
     }
 
     compileOptions {
