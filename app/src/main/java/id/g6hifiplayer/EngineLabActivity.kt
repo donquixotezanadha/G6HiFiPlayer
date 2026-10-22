@@ -90,10 +90,6 @@ class EngineLabActivity : Activity() {
             setPadding(0, dp(18), 0, 0)
         }
         content.addView(statusLabel)
-        root.setBackgroundColor(0xFF101114.toInt())
-        content.setTextColor(0xFFF2F2F2.toInt())
-        selectedLabel.setTextColor(0xFFCBCBD1.toInt())
-        statusLabel.setTextColor(0xFFCBCBD1.toInt())
         setContentView(root)
     }
 
