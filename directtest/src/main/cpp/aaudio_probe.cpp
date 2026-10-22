@@ -8,6 +8,7 @@
 #include <string>
 
 namespace {
+constexpr double kPi = 3.14159265358979323846;
 struct ToneState {
     std::atomic<double> phase{0.0};
     int32_t sampleRate = 48000;
@@ -29,13 +30,13 @@ aaudio_data_callback_result_t dataCallback(
     if (tone == nullptr || output == nullptr) return AAUDIO_CALLBACK_RESULT_STOP;
 
     double phase = tone->phase.load(std::memory_order_relaxed);
-    const double step = 2.0 * M_PI * 440.0 / static_cast<double>(tone->sampleRate);
+    const double step = 2.0 * kPi * 440.0 / static_cast<double>(tone->sampleRate);
     for (int32_t frame = 0; frame < numFrames; ++frame) {
         const auto sample = static_cast<int16_t>(std::sin(phase) * 655.0); // about 2% full scale
         output[frame * 2] = sample;
         output[frame * 2 + 1] = sample;
         phase += step;
-        if (phase >= 2.0 * M_PI) phase -= 2.0 * M_PI;
+        if (phase >= 2.0 * kPi) phase -= 2.0 * M_PI;
     }
     tone->phase.store(phase, std::memory_order_relaxed);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
