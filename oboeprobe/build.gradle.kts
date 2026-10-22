@@ -11,8 +11,8 @@ android {
         applicationId = "id.g6hifiplayer.oboeprobe"
         minSdk = 28
         targetSdk = 28
-        versionCode = 117
-        versionName = "1.17.0-oboe-probe"
+        versionCode = 118
+        versionName = "1.18.0-oboe-diagnostics"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
