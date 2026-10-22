@@ -34,13 +34,22 @@ internal class StandalonePcmPlayer {
                         "Unsupported PCM bit depth: ${info.bitsPerSample}"
                     }
                     val outputMask = if (info.channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
-                    val minBytes = AudioTrack.getMinBufferSize(info.sampleRate, outputMask, AudioFormat.ENCODING_PCM_16BIT)
-                    check(minBytes > 0) { "AudioTrack rejected ${info.sampleRate} Hz PCM16 (getMinBufferSize=$minBytes)" }
-                    val bufferBytes = maxOf(minBytes * 2, info.sampleRate * info.channels * 2 / 4)
+                    // Android 9 does not expose packed PCM24 AudioTrack output. Keep 24-bit integer
+                    // samples in a PCM24 WAV, then map them to PCM_FLOAT (24 significant bits fit
+                    // exactly in IEEE-754 float) for AudioTrack. PCM16 remains the known-good path.
+                    val outputEncoding = if (info.bitsPerSample == 16) {
+                        AudioFormat.ENCODING_PCM_16BIT
+                    } else {
+                        AudioFormat.ENCODING_PCM_FLOAT
+                    }
+                    val outputBytesPerSample = if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) 4 else 2
+                    val minBytes = AudioTrack.getMinBufferSize(info.sampleRate, outputMask, outputEncoding)
+                    check(minBytes > 0) { "AudioTrack rejected ${info.sampleRate} Hz encoding=$outputEncoding (getMinBufferSize=$minBytes)" }
+                    val bufferBytes = maxOf(minBytes * 2, info.sampleRate * info.channels * outputBytesPerSample / 4)
                     val format = AudioFormat.Builder()
                         .setSampleRate(info.sampleRate)
                         .setChannelMask(outputMask)
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setEncoding(outputEncoding)
                         .build()
                     val attributes = AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -54,34 +63,26 @@ internal class StandalonePcmPlayer {
                         .build()
                     trackForCleanup = outputTrack
                     check(outputTrack.state == AudioTrack.STATE_INITIALIZED) {
-                        "AudioTrack failed to initialize at ${info.sampleRate} Hz PCM16"
+                        "AudioTrack failed to initialize at ${info.sampleRate} Hz encoding=$outputEncoding"
                     }
                     activeTrack = outputTrack
                     report("WAV_PARSED rate=${info.sampleRate}Hz channels=${info.channels} bits=${info.bitsPerSample} blockAlign=${info.blockAlign} dataBytes=${info.dataSize} dataOffset=${info.dataOffset}")
+                    report("OUTPUT_FORMAT audioTrackEncoding=$outputEncoding outputBytesPerSample=$outputBytesPerSample mode=${if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT preserving source integer precision" else "PCM16"}")
                     report("AUDIOTRACK_INITIALIZED state=${outputTrack.state} sampleRate=${outputTrack.sampleRate} channelCount=${outputTrack.channelCount} audioFormat=${outputTrack.audioFormat} sessionId=${outputTrack.audioSessionId} bufferBytes=${bufferBytes} minBufferBytes=${minBytes}")
                     report("ROUTE ${describeRoute(outputTrack)}; route data does not prove DIRECT or bit-perfect.")
                     var totalWritten = 0L
                     var chunksWritten = 0L
                     var lastProgressAt = System.currentTimeMillis()
-                    val frameBytes = info.channels * 2
+                    val frameBytes = info.channels * outputBytesPerSample
                     val playbackStartedAt = System.currentTimeMillis()
-                    outputTrack.play()
-                    report("AUDIOTRACK_PLAY_CALLED playState=${outputTrack.playState}")
-                    report("PCM_WRITER_STARTED dataBytes=${info.dataSize} frameBytes=${frameBytes} framesExpected=${info.dataSize / info.blockAlign} transferMode=MODE_STREAM writeMode=WRITE_BLOCKING")
-
                     wav.seek(info.dataOffset)
                     var remaining = info.dataSize
                     val framesPerChunk = 4096
                     val inputBytesPerFrame = info.blockAlign
                     val inputBuffer = ByteArray(framesPerChunk * inputBytesPerFrame)
-                    val outputBuffer = ByteArray(framesPerChunk * info.channels * 2)
-                    while (remaining > 0 && !token.get()) {
-                        val requested = minOf(inputBuffer.size.toLong(), remaining).toInt()
-                        val aligned = requested - requested % inputBytesPerFrame
-                        if (aligned <= 0) break
-                        wav.readFully(inputBuffer, 0, aligned)
-                        val frames = aligned / inputBytesPerFrame
-                        val outputBytes = convertToPcm16(inputBuffer, outputBuffer, frames, info)
+                    val outputBuffer = ByteArray(framesPerChunk * info.channels * outputBytesPerSample)
+
+                    fun writeOutputChunk(outputBytes: Int) {
                         var offset = 0
                         while (offset < outputBytes && !token.get()) {
                             val written = outputTrack.write(outputBuffer, offset, outputBytes - offset, AudioTrack.WRITE_BLOCKING)
@@ -92,6 +93,33 @@ internal class StandalonePcmPlayer {
                             offset += written
                             totalWritten += written.toLong()
                         }
+                    }
+
+                    // Prime the track before calling play(). Starting an empty streaming track can
+                    // expose a startup underrun/click; one bounded chunk fits inside the chosen buffer.
+                    val firstRequested = minOf(inputBuffer.size.toLong(), remaining).toInt()
+                    val firstAligned = firstRequested - firstRequested % inputBytesPerFrame
+                    check(firstAligned > 0) { "WAV has no complete PCM frame to prefill" }
+                    wav.readFully(inputBuffer, 0, firstAligned)
+                    val firstFrames = firstAligned / inputBytesPerFrame
+                    val firstOutputBytes = convertToOutput(inputBuffer, outputBuffer, firstFrames, info, outputEncoding)
+                    writeOutputChunk(firstOutputBytes)
+                    remaining -= firstAligned
+                    chunksWritten++
+                    report("PCM_PREFILL_COMPLETE sourceBytes=$firstAligned outputBytes=$firstOutputBytes frames=$firstFrames; starting AudioTrack after prefill")
+
+                    outputTrack.play()
+                    report("AUDIOTRACK_PLAY_CALLED playState=${outputTrack.playState}")
+                    report("PCM_WRITER_STARTED dataBytes=${info.dataSize} frameBytes=${frameBytes} framesExpected=${info.dataSize / info.blockAlign} transferMode=MODE_STREAM writeMode=WRITE_BLOCKING")
+
+                    while (remaining > 0 && !token.get()) {
+                        val requested = minOf(inputBuffer.size.toLong(), remaining).toInt()
+                        val aligned = requested - requested % inputBytesPerFrame
+                        if (aligned <= 0) break
+                        wav.readFully(inputBuffer, 0, aligned)
+                        val frames = aligned / inputBytesPerFrame
+                        val outputBytes = convertToOutput(inputBuffer, outputBuffer, frames, info, outputEncoding)
+                        writeOutputChunk(outputBytes)
                         remaining -= aligned
                         chunksWritten++
                         val now = System.currentTimeMillis()
@@ -149,34 +177,59 @@ internal class StandalonePcmPlayer {
         } catch (error: Exception) { "unconfirmed (${error.javaClass.simpleName})" }
     }
 
-    private fun convertToPcm16(input: ByteArray, output: ByteArray, frames: Int, info: WavInfo): Int {
+    private fun convertToOutput(
+        input: ByteArray,
+        output: ByteArray,
+        frames: Int,
+        info: WavInfo,
+        outputEncoding: Int
+    ): Int {
         val bytesPerSample = info.bitsPerSample / 8
         var out = 0
         var src = 0
         repeat(frames * info.channels) {
-            val sample16 = when (info.bitsPerSample) {
+            val sampleInt = when (info.bitsPerSample) {
                 16 -> {
                     val lo = input[src].toInt() and 0xFF
                     val hi = input[src + 1].toInt()
                     (hi shl 8) or lo
                 }
                 24 -> {
-                    val value = (input[src].toInt() and 0xFF) or
+                    (input[src].toInt() and 0xFF) or
                         ((input[src + 1].toInt() and 0xFF) shl 8) or
                         (input[src + 2].toInt() shl 16)
-                    value shr 8
                 }
                 32 -> {
-                    val value = (input[src].toInt() and 0xFF) or
+                    (input[src].toInt() and 0xFF) or
                         ((input[src + 1].toInt() and 0xFF) shl 8) or
                         ((input[src + 2].toInt() and 0xFF) shl 16) or
                         (input[src + 3].toInt() shl 24)
-                    value shr 16
                 }
                 else -> error("Unsupported PCM depth")
             }
-            output[out++] = (sample16 and 0xFF).toByte()
-            output[out++] = ((sample16 shr 8) and 0xFF).toByte()
+            if (outputEncoding == AudioFormat.ENCODING_PCM_16BIT) {
+                val sample16 = when (info.bitsPerSample) {
+                    16 -> sampleInt
+                    24 -> sampleInt shr 8
+                    32 -> sampleInt shr 16
+                    else -> error("Unsupported PCM depth")
+                }
+                output[out++] = (sample16 and 0xFF).toByte()
+                output[out++] = ((sample16 shr 8) and 0xFF).toByte()
+            } else {
+                val divisor = when (info.bitsPerSample) {
+                    16 -> 32768.0f
+                    24 -> 8388608.0f
+                    32 -> 2147483648.0f
+                    else -> error("Unsupported PCM depth")
+                }
+                val sampleFloat = sampleInt.toFloat() / divisor
+                val floatBits = java.lang.Float.floatToRawIntBits(sampleFloat)
+                output[out++] = (floatBits and 0xFF).toByte()
+                output[out++] = ((floatBits ushr 8) and 0xFF).toByte()
+                output[out++] = ((floatBits ushr 16) and 0xFF).toByte()
+                output[out++] = ((floatBits ushr 24) and 0xFF).toByte()
+            }
             src += bytesPerSample
         }
         return out
