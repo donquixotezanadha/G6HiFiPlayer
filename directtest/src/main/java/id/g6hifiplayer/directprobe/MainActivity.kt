@@ -10,6 +10,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
@@ -22,11 +23,13 @@ import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.sin
 
+/** Android 9-compatible PCM16 route probe. It requests wired headphones but does not force or prove DIRECT. */
 class MainActivity : Activity() {
     companion object {
-        private const val TAG = "G6AudioTrackProbe"
+        private const val TAG = "G6AudioTrackProbe121"
         private const val CHANNELS = 2
-        private const val BYTES_PER_FRAME = 6 // stereo, packed 24-bit: 3 bytes per channel
+        private const val BYTES_PER_FRAME = 4
+        private const val FRAMES_PER_WRITE = 1024
     }
 
     @Volatile private var writing = false
@@ -34,35 +37,33 @@ class MainActivity : Activity() {
     private var writerThread: Thread? = null
     private lateinit var statusView: TextView
     private lateinit var audioManager: AudioManager
+    private var selectedRate = 0
+    private var routeRequestResult = "not requested"
     private var lastReport = "No test started."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(16), dp(18), dp(18))
         }
         val scroll = ScrollView(this)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        val title = TextView(this).apply {
-            text = "G6 AudioTrack Probe — Build 1.20"
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(TextView(this).apply {
+            text = "G6 AudioTrack Probe — Build 1.21"
             textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
-        }
-        content.addView(title, params())
+        }, params())
         content.addView(TextView(this).apply {
-            text = "Android 9 / PCM_24BIT_PACKED / stereo. Start one low-level 440 Hz test tone, then inspect the active AudioFlinger track. Stop the tone before unplugging headphones."
+            text = "API 28 compatible / PCM16 stereo. Connect wired headphones first. Select a rate to play a quiet 440 Hz tone. The probe requests the wired output device and reports the resulting route."
             textSize = 14f
         }, params(top = 8))
 
         val rates = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(44100, 48000, 96000, 192000).forEach { rate ->
-            rates.addView(Button(this).apply {
-                text = if (rate == 192000) "192k" else "${rate / 1000.0}k".replace(".0", "")
+            rates.addView(Button(this@MainActivity).apply {
+                text = when (rate) { 44100 -> "44.1k"; 48000 -> "48k"; 96000 -> "96k"; else -> "192k" }
                 setOnClickListener { startTest(rate) }
             }, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(2), dp(10), dp(2), dp(4))
@@ -71,17 +72,20 @@ class MainActivity : Activity() {
         content.addView(rates, params())
 
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        controls.addView(Button(this).apply {
+        controls.addView(Button(this@MainActivity).apply {
             text = "Stop"
             setOnClickListener { stopTest("Stopped by user.") }
-        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(2), dp(4), dp(4), dp(4)) })
-        controls.addView(Button(this).apply {
+        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            setMargins(dp(2), dp(4), dp(4), dp(4))
+        })
+        controls.addView(Button(this@MainActivity).apply {
             text = "Refresh status"
             setOnClickListener { refreshReport() }
-        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(4), dp(4), dp(2), dp(4)) })
+        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            setMargins(dp(4), dp(4), dp(2), dp(4))
+        })
         content.addView(controls, params())
-
-        content.addView(Button(this).apply {
+        content.addView(Button(this@MainActivity).apply {
             text = "Copy diagnostics"
             setOnClickListener {
                 refreshReport()
@@ -95,14 +99,13 @@ class MainActivity : Activity() {
             textSize = 13f
             typeface = Typeface.MONOSPACE
             setTextIsSelectable(true)
-            text = "Ready. Connect wired headphones, select a rate, and start the test."
+            text = "Ready. Connect wired headphones and select a sample rate."
         }
         content.addView(statusView, params(top = 10))
         content.addView(TextView(this).apply {
-            text = "\nInterpretation:\n• AudioTrack initialized = the stream opened, not proof of DIRECT.\n• PCM format and sample rate shown here are the track's reported properties.\n• Confirm DIRECT/output rate with: adb shell dumpsys media.audio_flinger\n• Compare with Stock Music playing the same 96 kHz file.\n• Keep system volume low; the test tone is intentionally low amplitude."
+            text = "\nInterpretation:\n• Track sample rate is not proof of hardware output rate.\n• Preferred wired route is a request; inspect actual routedDevice and AudioFlinger.\n• While the tone plays: adb shell dumpsys media.audio_flinger > audio_flinger_build121.txt\n• Check this app's track and whether its output thread is DIRECT or MIXER.\n• Keep volume low; stop before unplugging headphones."
             textSize = 13f
         }, params(top = 8))
-
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
@@ -111,49 +114,59 @@ class MainActivity : Activity() {
 
     private fun startTest(rate: Int) {
         stopTest("Previous test stopped.")
-        val encoding = AudioFormat.ENCODING_PCM_24BIT_PACKED
+        selectedRate = rate
+        routeRequestResult = "not requested"
+        val wired = findWiredOutput()
+        if (wired == null) {
+            statusView.text = "NO WIRED OUTPUT DEVICE DETECTED. Plug in the 3.5 mm headphones first.\n\n" + buildReport()
+            lastReport = statusView.text.toString()
+            Log.e(TAG, "NO_WIRED_OUTPUT rate=$rate")
+            return
+        }
+
+        val encoding = AudioFormat.ENCODING_PCM_16BIT
         val minBytes = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, encoding)
         if (minBytes <= 0) {
-            statusView.text = "FAILED: getMinBufferSize returned $minBytes for rate=$rate, encoding=PCM_24BIT_PACKED."
+            statusView.text = "FAILED: getMinBufferSize=$minBytes rate=$rate PCM16."
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport)
             return
         }
-
-        val bufferBytes = max(minBytes, 1024 * BYTES_PER_FRAME)
+        val bufferBytes = ((max(minBytes, FRAMES_PER_WRITE * BYTES_PER_FRAME) + BYTES_PER_FRAME - 1) / BYTES_PER_FRAME) * BYTES_PER_FRAME
         val track = try {
             AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(encoding)
-                        .setSampleRate(rate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                        .build()
-                )
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build())
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(encoding)
+                    .setSampleRate(rate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                    .build())
                 .setBufferSizeInBytes(bufferBytes)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
         } catch (e: Exception) {
-            statusView.text = "FAILED to build AudioTrack: ${e.javaClass.simpleName}: ${e.message}"
+            statusView.text = "FAILED to build PCM16 AudioTrack: ${e.javaClass.simpleName}: ${e.message}"
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport, e)
             return
         }
 
         if (track.state != AudioTrack.STATE_INITIALIZED) {
-            statusView.text = "FAILED: AudioTrack state=${track.state}; requested rate=$rate, format=PCM_24BIT_PACKED."
+            statusView.text = "FAILED: AudioTrack state=${track.state}; rate=$rate PCM16."
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport)
             try { track.release() } catch (_: Exception) {}
             return
         }
 
+        val preferred = try { track.setPreferredDevice(wired) } catch (e: Exception) {
+            Log.e(TAG, "setPreferredDevice threw", e)
+            false
+        }
+        routeRequestResult = "setPreferredDevice(type=" + wired.type + ", id=" + wired.id + ")=" + preferred
         activeTrack = track
         writing = true
         try {
@@ -162,27 +175,26 @@ class MainActivity : Activity() {
             writing = false
             activeTrack = null
             try { track.release() } catch (_: Exception) {}
-            statusView.text = "FAILED to start playback: ${e.javaClass.simpleName}: ${e.message}"
+            statusView.text = "FAILED to start PCM16 playback: ${e.javaClass.simpleName}: ${e.message}"
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport, e)
             return
         }
 
         writerThread = Thread({
-            val pcm = ByteArray(1024 * BYTES_PER_FRAME)
+            val pcm = ByteArray(FRAMES_PER_WRITE * BYTES_PER_FRAME)
             var phase = 0.0
             val step = 2.0 * PI * 440.0 / rate
             try {
                 while (writing && activeTrack === track) {
                     var offset = 0
-                    for (frame in 0 until 1024) {
-                        val sample = (sin(phase) * 0.02 * 8388607.0).toInt()
+                    repeat(FRAMES_PER_WRITE) {
+                        val sample = (sin(phase) * 0.02 * 32767.0).toInt()
                         phase += step
                         if (phase >= 2.0 * PI) phase -= 2.0 * PI
-                        for (channel in 0 until CHANNELS) {
+                        repeat(CHANNELS) {
                             pcm[offset++] = (sample and 0xFF).toByte()
                             pcm[offset++] = ((sample shr 8) and 0xFF).toByte()
-                            pcm[offset++] = ((sample shr 16) and 0xFF).toByte()
                         }
                     }
                     val written = track.write(pcm, 0, pcm.size)
@@ -194,14 +206,14 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 Log.e(TAG, "Writer stopped: ${e.javaClass.simpleName}: ${e.message}", e)
             } finally {
-                try { track.stop() } catch (_: Exception) {}
+                try { if (track.playState == AudioTrack.PLAYSTATE_PLAYING) track.stop() } catch (_: Exception) {}
                 try { track.release() } catch (_: Exception) {}
                 if (activeTrack === track) activeTrack = null
             }
-        }, "G6AudioTrackWriter").apply { isDaemon = true }
+        }, "G6AudioTrackWriter121").apply { isDaemon = true }
         writerThread?.start()
 
-        Log.i(TAG, "TEST_STARTED requestedRate=$rate encoding=$encoding(PCM_24BIT_PACKED) channelMask=STEREO bufferBytes=$bufferBytes")
+        Log.i(TAG, "TEST_STARTED rate=$rate PCM16 preferredType=" + wired.type + " preferredId=" + wired.id + " preferredResult=" + preferred + " bufferBytes=" + bufferBytes)
         refreshReport()
     }
 
@@ -210,13 +222,22 @@ class MainActivity : Activity() {
         val track = activeTrack
         activeTrack = null
         if (track != null) {
-            try { track.stop() } catch (_: Exception) {}
+            try { if (track.playState == AudioTrack.PLAYSTATE_PLAYING) track.stop() } catch (_: Exception) {}
         }
         writerThread = null
         if (::statusView.isInitialized) {
             statusView.text = "$message\n\n" + buildReport()
             lastReport = statusView.text.toString()
         }
+    }
+
+    private fun findWiredOutput(): AudioDeviceInfo? = try {
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Unable to enumerate output devices", e)
+        null
     }
 
     private fun refreshReport() {
@@ -228,11 +249,13 @@ class MainActivity : Activity() {
     private fun buildReport(): String {
         val track = activeTrack
         val lines = mutableListOf<String>()
-        lines += "APP: G6 AudioTrack Probe 1.20.0"
-        lines += "ANDROID: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})"
+        lines += "APP: G6 AudioTrack Probe 1.21.0"
+        lines += "ANDROID: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})"
         lines += "TEST: ${if (track == null) "NOT PLAYING" else "PLAYING"}"
+        lines += "selected/requested sample rate: ${if (selectedRate > 0) selectedRate else "none"}"
+        lines += "format requested: PCM16 stereo"
+        lines += "preferred wired route request: $routeRequestResult"
         if (track != null) {
-            lines += "requested sample rate: see TEST_STARTED log / selected button"
             lines += "track state: ${track.state} (1=INITIALIZED)"
             lines += "play state: ${track.playState} (3=PLAYING)"
             lines += "track sample rate: ${track.sampleRate}"
@@ -241,7 +264,7 @@ class MainActivity : Activity() {
             lines += "buffer size frames: ${track.bufferSizeInFrames}"
             lines += "audio session ID: ${track.audioSessionId}"
             val routed = try { track.routedDevice } catch (_: Exception) { null }
-            lines += "routed device: ${routed?.let { deviceLabel(it) } ?: "null / not reported"}"
+            lines += "actual routed device: ${routed?.let { deviceLabel(it) } ?: "null / not reported"}"
         }
         lines += ""
         lines += "OUTPUT DEVICES:"
@@ -250,9 +273,9 @@ class MainActivity : Activity() {
         outputs.forEach { lines += "  ${deviceLabel(it)}" }
         lines += ""
         lines += "DIRECT: not exposed by public AudioTrack properties."
-        lines += "Verify with: adb shell dumpsys media.audio_flinger"
-        lines += "Look for this app's track, PCM_24_BIT_PACKED/format 0x6, 96000 Hz and DIRECT output flag/thread."
-        lines += "A same-rate track alone does not prove bit-perfect or physical DAC routing."
+        lines += "This probe requests a preferred wired device; it does not force DIRECT."
+        lines += "Verify active output thread with: adb shell dumpsys media.audio_flinger"
+        lines += "Same-rate PCM16 or wired routing alone does not prove bit-perfect / DAC path."
         return lines.joinToString("\n")
     }
 
