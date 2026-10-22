@@ -23,7 +23,7 @@ internal class FfmpegAudioDecoder(context: Context) {
             var input: File? = null
             try {
                 val key = sha256(uri.toString())
-                val output = File(appContext.cacheDir, "ffmpeg-pcm-$key.wav")
+                val output = File(appContext.cacheDir, "ffmpeg-pcm16-$key.wav")
                 if (output.isFile && output.length() > 44L) {
                     callback(Result.success(output))
                     return@execute
@@ -42,14 +42,17 @@ internal class FfmpegAudioDecoder(context: Context) {
                     }
                 }
 
-                val tempOutput = File(appContext.cacheDir, "ffmpeg-pcm-$key.tmp.wav")
+                val tempOutput = File(appContext.cacheDir, "ffmpeg-pcm16-$key.tmp.wav")
                 tempOutput.delete()
                 val command = "-y -hide_banner -loglevel error -i ${quote(inputFile.absolutePath)} " +
-                    "-map 0:a:0 -vn -c:a pcm_s24le ${quote(tempOutput.absolutePath)}"
+                    "-map 0:a:0 -vn -sn -dn -c:a pcm_s16le -f wav ${quote(tempOutput.absolutePath)}"
                 val session = FFmpegKit.execute(command)
-                check(ReturnCode.isSuccess(session.returnCode) && tempOutput.isFile && tempOutput.length() > 44L) {
-                    "FFmpeg decode failed (return code ${session.returnCode})"
+                if (!ReturnCode.isSuccess(session.returnCode) || !tempOutput.isFile || tempOutput.length() <= 44L) {
+                    val logs = try { session.allLogsAsString ?: "" } catch (_: Exception) { "" }
+                    val detail = logs.takeLast(1800).ifBlank { "FFmpeg produced no diagnostic log." }
+                    throw IllegalStateException("FFmpeg decode failed (return code ${session.returnCode}). Details: $detail")
                 }
+                check(hasRiffHeader(tempOutput)) { "FFmpeg output is not a RIFF/WAVE file" }
                 if (!tempOutput.renameTo(output)) {
                     tempOutput.copyTo(output, overwrite = true)
                     tempOutput.delete()
@@ -64,9 +67,18 @@ internal class FfmpegAudioDecoder(context: Context) {
         }
     }
 
+    private fun hasRiffHeader(file: File): Boolean = try {
+        file.inputStream().use { stream ->
+            val header = ByteArray(12)
+            stream.read(header) == header.size &&
+                String(header, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+                String(header, 8, 4, Charsets.US_ASCII) == "WAVE"
+        }
+    } catch (_: Exception) { false }
+
     private fun pruneCache(keep: File) {
         appContext.cacheDir.listFiles()
-            ?.filter { it.name.startsWith("ffmpeg-pcm-") && it.name.endsWith(".wav") && it != keep }
+            ?.filter { it.name.startsWith("ffmpeg-pcm16-") && it.name.endsWith(".wav") && it != keep }
             ?.sortedByDescending { it.lastModified() }
             ?.drop(1)
             ?.forEach { try { it.delete() } catch (_: Exception) { } }
