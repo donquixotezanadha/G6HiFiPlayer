@@ -3,7 +3,7 @@ name: Build G6 HiFi Player and Direct Policy Audit Probe
 on:
   workflow_dispatch:
   push:
-    branches: ["build-121-direct-policy-audit", "build-120-audiotrack-pcm24-direct-probe", "build-112-direct-pcm-experiment", "build-113-notification-artwork-fastpath", "build-114-transport-artwork-optimization", "build-115-artwork-lru-cache", "build-116-album-art-fastpath", "main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "build-109-audio-only-from-91", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["build-122-pcm24-buffer-fallback", "build-121-direct-policy-audit", "build-120-audiotrack-pcm24-direct-probe", "build-112-direct-pcm-experiment", "build-113-notification-artwork-fastpath", "build-114-transport-artwork-optimization", "build-115-artwork-lru-cache", "build-116-album-art-fastpath", "main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "build-109-audio-only-from-91", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -34,14 +34,14 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build121-Direct-Policy-Audit-Probe
+          name: G6HiFiPlayer-Build122-PCM24-Buffer-Fallback-Probe
           path: directtest/build/outputs/apk/debug/directtest-debug.apk
       - name: Publish direct artifact link
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## Download Build 1.21 Direct Policy Audit Probe" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Download Build 1.22 PCM24 Buffer Fallback Probe" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Download AudioTrack PCM24 Probe APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Standalone diagnostic app. Compares PCM16 and PCM24 packed AudioTrack requests at selectable sample rates, records preferred wired-route results, and attempts to read relevant audio policy files when the app has permission. It does not replace or modify the installed G6 HiFi Player. It does not set AUDIO_OUTPUT_FLAG_DIRECT; verify the active track/output in dumpsys media.audio_flinger." >> "$GITHUB_STEP_SUMMARY"
+          echo "Standalone diagnostic app. Build 1.22 tries an explicit 4096-frame AudioTrack buffer if getMinBufferSize returns a non-positive result, records both outcomes, and copies the saved diagnostic snapshot without refreshing or stopping playback. It compares PCM16 and PCM24 packed requests at selectable sample rates. This does not set AUDIO_OUTPUT_FLAG_DIRECT; verify the active track/output in dumpsys media.audio_flinger." >> "$GITHUB_STEP_SUMMARY"
