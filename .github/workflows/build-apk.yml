@@ -1,9 +1,9 @@
-name: Build G6 HiFi Player APK
+name: Build G6 HiFi Player and AudioTrack Probe
 
 on:
   workflow_dispatch:
   push:
-    branches: ["build-112-direct-pcm-experiment", "build-113-notification-artwork-fastpath", "build-114-transport-artwork-optimization", "build-115-artwork-lru-cache", "build-116-album-art-fastpath", "main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "build-109-audio-only-from-91", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
+    branches: ["build-120-audiotrack-pcm24-direct-probe", "build-112-direct-pcm-experiment", "build-113-notification-artwork-fastpath", "build-114-transport-artwork-optimization", "build-115-artwork-lru-cache", "build-116-album-art-fastpath", "main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "build-109-audio-only-from-91", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment"]
   pull_request:
     branches: ["main"]
 
@@ -28,20 +28,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Build debug APK
+      - name: Build debug APKs
         run: gradle clean assembleDebug --stacktrace
-      - name: Upload APK
+      - name: Upload AudioTrack Probe APK
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build116-v1.16.0-album-art-fastpath-arm64-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: G6HiFiPlayer-Build120-AudioTrack-PCM24-Direct-Probe
+          path: directtest/build/outputs/apk/debug/directtest-debug.apk
       - name: Publish direct artifact link
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Download Build 1.20 AudioTrack PCM24 Probe" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 1.16 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download AudioTrack PCM24 Probe APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 1.16 continues from Build 1.15. Reuses the decoded Now Playing artwork by stable album/cover key and displays cache hits immediately, reducing repeated decode and blank-art delay on same-album track transitions. Direct PCM, AudioTrack configuration, ExoPlayer audio output, and visual theme are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Standalone diagnostic app based on the stable Build 1.16 source line. It tests PCM_24BIT_PACKED AudioTrack streaming at selectable sample rates. It does not replace or modify the installed G6 HiFi Player. A successful AudioTrack start does not itself prove DIRECT; verify the active track/output in dumpsys media.audio_flinger." >> "$GITHUB_STEP_SUMMARY"
