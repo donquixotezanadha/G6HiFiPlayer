@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Experimental PCM pipeline isolated from ExoPlayer/Media3.
- * FFmpeg decodes the source to WAV; this class parses WAV itself, converts samples, and streams
+ * FFmpeg decodes the source to PCM16 WAV; this class parses WAV itself and streams
  * bounded PCM chunks into AudioTrack. The final output is still the normal Android path.
  */
 internal class StandalonePcmPlayer {
@@ -30,12 +30,17 @@ internal class StandalonePcmPlayer {
                     require(info.channels == 1 || info.channels == 2) {
                         "Stage-1 supports mono/stereo PCM; decoded file has ${info.channels} channels"
                     }
-                    require(info.bitsPerSample == 24 || info.bitsPerSample == 16 || info.bitsPerSample == 32) {
-                        "Unsupported PCM bit depth: ${info.bitsPerSample}"
+                    require(info.bitsPerSample == 16) {
+                        "Expected PCM16 WAV from decoder, received ${info.bitsPerSample}-bit"
+                    }
+                    require(info.sampleRate in 8000..192000) {
+                        "Unsupported sample rate in WAV: ${info.sampleRate} Hz"
                     }
                     val outputMask = if (info.channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
                     val minBytes = AudioTrack.getMinBufferSize(info.sampleRate, outputMask, AudioFormat.ENCODING_PCM_16BIT)
-                    check(minBytes > 0) { "AudioTrack rejected ${info.sampleRate} Hz PCM16 (getMinBufferSize=$minBytes)" }
+                    check(minBytes > 0) {
+                        "AudioTrack.getMinBufferSize failed: $minBytes at ${info.sampleRate} Hz, ${info.channels} ch PCM16"
+                    }
                     val bufferBytes = maxOf(minBytes * 2, info.sampleRate * info.channels * 2 / 4)
                     val format = AudioFormat.Builder()
                         .setSampleRate(info.sampleRate)
@@ -54,7 +59,7 @@ internal class StandalonePcmPlayer {
                         .build()
                     trackForCleanup = outputTrack
                     check(outputTrack.state == AudioTrack.STATE_INITIALIZED) {
-                        "AudioTrack failed to initialize at ${info.sampleRate} Hz PCM16"
+                        "AudioTrack initialization failed (state=${outputTrack.state}) at ${info.sampleRate} Hz PCM16"
                     }
                     activeTrack = outputTrack
                     report("PLAYING: custom WAV parser → PCM16 writer; source=${info.sampleRate} Hz / ${info.bitsPerSample}-bit / ${info.channels} ch; AudioTrack buffer=$bufferBytes bytes.")
@@ -66,23 +71,28 @@ internal class StandalonePcmPlayer {
                     val framesPerChunk = 4096
                     val inputBytesPerFrame = info.blockAlign
                     val inputBuffer = ByteArray(framesPerChunk * inputBytesPerFrame)
-                    val outputBuffer = ByteArray(framesPerChunk * info.channels * 2)
+                    var submittedFrames = 0L
                     while (remaining > 0 && !token.get()) {
                         val requested = minOf(inputBuffer.size.toLong(), remaining).toInt()
                         val aligned = requested - requested % inputBytesPerFrame
                         if (aligned <= 0) break
                         wav.readFully(inputBuffer, 0, aligned)
-                        val frames = aligned / inputBytesPerFrame
-                        val outputBytes = convertToPcm16(inputBuffer, outputBuffer, frames, info)
                         var offset = 0
-                        while (offset < outputBytes && !token.get()) {
-                            val written = outputTrack.write(outputBuffer, offset, outputBytes - offset, AudioTrack.WRITE_BLOCKING)
+                        while (offset < aligned && !token.get()) {
+                            val written = outputTrack.write(inputBuffer, offset, aligned - offset, AudioTrack.WRITE_BLOCKING)
                             check(written > 0) { "AudioTrack.write failed: $written" }
                             offset += written
+                            submittedFrames += written / (info.channels * 2)
                         }
                         remaining -= aligned
                     }
-                    if (!token.get()) report("Finished: end of PCM stream reached; confirm audible playback on the device.")
+                    // Wait for the output track to consume queued frames before releasing it.
+                    while (!token.get() && submittedFrames > 0L) {
+                        val playedFrames = outputTrack.playbackHeadPosition.toLong() and 0xFFFFFFFFL
+                        if (playedFrames >= submittedFrames) break
+                        Thread.sleep(10)
+                    }
+                    if (!token.get()) report("Finished: AudioTrack consumed the submitted PCM frames.")
                     else report("Stopped.")
                 }
             } catch (error: Throwable) {
@@ -171,6 +181,8 @@ internal class StandalonePcmPlayer {
                     val chunk = readFourCc(file)
                     val size = readU32(file)
                     val start = file.filePointer
+                    val end = start + size
+                    require(end >= start && end <= file.length()) { "Invalid WAV chunk '$chunk' size=$size" }
                     when (chunk) {
                         "fmt " -> {
                             require(size >= 16) { "Invalid WAV fmt chunk" }
@@ -180,23 +192,35 @@ internal class StandalonePcmPlayer {
                             readU32(file)
                             blockAlign = readU16(file)
                             bits = readU16(file)
-                            require(formatTag == 1) { "WAV is not integer PCM (format tag=$formatTag)" }
+                            when (formatTag) {
+                                1 -> Unit
+                                0xFFFE -> {
+                                    require(size >= 40) { "WAVE_FORMAT_EXTENSIBLE fmt chunk is too short" }
+                                    val extensionSize = readU16(file)
+                                    require(extensionSize >= 22) { "Invalid WAVE_FORMAT_EXTENSIBLE extension size=$extensionSize" }
+                                    readU16(file) // valid bits per sample
+                                    readU32(file) // channel mask
+                                    val subtype = readU32(file).toInt()
+                                    require(subtype == 1) { "WAV extensible subtype is not integer PCM (subtype=$subtype)" }
+                                }
+                                else -> error("WAV is not integer PCM (format tag=$formatTag)")
+                            }
                         }
                         "data" -> {
                             dataOffset = start
-                            dataSize = minOf(size, file.length() - start)
+                            dataSize = size
                         }
                     }
-                    val next = start + size + (size and 1L)
-                    if (next <= start || next > file.length() + 1) break
+                    val next = end + (size and 1L)
+                    if (next > file.length()) break
                     file.seek(next)
                     if (dataOffset >= 0 && sampleRate > 0) break
                 }
                 require(sampleRate > 0 && channels > 0 && blockAlign > 0 && dataOffset >= 0) {
-                    "WAV is missing valid fmt/data chunks"
+                    "WAV is missing valid fmt/data chunks (rate=$sampleRate channels=$channels blockAlign=$blockAlign dataOffset=$dataOffset)"
                 }
-                require(dataSize >= blockAlign) { "WAV data chunk is empty" }
-                require(blockAlign == channels * (bits / 8)) { "Unsupported WAV block alignment" }
+                require(dataSize >= blockAlign) { "WAV data chunk is empty or truncated (size=$dataSize)" }
+                require(blockAlign == channels * (bits / 8)) { "Invalid WAV block alignment: $blockAlign for $channels channels / $bits-bit" }
                 return WavInfo(sampleRate, channels, bits, blockAlign, dataOffset, dataSize)
             }
 
