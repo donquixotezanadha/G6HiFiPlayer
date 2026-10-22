@@ -2,6 +2,9 @@ package id.g6hifiplayer
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
@@ -25,6 +28,7 @@ class EngineLabActivity : Activity() {
     private var decodedWav: File? = null
     private lateinit var decoder: FfmpegAudioDecoder
     private lateinit var pcmPlayer: StandalonePcmPlayer
+    private val diagnosticLog = StringBuilder()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,7 +47,7 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.25"
+            text = "G6 Engine Lab · Build 1.28"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
@@ -90,6 +94,27 @@ class EngineLabActivity : Activity() {
             setPadding(0, dp(18), 0, 0)
         }
         content.addView(statusLabel)
+        content.addView(Button(this).apply {
+            text = "COPY DIAGNOSTICS AS TEXT"
+            setOnClickListener {
+                val text = diagnosticsText()
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("G6 Engine Lab diagnostics", text))
+                Toast.makeText(this@EngineLabActivity, "Diagnostics copied as text", Toast.LENGTH_SHORT).show()
+            }
+        }, matchWrap())
+        content.addView(Button(this).apply {
+            text = "SHARE DIAGNOSTICS"
+            setOnClickListener {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.28 diagnostics")
+                    putExtra(Intent.EXTRA_TEXT, diagnosticsText())
+                }
+                startActivity(Intent.createChooser(send, "Share diagnostic text"))
+            }
+        }, matchWrap())
+        recordDiagnostic("APP_START build=1.28 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         setContentView(root)
     }
 
@@ -101,7 +126,8 @@ class EngineLabActivity : Activity() {
         selectedUri = uri
         decodedWav = null
         selectedLabel.text = "Selected: ${uri.lastPathSegment ?: uri}"
-        statusLabel.text = "Ready to decode. The source is decoded to PCM WAV before the custom PCM writer starts."
+        recordDiagnostic("FILE_SELECTED displayName=${uri.lastPathSegment ?: "unknown"}")
+        recordDiagnostic("READY_TO_DECODE source will be decoded to PCM16 WAV before custom PCM writer starts.")
         playButton.isEnabled = true
         try {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -112,16 +138,16 @@ class EngineLabActivity : Activity() {
         val uri = selectedUri ?: return
         pcmPlayer.stop()
         playButton.isEnabled = false
-        statusLabel.text = "Decoding audio to 24-bit PCM WAV…"
+        recordDiagnostic("DECODE_START target=PCM16_WAV uriDisplayName=${uri.lastPathSegment ?: "unknown"}")
         decoder.decodeToWav(uri) { result ->
             runOnUiThread {
                 result.fold(
                     onSuccess = { wav ->
                         decodedWav = wav
-                        statusLabel.text = "Decoded: ${wav.name} (${wav.length()} bytes). Starting standalone PCM output…"
+                        recordDiagnostic("DECODE_SUCCESS file=${wav.name} bytes=${wav.length()}; starting standalone PCM output")
                         pcmPlayer.play(wav) { message ->
                             runOnUiThread {
-                                statusLabel.text = message
+                                recordDiagnostic(message)
                                 if (message.startsWith("Finished") || message.startsWith("Stopped") || message.startsWith("ERROR")) {
                                     playButton.isEnabled = selectedUri != null
                                 }
@@ -129,12 +155,28 @@ class EngineLabActivity : Activity() {
                         }
                     },
                     onFailure = { error ->
-                        statusLabel.text = "ERROR decoding: ${error.message ?: error.javaClass.simpleName}"
+                        recordDiagnostic("DECODE_ERROR type=${error.javaClass.name} message=${error.message ?: "no message"}")
                         playButton.isEnabled = true
                     }
                 )
             }
         }
+    }
+
+    private fun recordDiagnostic(message: String) {
+        val line = "${System.currentTimeMillis()} | ${message.replace('\\n', ' ')}"
+        synchronized(diagnosticLog) {
+            diagnosticLog.append(line).append('\\n')
+            if (diagnosticLog.length > 40000) {
+                val trimTo = diagnosticLog.indexOf("\\n", diagnosticLog.length - 30000)
+                if (trimTo >= 0) diagnosticLog.delete(0, trimTo + 1)
+            }
+        }
+        runOnUiThread { statusLabel.text = message }
+    }
+
+    private fun diagnosticsText(): String = synchronized(diagnosticLog) {
+        "G6 Engine Lab Build 1.28 diagnostics\\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
