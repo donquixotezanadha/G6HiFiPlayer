@@ -6,13 +6,14 @@ plugins {
 android {
     namespace = "id.g6hifiplayer"
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 116
-        versionName = "1.16.0"
+        versionCode = 124
+        versionName = "1.24.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -22,6 +23,13 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     kotlinOptions {
