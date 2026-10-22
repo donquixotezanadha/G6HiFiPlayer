@@ -138,7 +138,21 @@ class EngineLabActivity : Activity() {
         }
     }
 
-    private fun formatError(error: Throwable): String {\n        Log.e("G6EngineLab", "FFmpeg decode/init failed", error)\n        val parts = mutableListOf<String>()\n        var cause: Throwable? = error\n        var depth = 0\n        while (cause != null && depth < 6) {\n            parts += "${cause.javaClass.name}: ${cause.message ?: "(no message)"}"\n            cause = cause.cause\n            depth++\n        }\n        val trace = error.stackTrace.take(8).joinToString("\\n") { "  at $it" }\n        return ("ERROR decoding/init:\\n" + parts.joinToString("\\nCaused by: ") + "\\n\\nStack:\\n" + trace).take(2600)\n    }\n\n    override fun onDestroy() {
+    private fun formatError(error: Throwable): String {
+        Log.e("G6EngineLab", "FFmpeg decode/init failed", error)
+        val parts = mutableListOf<String>()
+        var cause: Throwable? = error
+        var depth = 0
+        while (cause != null && depth < 6) {
+            parts += "${cause.javaClass.name}: ${cause.message ?: "(no message)"}"
+            cause = cause.cause
+            depth++
+        }
+        val trace = error.stackTrace.take(8).joinToString("\n") { "  at $it" }
+        return ("ERROR decoding/init:\n" + parts.joinToString("\nCaused by: ") + "\n\nStack:\n" + trace).take(2600)
+    }
+
+    override fun onDestroy() {
         pcmPlayer.stop()
         super.onDestroy()
     }
