@@ -1,0 +1,65 @@
+name: Build 1.19 Oboe diagnostics UI fix
+
+on:
+  push:
+    branches:
+      - build-119-oboe-ui-fix
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+            packages: "platform-tools"
+
+      - name: Install Android NDK and CMake
+        run: sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build isolated Oboe probe
+        run: gradle --no-daemon :oboeprobe:assembleDebug --stacktrace
+
+      - name: Upload Oboe diagnostics APK
+        id: probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build119-Oboe-UI-Fix-APK
+          path: oboeprobe/build/outputs/apk/debug/oboeprobe-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish artifact links
+        env:
+          PROBE_URL: ${{ steps.probe.outputs.artifact-url }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          {
+            echo "## Build 1.19 — Oboe diagnostics UI fix"
+            echo ""
+            echo "- [Download Oboe diagnostics APK]($PROBE_URL)"
+            echo ""
+            echo "Nightly link:"
+            echo "- https://nightly.link/$REPOSITORY/actions/runs/$RUN_ID/G6HiFiPlayer-Build119-Oboe-UI-Fix-APK.zip"
+            echo ""
+            echo "Fixes the missing setContentView(root) that caused a blank screen. The main Music Player remains unchanged."
+          } >> "$GITHUB_STEP_SUMMARY"
