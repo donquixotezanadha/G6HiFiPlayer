@@ -61,9 +61,13 @@ internal class StandalonePcmPlayer {
                     report("AUDIOTRACK_INITIALIZED state=${outputTrack.state} sampleRate=${outputTrack.sampleRate} channelCount=${outputTrack.channelCount} audioFormat=${outputTrack.audioFormat} sessionId=${outputTrack.audioSessionId} bufferBytes=${bufferBytes} minBufferBytes=${minBytes}")
                     report("ROUTE ${describeRoute(outputTrack)}; route data does not prove DIRECT or bit-perfect.")
                     var totalWritten = 0L
+                    var chunksWritten = 0L
+                    var lastProgressAt = System.currentTimeMillis()
+                    val frameBytes = info.channels * 2
                     val playbackStartedAt = System.currentTimeMillis()
                     outputTrack.play()
                     report("AUDIOTRACK_PLAY_CALLED playState=${outputTrack.playState}")
+                    report("PCM_WRITER_STARTED dataBytes=${info.dataSize} frameBytes=${frameBytes} framesExpected=${info.dataSize / info.blockAlign} transferMode=MODE_STREAM writeMode=WRITE_BLOCKING")
 
                     wav.seek(info.dataOffset)
                     var remaining = info.dataSize
@@ -82,24 +86,35 @@ internal class StandalonePcmPlayer {
                         while (offset < outputBytes && !token.get()) {
                             val written = outputTrack.write(outputBuffer, offset, outputBytes - offset, AudioTrack.WRITE_BLOCKING)
                             check(written > 0) { "AudioTrack.write failed: $written" }
+                            check(written % frameBytes == 0) {
+                                "AudioTrack.write returned a non-frame-aligned byte count: written=$written frameBytes=$frameBytes"
+                            }
                             offset += written
                             totalWritten += written.toLong()
                         }
                         remaining -= aligned
+                        chunksWritten++
+                        val now = System.currentTimeMillis()
+                        if (now - lastProgressAt >= 1000L) {
+                            val submittedFrames = totalWritten / frameBytes
+                            val playedFramesNow = outputTrack.playbackHeadPosition.toLong() and 0xFFFFFFFFL
+                            report("PCM_WRITE_PROGRESS chunks=$chunksWritten bytesWritten=$totalWritten framesSubmitted=$submittedFrames framesPlayed=$playedFramesNow remainingSourceBytes=$remaining elapsedMs=${now - playbackStartedAt}")
+                            lastProgressAt = now
+                        }
                     }
-                    val framesToDrain = totalWritten / (info.channels * 2L)
+                    val framesToDrain = totalWritten / frameBytes
                     val drainStartedAt = System.currentTimeMillis()
                     val drainTimeoutMs = (framesToDrain * 1000L / info.sampleRate) + 5000L
                     while (!token.get() &&
-                        outputTrack.playbackHeadPosition.toLong() < framesToDrain &&
+                        (outputTrack.playbackHeadPosition.toLong() and 0xFFFFFFFFL) < framesToDrain &&
                         System.currentTimeMillis() - drainStartedAt < drainTimeoutMs) {
                         Thread.sleep(20)
                     }
                     val elapsedMs = System.currentTimeMillis() - playbackStartedAt
-                    val playedFrames = outputTrack.playbackHeadPosition.toLong()
+                    val playedFrames = outputTrack.playbackHeadPosition.toLong() and 0xFFFFFFFFL
                     if (!token.get() && playedFrames >= framesToDrain) {
                         report("PLAYBACK_RESULT=STREAM_DRAINED bytesWritten=${totalWritten} framesSubmitted=${framesToDrain} framesPlayed=${playedFrames} sourceDataBytes=${info.dataSize} elapsedMs=${elapsedMs} playState=${outputTrack.playState}")
-                        report("Finished: AudioTrack playback head drained the submitted stream. Confirm whether sound was audible; this log alone does not prove audibility.")
+                        report("PLAYBACK_DRAIN_CONFIRMED playbackHead reached submitted frames; this confirms framework-level drain, not DIRECT output or bit-perfect delivery.")
                     } else if (!token.get()) {
                         report("PLAYBACK_RESULT=DRAIN_TIMEOUT bytesWritten=${totalWritten} framesSubmitted=${framesToDrain} framesPlayed=${playedFrames} drainTimeoutMs=${drainTimeoutMs} elapsedMs=${elapsedMs}")
                     } else {
@@ -121,11 +136,9 @@ internal class StandalonePcmPlayer {
     fun stop() {
         cancelled?.set(true)
         val track = activeTrack
-        try { track?.pause() } catch (_: Exception) { }
-        try { track?.flush() } catch (_: Exception) { }
+        // The writer thread owns flush/release in finally. Stop only signals cancellation and
+        // interrupts a potentially blocking write; never release the track concurrently here.
         try { track?.stop() } catch (_: Exception) { }
-        try { track?.release() } catch (_: Exception) { }
-        activeTrack = null
     }
 
     private fun describeRoute(track: AudioTrack): String {
