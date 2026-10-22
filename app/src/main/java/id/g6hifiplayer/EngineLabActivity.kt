@@ -24,6 +24,8 @@ class EngineLabActivity : Activity() {
     private lateinit var selectedLabel: TextView
     private lateinit var statusLabel: TextView
     private lateinit var playButton: Button
+    private lateinit var outputModeButton: Button
+    private var outputBits = 16
     private var selectedUri: Uri? = null
     private var decodedWav: File? = null
     private lateinit var decoder: FfmpegAudioDecoder
@@ -47,7 +49,7 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.29"
+            text = "G6 Engine Lab · Build 1.30"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
@@ -73,6 +75,17 @@ class EngineLabActivity : Activity() {
                 startActivityForResult(intent, REQUEST_AUDIO)
             }
         }, matchWrap())
+        outputModeButton = Button(this).apply {
+            text = outputModeLabel()
+            setOnClickListener {
+                pcmPlayer.stop()
+                outputBits = if (outputBits == 16) 24 else 16
+                decodedWav = null
+                text = outputModeLabel()
+                recordDiagnostic("OUTPUT_MODE_SELECTED pcmBits=$outputBits transport=${if (outputBits == 24) "PCM_FLOAT (24-bit integer samples converted to float)" else "PCM16"}")
+            }
+        }
+        content.addView(outputModeButton, matchWrap())
         playButton = Button(this).apply {
             text = "2 · Decode and play"
             isEnabled = false
@@ -114,7 +127,8 @@ class EngineLabActivity : Activity() {
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
             }
         }, matchWrap())
-        recordDiagnostic("APP_START build=1.29 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("APP_START build=1.30 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("OUTPUT_MODE_DEFAULT pcmBits=16")
         setContentView(root)
     }
 
@@ -127,7 +141,7 @@ class EngineLabActivity : Activity() {
         decodedWav = null
         selectedLabel.text = "Selected: ${uri.lastPathSegment ?: uri}"
         recordDiagnostic("FILE_SELECTED displayName=${uri.lastPathSegment ?: "unknown"}")
-        recordDiagnostic("READY_TO_DECODE source will be decoded to PCM16 WAV before custom PCM writer starts.")
+        recordDiagnostic("READY_TO_DECODE outputBits=$outputBits WAV before custom PCM writer starts.")
         playButton.isEnabled = true
         try {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -138,8 +152,8 @@ class EngineLabActivity : Activity() {
         val uri = selectedUri ?: return
         pcmPlayer.stop()
         playButton.isEnabled = false
-        recordDiagnostic("DECODE_START target=PCM16_WAV uriDisplayName=${uri.lastPathSegment ?: "unknown"}")
-        decoder.decodeToWav(uri) { result ->
+        recordDiagnostic("DECODE_START target=PCM${outputBits}_WAV uriDisplayName=${uri.lastPathSegment ?: "unknown"}")
+        decoder.decodeToWav(uri, outputBits) { result ->
             runOnUiThread {
                 result.fold(
                     onSuccess = { wav ->
@@ -175,8 +189,11 @@ class EngineLabActivity : Activity() {
         runOnUiThread { statusLabel.text = message }
     }
 
+    private fun outputModeLabel(): String =
+        if (outputBits == 16) "Output mode: PCM16 (tap to switch to PCM24)" else "Output mode: PCM24-preserving (tap to switch to PCM16)"
+
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.29 diagnostics\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.30 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
