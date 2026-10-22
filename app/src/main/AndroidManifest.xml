@@ -12,12 +12,12 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Music"
+        android:label="G6 Engine Lab"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
 
         <activity
-            android:name="id.g6hifiplayer.MainActivity"
+            android:name="id.g6hifiplayer.EngineLabActivity"
             android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
@@ -25,6 +25,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="id.g6hifiplayer.MainActivity"
+            android:launchMode="singleTop"
+            android:exported="false" />
         <service
             android:name="id.g6hifiplayer.PlaybackKeepAliveService"
             android:exported="false"
