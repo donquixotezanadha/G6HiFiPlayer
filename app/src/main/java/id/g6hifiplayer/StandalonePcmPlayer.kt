@@ -87,12 +87,23 @@ internal class StandalonePcmPlayer {
                         }
                         remaining -= aligned
                     }
+                    val framesToDrain = totalWritten / (info.channels * 2L)
+                    val drainStartedAt = System.currentTimeMillis()
+                    val drainTimeoutMs = (framesToDrain * 1000L / info.sampleRate) + 5000L
+                    while (!token.get() &&
+                        outputTrack.playbackHeadPosition.toLong() < framesToDrain &&
+                        System.currentTimeMillis() - drainStartedAt < drainTimeoutMs) {
+                        Thread.sleep(20)
+                    }
                     val elapsedMs = System.currentTimeMillis() - playbackStartedAt
-                    if (!token.get()) {
-                        report("PLAYBACK_RESULT=STREAM_FINISHED bytesWritten=${totalWritten} sourceDataBytes=${info.dataSize} elapsedMs=${elapsedMs} playState=${outputTrack.playState} playbackHeadFrames=${outputTrack.playbackHeadPosition}")
-                        report("Finished: stream submitted to AudioTrack. Confirm whether sound was audible; this log alone does not prove audibility.")
+                    val playedFrames = outputTrack.playbackHeadPosition.toLong()
+                    if (!token.get() && playedFrames >= framesToDrain) {
+                        report("PLAYBACK_RESULT=STREAM_DRAINED bytesWritten=${totalWritten} framesSubmitted=${framesToDrain} framesPlayed=${playedFrames} sourceDataBytes=${info.dataSize} elapsedMs=${elapsedMs} playState=${outputTrack.playState}")
+                        report("Finished: AudioTrack playback head drained the submitted stream. Confirm whether sound was audible; this log alone does not prove audibility.")
+                    } else if (!token.get()) {
+                        report("PLAYBACK_RESULT=DRAIN_TIMEOUT bytesWritten=${totalWritten} framesSubmitted=${framesToDrain} framesPlayed=${playedFrames} drainTimeoutMs=${drainTimeoutMs} elapsedMs=${elapsedMs}")
                     } else {
-                        report("PLAYBACK_RESULT=STOPPED bytesWritten=${totalWritten} elapsedMs=${elapsedMs}")
+                        report("PLAYBACK_RESULT=STOPPED bytesWritten=${totalWritten} framesPlayed=${playedFrames} elapsedMs=${elapsedMs}")
                     }
                 }
             } catch (error: Throwable) {
