@@ -359,7 +359,8 @@ class PlaybackKeepAliveService : Service() {
                             DirectPcmRequest.applyIfSupported(builder, config)
                         }
                         val base = providerBuilder.build()
-                        val tracking = TrackingAudioOutputProvider(base) { track ->
+                        val aaudio = AAudioOutputProvider(base)
+                        val tracking = TrackingAudioOutputProvider(aaudio) { track ->
                             audioTrackCallback?.invoke(track)
                         }
                         return DefaultAudioSink.Builder(context)
