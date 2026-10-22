@@ -43,7 +43,7 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.25"
+            text = "G6 Engine Lab · Build 1.26"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
@@ -112,7 +112,7 @@ class EngineLabActivity : Activity() {
         val uri = selectedUri ?: return
         pcmPlayer.stop()
         playButton.isEnabled = false
-        statusLabel.text = "Decoding audio to 24-bit PCM WAV…"
+        statusLabel.text = "Decoding audio to PCM16 WAV…"
         decoder.decodeToWav(uri) { result ->
             runOnUiThread {
                 result.fold(
