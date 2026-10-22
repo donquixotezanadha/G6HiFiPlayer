@@ -21,12 +21,26 @@ import android.widget.Toast
 import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.sin
+import java.io.File
 
 class MainActivity : Activity() {
     companion object {
         private const val TAG = "G6AudioTrackProbe"
         private const val CHANNELS = 2
-        private const val BYTES_PER_FRAME = 6 // stereo, packed 24-bit: 3 bytes per channel
+    }
+
+    private var selectedEncoding = AudioFormat.ENCODING_PCM_24BIT_PACKED
+    private var selectedRate = 96000
+    private var lastPreferredRouteResult = "not attempted"
+    private var lastPolicyAudit = "Not scanned yet"
+
+    private fun bytesPerFrame(encoding: Int): Int =
+        if (encoding == AudioFormat.ENCODING_PCM_16BIT) 4 else 6
+
+    private fun encodingLabel(encoding: Int): String = when (encoding) {
+        AudioFormat.ENCODING_PCM_16BIT -> "PCM16"
+        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "PCM24_PACKED"
+        else -> "encoding=$encoding"
     }
 
     @Volatile private var writing = false
@@ -49,7 +63,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
         }
         val title = TextView(this).apply {
-            text = "G6 AudioTrack Probe — Build 1.20"
+            text = "G6 AudioTrack Policy Audit — Build 1.21"
             textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
         }
@@ -63,12 +77,42 @@ class MainActivity : Activity() {
         listOf(44100, 48000, 96000, 192000).forEach { rate ->
             rates.addView(Button(this).apply {
                 text = if (rate == 192000) "192k" else "${rate / 1000.0}k".replace(".0", "")
-                setOnClickListener { startTest(rate) }
+                setOnClickListener { startTest(rate, selectedEncoding) }
             }, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(2), dp(10), dp(2), dp(4))
             })
         }
         content.addView(rates, params())
+
+        content.addView(TextView(this).apply {
+            text = "Format comparison: PCM16 control versus PCM24 packed candidate"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+        }, params(top = 8))
+        val formats = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        formats.addView(Button(this).apply {
+            text = "Use PCM16"
+            setOnClickListener {
+                selectedEncoding = AudioFormat.ENCODING_PCM_16BIT
+                statusView.text = "Selected PCM16. Choose a sample rate to start a fresh test."
+            }
+        }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), dp(4), dp(4), dp(4)) })
+        formats.addView(Button(this).apply {
+            text = "Use PCM24"
+            setOnClickListener {
+                selectedEncoding = AudioFormat.ENCODING_PCM_24BIT_PACKED
+                statusView.text = "Selected PCM24 packed. Android 9 support is device/firmware dependent."
+            }
+        }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(4), dp(4), dp(2), dp(4)) })
+        content.addView(formats, params())
+
+        content.addView(Button(this).apply {
+            text = "Audit audio policy files"
+            setOnClickListener {
+                lastPolicyAudit = auditPolicyFiles()
+                refreshReport()
+            }
+        }, params(top = 4))
 
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         controls.addView(Button(this).apply {
@@ -109,9 +153,11 @@ class MainActivity : Activity() {
         refreshReport()
     }
 
-    private fun startTest(rate: Int) {
+    private fun startTest(rate: Int, encoding: Int) {
         stopTest("Previous test stopped.")
-        val encoding = AudioFormat.ENCODING_PCM_24BIT_PACKED
+        selectedRate = rate
+        selectedEncoding = encoding
+        lastPreferredRouteResult = "not attempted"
         val minBytes = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, encoding)
         if (minBytes <= 0) {
             statusView.text = "FAILED: getMinBufferSize returned $minBytes for rate=$rate, encoding=PCM_24BIT_PACKED."
@@ -120,7 +166,8 @@ class MainActivity : Activity() {
             return
         }
 
-        val bufferBytes = max(minBytes, 1024 * BYTES_PER_FRAME)
+        val frameBytes = bytesPerFrame(encoding)
+        val bufferBytes = max(minBytes, 1024 * frameBytes)
         val track = try {
             AudioTrack.Builder()
                 .setAudioAttributes(
@@ -154,6 +201,19 @@ class MainActivity : Activity() {
             return
         }
 
+        val wired = try {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+            }
+        } catch (_: Exception) { null }
+        lastPreferredRouteResult = if (wired == null) {
+            "no wired headphone device found"
+        } else {
+            try { "setPreferredDevice(${deviceLabel(wired)})=${track.setPreferredDevice(wired)}" }
+            catch (e: Exception) { "setPreferredDevice failed: ${e.javaClass.simpleName}: ${e.message}" }
+        }
+
         activeTrack = track
         writing = true
         try {
@@ -169,20 +229,23 @@ class MainActivity : Activity() {
         }
 
         writerThread = Thread({
-            val pcm = ByteArray(1024 * BYTES_PER_FRAME)
+            val pcm = ByteArray(1024 * frameBytes)
             var phase = 0.0
             val step = 2.0 * PI * 440.0 / rate
+            val peak = if (encoding == AudioFormat.ENCODING_PCM_16BIT) 32767.0 else 8388607.0
             try {
                 while (writing && activeTrack === track) {
                     var offset = 0
                     for (frame in 0 until 1024) {
-                        val sample = (sin(phase) * 0.02 * 8388607.0).toInt()
+                        val sample = (sin(phase) * 0.02 * peak).toInt()
                         phase += step
                         if (phase >= 2.0 * PI) phase -= 2.0 * PI
                         for (channel in 0 until CHANNELS) {
                             pcm[offset++] = (sample and 0xFF).toByte()
                             pcm[offset++] = ((sample shr 8) and 0xFF).toByte()
-                            pcm[offset++] = ((sample shr 16) and 0xFF).toByte()
+                            if (encoding != AudioFormat.ENCODING_PCM_16BIT) {
+                                pcm[offset++] = ((sample shr 16) and 0xFF).toByte()
+                            }
                         }
                     }
                     val written = track.write(pcm, 0, pcm.size)
@@ -228,11 +291,13 @@ class MainActivity : Activity() {
     private fun buildReport(): String {
         val track = activeTrack
         val lines = mutableListOf<String>()
-        lines += "APP: G6 AudioTrack Probe 1.20.0"
+        lines += "APP: G6 AudioTrack Policy Audit 1.21.0"
         lines += "ANDROID: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})"
         lines += "TEST: ${if (track == null) "NOT PLAYING" else "PLAYING"}"
+        lines += "requested sample rate: $selectedRate"
+        lines += "requested format: ${encodingLabel(selectedEncoding)}"
+        lines += "preferred wired route request: $lastPreferredRouteResult"
         if (track != null) {
-            lines += "requested sample rate: see TEST_STARTED log / selected button"
             lines += "track state: ${track.state} (1=INITIALIZED)"
             lines += "play state: ${track.playState} (3=PLAYING)"
             lines += "track sample rate: ${track.sampleRate}"
@@ -249,11 +314,54 @@ class MainActivity : Activity() {
         if (outputs.isEmpty()) lines += "  none reported"
         outputs.forEach { lines += "  ${deviceLabel(it)}" }
         lines += ""
+        lines += ""
+        lines += "POLICY FILE AUDIT:"
+        lines += lastPolicyAudit
+        lines += ""
         lines += "DIRECT: not exposed by public AudioTrack properties."
+        lines += "This test does NOT set AUDIO_OUTPUT_FLAG_DIRECT; AudioPolicy chooses the output path."
         lines += "Verify with: adb shell dumpsys media.audio_flinger"
-        lines += "Look for this app's track, PCM_24_BIT_PACKED/format 0x6, 96000 Hz and DIRECT output flag/thread."
-        lines += "A same-rate track alone does not prove bit-perfect or physical DAC routing."
+        lines += "Check this app's PID/session, active thread type/rate, track format, and output flags."
+        lines += "A same-rate track or wired route alone does not prove bit-perfect or physical DAC routing."
         return lines.joinToString("\n")
+    }
+
+    private fun auditPolicyFiles(): String {
+        val paths = listOf(
+            "/vendor/etc/audio_output_policy.conf",
+            "/system/vendor/etc/audio_output_policy.conf",
+            "/vendor/etc/audio_policy.conf",
+            "/system/vendor/etc/audio_policy.conf",
+            "/vendor/etc/audio_policy_configuration.xml",
+            "/system/vendor/etc/audio_policy_configuration.xml"
+        )
+        val out = mutableListOf<String>()
+        val needles = listOf("direct_pcm", "AUDIO_OUTPUT_FLAG_DIRECT", "pcm_24", "pcm_8_24",
+            "sampling_rates", "samplingrates", "96000", "192000", "Wired Headphones")
+        for (path in paths) {
+            try {
+                val file = File(path)
+                if (!file.isFile || !file.canRead()) {
+                    out += "$path: not readable by app"
+                    continue
+                }
+                val lines = file.readLines()
+                val hits = lines.indices.filter { index ->
+                    needles.any { needle -> lines[index].contains(needle, ignoreCase = true) }
+                }
+                out += "$path: readable, ${lines.size} lines, ${hits.size} matching lines"
+                val selected = hits.take(12).flatMap { index ->
+                    (max(0, index - 1)..minOf(lines.lastIndex, index + 1)).map { lineIndex ->
+                        "${lineIndex + 1}: ${lines[lineIndex].trim()}"
+                    }
+                }.distinct().take(24)
+                if (selected.isNotEmpty()) out += selected.map { "  $it" }
+            } catch (e: Exception) {
+                out += "$path: ${e.javaClass.simpleName}: ${e.message}"
+            }
+        }
+        if (out.isEmpty()) out += "No candidate policy files found."
+        return out.joinToString("\n")
     }
 
     private fun deviceLabel(device: AudioDeviceInfo): String {
