@@ -1,0 +1,49 @@
+name: Build G6 Engine Lab Build 1.26 - FFmpeg Smart Exception Fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-126-ffmpeg-smart-exception-fix"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify FFmpegKit dependency graph
+        run: |
+          gradle :app:dependencies --configuration debugRuntimeClasspath > runtime-dependencies.txt
+          grep -E "ffmpeg-kit-audio:8.1.8|smart-exception-java:0.2.1" runtime-dependencies.txt
+      - name: Build debug APK
+        run: gradle --refresh-dependencies clean assembleDebug --stacktrace
+      - name: Upload Build 1.26 Engine Lab APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build126-FFmpeg-Smart-Exception-Fix
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish direct artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## Download G6 Engine Lab Build 1.26" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 1.26 Engine Lab APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fix: upgrade FFmpegKit audio from 8.1.7 to 8.1.8, verify smart-exception-java 0.2.1 is present in the runtime dependency graph, then clean rebuild. Audio engine and WAV/AudioTrack code unchanged." >> "$GITHUB_STEP_SUMMARY"
