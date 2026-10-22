@@ -1,4 +1,3 @@
-
 pluginManagement {
     repositories {
         google()
@@ -16,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "G6HiFiPlayer"
-include(":app")
+include(":app", ":oboeprobe")
