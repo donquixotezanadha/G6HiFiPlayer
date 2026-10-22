@@ -24,8 +24,7 @@ void closeLocked() {
 std::string reportLocked() {
     if (gStream == nullptr) return std::string("stream=closed; last=") + gLastError;
     std::ostringstream out;
-    int32_t xruns = -1;
-    AAudioStream_getXRunCount(gStream, &xruns);
+    const int32_t xruns = AAudioStream_getXRunCount(gStream);
     out << "actualRate=" << AAudioStream_getSampleRate(gStream)
         << " format=" << AAudioStream_getFormat(gStream)
         << "(PCM_I16=" << AAUDIO_FORMAT_PCM_I16 << ")"
