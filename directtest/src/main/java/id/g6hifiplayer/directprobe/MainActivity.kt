@@ -158,9 +158,16 @@ class MainActivity : Activity() {
         selectedRate = rate
         selectedEncoding = encoding
         lastPreferredRouteResult = "not attempted"
-        val minBytes = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, encoding)
+        val minBytes = try {
+            AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, encoding)
+        } catch (e: Exception) {
+            statusView.text = "FAILED: getMinBufferSize threw ${e.javaClass.simpleName}: ${e.message} for rate=$rate, format=${encodingLabel(encoding)}."
+            lastReport = statusView.text.toString()
+            Log.e(TAG, lastReport, e)
+            return
+        }
         if (minBytes <= 0) {
-            statusView.text = "FAILED: getMinBufferSize returned $minBytes for rate=$rate, encoding=PCM_24BIT_PACKED."
+            statusView.text = "UNSUPPORTED/REJECTED: getMinBufferSize returned $minBytes for rate=$rate, format=${encodingLabel(encoding)}. No AudioTrack was opened."
             lastReport = statusView.text.toString()
             Log.e(TAG, lastReport)
             return
