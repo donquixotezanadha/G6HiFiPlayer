@@ -11,8 +11,21 @@ android {
         applicationId = "id.g6hifiplayer.directprobe"
         minSdk = 28
         targetSdk = 28
-        versionCode = 120
-        versionName = "1.20.0"
+        versionCode = 123
+        versionName = "1.23.0"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     compileOptions {
