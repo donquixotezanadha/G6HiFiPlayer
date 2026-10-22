@@ -50,6 +50,9 @@ internal class AAudioOutputProvider(
         } catch (error: Exception) {
             Log.w(TAG, "AAudio initialization failed; falling back to Media3 AudioTrack", error)
             fallback.getAudioOutput(config)
+        } catch (error: LinkageError) {
+            Log.w(TAG, "AAudio native library unavailable; falling back to Media3 AudioTrack", error)
+            fallback.getAudioOutput(config)
         }
     }
 
@@ -65,6 +68,9 @@ internal class AAudioOutputProvider(
         private var released = false
         private var started = false
         private var lastPositionUs = 0L
+        private var positionBaseUs = 0L
+        private var positionBaseFrames = 0L
+        private var awaitingPositionBase = true
         private val channels = Integer.bitCount(config.channelMask).coerceAtLeast(1)
 
         init {
@@ -100,6 +106,12 @@ internal class AAudioOutputProvider(
             val frameBytes = channels * 2
             val writableBytes = buffer.remaining() - (buffer.remaining() % frameBytes)
             if (writableBytes <= 0) return false
+            if (awaitingPositionBase) {
+                positionBaseFrames = AAudioNative.nativeFramesWritten().coerceAtLeast(0L)
+                positionBaseUs = presentationTimeUs.coerceAtLeast(0L)
+                lastPositionUs = positionBaseUs
+                awaitingPositionBase = false
+            }
             val frames = AAudioNative.nativeWrite(buffer, buffer.position(), writableBytes)
             if (frames < 0) {
                 Log.e(TAG, "AAUDIO_PLAYER_OUTPUT write failed=$frames; ${AAudioNative.nativeReport()}")
@@ -118,7 +130,7 @@ internal class AAudioOutputProvider(
         override fun flush() {
             if (released) return
             val result = AAudioNative.nativeFlush()
-            lastPositionUs = 0L
+            awaitingPositionBase = true
             if (result != 0) Log.w(TAG, "AAudio flush result=$result; ${AAudioNative.nativeReport()}")
         }
 
@@ -154,8 +166,9 @@ internal class AAudioOutputProvider(
         override fun getPositionUs(): Long {
             if (released) return lastPositionUs
             val rate = getSampleRate().coerceAtLeast(1)
-            val frames = AAudioNative.nativeFramesWritten().coerceAtLeast(0L)
-            val position = frames * 1_000_000L / rate
+            if (awaitingPositionBase) return lastPositionUs
+            val frames = (AAudioNative.nativeFramesWritten() - positionBaseFrames).coerceAtLeast(0L)
+            val position = positionBaseUs + frames * 1_000_000L / rate
             lastPositionUs = maxOf(lastPositionUs, position)
             return lastPositionUs
         }
