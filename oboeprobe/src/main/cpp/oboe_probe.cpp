@@ -24,7 +24,7 @@ public:
         for (int32_t frame = 0; frame < numFrames; ++frame) {
             const float sample = static_cast<float>(0.08 * std::sin(phase_));
             phase_ += 2.0 * kPi * 440.0 / sampleRate;
-            if (phase_ >= 2.0 * kPi) phase_ -= 2.0 * M_PI;
+            if (phase_ >= 2.0 * kPi) phase_ -= 2.0 * kPi;
             for (int32_t channel = 0; channel < channels; ++channel) {
                 output[frame * channels + channel] = sample;
             }
@@ -64,15 +64,20 @@ std::string streamInfo(const char *prefix) {
         out << "\nstream=closed";
         return out.str();
     }
+    const auto actualMode = gStream->getSharingMode();
     out << "\nactualSampleRate=" << gStream->getSampleRate()
         << "\nactualFormat=" << formatName(gStream->getFormat())
         << "\nactualChannels=" << gStream->getChannelCount()
-        << "\nactualSharingMode=" << sharingName(gStream->getSharingMode())
+        << "\nactualSharingMode=" << sharingName(actualMode)
         << "\nactualPerformanceMode=" << performanceName(gStream->getPerformanceMode())
+        << "\nactualAudioApi=" << oboe::convertToText(gStream->getAudioApi())
+        << "\nactualDeviceId=" << gStream->getDeviceId()
+        << "\nactualChannelMask=" << static_cast<int>(gStream->getChannelMask())
         << "\nbufferSizeFrames=" << gStream->getBufferSizeInFrames()
+        << "\nbufferCapacityFrames=" << gStream->getBufferCapacityInFrames()
         << "\nframesPerBurst=" << gStream->getFramesPerBurst()
         << "\nstreamState=" << oboe::convertToText(gStream->getState())
-        << "\nrouteNote=Stream properties do not prove AudioFlinger DIRECT or bit-perfect output";
+        << "\nrouteNote=Stream properties do not prove AudioFlinger DIRECT, LG Quad DAC backend, or bit-perfect output";
     return out.str();
 }
 
@@ -106,7 +111,7 @@ Java_id_g6hifiplayer_oboeprobe_MainActivity_nativeOpen(
     std::ostringstream prefix;
     prefix << "requestedSampleRate=" << sampleRate
            << "\nrequestedSharingMode=" << sharingName(requestedMode)
-           << "\nexclusiveOpenResult=" << oboe::convertToText(result);
+           << "\nopenResult=" << oboe::convertToText(result);
 
     if (result != oboe::Result::OK && requestExclusive) {
         if (gStream) {
@@ -134,7 +139,10 @@ Java_id_g6hifiplayer_oboeprobe_MainActivity_nativeOpen(
         __android_log_print(ANDROID_LOG_ERROR, kTag, "%s", message.c_str());
         return env->NewStringUTF(message.c_str());
     } else {
-        prefix << "\nopenedUsing=" << sharingName(requestedMode);
+        const auto actualMode = gStream->getSharingMode();
+        prefix << "\nopenedUsing=" << sharingName(actualMode)
+               << "\nrequestedModeHonored="
+               << (actualMode == requestedMode ? "YES" : "NO");
     }
 
     const std::string message = streamInfo(prefix.str().c_str());
