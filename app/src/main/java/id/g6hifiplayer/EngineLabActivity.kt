@@ -83,7 +83,7 @@ class EngineLabActivity : Activity() {
             text = "Stop playback"
             setOnClickListener {
                 pcmPlayer.stop()
-                statusLabel.text = "Stopped by user."
+                recordDiagnostic("STOP_REQUESTED by user")
                 playButton.isEnabled = selectedUri != null
             }
         }, matchWrap())
