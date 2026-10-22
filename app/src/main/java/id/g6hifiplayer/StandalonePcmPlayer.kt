@@ -107,7 +107,7 @@ internal class StandalonePcmPlayer {
                     }
                 }
             } catch (error: Throwable) {
-                if (!token.get()) report("ERROR: ${error.message ?: error.javaClass.simpleName}")
+                if (!token.get()) report("PLAYBACK_ERROR type=${error.javaClass.name} message=${error.message ?: "no message"}")
             } finally {
                 try { trackForCleanup?.pause() } catch (_: Exception) { }
                 try { trackForCleanup?.flush() } catch (_: Exception) { }
