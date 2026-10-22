@@ -1,0 +1,65 @@
+name: Build 1.18 Oboe diagnostics probe
+
+on:
+  push:
+    branches:
+      - build-118-oboe-diagnostics
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+            packages: "platform-tools"
+
+      - name: Install Android NDK and CMake
+        run: sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build isolated Oboe probe
+        run: gradle --no-daemon :oboeprobe:assembleDebug --stacktrace
+
+      - name: Upload Oboe diagnostics APK
+        id: probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build118-Oboe-Diagnostics-APK
+          path: oboeprobe/build/outputs/apk/debug/oboeprobe-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish artifact links
+        env:
+          PROBE_URL: ${{ steps.probe.outputs.artifact-url }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          {
+            echo "## Build 1.18 — Oboe diagnostics"
+            echo ""
+            echo "- [Download Oboe diagnostics APK]($PROBE_URL)"
+            echo ""
+            echo "Nightly link:"
+            echo "- https://nightly.link/$REPOSITORY/actions/runs/$RUN_ID/G6HiFiPlayer-Build118-Oboe-Diagnostics-APK.zip"
+            echo ""
+            echo "This build only changes the separate probe APK; it does not replace the main player's audio engine."
+          } >> "$GITHUB_STEP_SUMMARY"
