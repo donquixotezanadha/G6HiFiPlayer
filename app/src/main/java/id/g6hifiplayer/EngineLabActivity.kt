@@ -164,11 +164,11 @@ class EngineLabActivity : Activity() {
     }
 
     private fun recordDiagnostic(message: String) {
-        val line = "${System.currentTimeMillis()} | ${message.replace('\\n', ' ')}"
+        val line = "${System.currentTimeMillis()} | ${message.replace('\n', ' ')}"
         synchronized(diagnosticLog) {
-            diagnosticLog.append(line).append('\\n')
+            diagnosticLog.append(line).append('\n')
             if (diagnosticLog.length > 40000) {
-                val trimTo = diagnosticLog.indexOf("\\n", diagnosticLog.length - 30000)
+                val trimTo = diagnosticLog.indexOf("\n", diagnosticLog.length - 30000)
                 if (trimTo >= 0) diagnosticLog.delete(0, trimTo + 1)
             }
         }
@@ -176,7 +176,7 @@ class EngineLabActivity : Activity() {
     }
 
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.28 diagnostics\\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.28 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
