@@ -62,6 +62,8 @@ internal class StandalonePcmPlayer {
                         .setBufferSizeInBytes(bufferBytes)
                     // Build 1.31: request DIRECT only if the OEM framework exposes a specific hook.
                     // The normal AudioTrack route remains the fallback; AudioFlinger must verify the result.
+                    DirectPcmOutputRequest.encodingCapabilityReport(info.sampleRate, outputMask).forEach(report)
+                    report("OUTPUT_REQUEST_SUMMARY sourceRate=${info.sampleRate}Hz sourceBits=${info.bitsPerSample} requestedEncoding=$outputEncoding requestedFormat=${if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT" else "PCM16"}; capability probe does not prove DIRECT")
                     val directRequestStatus = DirectPcmOutputRequest.apply(outputBuilder)
                     val outputTrack = outputBuilder.build()
                     trackForCleanup = outputTrack
