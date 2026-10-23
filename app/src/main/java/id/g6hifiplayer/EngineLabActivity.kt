@@ -49,12 +49,12 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.31"
+            text = "G6 Engine Lab · Build 1.32"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
         content.addView(TextView(this).apply {
-            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.31 probes an OEM DIRECT request hook."
+            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.32 logs PCM encoding capability and probes an OEM DIRECT request hook."
             textSize = 15f
             setPadding(0, dp(10), 0, dp(18))
         })
@@ -121,7 +121,7 @@ class EngineLabActivity : Activity() {
             setOnClickListener {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.31 diagnostics")
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.32 diagnostics")
                     putExtra(Intent.EXTRA_TEXT, diagnosticsText())
                 }
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
@@ -193,7 +193,7 @@ class EngineLabActivity : Activity() {
         if (outputBits == 16) "Output mode: PCM16 (tap to switch to PCM24)" else "Output mode: PCM24-preserving (tap to switch to PCM16)"
 
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.30 diagnostics\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.32 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
