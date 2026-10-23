@@ -55,12 +55,15 @@ internal class StandalonePcmPlayer {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
-                    val outputTrack = AudioTrack.Builder()
+                    val outputBuilder = AudioTrack.Builder()
                         .setAudioAttributes(attributes)
                         .setAudioFormat(format)
                         .setTransferMode(AudioTrack.MODE_STREAM)
                         .setBufferSizeInBytes(bufferBytes)
-                        .build()
+                    // Build 1.31: request DIRECT only if the OEM framework exposes a specific hook.
+                    // The normal AudioTrack route remains the fallback; AudioFlinger must verify the result.
+                    val directRequestStatus = DirectPcmOutputRequest.apply(outputBuilder)
+                    val outputTrack = outputBuilder.build()
                     trackForCleanup = outputTrack
                     check(outputTrack.state == AudioTrack.STATE_INITIALIZED) {
                         "AudioTrack failed to initialize at ${info.sampleRate} Hz encoding=$outputEncoding"
@@ -68,6 +71,7 @@ internal class StandalonePcmPlayer {
                     activeTrack = outputTrack
                     report("WAV_PARSED rate=${info.sampleRate}Hz channels=${info.channels} bits=${info.bitsPerSample} blockAlign=${info.blockAlign} dataBytes=${info.dataSize} dataOffset=${info.dataOffset}")
                     report("OUTPUT_FORMAT audioTrackEncoding=$outputEncoding outputBytesPerSample=$outputBytesPerSample mode=${if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT preserving source integer precision" else "PCM16"}")
+                    report(directRequestStatus)
                     report("AUDIOTRACK_INITIALIZED state=${outputTrack.state} sampleRate=${outputTrack.sampleRate} channelCount=${outputTrack.channelCount} audioFormat=${outputTrack.audioFormat} sessionId=${outputTrack.audioSessionId} bufferBytes=${bufferBytes} minBufferBytes=${minBytes}")
                     report("ROUTE ${describeRoute(outputTrack)}; route data does not prove DIRECT or bit-perfect.")
                     var totalWritten = 0L
