@@ -1,0 +1,47 @@
+name: Build G6 Engine Lab Build 1.31 - DIRECT Output Request Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-131-direct-output-request"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        run: gradle clean assembleDebug --stacktrace
+      - name: Verify APK exists and is non-empty
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload Build 1.31 Engine Lab APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6-Engine-Lab-Build131-DIRECT-Output-Request-Probe
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish direct artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## Download G6 Engine Lab Build 1.31" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 1.31 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 1.31 adds an OEM-only AUDIO_OUTPUT_FLAG_DIRECT request probe to the isolated PCM AudioTrack path. If no OEM hook exists, playback falls back to the Build 1.30 path. A request is not counted as success unless live AudioFlinger shows a DIRECT output thread and the actual output format/rate." >> "$GITHUB_STEP_SUMMARY"
