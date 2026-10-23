@@ -49,12 +49,12 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.30"
+            text = "G6 Engine Lab · Build 1.31"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
         content.addView(TextView(this).apply {
-            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim."
+            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.31 probes an OEM DIRECT request hook."
             textSize = 15f
             setPadding(0, dp(10), 0, dp(18))
         })
@@ -121,13 +121,13 @@ class EngineLabActivity : Activity() {
             setOnClickListener {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.29 diagnostics")
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.31 diagnostics")
                     putExtra(Intent.EXTRA_TEXT, diagnosticsText())
                 }
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
             }
         }, matchWrap())
-        recordDiagnostic("APP_START build=1.30 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("APP_START build=1.31 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         recordDiagnostic("OUTPUT_MODE_DEFAULT pcmBits=16")
         setContentView(root)
     }
