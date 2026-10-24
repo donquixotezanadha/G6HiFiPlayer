@@ -37,13 +37,24 @@ internal class StandalonePcmPlayer {
                     // Android 9 does not expose packed PCM24 AudioTrack output. Keep 24-bit integer
                     // samples in a PCM24 WAV, then map them to PCM_FLOAT (24 significant bits fit
                     // exactly in IEEE-754 float) for AudioTrack. PCM16 remains the known-good path.
-                    val outputEncoding = if (info.bitsPerSample == 16) {
-                        AudioFormat.ENCODING_PCM_16BIT
-                    } else {
-                        AudioFormat.ENCODING_PCM_FLOAT
+                    // Build 1.35: for 24-bit sources first try UAPP's format (24-bit packed, source rate),
+                    // which is what lets the G6 policy open the DIRECT output. Source bytes are copied as-is.
+                    val packedTrack: AudioTrack? = if (info.bitsPerSample == 24) {
+                        Packed24TrackFactory.create(info.sampleRate, info.channels, report)
+                    } else null
+                    val usePacked = packedTrack != null
+                    val outputEncoding = when {
+                        usePacked -> Packed24TrackFactory.ENCODING_PCM_24BIT_PACKED
+                        info.bitsPerSample == 16 -> AudioFormat.ENCODING_PCM_16BIT
+                        else -> AudioFormat.ENCODING_PCM_FLOAT
                     }
-                    val outputBytesPerSample = if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) 4 else 2
-                    val minBytes = AudioTrack.getMinBufferSize(info.sampleRate, outputMask, outputEncoding)
+                    val outputBytesPerSample = when {
+                        usePacked -> 3
+                        outputEncoding == AudioFormat.ENCODING_PCM_FLOAT -> 4
+                        else -> 2
+                    }
+                    val minBytes = if (usePacked) packedTrack!!.bufferSizeInFrames * info.channels * 3
+                        else AudioTrack.getMinBufferSize(info.sampleRate, outputMask, outputEncoding)
                     check(minBytes > 0) { "AudioTrack rejected ${info.sampleRate} Hz encoding=$outputEncoding (getMinBufferSize=$minBytes)" }
                     val bufferBytes = maxOf(minBytes * 2, info.sampleRate * info.channels * outputBytesPerSample / 4)
                     val format = AudioFormat.Builder()
@@ -64,15 +75,15 @@ internal class StandalonePcmPlayer {
                     // The normal AudioTrack route remains the fallback; AudioFlinger must verify the result.
                     DirectPcmOutputRequest.encodingCapabilityReport(info.sampleRate, outputMask).forEach(report)
                     report("OUTPUT_REQUEST_SUMMARY sourceRate=${info.sampleRate}Hz sourceBits=${info.bitsPerSample} requestedEncoding=$outputEncoding requestedFormat=${if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT" else "PCM16"}; capability probe does not prove DIRECT")
-                    val directRequestStatus = DirectPcmOutputRequest.apply(outputBuilder)
-                    val outputTrack = outputBuilder.build()
+                    val directRequestStatus = if (usePacked) "DIRECT_REQUEST=PACKED24_FORMAT_PATH (no OEM hook needed)" else DirectPcmOutputRequest.apply(outputBuilder)
+                    val outputTrack = packedTrack ?: outputBuilder.build()
                     trackForCleanup = outputTrack
                     check(outputTrack.state == AudioTrack.STATE_INITIALIZED) {
                         "AudioTrack failed to initialize at ${info.sampleRate} Hz encoding=$outputEncoding"
                     }
                     activeTrack = outputTrack
                     report("WAV_PARSED rate=${info.sampleRate}Hz channels=${info.channels} bits=${info.bitsPerSample} blockAlign=${info.blockAlign} dataBytes=${info.dataSize} dataOffset=${info.dataOffset}")
-                    report("OUTPUT_FORMAT audioTrackEncoding=$outputEncoding outputBytesPerSample=$outputBytesPerSample mode=${if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT preserving source integer precision" else "PCM16"}")
+                    report("OUTPUT_FORMAT audioTrackEncoding=$outputEncoding outputBytesPerSample=$outputBytesPerSample mode=${if (usePacked) "PCM24_PACKED bit-exact copy" else if (outputEncoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT preserving source integer precision" else "PCM16"}")
                     report(directRequestStatus)
                     report("AUDIOTRACK_INITIALIZED state=${outputTrack.state} sampleRate=${outputTrack.sampleRate} channelCount=${outputTrack.channelCount} audioFormat=${outputTrack.audioFormat} sessionId=${outputTrack.audioSessionId} bufferBytes=${bufferBytes} minBufferBytes=${minBytes}")
                     report("ROUTE ${describeRoute(outputTrack)}; route data does not prove DIRECT or bit-perfect.")
@@ -86,9 +97,9 @@ internal class StandalonePcmPlayer {
                     val framesPerChunk = 4096
                     val inputBytesPerFrame = info.blockAlign
                     val inputBuffer = ByteArray(framesPerChunk * inputBytesPerFrame)
-                    val outputBuffer = ByteArray(framesPerChunk * info.channels * 2)
+                    val outputBuffer = ByteArray(framesPerChunk * info.channels * 3)
                     val floatOutputBuffer = FloatArray(framesPerChunk * info.channels)
-                    val useFloatOutput = outputEncoding == AudioFormat.ENCODING_PCM_FLOAT
+                    val useFloatOutput = !usePacked && outputEncoding == AudioFormat.ENCODING_PCM_FLOAT
 
                     fun writeOutputChunk(outputCount: Int) {
                         var offset = 0
@@ -124,7 +135,7 @@ internal class StandalonePcmPlayer {
                     val firstOutputCount = if (useFloatOutput) {
                         convertToFloat(inputBuffer, floatOutputBuffer, firstFrames, info)
                     } else {
-                        convertToPcm16(inputBuffer, outputBuffer, firstFrames, info)
+                        convertToOutputBytes(usePacked, inputBuffer, outputBuffer, firstFrames, info)
                     }
                     writeOutputChunk(firstOutputCount)
                     val firstOutputBytes = firstOutputCount * outputBytesPerSample
@@ -145,7 +156,7 @@ internal class StandalonePcmPlayer {
                         val outputCount = if (useFloatOutput) {
                             convertToFloat(inputBuffer, floatOutputBuffer, frames, info)
                         } else {
-                            convertToPcm16(inputBuffer, outputBuffer, frames, info)
+                            convertToOutputBytes(usePacked, inputBuffer, outputBuffer, frames, info)
                         }
                         writeOutputChunk(outputCount)
                         remaining -= aligned
@@ -203,6 +214,14 @@ internal class StandalonePcmPlayer {
             val device = track.routedDevice
             if (device == null) "unconfirmed" else "type=${device.type}, id=${device.id}, product=${device.productName}"
         } catch (error: Exception) { "unconfirmed (${error.javaClass.simpleName})" }
+    }
+
+    /** Packed 24-bit: WAV little-endian 3-byte samples already equal AUDIO_FORMAT_PCM_24_BIT_PACKED. */
+    private fun convertToOutputBytes(packed: Boolean, input: ByteArray, output: ByteArray, frames: Int, info: WavInfo): Int {
+        if (!packed) return convertToPcm16(input, output, frames, info)
+        val bytes = frames * info.blockAlign
+        System.arraycopy(input, 0, output, 0, bytes)
+        return bytes
     }
 
     private fun convertToPcm16(input: ByteArray, output: ByteArray, frames: Int, info: WavInfo): Int {
