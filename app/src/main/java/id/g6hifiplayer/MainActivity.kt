@@ -1883,24 +1883,55 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?) {
+        if (bitmap != null && !isFinishing) {
+            artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
+            if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+            applyArtworkAccent(bitmap)
+            if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+        } else {
+            artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
+            if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
+        }
+    }
+
+    private fun decodePlayerArtwork(t: Track): android.graphics.Bitmap? {
+        val key = "player:" + t.uri.toString()
+        bitmapArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
+        // 1200 px is plenty for the G6 display and decodes noticeably faster than 1600 px.
+        return readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+    }
+
+    /** Warm the cache for neighbouring tracks so the next skip shows its cover immediately. */
+    private fun prefetchNeighbourArtwork() {
+        val order = playbackOrder
+        if (order.isEmpty()) return
+        val pos = order.indexOf(currentIndex).takeIf { it >= 0 } ?: return
+        val neighbours = listOfNotNull(order.getOrNull(pos + 1), order.getOrNull(pos + 2), order.getOrNull(pos - 1))
+            .mapNotNull { tracks.getOrNull(it) }
+        if (neighbours.isEmpty()) return
+        playbackArtworkExecutor.execute {
+            neighbours.forEach { n -> try { decodePlayerArtwork(n) } catch (_: Throwable) { } }
+        }
+    }
+
     private fun loadArtwork(t: Track) {
         val token = ++artToken
+        // Cache hit: swap the cover on the same frame, no hide/placeholder flash and no thread hop.
+        val cached = bitmapArtworkCache.get("player:" + t.uri.toString())
+        if (cached != null && !cached.isRecycled) {
+            showPlayerArtwork(cached)
+            prefetchNeighbourArtwork()
+            return
+        }
         artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
-            val key = "player:" + t.uri.toString()
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(t)?.let { decodeArtwork(it, 1600, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+            val bitmap = decodePlayerArtwork(t)
             handler.post {
                 if (token != artToken) return@post
-                if (bitmap != null && !isFinishing) {
-                    artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
-                    if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
-                    applyArtworkAccent(bitmap)
-                    if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
-                } else {
-                    artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
-                    if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
-                }
+                showPlayerArtwork(bitmap)
+                prefetchNeighbourArtwork()
             }
         }
     }
