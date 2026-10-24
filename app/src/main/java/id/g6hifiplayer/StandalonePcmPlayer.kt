@@ -61,7 +61,9 @@ internal class StandalonePcmPlayer {
                     val format = AudioFormat.Builder()
                         .setSampleRate(info.sampleRate)
                         .setChannelMask(outputMask)
-                        .setEncoding(outputEncoding)
+                        // Build 1.37: Builder.setEncoding(21) throws on Android 9. When the packed track already
+                        // exists this format/builder is unused, so build it with a legal placeholder encoding.
+                        .setEncoding(if (usePacked) AudioFormat.ENCODING_PCM_16BIT else outputEncoding)
                         .build()
                     val attributes = AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
