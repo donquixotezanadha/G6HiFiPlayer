@@ -25,6 +25,7 @@ internal class StandalonePcmPlayer {
         executor.execute {
             var trackForCleanup: AudioTrack? = null
             try {
+                try { FrameworkProbe.run(report) } catch (_: Throwable) { }
                 RandomAccessFile(wavFile, "r").use { wav ->
                     val info = WavInfo.read(wav)
                     require(info.channels == 1 || info.channels == 2) {
