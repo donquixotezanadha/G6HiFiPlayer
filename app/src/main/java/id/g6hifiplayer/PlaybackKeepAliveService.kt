@@ -233,11 +233,12 @@ class PlaybackKeepAliveService : Service() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", actionPending("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+            // Same vector icons as the in-app transport buttons (previous / play-pause / next).
+            .addAction(Notification.Action.Builder(R.drawable.ic_previous_24, "Previous", actionPending("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24,
                 if (playing) "Pause" else "Play", actionPending("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", actionPending("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Close player", actionPending("close", 6104)).build())
+            .addAction(Notification.Action.Builder(R.drawable.ic_next_24, "Next", actionPending("next", 6103)).build())
+            .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionPending("close", 6104)).build())
         // Preserve the last known artwork on state-only updates (especially PLAYING -> PAUSED).
         // The service can publish before MainActivity's next UI callback, so read MediaSession's
         // stored bitmap rather than depending on an Activity view still being attached.

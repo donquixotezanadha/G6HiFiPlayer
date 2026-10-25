@@ -811,6 +811,7 @@ class MainActivity : Activity() {
         queueActions.addView(action("CLEAR", false) {
             playbackQueue = emptyList()
             playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
+            persistQueueState()
             renderQueueRows()
             Toast.makeText(this, "Queue cleared.", Toast.LENGTH_SHORT).show()
         }, LinearLayout.LayoutParams(dp(82), dp(36)))
@@ -1041,7 +1042,8 @@ class MainActivity : Activity() {
             if (restoredIndex >= 0) {
                 lastPlaybackRestoreAttempted = true
                 playbackOrder = restoredOrder.ifEmpty { listOf(restoredIndex) }
-                playbackQueue = playbackOrder.toList()
+                // The service kept the player alive, but the queue the user built (every added album) is only in the saved state.
+                playbackQueue = readSavedQueueState(library)?.queue ?: playbackOrder.toList()
                 currentIndex = restoredIndex
                 player = live
                 notificationDismissed = false
@@ -1074,8 +1076,74 @@ class MainActivity : Activity() {
         }
         lastPlaybackRestoreAttempted = true
         pendingRestorePositionMs = prefs.getLong(KEY_LAST_POSITION_MS, 0L).coerceAtLeast(0L)
+        val savedQueue = readSavedQueueState(library)
+        if (savedQueue != null && index in savedQueue.order) {
+            recordDiagnostic("LAST_PLAYBACK_RESTORE_START index=$index positionMs=${pendingRestorePositionMs} queue=${savedQueue.queue.size} order=${savedQueue.order.size}")
+            playTrackAt(index, autoplay = false, queue = savedQueue.order)
+            // playTrackAt makes the visible queue equal to the play order; put back what the user had
+            // (for example an emptied queue, or queued albums shown while the order is shorter).
+            playbackQueue = savedQueue.queue
+            if (::queueRows.isInitialized) renderQueueRows()
+            persistQueueState()
+            return
+        }
         recordDiagnostic("LAST_PLAYBACK_RESTORE_START index=$index positionMs=${pendingRestorePositionMs}")
         playTrackAt(index, autoplay = false)
+    }
+
+    // ---- Queue persistence -------------------------------------------------------------------------
+    // Only the last track and its position used to be saved, so after "Close" or a process restart the
+    // queue was rebuilt from that one track's album and every other queued album was lost. The queue
+    // (display list) and the play order are now saved as track URIs, which stay valid when the library
+    // is rescanned and its indices change.
+    private class SavedQueue(val queue: List<Int>, val order: List<Int>)
+    private val queueStateExecutor = Executors.newSingleThreadExecutor()
+    private val queueStateFile get() = File(filesDir, "playback_queue.json")
+
+    private fun persistQueueState() {
+        val queueUris = playbackQueue.mapNotNull { tracks.getOrNull(it)?.uri?.toString() }
+        val orderUris = playbackOrder.mapNotNull { tracks.getOrNull(it)?.uri?.toString() }
+        try {
+            queueStateExecutor.execute {
+                try {
+                    val root = org.json.JSONObject()
+                        .put("queue", org.json.JSONArray(queueUris))
+                        .put("order", org.json.JSONArray(orderUris))
+                    val file = queueStateFile
+                    val temporary = File(filesDir, "playback_queue.json.tmp")
+                    temporary.writeText(root.toString(), Charsets.UTF_8)
+                    if (!temporary.renameTo(file)) { file.writeText(root.toString(), Charsets.UTF_8); temporary.delete() }
+                } catch (e: Exception) { recordDiagnostic("QUEUE_STATE_WRITE_FAILED", e) }
+            }
+        } catch (_: java.util.concurrent.RejectedExecutionException) { }
+    }
+
+    /** Saved queue mapped onto [library] indices; tracks that no longer exist are dropped. Null = nothing saved. */
+    private fun readSavedQueueState(library: List<Track>): SavedQueue? {
+        val file = queueStateFile
+        if (!file.exists()) return null
+        return try {
+            val root = org.json.JSONObject(file.readText(Charsets.UTF_8))
+            val byUri = HashMap<String, Int>(library.size * 2)
+            library.forEachIndexed { i, t -> byUri[t.uri.toString()] = i }
+            fun mapped(name: String): List<Int> {
+                val array = root.optJSONArray(name) ?: return emptyList()
+                val out = ArrayList<Int>(array.length())
+                for (i in 0 until array.length()) byUri[array.optString(i)]?.let { out.add(it) }
+                return out.distinct()
+            }
+            SavedQueue(mapped("queue"), mapped("order"))
+        } catch (e: Exception) { recordDiagnostic("QUEUE_STATE_READ_FAILED", e); null }
+    }
+
+    /** Keep the queue and play order pointing at the same tracks after the library list was replaced. */
+    private fun remapPlaybackLists(oldTracks: List<Track>, newTracks: List<Track>) {
+        val byUri = HashMap<String, Int>(newTracks.size * 2)
+        newTracks.forEachIndexed { i, t -> byUri[t.uri.toString()] = i }
+        fun remap(list: List<Int>): List<Int> =
+            list.mapNotNull { oldIndex -> oldTracks.getOrNull(oldIndex)?.uri?.toString()?.let { byUri[it] } }
+        playbackQueue = remap(playbackQueue)
+        playbackOrder = remap(playbackOrder)
     }
 
     private fun persistPlaybackState(force: Boolean) {
@@ -1139,7 +1207,12 @@ class MainActivity : Activity() {
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
             val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
             handler.post {
-                tracks = sorted; currentIndex = -1; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = emptyList()
+                // A rescan used to wipe the queue and the current track. Carry both over by track URI.
+                val previousCurrentUri = tracks.getOrNull(currentIndex)?.uri
+                remapPlaybackLists(tracks, sorted)
+                tracks = sorted
+                currentIndex = previousCurrentUri?.let { u -> sorted.indexOfFirst { it.uri == u } } ?: -1
+                selectedAlbum = null
                 Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
@@ -1180,10 +1253,10 @@ class MainActivity : Activity() {
                             val partial = synchronized(output) { output.toList() }
                             if (partial.isNotEmpty()) {
                                 val previousUri = tracks.getOrNull(currentIndex)?.uri
+                                val previousTracks = tracks
                                 tracks = partial.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
                                 currentIndex = previousUri?.let { uri -> tracks.indexOfFirst { it.uri == uri } } ?: -1
-                                playbackQueue = emptyList()
-                                playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
+                                remapPlaybackLists(previousTracks, tracks)
                                 renderLibrary()
                                 albumScanSummary.text = tracks.size.toString() + " tracks found so far • " + tracks.map { it.album }.distinct().size + " albums"
                                 librarySummary.text = albumScanSummary.text
@@ -1617,6 +1690,7 @@ class MainActivity : Activity() {
             playbackQueue = playbackOrder
         }
         persistPlaybackState(force = true)
+        persistQueueState()
         currentIndex = index
         notificationDismissed = false
         if (::queueRows.isInitialized) renderQueueRows()
@@ -2603,6 +2677,7 @@ class MainActivity : Activity() {
         playbackQueue = (playbackQueue + albumIndices.ifEmpty { listOf(index) }).distinct()
         // The visible queue and the sequence used by STATE_ENDED/Next must be identical.
         playbackOrder = playbackQueue.toList()
+        persistQueueState()
         renderQueueRows()
         recordDiagnostic("QUEUE_ALBUM_ADDED album=${tracks[index].album} tracks=${albumIndices.size} queueSize=${playbackOrder.size}")
         Toast.makeText(this, "Album added to queue: ${tracks[index].album}", Toast.LENGTH_SHORT).show()
@@ -2615,6 +2690,7 @@ class MainActivity : Activity() {
         // Keep queue display and playback traversal in sync; otherwise playback can stop at
         // the end of the original album even though another album is visibly queued.
         playbackOrder = playbackQueue.toList()
+        persistQueueState()
         renderQueueRows()
         recordDiagnostic("QUEUE_ALBUM_ADDED album=$album tracks=${valid.size} queueSize=${playbackOrder.size}")
         Toast.makeText(this, "Album added to queue: $album", Toast.LENGTH_SHORT).show()
@@ -2647,7 +2723,7 @@ class MainActivity : Activity() {
             row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(iconAction("×") {
                 if (trackIndex == currentIndex) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
-                else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; renderQueueRows() }
+                else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }
             }, LinearLayout.LayoutParams(dp(38), dp(44)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
             loadArtworkInto(cover, track)
