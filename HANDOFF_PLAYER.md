@@ -8,6 +8,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 - claude-build-139-player-perf: Build 1.39 = 1.34 + performance work (see BUILD139_NOTES.md). Workflow: build-139-claude.yml (push builds the APK, artifact G6HiFiPlayer-Build139-v1.39.0).
 - claude-build-140-queue-icons: Build 1.40 = 1.39 + queue survives Close/restart + notification buttons use the player icons (see BUILD140_NOTES.md). Workflow: build-140-claude.yml (artifact G6HiFiPlayer-Build140-v1.40.0).
 
+- claude-build-141-adaptive-player: Build 1.41 = 1.40 + adaptive Now Playing (see BUILD141_NOTES.md). Workflow: build-141-claude.yml (artifact G6HiFiPlayer-Build141-v1.41.0).
+
 ## Done in 1.39
 1. Album art: separate 48 MB player cache, JPEG disk cache, no blank flash on cache miss, background-priority prefetch, 512 px notification art.
 2. Taps/notification: service is the only notification publisher, coalesced updates, direct service calls, 150 ms toggle guard, optimistic Play/Pause icon.
@@ -16,7 +18,9 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 - Queue persisted as URIs (playback_queue.json) and restored; rescan keeps queue/current track; notification icons = player icons.
 - Open question for the user: does playback continue into a queued album after the current one ends? (see BUILD140_NOTES.md, Observation)
 
-## Next (Build 1.41 = visual, only when the user asks for it)
-- Adaptive Now Playing background like the notification: dominant colour of the cover on the left side fading right, text and buttons switching light/dark by luminance. Make it the default look (no theme option for it). vividArtworkColor() exists but applyArtworkAccent() currently forces DEFAULT_ACCENT.
-- Remove dead code/visuals left from older builds (unused helpers, the unused accent plumbing once replaced).
-- Keep the cover path from 1.39 (decode off the UI thread; compute the dominant colour in the same background step and cache it with the cover).
+## Done in 1.41
+- Now Playing: dominant cover colour on the left fading right and rising from the bottom; text/buttons/progress bar switch white or near-black by contrast; no setting for it. Old accent code (vividArtworkColor, applyArtworkAccent) removed. See BUILD141_NOTES.md.
+- Not yet checked on the phone: how it looks with very bright, very dark and grey covers, and with no cover.
+
+## Next
+- Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).

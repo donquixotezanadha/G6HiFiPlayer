@@ -93,6 +93,12 @@ class MainActivity : Activity() {
     private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
     private var accentColor = DEFAULT_ACCENT
+    // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
+    // text/button colour with the best contrast on it. There is no setting for this; it is the default.
+    private var playerSurface = DEFAULT_ACCENT
+    private var playerInk = Color.WHITE
+    private var appliedPlayerSurface: Int? = null
+    private val dominantColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private var lightTheme = false
     private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
     private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
@@ -179,6 +185,11 @@ class MainActivity : Activity() {
     private lateinit var fileInfo: TextView
     private lateinit var artImage: ImageView
     private lateinit var playerBackdropImage: ImageView
+    private lateinit var playerSideShade: View
+    private lateinit var playerBottomShade: View
+    private lateinit var playerBottomDock: LinearLayout
+    private lateinit var prevView: TextView
+    private lateinit var nextView: TextView
     private lateinit var artPlaceholder: TextView
     private lateinit var librarySummary: TextView
     private lateinit var albumRows: LinearLayout
@@ -496,15 +507,12 @@ class MainActivity : Activity() {
         playerPanel.setBackgroundColor(accentColor)
         playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
 
-        val backdropGradient = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x00000000, 0x22F8F8FC, 0xBDF8F8FC.toInt(), BG)
-                else intArrayOf(0x00000000, 0x18000000, 0xA8000000.toInt(), Color.BLACK)
-            )
-            isClickable = false
-        }
-        playerPanel.addView(backdropGradient, FrameLayout.LayoutParams(-1, -1))
+        // Two tinted shades over the cover: dominant colour strongest on the left and fading to the right,
+        // and the same colour rising from the bottom behind the controls. Colours are set by applyPlayerPalette().
+        playerSideShade = View(this).apply { isClickable = false }
+        playerPanel.addView(playerSideShade, FrameLayout.LayoutParams(-1, -1))
+        playerBottomShade = View(this).apply { isClickable = false }
+        playerPanel.addView(playerBottomShade, FrameLayout.LayoutParams(-1, -1))
 
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("NO MUSIC PLAYING", 22f, WHITE, true).apply {
@@ -571,12 +579,8 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
-            progressDrawable = RoundedProgressDrawable(
-                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
-                accentColor,
-                dp(4)
-            )
-            thumbTintList = ColorStateList.valueOf(accentColor)
+            progressDrawable = RoundedProgressDrawable(0x4DFFFFFF, Color.WHITE, dp(4))
+            thumbTintList = ColorStateList.valueOf(Color.WHITE)
             minimumHeight = dp(28)
             setPadding(dp(18), 0, dp(18), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -596,33 +600,26 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(6), dp(18), dp(6))
         }
-        transport.addView(iconAction("⏮") { playPrevious() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        prevView = iconAction("⏮") { playPrevious() }
+        transport.addView(prevView, LinearLayout.LayoutParams(0, dp(48), 1f))
         playView = ImageView(this).apply {
             contentDescription = "Play or pause"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(dp(9), dp(9), dp(9), dp(9))
-            background = RippleDrawable(
-                ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000),
-                shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null
-            )
-            imageTintList = ColorStateList.valueOf(accentColor)
             isClickable = true; isFocusable = true
             setOnClickListener { togglePlayback() }
         }
         syncPlaybackIcon()
         // Slightly lengthen the rounded rectangle versus Build 44 without returning to the oversized original.
         transport.addView(playView, LinearLayout.LayoutParams(dp(76), dp(56)))
-        transport.addView(iconAction("⏭") { playNext() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        nextView = iconAction("⏭") { playNext() }
+        transport.addView(nextView, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(10), 0, dp(8))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                if (lightTheme) intArrayOf(0x00F8F8FC, 0xE6F8F8FC.toInt(), 0xFFF8F8FC.toInt())
-                else intArrayOf(0x00000000, 0xD9000000.toInt(), Color.BLACK)
-            )
         }
+        playerBottomDock = bottomDock
         // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
         bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
@@ -637,6 +634,129 @@ class MainActivity : Activity() {
         playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1))
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
         // The no-track state is represented by the accent-colored artwork area, not the title field.
+        // The views were just rebuilt: paint them with the current surface (default colour until a cover arrives).
+        appliedPlayerSurface = null
+        applyPlayerPalette(playerSurface)
+    }
+
+    /** Dominant colour of a cover: the most common colour family, counting saturated pixels more than greys. */
+    private fun dominantArtworkColor(bitmap: android.graphics.Bitmap): Int {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= 0 || h <= 0 || bitmap.isRecycled) return DEFAULT_ACCENT
+        val stepX = (w / 32).coerceAtLeast(1)
+        val stepY = (h / 32).coerceAtLeast(1)
+        val weightSum = FloatArray(4096)
+        val rSum = FloatArray(4096)
+        val gSum = FloatArray(4096)
+        val bSum = FloatArray(4096)
+        var y = 0
+        while (y < h) {
+            var x = 0
+            while (x < w) {
+                val pixel = bitmap.getPixel(x, y)
+                if (Color.alpha(pixel) >= 128) {
+                    val r = Color.red(pixel)
+                    val g = Color.green(pixel)
+                    val b = Color.blue(pixel)
+                    val mx = maxOf(r, g, b)
+                    val mn = minOf(r, g, b)
+                    val saturation = if (mx == 0) 0f else (mx - mn) / mx.toFloat()
+                    val weight = 0.25f + saturation
+                    val bucket = ((r shr 4) shl 8) or ((g shr 4) shl 4) or (b shr 4)
+                    weightSum[bucket] += weight
+                    rSum[bucket] += r * weight
+                    gSum[bucket] += g * weight
+                    bSum[bucket] += b * weight
+                }
+                x += stepX
+            }
+            y += stepY
+        }
+        var best = -1
+        var bestWeight = 0f
+        for (i in 0 until 4096) {
+            if (weightSum[i] > bestWeight) { bestWeight = weightSum[i]; best = i }
+        }
+        if (best < 0) return DEFAULT_ACCENT
+        return Color.rgb(
+            (rSum[best] / bestWeight).toInt().coerceIn(0, 255),
+            (gSum[best] / bestWeight).toInt().coerceIn(0, 255),
+            (bSum[best] / bestWeight).toInt().coerceIn(0, 255)
+        )
+    }
+
+    /** Dominant colour of a cover, remembered by track so a repeat play does not sample the bitmap again. */
+    private fun dominantColorFor(key: String?, bitmap: android.graphics.Bitmap, remember: Boolean): Int {
+        if (key != null) dominantColorCache[key]?.let { return it }
+        val color = dominantArtworkColor(bitmap)
+        if (key != null && remember) {
+            if (dominantColorCache.size > 400) dominantColorCache.clear()
+            dominantColorCache[key] = color
+        }
+        return color
+    }
+
+    private fun relativeLuminance(color: Int): Float {
+        fun channel(value: Int): Float {
+            val s = value / 255f
+            return if (s <= 0.03928f) s / 12.92f else Math.pow(((s + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+        }
+        return 0.2126f * channel(Color.red(color)) + 0.7152f * channel(Color.green(color)) + 0.0722f * channel(Color.blue(color))
+    }
+
+    /** White or near-black, whichever reads better on [surface]. */
+    private fun inkFor(surface: Int): Int {
+        val l = relativeLuminance(surface)
+        val dark = 0xFF14141C.toInt()
+        val whiteContrast = 1.05f / (l + 0.05f)
+        val darkContrast = (l + 0.05f) / (relativeLuminance(dark) + 0.05f)
+        return if (whiteContrast >= darkContrast) Color.WHITE else dark
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
+
+    /** Colours only the Now Playing page; the other tabs keep the app theme. */
+    private fun applyPlayerPalette(surface: Int) {
+        if (!::playerSideShade.isInitialized || !::playerBottomDock.isInitialized) return
+        if (appliedPlayerSurface == surface) return
+        appliedPlayerSurface = surface
+        playerSurface = surface
+        val ink = inkFor(surface)
+        playerInk = ink
+        val inkMuted = withAlpha(ink, 0xB8)
+        playerSideShade.background = GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(withAlpha(surface, 0xE6), withAlpha(surface, 0xA0), withAlpha(surface, 0x40), withAlpha(surface, 0x00))
+        )
+        playerBottomShade.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(withAlpha(surface, 0x00), withAlpha(surface, 0x20), withAlpha(surface, 0xB0), surface or 0xFF000000.toInt())
+        )
+        playerBottomDock.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(withAlpha(surface, 0x00), withAlpha(surface, 0xD9), surface or 0xFF000000.toInt())
+        )
+        if (::titleView.isInitialized) titleView.setTextColor(ink)
+        if (::artistView.isInitialized) artistView.setTextColor(inkMuted)
+        if (::albumView.isInitialized) albumView.setTextColor(inkMuted)
+        if (::elapsed.isInitialized) elapsed.setTextColor(inkMuted)
+        if (::duration.isInitialized) duration.setTextColor(inkMuted)
+        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(inkMuted)
+        if (::prevView.isInitialized) prevView.setTextColor(ink)
+        if (::nextView.isInitialized) nextView.setTextColor(ink)
+        if (::seek.isInitialized) {
+            seek.progressDrawable = RoundedProgressDrawable(withAlpha(ink, 0x4D), ink, dp(4))
+            seek.thumbTintList = ColorStateList.valueOf(ink)
+            seek.invalidate()
+        }
+        if (::playView.isInitialized) {
+            playView.background = RippleDrawable(
+                ColorStateList.valueOf(withAlpha(ink, 0x55)),
+                shape(withAlpha(ink, 0x2E), 16), null
+            )
+            syncPlaybackIcon()
+        }
     }
 
     private fun makeLibraryPanel() {
@@ -1764,7 +1884,7 @@ class MainActivity : Activity() {
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
-        playView.imageTintList = ColorStateList.valueOf(accentColor)
+        playView.imageTintList = ColorStateList.valueOf(playerInk)
         if (::queueMiniPlayView.isInitialized) {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
@@ -1855,76 +1975,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun vividArtworkColor(bitmap: android.graphics.Bitmap): Int {
-        val w = bitmap.width
-        val h = bitmap.height
-        if (w <= 0 || h <= 0) return DEFAULT_ACCENT
-        var bestColor = DEFAULT_ACCENT
-        var bestScore = 0f
-        val stepX = (w / 40).coerceAtLeast(1)
-        val stepY = (h / 40).coerceAtLeast(1)
-        val hsv = FloatArray(3)
-        var y = 0
-        while (y < h) {
-            var x = 0
-            while (x < w) {
-                val pixel = bitmap.getPixel(x, y)
-                if (Color.alpha(pixel) > 180) {
-                    Color.colorToHSV(pixel, hsv)
-                    val saturation = hsv[1]
-                    val value = hsv[2]
-                    if (saturation >= 0.38f && value >= 0.22f && value <= 0.88f) {
-                        // Prefer clearly saturated colors while avoiding near-black and near-white pixels.
-                        val brightnessScore = 1f - kotlin.math.abs(value - 0.58f)
-                        val score = saturation * brightnessScore
-                        if (score > bestScore) {
-                            bestScore = score
-                            bestColor = Color.HSVToColor(floatArrayOf(hsv[0], saturation.coerceAtMost(0.9f), value.coerceIn(0.58f, 0.86f)))
-                        }
-                    }
-                }
-                x += stepX
-            }
-            y += stepY
-        }
-        return if (bestScore >= 0.38f) bestColor else DEFAULT_ACCENT
-    }
-
-    private fun applyArtworkAccent(bitmap: android.graphics.Bitmap) {
-        val picked = DEFAULT_ACCENT
-        if (picked == accentColor) return
-        accentColor = picked
-        if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(
-                if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt(),
-                accentColor,
-                dp(5)
-            )
-            seek.thumbTintList = android.content.res.ColorStateList.valueOf(accentColor)
-            seek.invalidate()
-        }
-        if (::playView.isInitialized) {
-            playView.imageTintList = ColorStateList.valueOf(accentColor)
-            playView.background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000), shape(if (lightTheme) 0xFFE0DFFF.toInt() else 0xFF29265A.toInt(), 16), null)
-            syncPlaybackIcon()
-        }
-        if (::scanProgress.isInitialized) {
-            scanProgress.progressTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
-            scanProgress.progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
-        }
-        if (::scanProgressText.isInitialized) scanProgressText.setTextColor(accentColor)
-        if (::titleView.isInitialized) titleView.setTextColor(accentColor)
-        if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(MUTED)
-        if (::statusView.isInitialized) statusView.setTextColor(accentColor)
-        fun recolor(view: View) {
-            if (view is TextView && view.tag == "g6_dynamic_accent_text") view.setTextColor(accentColor)
-            if (view is ViewGroup) for (i in 0 until view.childCount) recolor(view.getChildAt(i))
-        }
-        recolor(window.decorView)
-        if (::albumRows.isInitialized) renderLibrary()
-        if (::songRows.isInitialized) renderSongs()
-    }
-
     private fun decodeArtwork(
         bytes: ByteArray,
         maxDimension: Int = 1200,
@@ -2006,16 +2056,18 @@ class MainActivity : Activity() {
      * [provisional] = a low-resolution stand-in (library thumbnail) shown while the full cover decodes.
      * It must not trigger a notification/widget refresh; the real cover does that when it arrives.
      */
-    private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?, provisional: Boolean = false) {
+    private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?, provisional: Boolean = false, key: String? = null) {
         if (bitmap != null && !isFinishing) {
             artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
             if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+            // Colour comes from the cover that is on screen. A provisional thumbnail is sampled but not remembered.
+            applyPlayerPalette(dominantColorFor(key, bitmap, remember = !provisional))
             if (provisional) return
-            applyArtworkAccent(bitmap)
             if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
         } else {
             artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
             if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
+            applyPlayerPalette(DEFAULT_ACCENT)
         }
     }
 
@@ -2096,6 +2148,8 @@ class MainActivity : Activity() {
             }
             val result: android.graphics.Bitmap = bitmap ?: return null
             playerArtworkCache.put(key, result)
+            // Dominant colour is worked out here, off the UI thread, together with the cover itself.
+            dominantColorFor(key, result, remember = true)
             notificationArtworkFor(t, result)
             return result
         }
@@ -2125,7 +2179,7 @@ class MainActivity : Activity() {
         // Cache hit: swap the cover on the same frame, no hide/placeholder flash and no thread hop.
         val cached = playerArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
-            showPlayerArtwork(cached)
+            showPlayerArtwork(cached, key = key)
             prefetchNeighbourArtwork()
             return
         }
@@ -2144,7 +2198,7 @@ class MainActivity : Activity() {
             val bitmap = decodePlayerArtwork(t)
             handler.post {
                 if (token != artToken) return@post
-                showPlayerArtwork(bitmap)
+                showPlayerArtwork(bitmap, key = key)
                 prefetchNeighbourArtwork()
             }
         }
