@@ -101,15 +101,36 @@ class MainActivity : Activity() {
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var albumGridColumns = 2
+    // Library thumbnails (320 px, RGB_565).
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
     }
+    // Now Playing covers (1200 px, ARGB_8888 = ~5.7 MB each). Kept apart from the thumbnails so the
+    // prefetch of neighbouring covers can no longer be evicted by (or evict) the library grid.
+    private val playerArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(48 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
+    }
+    // 512 px copies used for the notification, MediaSession and lock screen (small Binder payload).
+    private val notificationArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(8 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
+    }
+    private val noArtworkTracks = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+    private val artworkDecodeLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
+    private val artworkDiskDir by lazy { File(cacheDir, "player_art").apply { mkdirs() } }
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(2)
     // Coalesce duplicate thumbnail requests when grid cells are rebuilt after album expansion.
     private val artworkTargetsInFlight = mutableMapOf<String, MutableList<java.lang.ref.WeakReference<ImageView>>>()
     // Keep current-player artwork independent of the library thumbnails backlog.
     private val playbackArtworkExecutor = Executors.newSingleThreadExecutor()
+    // Neighbour prefetch and disk writes run at background priority and never delay the current cover.
+    private var prefetchToken = 0
+    private val artworkBackgroundExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread({
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Throwable) { }
+            r.run()
+        }, "g6-art-bg")
+    }
     private val metadataExecutor = Executors.newFixedThreadPool(2)
     private val artworkBytesCache = java.util.Collections.synchronizedMap(java.util.LinkedHashMap<String, ByteArray>(16, 0.75f, true))
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -262,6 +283,7 @@ class MainActivity : Activity() {
             previous.playerListener = null
         }
         activeInstance = this
+        pruneArtworkDiskCache()
         PlaybackKeepAliveService.setAudioTrackCallback { track -> MainActivity.onServiceAudioTrackCreated(track) }
         PlaybackKeepAliveService.setPlaybackStoppedCallback { MainActivity.onServicePlaybackStopped() }
         player = PlaybackKeepAliveService.existingPlayer()
@@ -1698,7 +1720,13 @@ class MainActivity : Activity() {
     private fun showMetadata(uri: Uri, t: Track) {
         // SAF/MediaMetadataRetriever/MediaExtractor may block on slow storage. Never run them on the UI thread,
         // otherwise the artwork bitmap cannot be displayed even when its background task has already finished.
-        metadataExecutor.execute {
+        // Give the cover decode a head start on the same storage: the technical details are only
+        // needed for the audio-info text, so they start 250 ms later.
+        handler.postDelayed({ if (!isFinishing) metadataExecutor.execute { readFileMetadata(uri, t) } }, 250L)
+    }
+
+    private fun readFileMetadata(uri: Uri, t: Track) {
+        run {
             val r = MediaMetadataRetriever()
             var fileDuration = "Unavailable"; var mime = "Unavailable"; var bitrate = "Unavailable"
             try {
@@ -1883,10 +1911,15 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?) {
+    /**
+     * [provisional] = a low-resolution stand-in (library thumbnail) shown while the full cover decodes.
+     * It must not trigger a notification/widget refresh; the real cover does that when it arrives.
+     */
+    private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?, provisional: Boolean = false) {
         if (bitmap != null && !isFinishing) {
             artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
             if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageBitmap(bitmap)
+            if (provisional) return
             applyArtworkAccent(bitmap)
             if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
         } else {
@@ -1895,11 +1928,86 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun artworkDiskFile(t: Track): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest(t.uri.toString().toByteArray())
+        return File(artworkDiskDir, digest.joinToString("") { "%02x".format(it) } + ".jpg")
+    }
+
+    /** Remove the oldest cached covers once the on-disk cache passes ~96 MB. Runs once, in the background. */
+    private fun pruneArtworkDiskCache() {
+        artworkBackgroundExecutor.execute {
+            try {
+                val files = artworkDiskDir.listFiles()?.filter { it.isFile } ?: return@execute
+                var total = files.sumOf { it.length() }
+                val limit = 96L * 1024L * 1024L
+                if (total <= limit) return@execute
+                for (f in files.sortedBy { it.lastModified() }) {
+                    if (total <= limit * 3 / 4) break
+                    total -= f.length()
+                    f.delete()
+                }
+            } catch (_: Throwable) { }
+        }
+    }
+
+    /** Small cover for the notification, lock screen and MediaSession; created off the UI thread when possible. */
+    private fun notificationArtworkFor(track: Track, full: android.graphics.Bitmap?): android.graphics.Bitmap? {
+        if (full == null || full.isRecycled) return null
+        val key = track.uri.toString()
+        notificationArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
+        val longest = maxOf(full.width, full.height).coerceAtLeast(1)
+        val small = if (longest <= 512) full else {
+            val ratio = 512f / longest
+            android.graphics.Bitmap.createScaledBitmap(full, (full.width * ratio).toInt().coerceAtLeast(1), (full.height * ratio).toInt().coerceAtLeast(1), true)
+        }
+        notificationArtworkCache.put(key, small)
+        return small
+    }
+
     private fun decodePlayerArtwork(t: Track): android.graphics.Bitmap? {
-        val key = "player:" + t.uri.toString()
-        bitmapArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
-        // 1200 px is plenty for the G6 display and decodes noticeably faster than 1600 px.
-        return readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }?.also { bitmapArtworkCache.put(key, it) }
+        val key = t.uri.toString()
+        playerArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
+        if (noArtworkTracks.contains(key)) return null
+        // The prefetch and the on-screen request can ask for the same track at the same moment:
+        // let the second one wait for the first instead of reading the file twice.
+        synchronized(artworkDecodeLocks.getOrPut(key) { Any() }) {
+            playerArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
+            if (noArtworkTracks.contains(key)) return null
+            val diskFile = artworkDiskFile(t)
+            val noneMarker = File(diskFile.path + ".none")
+            var bitmap: android.graphics.Bitmap? = null
+            if (diskFile.length() > 0L) {
+                // Fast path: the cover was already extracted on an earlier play (JPEG on app cache storage).
+                bitmap = try {
+                    BitmapFactory.decodeFile(diskFile.path, BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 })
+                } catch (_: Throwable) { null }
+                if (bitmap == null) diskFile.delete()
+            } else if (noneMarker.exists()) {
+                noArtworkTracks.add(key)
+                return null
+            }
+            if (bitmap == null) {
+                // 1200 px is plenty for the G6 display and decodes noticeably faster than 1600 px.
+                bitmap = readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }
+                if (bitmap == null) {
+                    noArtworkTracks.add(key)
+                    try { noneMarker.createNewFile() } catch (_: Throwable) { }
+                    return null
+                }
+                val toSave: android.graphics.Bitmap = bitmap
+                artworkBackgroundExecutor.execute {
+                    try {
+                        val tmp = File(diskFile.path + ".tmp")
+                        tmp.outputStream().use { out -> toSave.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, out) }
+                        if (!tmp.renameTo(diskFile)) tmp.delete()
+                    } catch (_: Throwable) { }
+                }
+            }
+            val result: android.graphics.Bitmap = bitmap ?: return null
+            playerArtworkCache.put(key, result)
+            notificationArtworkFor(t, result)
+            return result
+        }
     }
 
     /** Warm the cache for neighbouring tracks so the next skip shows its cover immediately. */
@@ -1907,26 +2015,41 @@ class MainActivity : Activity() {
         val order = playbackOrder
         if (order.isEmpty()) return
         val pos = order.indexOf(currentIndex).takeIf { it >= 0 } ?: return
-        val neighbours = listOfNotNull(order.getOrNull(pos + 1), order.getOrNull(pos + 2), order.getOrNull(pos - 1))
+        val neighbours = listOfNotNull(order.getOrNull(pos + 1), order.getOrNull(pos - 1), order.getOrNull(pos + 2))
             .mapNotNull { tracks.getOrNull(it) }
         if (neighbours.isEmpty()) return
-        playbackArtworkExecutor.execute {
-            neighbours.forEach { n -> try { decodePlayerArtwork(n) } catch (_: Throwable) { } }
+        // A newer request (the user skipped again) cancels the remaining work of the older one.
+        val myToken = ++prefetchToken
+        artworkBackgroundExecutor.execute {
+            for (n in neighbours) {
+                if (myToken != prefetchToken) break
+                try { decodePlayerArtwork(n) } catch (_: Throwable) { }
+            }
         }
     }
 
     private fun loadArtwork(t: Track) {
         val token = ++artToken
+        val key = t.uri.toString()
         // Cache hit: swap the cover on the same frame, no hide/placeholder flash and no thread hop.
-        val cached = bitmapArtworkCache.get("player:" + t.uri.toString())
+        val cached = playerArtworkCache.get(key)
         if (cached != null && !cached.isRecycled) {
             showPlayerArtwork(cached)
             prefetchNeighbourArtwork()
             return
         }
-        artImage.visibility = View.GONE; artImage.setImageDrawable(null); artPlaceholder.visibility = View.VISIBLE
+        if (noArtworkTracks.contains(key)) {
+            showPlayerArtwork(null)
+            prefetchNeighbourArtwork()
+            return
+        }
+        // Cache miss: never blank the screen. Show the library thumbnail right away if it is already
+        // decoded; otherwise the previous cover stays until the new one is ready.
+        bitmapArtworkCache.get("thumb:$key")?.takeIf { !it.isRecycled }?.let { showPlayerArtwork(it, provisional = true) }
         // Dedicated executor means library thumbnails can never block Now Playing artwork.
         playbackArtworkExecutor.execute {
+            // The user already skipped past this track: do not spend I/O on it.
+            if (token != artToken) return@execute
             val bitmap = decodePlayerArtwork(t)
             handler.post {
                 if (token != artToken) return@post
@@ -2127,9 +2250,12 @@ class MainActivity : Activity() {
     private fun updatePlaybackNotification(isPlaying: Boolean) {
         if (notificationDismissed || !prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
-        val widgetBitmap = try {
-            (artImage.drawable as? BitmapDrawable)?.bitmap
-        } catch (_: Exception) { null }
+        // Cover of THIS track from the caches (never whatever the ImageView still shows), at 512 px at most.
+        val trackKey = track.uri.toString()
+        val fullCover = playerArtworkCache.get(trackKey)?.takeIf { !it.isRecycled }
+        val cover: android.graphics.Bitmap? = if (fullCover != null) notificationArtworkFor(track, fullCover)
+            else bitmapArtworkCache.get("thumb:$trackKey")?.takeIf { !it.isRecycled }
+        val widgetBitmap = cover
         val widgetContext = applicationContext
         val widgetTitle = track.title
         val widgetArtist = track.artist
@@ -2165,7 +2291,6 @@ class MainActivity : Activity() {
         }, flags)
         // Avoid rebuilding and persisting the full diagnostic event snapshot for every toggle.
         android.util.Log.d("G6HiFiPlayer", "NOTIFICATION_UPDATE playing=" + isPlaying + " title=" + track.title)
-        val cover = (artImage.drawable as? BitmapDrawable)?.bitmap
         val session = mediaSession
         // Track metadata does not change during Play/Pause. Avoid rebuilding the metadata
         // bundle and copying artwork on every notification tap.
