@@ -157,7 +157,6 @@ class MainActivity : Activity() {
     private lateinit var albumScanSummary: TextView
     private lateinit var audioInfoInline: TextView
     private lateinit var playerPanel: FrameLayout
-    private lateinit var statusBarScrim: View
     private lateinit var libraryPanel: LinearLayout
     private lateinit var songsPanel: LinearLayout
     private lateinit var songRows: LinearLayout
@@ -289,7 +288,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
-        // Subtle translucent status bar blends with the page while keeping system icons legible.
+        // Fully transparent status bar; icon colour follows the page ink.
         applySystemBars()
         activeInstance?.let { previous ->
             previous.player?.let { oldPlayer -> previous.playerListener?.let { oldPlayer.removeListener(it) } }
@@ -351,33 +350,19 @@ class MainActivity : Activity() {
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
         val scanCard = card()
         scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
-        scanCard.addView(text("Choose a music folder to scan albums and subfolders. The last folder is checked automatically when the app opens.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        scanCard.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
+        scanCard.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(10) })
         librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         scanCard.addView(librarySummary)
         settingsPanel.addView(scanCard)
-        val batteryCard = card()
-        batteryCard.addView(text("BATTERY OPTIMIZATION", 12f, MUTED, true))
-        batteryCard.addView(text("Allow Android to exempt playback from standard battery optimization when supported.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        batteryCard.addView(action("OPEN BATTERY SETTINGS", false) {
-            try {
-                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                    !getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) {
-                    Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                } else {
-                    Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                }
-                startActivity(intent)
-            } catch (_: Exception) {
-                try { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-                catch (_: Exception) { Toast.makeText(this, "Battery settings are unavailable on this device.", Toast.LENGTH_LONG).show() }
-            }
-        }, LinearLayout.LayoutParams(-1, dp(44)))
-        settingsPanel.addView(batteryCard)
-        settingsPanel.addView(filePanel)
-        settingsPanel.addView(audioPanel)
+        // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
+        val columnsCard = card()
+        columnsCard.addView(text("ALBUM COLUMNS", 12f, MUTED, true))
+        val columnButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        fillColumnButtons(columnButtons)
+        columnsCard.addView(columnButtons, LinearLayout.LayoutParams(-1, -2))
+        settingsPanel.addView(columnsCard)
+        // Build 1.44: Setting shows only the folder scan and the column option. The audio/file info panels
+        // are still created (other code updates their text) but are no longer attached to the screen.
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(settingsPanel)
         scroll.addView(content)
         // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
@@ -385,8 +370,6 @@ class MainActivity : Activity() {
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
-        // Shared semi-transparent status-bar overlay for Now Playing, Albums, Songs, and Settings.
-        contentStage.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
         setContentView(root)
@@ -515,16 +498,7 @@ class MainActivity : Activity() {
         val foreground = FrameLayout(this).apply {
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
-        val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
-            if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
-        }
-         // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
-        // Keep the actual system bar transparent so the scrim is visible on Android 9.
-        statusBarScrim = View(this).apply {
-            themed { setBackgroundColor(if (lightTheme) 0x33000000 else 0x66000000) }
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        // Attached to the shared page stage in buildUi so every tab gets the same translucent status bar.
+        // Build 1.44: no status-bar scrim. The system bar is fully transparent and the pages show their own surface.
 
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
             gravity = Gravity.CENTER
@@ -795,23 +769,6 @@ class MainActivity : Activity() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
         libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
-         val gridControls = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(10))
-        }
-        gridControls.addView(action("2 COLUMNS", albumGridColumns == 2) {
-            albumGridColumns = 2
-            getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", albumGridColumns).apply()
-            buildUi(); show("library"); renderLibrary()
-        }, LinearLayout.LayoutParams(0, dp(38), 1f))
-        gridControls.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        gridControls.addView(action("3 COLUMNS", albumGridColumns == 3) {
-            albumGridColumns = 3
-            getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", albumGridColumns).apply()
-            buildUi(); show("library"); renderLibrary()
-        }, LinearLayout.LayoutParams(0, dp(38), 1f))
-        libraryPanel.addView(gridControls, LinearLayout.LayoutParams(-1, -2))
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -831,6 +788,22 @@ class MainActivity : Activity() {
         libraryPanel.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { bottomMargin = dp(6) })
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
+    }
+
+    /** The 2/3 column buttons shown in Setting. Changing the choice repaints only the buttons and the album grid. */
+    private fun fillColumnButtons(container: LinearLayout) {
+        container.removeAllViews()
+        container.addView(action("2 COLUMNS", albumGridColumns == 2) { setAlbumColumns(2, container) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        container.addView(action("3 COLUMNS", albumGridColumns == 3) { setAlbumColumns(3, container) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+    }
+
+    private fun setAlbumColumns(columns: Int, container: LinearLayout) {
+        if (albumGridColumns == columns) return
+        albumGridColumns = columns
+        getPreferences(MODE_PRIVATE).edit().putInt("album_grid_columns", columns).apply()
+        fillColumnButtons(container)
+        renderLibrary()
     }
 
     private fun makeSongsPanel() {
@@ -1135,7 +1108,8 @@ class MainActivity : Activity() {
                 val cacheFile = File(cacheDir, "library-cache.json")
                 if (cacheFile.isFile) {
                     val root = org.json.JSONObject(cacheFile.readText(Charsets.UTF_8))
-                    if (root.optString("treeUri") == treeUri.toString()) {
+                    // Build 1.44: a library saved by an older build is scanned again once, so folder pictures are found.
+                    if (root.optString("treeUri") == treeUri.toString() && root.optInt("cacheVersion", 0) == LIBRARY_CACHE_VERSION) {
                         val array = root.getJSONArray("tracks")
                         val list = ArrayList<Track>(array.length())
                         for (i in 0 until array.length()) {
@@ -1324,7 +1298,7 @@ class MainActivity : Activity() {
                     .put("coverUri", track.coverUri?.toString() ?: "")
                     .put("trackNumber", track.trackNumber))
             }
-            val root = org.json.JSONObject().put("treeUri", treeUri.toString()).put("tracks", array)
+            val root = org.json.JSONObject().put("cacheVersion", LIBRARY_CACHE_VERSION).put("treeUri", treeUri.toString()).put("tracks", array)
             val file = File(cacheDir, "library-cache.json")
             val temporary = File(cacheDir, "library-cache.json.tmp")
             temporary.writeText(root.toString(), Charsets.UTF_8)
@@ -1362,6 +1336,8 @@ class MainActivity : Activity() {
                 tracks = sorted
                 currentIndex = previousCurrentUri?.let { u -> sorted.indexOfFirst { it.uri == u } } ?: -1
                 selectedAlbum = null
+                // Tracks marked "no cover" earlier get another chance now that the folders were read again.
+                noArtworkTracks.clear()
                 Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
                 try { renderLibrary() } catch (e: Throwable) {
                     recordDiagnostic("LIBRARY_RENDER_FAILED tracks=${sorted.size}", e)
@@ -1422,13 +1398,17 @@ class MainActivity : Activity() {
     }
     private fun findCover(dir: DocumentFile): Uri? {
         val files = try { dir.listFiles().filter { !it.isDirectory } } catch (_: Exception) { emptyList() }
+        // Build 1.44: any jpg/jpeg/png/webp in the track's own folder counts. Hidden files (e.g. "._cover.jpg"
+        // left by a Mac copy of the album) are not real pictures and are skipped.
         val images = files.filter {
             val n = it.name?.lowercase(Locale.ROOT) ?: ""
-            n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")
-        }
-        for (prefix in listOf("cover", "folder", "front", "album", "artwork", "albumart")) {
+            !n.startsWith(".") && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
+        }.sortedBy { it.name?.lowercase(Locale.ROOT) ?: "" }
+        val preferred = listOf("cover", "folder", "front", "album", "artwork", "albumart")
+        for (prefix in preferred) {
             images.firstOrNull { it.name?.substringBeforeLast('.')?.lowercase(Locale.ROOT) == prefix }?.let { return it.uri }
         }
+        images.firstOrNull { f -> val n = f.name?.lowercase(Locale.ROOT) ?: ""; preferred.any { n.contains(it) } }?.let { return it.uri }
         return images.firstOrNull()?.uri
     }
     private fun readTrack(uri: Uri, coverUri: Uri?, folderName: String?): Track {
@@ -2014,6 +1994,13 @@ class MainActivity : Activity() {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
+    /** Cheap check (bounds only, no pixels) that the bytes really are a decodable picture. */
+    private fun looksLikeImage(bytes: ByteArray): Boolean = try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        bounds.outWidth > 0 && bounds.outHeight > 0
+    } catch (_: Throwable) { false }
+
     private fun readArtworkBytes(track: Track): ByteArray? {
         val key = track.uri.toString()
         synchronized(artworkBytesCache) { artworkBytesCache[key]?.let { return it } }
@@ -2022,8 +2009,12 @@ class MainActivity : Activity() {
         try { retriever.setDataSource(this@MainActivity, track.uri); bytes = retriever.embeddedPicture }
         catch (_: Exception) { }
         finally { try { retriever.release() } catch (_: Exception) { } }
+        // Build 1.44: a cover embedded in the file wins; when there is none (WAV usually has none) or it cannot
+        // be read as a picture, the jpg/png found in the track's folder is used instead.
+        if (bytes != null && !looksLikeImage(bytes!!)) bytes = null
         if (bytes == null && track.coverUri != null) {
             try { contentResolver.openInputStream(track.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
+            if (bytes != null && !looksLikeImage(bytes!!)) bytes = null
         }
         // Keep the in-memory cache bounded; exceptionally large embedded covers are not retained.
         if (bytes != null && bytes!!.size <= 8 * 1024 * 1024) synchronized(artworkBytesCache) {
@@ -2098,7 +2089,9 @@ class MainActivity : Activity() {
     }
 
     private fun artworkDiskFile(t: Track): File {
-        val digest = java.security.MessageDigest.getInstance("SHA-1").digest(t.uri.toString().toByteArray())
+        // Build 1.44: the folder picture is part of the key, so a track that was cached as "no cover"
+        // before its folder picture was found gets a fresh lookup.
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "")).toByteArray())
         return File(artworkDiskDir, digest.joinToString("") { "%02x".format(it) } + ".jpg")
     }
 
@@ -3030,6 +3023,8 @@ class MainActivity : Activity() {
             }
         }
         private const val REQUEST_FOLDER = 1002
+        /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
+        private const val LIBRARY_CACHE_VERSION = 144
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }

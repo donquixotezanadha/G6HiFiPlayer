@@ -14,6 +14,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 - claude-build-143-ink-icons: Build 1.43 = 1.42 + notification-style ink rule + prev/next icons un-swapped (BUILD143_NOTES.md). Workflow: build-143-claude.yml (artifact G6HiFiPlayer-Build143-v1.43.0).
 
+- claude-build-144-settings-cleanup: Build 1.44 = 1.43 + columns in Setting, no status-bar scrim, folder cover fallback (incl. WAV), Setting reduced to scan + columns (BUILD144_NOTES.md). Workflow: build-144-claude.yml (artifact G6HiFiPlayer-Build144-v1.44.0).
+
 ## Done in 1.39
 1. Album art: separate 48 MB player cache, JPEG disk cache, no blank flash on cache miss, background-priority prefetch, 512 px notification art.
 2. Taps/notification: service is the only notification publisher, coalesced updates, direct service calls, 150 ms toggle guard, optimistic Play/Pause icon.
@@ -28,6 +30,9 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 ## Done in 1.42
 - Left shade removed; bottom bar and Android nav bar use the page surface; Albums/Setting/Queue follow the cover colour; Light/Dark button removed. Not yet checked on the phone with very bright covers and in Setting/Albums.
+
+## Done in 1.44
+- See BUILD144_NOTES.md. Not yet checked on the phone: folder cover for WAV, status bar legibility over bright covers on Now Playing.
 
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).

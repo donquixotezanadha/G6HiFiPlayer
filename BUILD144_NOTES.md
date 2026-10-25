@@ -1,0 +1,5 @@
+# Build 1.44 (based on 1.43)
+1. Album-column option (2 / 3 columns) moved from the Albums tab to the Setting tab. Changing it repaints the grid at once, no restart.
+2. Semi-transparent status-bar background removed. The status bar is fully transparent; icon colour still follows the page ink.
+3. Cover fallback: when a song has no usable embedded cover (WAV usually has none), the jpg/jpeg/png/webp in the same folder is used. Hidden files such as "._cover.jpg" are skipped; an embedded cover that cannot be decoded also falls back to the folder picture. The cover cache now includes the folder picture in its key, so tracks cached earlier as "no cover" are looked up again. The saved library is scanned once more on first start (cache version 144) so older libraries pick up folder pictures.
+4. Setting tab now holds only the folder scan (button + scan result line) and the column option. Battery, file information, audio output/diagnostics and LG inspection panels are no longer shown (the views still exist off-screen because other code updates their text).
