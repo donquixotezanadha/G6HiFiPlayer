@@ -92,20 +92,26 @@ class MainActivity : Activity() {
     // Avoid rebuilding MediaSession metadata/artwork on every Play/Pause notification tap.
     private var lastNotificationMetadataKey: String? = null
     private var artToken = 0
-    private var accentColor = DEFAULT_ACCENT
+    // Build 1.42: one palette for every page. Surface = dominant cover colour, ink = white/near-black by contrast.
+    private val accentColor get() = playerInk
     // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
     // text/button colour with the best contrast on it. There is no setting for this; it is the default.
     private var playerSurface = DEFAULT_ACCENT
     private var playerInk = Color.WHITE
     private var appliedPlayerSurface: Int? = null
     private val dominantColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
-    private var lightTheme = false
-    private val BG get() = if (lightTheme) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
-    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF101014.toInt()
-    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xFF292932.toInt()
-    private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else 0xFFF3F3FA.toInt()
-    private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
+    /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
+    private val lightTheme get() = playerInk != Color.WHITE
+    private val BG get() = playerSurface
+    private val CARD get() = mixColors(playerSurface, playerInk, 0.10f)
+    private val ART get() = mixColors(playerSurface, playerInk, 0.14f)
+    private val LINE get() = mixColors(playerSurface, playerInk, 0.18f)
+    private val WHITE get() = playerInk
+    private val MUTED get() = mixColors(playerSurface, playerInk, 0.70f)
+    private var pageRoot: LinearLayout? = null
+    private var tabsPaletteDirty = false
+    private var buildingUi = false
+    private val themers = java.util.WeakHashMap<View, MutableList<(View) -> Unit>>()
     private var albumGridColumns = 2
     // Library thumbnails (320 px, RGB_565).
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
@@ -185,7 +191,6 @@ class MainActivity : Activity() {
     private lateinit var fileInfo: TextView
     private lateinit var artImage: ImageView
     private lateinit var playerBackdropImage: ImageView
-    private lateinit var playerSideShade: View
     private lateinit var playerBottomShade: View
     private lateinit var playerBottomDock: LinearLayout
     private lateinit var prevView: TextView
@@ -283,12 +288,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         // Subtle translucent status bar blends with the page while keeping system icons legible.
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        applySystemBars()
         activeInstance?.let { previous ->
             previous.player?.let { oldPlayer -> previous.playerListener?.let { oldPlayer.removeListener(it) } }
             previous.playerListener = null
@@ -310,12 +312,15 @@ class MainActivity : Activity() {
     }
 
     private fun buildUi() {
+        buildingUi = true
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
+        pageRoot = root
+        // The bottom bar has no background of its own: it shows the same surface as the page above it.
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(5), 0, dp(5))
-            setBackgroundColor(BG)
+            setBackgroundColor(Color.TRANSPARENT)
             clipChildren = false
             clipToPadding = false
         }
@@ -344,21 +349,6 @@ class MainActivity : Activity() {
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
-         val themeCard = card()
-        themeCard.addView(text("APP THEME", 12f, MUTED, true))
-        themeCard.addView(text("Choose an appearance independently of the Android system theme.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
-        themeCard.addView(action(if (lightTheme) "USE DARK THEME" else "USE LIGHT THEME", false) {
-            lightTheme = !lightTheme
-            accentColor = DEFAULT_ACCENT
-            window.statusBarColor = Color.TRANSPARENT
-            window.navigationBarColor = if (lightTheme) 0xFFF8F8FC.toInt() else Color.BLACK
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
-            getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", lightTheme).apply()
-            buildUi(); show("settings"); refreshAudioInfo(); renderLibrary()
-            if (currentIndex in tracks.indices) loadArtwork(tracks[currentIndex])
-            syncPlaybackIcon()
-        }, LinearLayout.LayoutParams(-1, dp(44)))
-        settingsPanel.addView(themeCard)
         val scanCard = card()
         scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
         scanCard.addView(text("Choose a music folder to scan albums and subfolders. The last folder is checked automatically when the app opens.", 13f, WHITE, false).apply { setPadding(0, dp(6), 0, dp(10)) })
@@ -399,7 +389,9 @@ class MainActivity : Activity() {
         contentStage.addView(statusBarScrim, FrameLayout.LayoutParams(-1, statusBarInset, Gravity.TOP))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
-        setContentView(root); show("player"); renderLibrary(); restoreNowPlayingMetadata()
+        setContentView(root)
+        buildingUi = false
+        show("player"); renderLibrary(); restoreNowPlayingMetadata()
     }
 
 
@@ -443,7 +435,7 @@ class MainActivity : Activity() {
 
     /** Common typography, weight, theme-aware color and left edge for every page header. */
     private fun pageHeader(label: String, leftInsetDp: Int = 4) = text(
-        label, 18f, if (lightTheme) Color.BLACK else Color.WHITE, true
+        label, 18f, WHITE, true
     ).apply {
         typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
@@ -501,16 +493,14 @@ class MainActivity : Activity() {
         // Full-bleed artwork is exclusive to Now Playing; the bottom dock stays fixed.
         playerBackdropImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(accentColor)
+            themed { setBackgroundColor(playerSurface) }
             contentDescription = "Album artwork background"
         }
-        playerPanel.setBackgroundColor(accentColor)
+        playerPanel.themed { setBackgroundColor(playerSurface) }
         playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
 
-        // Two tinted shades over the cover: dominant colour strongest on the left and fading to the right,
-        // and the same colour rising from the bottom behind the controls. Colours are set by applyPlayerPalette().
-        playerSideShade = View(this).apply { isClickable = false }
-        playerPanel.addView(playerSideShade, FrameLayout.LayoutParams(-1, -1))
+        // One tinted shade over the cover: the dominant colour rising from the bottom behind the controls
+        // (Build 1.42: the left-to-right shade is gone). Colours are set by applyPlayerPalette().
         playerBottomShade = View(this).apply { isClickable = false }
         playerPanel.addView(playerBottomShade, FrameLayout.LayoutParams(-1, -1))
 
@@ -518,7 +508,7 @@ class MainActivity : Activity() {
         artPlaceholder = text("NO MUSIC PLAYING", 22f, WHITE, true).apply {
             gravity = Gravity.CENTER
             setPadding(dp(20), dp(20), dp(20), dp(220))
-            background = android.graphics.drawable.ColorDrawable(accentColor)
+            themed { background = android.graphics.drawable.ColorDrawable(playerSurface) }
         }
         playerPanel.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
 
@@ -531,7 +521,7 @@ class MainActivity : Activity() {
          // Draw a controlled translucent scrim behind the Android status icons on Now Playing.
         // Keep the actual system bar transparent so the scrim is visible on Android 9.
         statusBarScrim = View(this).apply {
-            setBackgroundColor(if (lightTheme) 0x33000000 else 0x66000000)
+            themed { setBackgroundColor(if (lightTheme) 0x33000000 else 0x66000000) }
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         // Attached to the shared page stage in buildUi so every tab gets the same translucent status bar.
@@ -716,19 +706,55 @@ class MainActivity : Activity() {
 
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
 
-    /** Colours only the Now Playing page; the other tabs keep the app theme. */
+    private fun mixColors(from: Int, to: Int, fraction: Float): Int {
+        fun ch(a: Int, b: Int) = (a + (b - a) * fraction).toInt().coerceIn(0, 255)
+        return Color.rgb(ch(Color.red(from), Color.red(to)), ch(Color.green(from), Color.green(to)), ch(Color.blue(from), Color.blue(to)))
+    }
+
+    /** Runs [block] now and again whenever the page palette changes (see [retintPages]). */
+    private fun <T : View> T.themed(block: T.() -> Unit): T {
+        block()
+        @Suppress("UNCHECKED_CAST")
+        val stored: (View) -> Unit = { v -> (v as T).block() }
+        themers.getOrPut(this) { mutableListOf() }.add(stored)
+        return this
+    }
+
+    /** Re-applies every themed colour (backgrounds, ripples, text) of the pages that are built. */
+    private fun retintPages() {
+        tabsPaletteDirty = false
+        val snapshot = themers.entries.map { it.key to it.value.toList() }
+        for ((view, blocks) in snapshot) {
+            if (!view.isAttachedToWindow) continue
+            blocks.forEach { it(view) }
+        }
+        refreshNav()
+    }
+
+    private fun refreshNav() {
+        if (!::navPlayer.isInitialized || !::navLibrary.isInitialized || !::navFile.isInitialized) return
+        navState(navPlayer, currentPage == "player")
+        navState(navLibrary, currentPage == "library")
+        navState(navFile, currentPage == "settings" || currentPage == "audio" || currentPage == "file")
+    }
+
+    /** Status/navigation bars follow the page surface so no black strip is left at the bottom. */
+    private fun applySystemBars() {
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = playerSurface
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+    }
+
+    /** Colours every page from the cover: Now Playing at once, the other tabs when they are next shown. */
     private fun applyPlayerPalette(surface: Int) {
-        if (!::playerSideShade.isInitialized || !::playerBottomDock.isInitialized) return
+        if (!::playerBottomShade.isInitialized || !::playerBottomDock.isInitialized) return
         if (appliedPlayerSurface == surface) return
         appliedPlayerSurface = surface
         playerSurface = surface
         val ink = inkFor(surface)
         playerInk = ink
-        val inkMuted = withAlpha(ink, 0xB8)
-        playerSideShade.background = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(withAlpha(surface, 0xE6), withAlpha(surface, 0xA0), withAlpha(surface, 0x40), withAlpha(surface, 0x00))
-        )
+        val inkMuted = MUTED
         playerBottomShade.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(withAlpha(surface, 0x00), withAlpha(surface, 0x20), withAlpha(surface, 0xB0), surface or 0xFF000000.toInt())
@@ -737,6 +763,8 @@ class MainActivity : Activity() {
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(withAlpha(surface, 0x00), withAlpha(surface, 0xD9), surface or 0xFF000000.toInt())
         )
+        pageRoot?.setBackgroundColor(surface)
+        applySystemBars()
         if (::titleView.isInitialized) titleView.setTextColor(ink)
         if (::artistView.isInitialized) artistView.setTextColor(inkMuted)
         if (::albumView.isInitialized) albumView.setTextColor(inkMuted)
@@ -757,6 +785,11 @@ class MainActivity : Activity() {
             )
             syncPlaybackIcon()
         }
+        // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
+        if (buildingUi) return
+        refreshNav()
+        val queueOpen = ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE
+        if (currentPage == "player" && !queueOpen) tabsPaletteDirty = true else retintPages()
     }
 
     private fun makeLibraryPanel() {
@@ -791,7 +824,10 @@ class MainActivity : Activity() {
         scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             isIndeterminate = true; visibility = View.GONE
             progressTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFE3E1F5.toInt() else 0xFF242238.toInt())
+            themed {
+                progressTintList = ColorStateList.valueOf(accentColor)
+                progressBackgroundTintList = ColorStateList.valueOf(withAlpha(accentColor, 0x40))
+            }
         }
         libraryPanel.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { bottomMargin = dp(6) })
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
@@ -803,11 +839,9 @@ class MainActivity : Activity() {
          songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
-            setTextColor(WHITE)
-            setHintTextColor(MUTED)
+            themed { setTextColor(WHITE); setHintTextColor(MUTED); background = shape(LINE, 14) }
             setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = shape(LINE, 14)
             setText(songSearchQuery)
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -825,11 +859,11 @@ class MainActivity : Activity() {
     }
 
     private fun makeQueuePanel() {
-        queuePanel.setBackgroundColor(BG)
+        queuePanel.themed { setBackgroundColor(BG) }
         queuePanel.visibility = View.GONE
         val surface = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = android.graphics.drawable.ColorDrawable(BG)
+            themed { background = android.graphics.drawable.ColorDrawable(BG) }
         }
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
@@ -845,10 +879,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            background = RippleDrawable(
-                ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000),
-                shape(CARD, 14), null
-            )
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(CARD, 14), null) }
             isClickable = true
             isFocusable = true
             setOnClickListener { closeQueueOverlay() }
@@ -882,7 +913,7 @@ class MainActivity : Activity() {
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            background = shape(ART, 8)
+            themed { background = shape(ART, 8) }
             contentDescription = "Currently playing artwork"
         }
         mini.addView(queueMiniArt, LinearLayout.LayoutParams(dp(52), dp(52)))
@@ -901,8 +932,10 @@ class MainActivity : Activity() {
         queueMiniProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1
             progress = 0
-            progressTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(if (lightTheme) 0xFFD8D5F0.toInt() else 0xFF343148.toInt())
+            themed {
+                progressTintList = ColorStateList.valueOf(accentColor)
+                progressBackgroundTintList = ColorStateList.valueOf(withAlpha(accentColor, 0x40))
+            }
         }
         miniInfo.addView(queueMiniTitle)
         miniInfo.addView(queueMiniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
@@ -911,15 +944,12 @@ class MainActivity : Activity() {
         queueMiniPlayView = ImageView(this).apply {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            imageTintList = ColorStateList.valueOf(accentColor)
+            themed { imageTintList = ColorStateList.valueOf(accentColor) }
             setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
-            background = RippleDrawable(
-                ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x55000000),
-                shape(Color.TRANSPARENT, 24), null
-            )
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x55)), shape(Color.TRANSPARENT, 24), null) }
             setOnClickListener { togglePlayback() }
         }
         mini.addView(queueMiniPlayView, LinearLayout.LayoutParams(dp(44), dp(48)))
@@ -1488,10 +1518,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(3), dp(4), dp(3), dp(7))
-                background = RippleDrawable(
-                    ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x25000000),
-                    shape(Color.TRANSPARENT, 12), null
-                )
+                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Open songs in album $album"
@@ -1567,11 +1594,11 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(if (nested) 18 else 8), dp(8), dp(8), dp(8))
-            background = shape(if (entry.index == currentIndex) selectedHighlight() else BG, 12)
+            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12) }
             isClickable = true
             isFocusable = true
         }
-        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8) }
+        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 8) } }
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val details = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1597,7 +1624,7 @@ class MainActivity : Activity() {
         loadArtworkInto(cover, t)
     }
     private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) accentColor else WHITE, selected).apply {
-        setPadding(dp(12), dp(11), dp(12), dp(11)); background = shape(if (selected) LINE else BG, 12)
+        setPadding(dp(12), dp(11), dp(12), dp(11)); themed { background = shape(if (selected) LINE else Color.TRANSPARENT, 12) }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
     }
@@ -2065,7 +2092,7 @@ class MainActivity : Activity() {
             if (provisional) return
             if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
         } else {
-            artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(accentColor)
+            artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(playerSurface)
             if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
             applyPlayerPalette(DEFAULT_ACCENT)
         }
@@ -2675,10 +2702,9 @@ class MainActivity : Activity() {
             queuePanel.translationY = 0f
             queuePanel.alpha = 1f
         }
-        // Only Now Playing uses the translucent scrim; all pages retain a transparent system bar
-        // so the activity can draw its page-specific background beneath it.
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
-        window.statusBarColor = Color.TRANSPARENT
+        // All pages share the cover-coloured surface; the system bars follow it.
+        applySystemBars()
+        if (which != "player" && tabsPaletteDirty) retintPages()
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
         songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
@@ -2710,9 +2736,9 @@ class MainActivity : Activity() {
             shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 16),
             dp(16), dp(4), dp(16), dp(4)
         )
-        return RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), pill, null)
+        return RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), pill, null)
     }
-    private fun selectedHighlight(): Int = (accentColor and 0x00FFFFFF) or 0x66000000
+    private fun selectedHighlight(): Int = withAlpha(accentColor, 0x33)
 
     private fun navState(view: FrameLayout, selected: Boolean) {
         (view.getChildAt(0) as? TextView)?.setTextColor(if (selected) accentColor else MUTED)
@@ -2720,7 +2746,7 @@ class MainActivity : Activity() {
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
         gravity = Gravity.CENTER
-        background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(Color.TRANSPARENT, 24), null)
+        themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 24), null) }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun addToQueue(index: Int) {
@@ -2761,15 +2787,17 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(8))
-                background = RippleDrawable(
-                    ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x38000000),
-                    shape(if (trackIndex == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12),
-                    null
-                )
+                themed {
+                    background = RippleDrawable(
+                        ColorStateList.valueOf(withAlpha(accentColor, 0x38)),
+                        shape(if (trackIndex == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12),
+                        null
+                    )
+                }
                 isClickable = true; isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(ART, 8); contentDescription = "Artwork " + track.album }
+            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 8) }; contentDescription = "Artwork " + track.album }
             row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
             val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(6), 0) }
             info.addView(text((position + 1).toString() + ". " + track.title, 12f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
@@ -2788,7 +2816,7 @@ class MainActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(14))
-            background = shape(if (lightTheme) 0xFFFFFFFF.toInt() else 0xFF17171D.toInt(), 24)
+            background = shape(mixColors(playerSurface, playerInk, 0.12f), 24)
         }
         panel.addView(text(album, 18f, WHITE, true).apply {
             setPadding(dp(2), dp(2), dp(2), dp(14)); maxLines = 2
@@ -2798,7 +2826,7 @@ class MainActivity : Activity() {
             val item = text(label, 14f, WHITE, true).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
-                background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (lightTheme) 0xFFF1F0F8.toInt() else 0xFF24242D.toInt(), 14), null)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(mixColors(playerSurface, playerInk, 0.22f), 14), null)
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
             }
@@ -2819,16 +2847,22 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) }
     }
     private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(CARD, 21)
+        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); themed { background = shape(CARD, 21) }
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
     }
     private fun text(value: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply {
         text = value; textSize = size; setTextColor(color)
+        // Text drawn in the page ink / muted ink follows the cover palette.
+        if (color == WHITE) themed { setTextColor(WHITE) } else if (color == MUTED) themed { setTextColor(MUTED) }
         typeface = if (bold) Typeface.create("sans-serif", Typeface.BOLD) else Typeface.create("sans-serif", Typeface.NORMAL)
         setLineSpacing(dp(2).toFloat(), 1f)
     }
     private fun action(label: String, primary: Boolean, click: () -> Unit) = text(label, 11f, if (primary) BG else WHITE, true).apply {
-        gravity = Gravity.CENTER; background = RippleDrawable(ColorStateList.valueOf((accentColor and 0x00FFFFFF) or 0x30000000), shape(if (primary) accentColor else LINE, 14), null)
+        gravity = Gravity.CENTER
+        themed {
+            setTextColor(if (primary) BG else WHITE)
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) accentColor else LINE, 14), null)
+        }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }

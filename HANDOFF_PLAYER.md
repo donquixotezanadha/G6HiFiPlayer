@@ -10,6 +10,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 - claude-build-141-adaptive-player: Build 1.41 = 1.40 + adaptive Now Playing (see BUILD141_NOTES.md). Workflow: build-141-claude.yml (artifact G6HiFiPlayer-Build141-v1.41.0).
 
+- claude-build-142-adaptive-flat: Build 1.42 = 1.41 + one bottom-up shade, bottom bar blends in, all tabs adaptive (see BUILD142_NOTES.md). Workflow: build-142-claude.yml (artifact G6HiFiPlayer-Build142-v1.42.0).
+
 ## Done in 1.39
 1. Album art: separate 48 MB player cache, JPEG disk cache, no blank flash on cache miss, background-priority prefetch, 512 px notification art.
 2. Taps/notification: service is the only notification publisher, coalesced updates, direct service calls, 150 ms toggle guard, optimistic Play/Pause icon.
@@ -21,6 +23,9 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 ## Done in 1.41
 - Now Playing: dominant cover colour on the left fading right and rising from the bottom; text/buttons/progress bar switch white or near-black by contrast; no setting for it. Old accent code (vividArtworkColor, applyArtworkAccent) removed. See BUILD141_NOTES.md.
 - Not yet checked on the phone: how it looks with very bright, very dark and grey covers, and with no cover.
+
+## Done in 1.42
+- Left shade removed; bottom bar and Android nav bar use the page surface; Albums/Setting/Queue follow the cover colour; Light/Dark button removed. Not yet checked on the phone with very bright covers and in Setting/Albums.
 
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).
