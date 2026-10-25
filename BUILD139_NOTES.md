@@ -11,3 +11,10 @@ Audio path unchanged. Visual changes (adaptive player background) follow in Buil
 - Two requests for the same cover (prefetch + on-screen) share one decode.
 - The technical file details (sample rate, bitrate) start 250 ms after the cover so the two do not compete for the same storage.
 - The notification, lock screen and MediaSession get a 512 px copy of the cover (made off the UI thread) instead of the 1200 px bitmap; the notification also no longer shows the previous track's cover while the new one decodes.
+
+## Button taps and notification stability
+- The playback service is now the only publisher of the playback notification. In 1.34 both the Activity and the service built and posted a notification for every player event (and the service did it twice per tap), with slightly different content. The Activity now only publishes track metadata + the 512 px cover to the MediaSession and asks the service to refresh.
+- Player events (isPlaying, playWhenReady, state, media item) are coalesced: one notification rebuild per ~30 ms burst instead of one per callback. The notification icon now follows playWhenReady, so Play/Pause flips on the tap.
+- Notification, widget and in-app buttons call the running service directly instead of going through startForegroundService() for every tap; the foreground notification is only rebuilt when the service actually needs to enter foreground.
+- Play/Pause ignores a second tap within 150 ms (bounce / accidental double tap) in the app and the service. The in-app button flips its icon on the tap and re-checks the real state 350 ms later.
+- The notification text/cover come from the current media item first, so it never shows the previous track after a skip, even when the Activity is not running. It also shows "artist • album" and keeps the swipe-away (dismiss) action in one place.

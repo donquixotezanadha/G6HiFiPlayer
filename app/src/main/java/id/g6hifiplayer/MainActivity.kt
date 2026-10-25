@@ -1714,7 +1714,24 @@ class MainActivity : Activity() {
         if (p == null || !prepared) { statusView.text = "Choose a track from the library first."; return }
         // The service is the sole transport-command owner. Player.Listener updates the UI.
         notificationDismissed = false
+        // A bounce or double tap within 150 ms is ignored here and in the service; accepting it would
+        // pause and resume at once and leave the user unsure which state the player is in.
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastToggleTapAtMs < 150L) return
+        lastToggleTapAtMs = now
+        // Flip the icon on the tap itself instead of waiting for the player callback, so the button
+        // visibly reacts at once and a second tap is not triggered by "nothing happened".
+        val willPlay = !(try { p.isPlaying || p.playWhenReady } catch (_: Exception) { false })
+        syncPlaybackIcon(willPlay)
         PlaybackKeepAliveService.dispatchAction(applicationContext, "toggle")
+        // Safety net: if the command was dropped (for example a notification tap just before), show the real state.
+        handler.removeCallbacks(resyncPlaybackIcon)
+        handler.postDelayed(resyncPlaybackIcon, 350L)
+    }
+
+    private var lastToggleTapAtMs = 0L
+    private val resyncPlaybackIcon = Runnable {
+        if (!isFinishing) syncPlaybackIcon(try { player?.let { it.isPlaying || it.playWhenReady } == true } catch (_: Exception) { false })
     }
 
     private fun showMetadata(uri: Uri, t: Track) {
@@ -2279,16 +2296,6 @@ class MainActivity : Activity() {
         } catch (e: java.util.concurrent.RejectedExecutionException) {
             android.util.Log.w("G6HiFiPlayer", "Widget refresh skipped during shutdown")
         }
-        val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
-        fun actionIntent(action: String, requestCode: Int): PendingIntent {
-            val intent = Intent(this, NotificationActionReceiver::class.java).apply {
-                putExtra("notification_action", action)
-            }
-            return PendingIntent.getBroadcast(this, requestCode, intent, flags)
-        }
-        val contentIntent = PendingIntent.getActivity(this, 6100, Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }, flags)
         // Avoid rebuilding and persisting the full diagnostic event snapshot for every toggle.
         android.util.Log.d("G6HiFiPlayer", "NOTIFICATION_UPDATE playing=" + isPlaying + " title=" + track.title)
         val session = mediaSession
@@ -2310,42 +2317,11 @@ class MainActivity : Activity() {
             session?.setMetadata(metadata.build())
             lastNotificationMetadataKey = metadataKey
         }
-        val state = if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
-        session?.setPlaybackState(PlaybackState.Builder()
-            .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SEEK_TO)
-            .setState(state, try { player?.currentPosition?.toLong() ?: 0L } catch (_: Exception) { 0L }, if (isPlaying) 1f else 0f)
-            .build())
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
-        builder.setSmallIcon(R.drawable.ic_stat_music)
-            .setContentTitle(track.title)
-            .setContentText(track.artist + " • " + track.album)
-            // Android 9 may show these fields in the right side of the notification header.
-            // Keep the system app name on the left, but do not duplicate it on the right.
-            .setSubText(null)
-            .setContentInfo(null)
-            .setContentIntent(contentIntent)
-            // Swiping away the notification hides it without stopping playback.
-            .setDeleteIntent(actionIntent("dismiss", 6105))
-            .setCategory(Notification.CATEGORY_TRANSPORT)
-            .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setOnlyAlertOnce(true)
-            .setOngoing(true)
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Previous", actionIntent("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (isPlaying) "Pause" else "Play", actionIntent("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", actionIntent("next", 6103)).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Close player", actionIntent("close", 6104)).build())
-        if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
-        if (Build.VERSION.SDK_INT >= 21) {
-            builder.setStyle(Notification.MediaStyle().setMediaSession(session?.sessionToken).setShowActionsInCompactView(0, 1, 2))
-        }
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, builder.build())
+        // The playback service is the single owner of the notification and of the playback state.
+        // It rebuilds the notification once (coalesced) from the player and the metadata above, so the
+        // Activity and the service no longer post two competing notifications for every event.
+        PlaybackKeepAliveService.requestNotificationRefresh()
     }
-    private fun dismissBroadcastIntent(): PendingIntent {
-        val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
-        val intent = Intent(this, NotificationActionReceiver::class.java).putExtra("notification_action", "dismiss")
-        return PendingIntent.getBroadcast(this, 6104, intent, flags)
-    }
-
     private fun stopAndDismissPlayback() {
         pendingAutoplay = false
         prepared = false

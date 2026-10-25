@@ -13,7 +13,10 @@ import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -26,6 +29,17 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 class PlaybackKeepAliveService : Service() {
     private var attachedPlayer: ExoPlayer? = null
     private var serviceListener: Player.Listener? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var foregroundStarted = false
+    private var lastToggleAtMs = Long.MIN_VALUE
+    // One player event usually fires 2-3 listener callbacks (isPlaying, state, playWhenReady).
+    // Coalesce them so the notification is rebuilt once instead of once per callback.
+    private val publishRunnable = Runnable { publishNotification(attachedPlayer ?: sharedPlayer) }
+
+    private fun scheduleNotificationPublish() {
+        mainHandler.removeCallbacks(publishRunnable)
+        mainHandler.postDelayed(publishRunnable, NOTIFICATION_COALESCE_MS)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -42,34 +56,48 @@ class PlaybackKeepAliveService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        when (val action = intent?.action) {
             ACTION_STOP -> {
                 stopSessionAndPlayer()
                 return START_NOT_STICKY
             }
-            ACTION_TOGGLE -> sharedPlayer?.let { if (it.isPlaying || it.playWhenReady) it.pause() else it.play() }
-            ACTION_PLAY -> sharedPlayer?.play()
-            ACTION_PAUSE -> sharedPlayer?.pause()
-            ACTION_NEXT -> sharedPlayer?.let {
-                if (it.mediaItemCount > 0) {
-                    if (it.hasNextMediaItem()) it.seekToNextMediaItem()
-                    else it.seekToDefaultPosition(0)
-                }
-            }
-            ACTION_PREVIOUS -> sharedPlayer?.let {
-                if (it.currentPosition > PREVIOUS_RESTART_THRESHOLD_MS) it.seekTo(0L)
-                else if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem()
-                else it.seekTo(0L)
-            }
+            ACTION_TOGGLE, ACTION_PLAY, ACTION_PAUSE, ACTION_NEXT, ACTION_PREVIOUS -> handleTransport(action.orEmpty())
             ACTION_DISMISS -> {
                 // A notification dismissal never stops the foreground playback session.
+                if (!foregroundStarted) ensureForeground()
                 publishNotification(sharedPlayer)
                 return START_STICKY
             }
         }
-        ensureForeground()
-        sharedPlayer?.let { attachPlayer(it); publishSessionState(it); publishNotification(it) }
+        // startForegroundService() must be answered with startForeground(), but only once:
+        // repeating it on every transport tap rebuilt the notification a second time for nothing.
+        if (!foregroundStarted) ensureForeground()
+        sharedPlayer?.let { attachPlayer(it); publishSessionState(it); scheduleNotificationPublish() }
         return START_STICKY
+    }
+
+    /** Runs a transport command on the shared player. Must be called on the main thread. */
+    private fun handleTransport(serviceAction: String) {
+        val p = sharedPlayer ?: return
+        when (serviceAction) {
+            ACTION_TOGGLE -> {
+                // Ignore a contact bounce / accidental double tap that would pause and resume instantly.
+                val now = SystemClock.elapsedRealtime()
+                if (lastToggleAtMs != Long.MIN_VALUE && now - lastToggleAtMs < TOGGLE_GUARD_MS) return
+                lastToggleAtMs = now
+                if (p.isPlaying || p.playWhenReady) p.pause() else p.play()
+            }
+            ACTION_PLAY -> p.play()
+            ACTION_PAUSE -> p.pause()
+            ACTION_NEXT -> if (p.mediaItemCount > 0) {
+                if (p.hasNextMediaItem()) p.seekToNextMediaItem() else p.seekToDefaultPosition(0)
+            }
+            ACTION_PREVIOUS -> {
+                if (p.currentPosition > PREVIOUS_RESTART_THRESHOLD_MS) p.seekTo(0L)
+                else if (p.hasPreviousMediaItem()) p.seekToPreviousMediaItem()
+                else p.seekTo(0L)
+            }
+        }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -84,9 +112,12 @@ class PlaybackKeepAliveService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else startForeground(NOTIFICATION_ID, notification)
+        foregroundStarted = true
     }
 
     private fun stopSessionAndPlayer() {
+        mainHandler.removeCallbacks(publishRunnable)
+        foregroundStarted = false
         synchronized(playerLock) {
             try { attachedPlayer?.let { p -> serviceListener?.let { p.removeListener(it) } } } catch (_: Exception) { }
             attachedPlayer = null
@@ -109,22 +140,27 @@ class PlaybackKeepAliveService : Service() {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 publishSessionState(player)
-                publishNotification(player)
+                scheduleNotificationPublish()
+            }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                // The notification icon follows playWhenReady, so it flips on the tap, not after buffering.
+                publishSessionState(player)
+                scheduleNotificationPublish()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 publishSessionState(player)
-                publishNotification(player)
+                scheduleNotificationPublish()
             }
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
                 publishSessionState(player)
-                publishNotification(player)
+                scheduleNotificationPublish()
             }
         }
         attachedPlayer = player
         serviceListener = listener
         player.addListener(listener)
         publishSessionState(player)
-        publishNotification(player)
+        scheduleNotificationPublish()
     }
 
     private fun publishSessionState(player: ExoPlayer) {
@@ -158,14 +194,17 @@ class PlaybackKeepAliveService : Service() {
         // Read it back when rebuilding the foreground notification so a Pause state update
         // cannot replace the artwork-bearing notification with an artwork-free one.
         val sessionMetadata = try { session.controller.metadata } catch (_: Exception) { null }
-        val title = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
-            ?.takeIf { it.isNotBlank() }
-            ?: itemMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
-            ?: "Music playback"
-        val artist = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
-            ?.takeIf { it.isNotBlank() }
-            ?: itemMetadata?.artist?.toString().orEmpty()
-        val cover = try {
+        // The current media item is always up to date (also when the Activity is gone); the session
+        // metadata may still describe the previous track for a moment after a skip.
+        val itemTitle = itemMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+        val sessionTitle = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+        val sessionIsCurrent = itemTitle == null || sessionTitle == itemTitle
+        val title = itemTitle ?: sessionTitle ?: "Music playback"
+        val artist = itemMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
+            ?: sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST).orEmpty()
+        val album = itemMetadata?.albumTitle?.toString()?.takeIf { it.isNotBlank() }
+            ?: sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()
+        val cover = if (!sessionIsCurrent) null else try {
             sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
                 ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
@@ -182,8 +221,14 @@ class PlaybackKeepAliveService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         builder.setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(title)
-            .setContentText(if (artist.isBlank()) "Playback session active" else artist)
+            .setContentText(when {
+                artist.isBlank() -> "Playback session active"
+                album.isBlank() -> artist
+                else -> artist + " \u2022 " + album
+            })
             .setContentIntent(open)
+            // Swiping away the notification hides it without stopping playback.
+            .setDeleteIntent(actionPending("dismiss", 6105))
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
@@ -232,6 +277,8 @@ class PlaybackKeepAliveService : Service() {
         private const val NOTIFICATION_ID = 6106
         private const val TAG = "G6PlaybackService"
         private const val PREVIOUS_RESTART_THRESHOLD_MS = 3000L
+        private const val NOTIFICATION_COALESCE_MS = 30L
+        private const val TOGGLE_GUARD_MS = 150L
         private val playerLock = Any()
         @Volatile private var sharedPlayer: ExoPlayer? = null
         @Volatile private var serviceInstance: PlaybackKeepAliveService? = null
@@ -243,6 +290,9 @@ class PlaybackKeepAliveService : Service() {
         fun setPlaybackStoppedCallback(callback: (() -> Unit)?) { playbackStoppedCallback = callback }
 
         fun existingPlayer(): ExoPlayer? = sharedPlayer
+
+        /** Ask the service to rebuild the notification from the current player + MediaSession metadata. */
+        @JvmStatic fun requestNotificationRefresh() { serviceInstance?.scheduleNotificationPublish() }
 
         fun getOrCreateMediaSession(context: Context): MediaSession = ensureMediaSession(context.applicationContext)
 
@@ -275,6 +325,14 @@ class PlaybackKeepAliveService : Service() {
                 "close", "stop" -> ACTION_STOP
                 "dismiss" -> ACTION_DISMISS
                 else -> return
+            }
+            // The service is already running (normal case while music is loaded): call it directly.
+            // This skips the startForegroundService() round trip, which delayed every tap.
+            val live = serviceInstance
+            if (live != null && serviceAction != ACTION_STOP && serviceAction != ACTION_DISMISS) {
+                if (Looper.myLooper() == Looper.getMainLooper()) live.handleTransport(serviceAction)
+                else live.mainHandler.post { live.handleTransport(serviceAction) }
+                return
             }
             val intent = Intent(ctx, PlaybackKeepAliveService::class.java).setAction(serviceAction)
             try {
