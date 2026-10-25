@@ -695,14 +695,13 @@ class MainActivity : Activity() {
         return 0.2126f * channel(Color.red(color)) + 0.7152f * channel(Color.green(color)) + 0.0722f * channel(Color.blue(color))
     }
 
-    /** White or near-black, whichever reads better on [surface]. */
-    private fun inkFor(surface: Int): Int {
-        val l = relativeLuminance(surface)
-        val dark = 0xFF14141C.toInt()
-        val whiteContrast = 1.05f / (l + 0.05f)
-        val darkContrast = (l + 0.05f) / (relativeLuminance(dark) + 0.05f)
-        return if (whiteContrast >= darkContrast) Color.WHITE else dark
-    }
+    /**
+     * Same light/dark rule as the Android media notification (ContrastColorUtil.isColorLight):
+     * the surface counts as light only when its luminance is above 0.5; then the ink is near-black,
+     * otherwise white. Mid-tone covers therefore get white ink, like the notification.
+     */
+    private fun inkFor(surface: Int): Int =
+        if (relativeLuminance(surface) > 0.5f) 0xFF14141C.toInt() else Color.WHITE
 
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
 

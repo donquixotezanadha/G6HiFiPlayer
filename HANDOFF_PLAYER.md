@@ -12,6 +12,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 - claude-build-142-adaptive-flat: Build 1.42 = 1.41 + one bottom-up shade, bottom bar blends in, all tabs adaptive (see BUILD142_NOTES.md). Workflow: build-142-claude.yml (artifact G6HiFiPlayer-Build142-v1.42.0).
 
+- claude-build-143-ink-icons: Build 1.43 = 1.42 + notification-style ink rule + prev/next icons un-swapped (BUILD143_NOTES.md). Workflow: build-143-claude.yml (artifact G6HiFiPlayer-Build143-v1.43.0).
+
 ## Done in 1.39
 1. Album art: separate 48 MB player cache, JPEG disk cache, no blank flash on cache miss, background-priority prefetch, 512 px notification art.
 2. Taps/notification: service is the only notification publisher, coalesced updates, direct service calls, 150 ms toggle guard, optimistic Play/Pause icon.
