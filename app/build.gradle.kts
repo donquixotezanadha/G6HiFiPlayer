@@ -6,16 +6,24 @@ plugins {
 android {
     namespace = "id.g6hifiplayer"
     compileSdk = 36
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "id.g6hifiplayer.enginelab"
         minSdk = 28
         targetSdk = 35
-        versionCode = 137
-        versionName = "1.37.0"
+        versionCode = 138
+        versionName = "1.38.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 
@@ -35,6 +43,7 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.8")
 
+    // Build 1.38: native OpenSL ES packed-24 output lives in src/main/cpp (libg6sles.so).
     // Build 1.37: lifts Android 9 hidden-API restrictions so encoding 21 (24-bit packed) can be forced.
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:4.3")
 

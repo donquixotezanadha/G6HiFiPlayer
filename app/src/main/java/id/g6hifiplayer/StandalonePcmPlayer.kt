@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal class StandalonePcmPlayer {
     @Volatile private var activeTrack: AudioTrack? = null
+    @Volatile private var slesActive = false
     @Volatile private var cancelled: AtomicBoolean? = null
 
     fun play(wavFile: File, report: (String) -> Unit) {
@@ -34,6 +35,8 @@ internal class StandalonePcmPlayer {
                     require(info.bitsPerSample == 24 || info.bitsPerSample == 16 || info.bitsPerSample == 32) {
                         "Unsupported PCM bit depth: ${info.bitsPerSample}"
                     }
+                    // Build 1.38: for 24-bit sources try the native OpenSL ES packed-24 output first.
+                    if (info.bitsPerSample == 24 && playViaSles(wav, info, token, report)) return@use
                     val outputMask = if (info.channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
                     // Android 9 does not expose packed PCM24 AudioTrack output. Keep 24-bit integer
                     // samples in a PCM24 WAV, then map them to PCM_FLOAT (24 significant bits fit
@@ -205,10 +208,86 @@ internal class StandalonePcmPlayer {
 
     fun stop() {
         cancelled?.set(true)
+        if (slesActive) { try { SlesPacked24.nativeAbort() } catch (_: Throwable) { } }
         val track = activeTrack
         // The writer thread owns flush/release in finally. Stop only signals cancellation and
         // interrupts a potentially blocking write; never release the track concurrently here.
         try { track?.stop() } catch (_: Exception) { }
+    }
+
+    /**
+     * Build 1.38: bit-exact 24-bit packed playback through native OpenSL ES (see SlesPacked24).
+     * Returns false when the native output cannot be opened, so the caller falls back to the AudioTrack paths.
+     */
+    private fun playViaSles(wav: RandomAccessFile, info: WavInfo, token: AtomicBoolean, report: (String) -> Unit): Boolean {
+        if (!SlesPacked24.ensureLoaded(report)) return false
+        val status = SlesPacked24.nativeOpen(info.sampleRate, info.channels)
+        report("SLES_PACKED24_OPEN $status")
+        if (!status.startsWith("OK")) {
+            try { SlesPacked24.nativeClose() } catch (_: Throwable) { }
+            return false
+        }
+        slesActive = true
+        try {
+            report("SLES_PACKED24_NOTE source bytes are copied unchanged (24-bit little-endian packed); verify with: adb shell dumpsys media.audio_flinger -> DIRECT thread, ${info.sampleRate} Hz, PCM_24_BIT_PACKED")
+            val framesPerChunk = 4096
+            val buffer = ByteArray(framesPerChunk * info.blockAlign)
+            wav.seek(info.dataOffset)
+            var remaining = info.dataSize
+            var submittedBytes = 0L
+            var chunks = 0
+            var started = false
+            val startedAt = System.currentTimeMillis()
+            var lastProgressAt = startedAt
+            while (remaining > 0 && !token.get()) {
+                val requested = minOf(buffer.size.toLong(), remaining).toInt()
+                val aligned = requested - requested % info.blockAlign
+                if (aligned <= 0) break
+                wav.readFully(buffer, 0, aligned)
+                val accepted = SlesPacked24.nativeWrite(buffer, 0, aligned)
+                if (accepted < 0) {
+                    if (!token.get()) report("SLES_PACKED24_WRITE_ERROR code=$accepted")
+                    break
+                }
+                submittedBytes += accepted
+                remaining -= aligned
+                chunks++
+                // Start after a few queued chunks (queue holds 16), so the first play() has data and cannot underrun.
+                if (!started && (chunks >= 4 || remaining <= 0)) {
+                    val playResult = SlesPacked24.nativePlay()
+                    started = true
+                    report("SLES_PACKED24_PLAY_CALLED result=$playResult")
+                }
+                val now = System.currentTimeMillis()
+                if (now - lastProgressAt >= 1000L) {
+                    report("SLES_PACKED24_PROGRESS framesSubmitted=${submittedBytes / info.blockAlign} framesPlayed=${SlesPacked24.nativeFramesPlayed()} remainingSourceBytes=$remaining")
+                    lastProgressAt = now
+                }
+            }
+            if (!started && submittedBytes > 0 && !token.get()) {
+                report("SLES_PACKED24_PLAY_CALLED result=${SlesPacked24.nativePlay()}")
+            }
+            val framesSubmitted = submittedBytes / info.blockAlign
+            val drainStartedAt = System.currentTimeMillis()
+            val drainTimeoutMs = framesSubmitted * 1000L / info.sampleRate + 5000L
+            while (!token.get() && SlesPacked24.nativeFramesPlayed() < framesSubmitted &&
+                System.currentTimeMillis() - drainStartedAt < drainTimeoutMs) {
+                Thread.sleep(20)
+            }
+            val played = SlesPacked24.nativeFramesPlayed()
+            val elapsed = System.currentTimeMillis() - startedAt
+            when {
+                token.get() -> report("PLAYBACK_RESULT=STOPPED path=SLES_PACKED24 framesPlayed=$played elapsedMs=$elapsed")
+                played >= framesSubmitted -> report("PLAYBACK_RESULT=STREAM_DRAINED path=SLES_PACKED24 framesSubmitted=$framesSubmitted framesPlayed=$played elapsedMs=$elapsed")
+                else -> report("PLAYBACK_RESULT=DRAIN_TIMEOUT path=SLES_PACKED24 framesSubmitted=$framesSubmitted framesPlayed=$played elapsedMs=$elapsed")
+            }
+        } catch (error: Throwable) {
+            if (!token.get()) report("PLAYBACK_ERROR path=SLES_PACKED24 type=${error.javaClass.name} message=${error.message ?: "no message"}")
+        } finally {
+            slesActive = false
+            try { SlesPacked24.nativeClose() } catch (_: Throwable) { }
+        }
+        return true
     }
 
     private fun describeRoute(track: AudioTrack): String {
