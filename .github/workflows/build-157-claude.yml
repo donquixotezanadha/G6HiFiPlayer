@@ -44,4 +44,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Download Build 1.57 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 1.57 = 1.56 + native DIRECT AudioTrack test via dlopen(NULL)+dlsym (UAPP method).
+          echo "Build 1.57 = 1.56 + native DIRECT AudioTrack test via dlopen(NULL)+dlsym (UAPP method)." >> "$GITHUB_STEP_SUMMARY"
