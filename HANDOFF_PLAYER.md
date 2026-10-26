@@ -39,5 +39,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 ## Done in 1.45
 - See BUILD145_NOTES.md. Not yet checked on the phone: Classic on bright covers, WAV tags/cover on the user's real files.
 
+## In progress: Build 1.46 (branch claude-build-146-layout)
+- Baca BUILD146_NOTES.md: posisi kontrol Classic = Adaptive, cover diperbesar, navbar transparan, cek tombol notifikasi prev/next. Belum ada kode diubah.
+
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).
