@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <unistd.h>
 #include <new>
+#include <atomic>
 
 #define TAG "G6Direct"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -43,7 +44,33 @@ void* openGlobal() {
     void* h = dlopen(nullptr, RTLD_NOW);
     return h;
 }
+
+// Build 1.58: only one native track at a time (a second DIRECT request while the first is still
+// open is demoted to the mixer by the audio policy, which spoiled the 1.57 control test).
+std::atomic<bool> gBusy{false};
+std::atomic<bool> gStop{false};
+
+// Sends text to NativeDirect.report() right away, so the person sees the lines while the tone is still playing.
+void report(JNIEnv* env, const std::string& text) {
+    jclass cls = env->FindClass("id/g6hifiplayer/NativeDirect");
+    if (!cls) { env->ExceptionClear(); return; }
+    jmethodID m = env->GetStaticMethodID(cls, "report", "(Ljava/lang/String;)V");
+    if (!m) { env->ExceptionClear(); env->DeleteLocalRef(cls); return; }
+    jstring s = env->NewStringUTF(text.c_str());
+    env->CallStaticVoidMethod(cls, m, s);
+    env->DeleteLocalRef(s);
+    env->DeleteLocalRef(cls);
+}
+
+struct BusyGuard {
+    ~BusyGuard() { gBusy.store(false); }
+};
 }  // namespace
+
+extern "C" JNIEXPORT void JNICALL
+Java_id_g6hifiplayer_NativeDirect_stop(JNIEnv*, jobject) {
+    gStop.store(true);
+}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_id_g6hifiplayer_NativeDirect_probe(JNIEnv* env, jobject) {
@@ -76,6 +103,12 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_id_g6hifiplayer_NativeDirect_play(JNIEnv* env, jobject, jint rate, jint seconds, jint flags, jint format) {
     std::string out;
     char buf[300];
+    bool expected = false;
+    if (!gBusy.compare_exchange_strong(expected, true)) {
+        return env->NewStringUTF("NATIVE_BUSY another native test is still running; wait for it or press Stop\n");
+    }
+    BusyGuard busyGuard;
+    gStop.store(false);
     void* h = openGlobal();
     if (!h) return env->NewStringUTF("NATIVE_PLAY ERROR dlopen(NULL) failed");
     void* setFn = nullptr;
@@ -112,12 +145,27 @@ Java_id_g6hifiplayer_NativeDirect_play(JNIEnv* env, jobject, jint rate, jint sec
         int sr = start(obj);
         snprintf(buf, sizeof buf, "NATIVE_PLAY start=%d\n", sr);
         out += buf;
+        // Which output did the policy give us? AudioFlinger names its threads AudioOut_<hex handle>.
+        // On this boot the mixer threads were 13/21/29; a handle that is not one of the mixer threads in
+        // `dumpsys media.audio_flinger` means a separate (DIRECT) thread.
+        auto getOutput = (int (*)(const void*))dlsym(h, "_ZNK7android10AudioTrack9getOutputEv");
+        auto getRate = (unsigned (*)(const void*))dlsym(h, "_ZNK7android10AudioTrack13getSampleRateEv");
+        auto getFlags = (int (*)(const void*))dlsym(h, "_ZNK7android10AudioTrack8getFlagsEv");
+        int outHandle = getOutput ? getOutput(obj) : -999;
+        unsigned outRate = getRate ? getRate(obj) : 0;
+        int outFlags = getFlags ? getFlags(obj) : -999;
+        snprintf(buf, sizeof buf, "NATIVE_PLAY_ROUTE getOutput=%d (thread AudioOut_%X) sampleRate=%u trackFlags=0x%x [symbols: getOutput=%p getSampleRate=%p getFlags=%p]\n",
+                 outHandle, (unsigned)outHandle, outRate, (unsigned)outFlags, (void*)getOutput, (void*)getRate, (void*)getFlags);
+        out += buf;
+        out += "NATIVE_PLAY playing now; run the adb dumpsys command during the tone\n";
+        report(env, out);
+        out.clear();
         const int bytesPerFrame = (format == 6) ? 6 : 4;
         const int chunkFrames = 1024;
         std::vector<uint8_t> chunk(chunkFrames * bytesPerFrame);
         double phase = 0, inc2 = 2 * M_PI * 1000.0 / rate;
         long totalFrames = (long)rate * seconds, done = 0, bad = 0;
-        while (done < totalFrames) {
+        while (done < totalFrames && !gStop.load()) {
             for (int i = 0; i < chunkFrames; i++) {
                 int v = (int)(std::sin(phase) * 0.03 * 8388607.0);
                 phase += inc2;
@@ -131,7 +179,7 @@ Java_id_g6hifiplayer_NativeDirect_play(JNIEnv* env, jobject, jint rate, jint sec
             if (n <= 0) { if (++bad > 5) break; else continue; }
             done += n / bytesPerFrame;
         }
-        snprintf(buf, sizeof buf, "NATIVE_PLAY wrote %ld of %ld frames\n", done, totalFrames);
+        snprintf(buf, sizeof buf, "NATIVE_PLAY wrote %ld of %ld frames%s\n", done, totalFrames, gStop.load() ? " (stopped by user)" : "");
         out += buf;
         stop(obj);
     }

@@ -50,12 +50,12 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.57"
+            text = "G6 Engine Lab · Build 1.58"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
         content.addView(TextView(this).apply {
-            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.57 opens 24-bit packed output (UAPP format) through native OpenSL ES, with the 1.37 reflection paths as fallback."
+            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.58 opens 24-bit packed output (UAPP format) through native OpenSL ES, with the 1.37 reflection paths as fallback."
             textSize = 15f
             setPadding(0, dp(10), 0, dp(18))
         })
@@ -121,7 +121,7 @@ class EngineLabActivity : Activity() {
         }, matchWrap())
 
         content.addView(TextView(this).apply {
-            text = "Native DIRECT test (Build 1.57): copies how UAPP opens its DIRECT track. Step A only checks symbols (safe). Step B plays a quiet 1 kHz tone through a native DIRECT 24-bit track; if the app closes by itself, just reopen it and tell me."
+            text = "Native DIRECT test (Build 1.58): one test at a time, each plays a quiet 1 kHz tone for 60 s. Plug the headphones into the jack first. Press 4B ALONE, wait for the line NATIVE_PLAY_ROUTE in the diagnostics, then in the computer run: adb shell dumpsys media.audio_flinger > af_4b.txt  (do it while the tone is playing). Afterwards do the same for 4C with af_4c.txt. Press Stop to end a test early."
             textSize = 13f
             setPadding(0, dp(14), 0, dp(6))
         })
@@ -133,21 +133,30 @@ class EngineLabActivity : Activity() {
             }
         }, matchWrap())
         content.addView(Button(this).apply {
-            text = "4B · Native DIRECT 96 kHz 24-bit (8 s)"
+            text = "4B · Native DIRECT 96 kHz 24-bit (60 s)"
             setOnClickListener {
                 if (!SlesPacked24.ensureLoaded { recordDiagnostic(it) }) return@setOnClickListener
                 pcmPlayer.stop()
+                NativeDirect.listener = { recordDiagnostic(it) }
                 recordDiagnostic("NATIVE_PLAY_REQUEST rate=96000 flags=1 format=6")
-                Thread { recordDiagnostic(NativeDirect.play(96000, 8, 1, 6)) }.start()
+                Thread { recordDiagnostic(NativeDirect.play(96000, 60, 1, 6)) }.start()
             }
         }, matchWrap())
         content.addView(Button(this).apply {
-            text = "4C · Native DIRECT 48 kHz 16-bit (8 s, control)"
+            text = "4C · Native DIRECT 48 kHz 16-bit (60 s, control)"
             setOnClickListener {
                 if (!SlesPacked24.ensureLoaded { recordDiagnostic(it) }) return@setOnClickListener
                 pcmPlayer.stop()
+                NativeDirect.listener = { recordDiagnostic(it) }
                 recordDiagnostic("NATIVE_PLAY_REQUEST rate=48000 flags=1 format=1")
-                Thread { recordDiagnostic(NativeDirect.play(48000, 8, 1, 1)) }.start()
+                Thread { recordDiagnostic(NativeDirect.play(48000, 60, 1, 1)) }.start()
+            }
+        }, matchWrap())
+        content.addView(Button(this).apply {
+            text = "4D · Stop native test"
+            setOnClickListener {
+                NativeDirect.stop()
+                recordDiagnostic("NATIVE_STOP_REQUEST")
             }
         }, matchWrap())
 
@@ -171,13 +180,13 @@ class EngineLabActivity : Activity() {
             setOnClickListener {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.57 diagnostics")
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.58 diagnostics")
                     putExtra(Intent.EXTRA_TEXT, diagnosticsText())
                 }
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
             }
         }, matchWrap())
-        recordDiagnostic("APP_START build=1.57 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("APP_START build=1.58 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         recordDiagnostic("OUTPUT_MODE_DEFAULT pcmBits=16")
         setContentView(root)
     }
@@ -243,7 +252,7 @@ class EngineLabActivity : Activity() {
         if (outputBits == 16) "Output mode: PCM16 (tap to switch to PCM24)" else "Output mode: PCM24-preserving (tap to switch to PCM16)"
 
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.57 diagnostics\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.58 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
