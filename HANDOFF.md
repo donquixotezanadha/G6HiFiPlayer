@@ -28,3 +28,6 @@ Engine Lab 1.38 diagnostics export: look for SLES_PACKED24_OPEN (OK or result co
 
 ## Build 1.38 note
 AAudio is NOT an option on Android 9 (only I16/float; PCM_I24/I32 arrived in API 31). Do not suggest it again. OpenSL ES 24-bit (PCM_EX signed 24) is the route being tested.
+
+## UAPP evidence (26 Okt 2026) — read UAPP_EVIDENCE.md
+UAPP's DIRECT track (direct_pcm, flags=DIRECT, 96 kHz, 24-bit packed) is NOT a Java AudioTrack or OpenSL ES player (no PlayerBase piid). 1.56 matrix proved no public Java/OpenSL variant reaches DIRECT. Next: find how UAPP creates the track (native libs, logcat) before building 1.57.
