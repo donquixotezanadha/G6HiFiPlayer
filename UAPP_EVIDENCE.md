@@ -10,3 +10,6 @@ UAPP setting: internal audio driver = "hires direct driver"; internal hires driv
 - Policy Android 9 hanya memilih direct_pcm untuk PCM stereo <= 192 kHz kalau permintaan membawa flag DIRECT secara eksplisit. Java AudioTrack publik, OpenSL ES, dan AAudio (P) tidak menyediakan flag itu. Matrix 1.56: 14 varian masuk mixer 48k/16-bit, HW_AV_SYNC gagal dibuat.
 - Jadi untuk meniru UAPP, app perlu klien native AudioTrack/AudioFlinger dengan flags=DIRECT. dlopen libaudioclient/libmedia dari app gagal (1.36, linker namespace).
 - Belum diketahui: bagaimana UAPP memanggilnya (library apa). Bukti yang diminta: daftar .so milik UAPP (nama saja), props audio vendor (getprop), logcat saat UAPP mulai memutar.
+
+## Update (1.57): how UAPP reaches native AudioTrack
+libauaudioutils.so AudioTrackNative::init: dlopen(NULL, 0x106) then dlsym of android::AudioTrack symbols (fallback /system/lib64/libmedia.so, /system/lib64/libutils.so). Log: set() streamType 3, 96000, 0x6, 0x3, frameCount 38400, flags 1, session 1425 -> direct_pcm -> DIRECT thread -> HAL is_direct_pcm_track=true.
