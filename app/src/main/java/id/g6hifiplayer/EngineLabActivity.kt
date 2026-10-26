@@ -30,6 +30,7 @@ class EngineLabActivity : Activity() {
     private var decodedWav: File? = null
     private lateinit var decoder: FfmpegAudioDecoder
     private lateinit var pcmPlayer: StandalonePcmPlayer
+    private val routeMatrix = RouteMatrix()
     private val diagnosticLog = StringBuilder()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,12 +50,12 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.38"
+            text = "G6 Engine Lab · Build 1.56"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
         content.addView(TextView(this).apply {
-            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.38 opens 24-bit packed output (UAPP format) through native OpenSL ES, with the 1.37 reflection paths as fallback."
+            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.56 opens 24-bit packed output (UAPP format) through native OpenSL ES, with the 1.37 reflection paths as fallback."
             textSize = 15f
             setPadding(0, dp(10), 0, dp(18))
         })
@@ -101,6 +102,24 @@ class EngineLabActivity : Activity() {
             }
         }, matchWrap())
 
+        content.addView(TextView(this).apply {
+            text = "Route matrix (no file needed): plays a quiet tone through 15 output variants, 8 s each. On the computer, run the dumpsys polling command from BUILD156_NOTES.md at the same time, then send the result file."
+            textSize = 13f
+            setPadding(0, dp(14), 0, dp(6))
+        })
+        content.addView(Button(this).apply {
+            text = "3 · Run route matrix (about 2.5 min)"
+            setOnClickListener {
+                pcmPlayer.stop()
+                if (routeMatrix.isRunning()) { Toast.makeText(this@EngineLabActivity, "Matrix already running", Toast.LENGTH_SHORT).show() }
+                else routeMatrix.start(8) { message -> recordDiagnostic(message) }
+            }
+        }, matchWrap())
+        content.addView(Button(this).apply {
+            text = "Stop route matrix"
+            setOnClickListener { routeMatrix.stop() }
+        }, matchWrap())
+
         statusLabel = TextView(this).apply {
             text = "Ready. Select one local audio track to begin."
             textSize = 14f
@@ -121,13 +140,13 @@ class EngineLabActivity : Activity() {
             setOnClickListener {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.38 diagnostics")
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.56 diagnostics")
                     putExtra(Intent.EXTRA_TEXT, diagnosticsText())
                 }
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
             }
         }, matchWrap())
-        recordDiagnostic("APP_START build=1.38 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("APP_START build=1.56 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         recordDiagnostic("OUTPUT_MODE_DEFAULT pcmBits=16")
         setContentView(root)
     }
@@ -193,10 +212,11 @@ class EngineLabActivity : Activity() {
         if (outputBits == 16) "Output mode: PCM16 (tap to switch to PCM24)" else "Output mode: PCM24-preserving (tap to switch to PCM16)"
 
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.38 diagnostics\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.56 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
+        routeMatrix.stop()
         pcmPlayer.stop()
         super.onDestroy()
     }

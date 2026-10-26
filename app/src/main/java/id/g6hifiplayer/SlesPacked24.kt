@@ -22,6 +22,7 @@ object SlesPacked24 {
     }
 
     external fun nativeOpen(rate: Int, channels: Int): String
+    external fun nativeOpenEx(rate: Int, channels: Int, bits: Int, perfMode: Int): String
     external fun nativeWrite(data: ByteArray, offset: Int, length: Int): Int
     external fun nativePlay(): Int
     external fun nativeFramesPlayed(): Long

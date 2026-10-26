@@ -66,7 +66,7 @@ void destroyAll() {
 }
 
 // attempt 0 = SL_ANDROID_DATAFORMAT_PCM_EX signed 24-bit, attempt 1 = plain SL_DATAFORMAT_PCM 24-bit.
-SLresult createPlayer(int attempt, int rate, int channels) {
+SLresult createPlayer(int attempt, int rate, int channels, int bits, int perfMode) {
     SLDataLocator_AndroidSimpleBufferQueue locBq = {SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, (SLuint32) kBuffers};
     SLuint32 mask = channels == 1 ? SL_SPEAKER_FRONT_CENTER : (SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT);
     SLAndroidDataFormat_PCM_EX fmtEx;
@@ -78,8 +78,8 @@ SLresult createPlayer(int attempt, int rate, int channels) {
         fmtEx.formatType = SL_ANDROID_DATAFORMAT_PCM_EX;
         fmtEx.numChannels = (SLuint32) channels;
         fmtEx.sampleRate = (SLuint32) rate * 1000;
-        fmtEx.bitsPerSample = SL_PCMSAMPLEFORMAT_FIXED_24;
-        fmtEx.containerSize = SL_PCMSAMPLEFORMAT_FIXED_24;
+        fmtEx.bitsPerSample = bits == 16 ? SL_PCMSAMPLEFORMAT_FIXED_16 : SL_PCMSAMPLEFORMAT_FIXED_24;
+        fmtEx.containerSize = bits == 16 ? SL_PCMSAMPLEFORMAT_FIXED_16 : SL_PCMSAMPLEFORMAT_FIXED_24;
         fmtEx.channelMask = mask;
         fmtEx.endianness = SL_BYTEORDER_LITTLEENDIAN;
         fmtEx.representation = SL_ANDROID_PCM_REPRESENTATION_SIGNED_INT;
@@ -89,8 +89,8 @@ SLresult createPlayer(int attempt, int rate, int channels) {
         fmtPlain.formatType = SL_DATAFORMAT_PCM;
         fmtPlain.numChannels = (SLuint32) channels;
         fmtPlain.samplesPerSec = (SLuint32) rate * 1000;
-        fmtPlain.bitsPerSample = SL_PCMSAMPLEFORMAT_FIXED_24;
-        fmtPlain.containerSize = SL_PCMSAMPLEFORMAT_FIXED_24;
+        fmtPlain.bitsPerSample = bits == 16 ? SL_PCMSAMPLEFORMAT_FIXED_16 : SL_PCMSAMPLEFORMAT_FIXED_24;
+        fmtPlain.containerSize = bits == 16 ? SL_PCMSAMPLEFORMAT_FIXED_16 : SL_PCMSAMPLEFORMAT_FIXED_24;
         fmtPlain.channelMask = mask;
         fmtPlain.endianness = SL_BYTEORDER_LITTLEENDIAN;
         src.pFormat = &fmtPlain;
@@ -103,11 +103,15 @@ SLresult createPlayer(int attempt, int rate, int channels) {
     if (r != SL_RESULT_SUCCESS) { gPlayerObj = nullptr; return r; }
 
     SLAndroidConfigurationItf cfg = nullptr;
-    if ((*gPlayerObj)->GetInterface(gPlayerObj, SL_IID_ANDROIDCONFIGURATION, &cfg) == SL_RESULT_SUCCESS && cfg) {
+    // perfMode 0 = leave the player configuration untouched (framework defaults), 1..4 = explicit performance mode.
+    if (perfMode != 0 &&
+        (*gPlayerObj)->GetInterface(gPlayerObj, SL_IID_ANDROIDCONFIGURATION, &cfg) == SL_RESULT_SUCCESS && cfg) {
         SLint32 stream = SL_ANDROID_STREAM_MEDIA;
         (*cfg)->SetConfiguration(cfg, SL_ANDROID_KEY_STREAM_TYPE, &stream, sizeof(stream));
-        // Not the FAST (mixer-only) track: a 24-bit packed track has to go to the direct_pcm output.
         SLuint32 perf = SL_ANDROID_PERFORMANCE_NONE;
+        if (perfMode == 2) perf = SL_ANDROID_PERFORMANCE_POWER_SAVING;
+        else if (perfMode == 3) perf = SL_ANDROID_PERFORMANCE_LATENCY;
+        else if (perfMode == 4) perf = SL_ANDROID_PERFORMANCE_LATENCY_EFFECTS;
         (*cfg)->SetConfiguration(cfg, SL_ANDROID_KEY_PERFORMANCE_MODE, &perf, sizeof(perf));
     }
     r = (*gPlayerObj)->Realize(gPlayerObj, SL_BOOLEAN_FALSE);
@@ -122,12 +126,11 @@ SLresult createPlayer(int attempt, int rate, int channels) {
 
 extern "C" {
 
-JNIEXPORT jstring JNICALL
-Java_id_g6hifiplayer_SlesPacked24_nativeOpen(JNIEnv* env, jobject, jint rate, jint channels) {
+static jstring openImpl(JNIEnv* env, jint rate, jint channels, jint bits, jint perfMode) {
     destroyAll();
     pthread_mutex_lock(&gMu);
     gAbort = false; gFree = kBuffers; gWriteIdx = 0; gReadIdx = 0; gDoneBytes = 0;
-    gFrameBytes = channels * 3;
+    gFrameBytes = channels * (bits / 8);
     gChunkBytes = (kMaxChunk / gFrameBytes) * gFrameBytes;
     pthread_mutex_unlock(&gMu);
 
@@ -148,7 +151,7 @@ Java_id_g6hifiplayer_SlesPacked24_nativeOpen(JNIEnv* env, jobject, jint rate, ji
         std::string log;
         bool ok = false;
         for (int attempt = 0; attempt < 2 && !ok; attempt++) {
-            r = createPlayer(attempt, rate, channels);
+            r = createPlayer(attempt, rate, channels, bits, perfMode);
             char tmp[64];
             snprintf(tmp, sizeof(tmp), "%s=0x%x ", names[attempt], (unsigned) r);
             log += tmp;
@@ -162,12 +165,23 @@ Java_id_g6hifiplayer_SlesPacked24_nativeOpen(JNIEnv* env, jobject, jint rate, ji
         r = (*gPlayerObj)->GetInterface(gPlayerObj, SL_IID_PLAY, &gPlay);
         if (r != SL_RESULT_SUCCESS) { status = failure("GetInterface(play)", r); destroyAll(); goto done; }
         char tmp[160];
-        snprintf(tmp, sizeof(tmp), "OK rate=%d channels=%d bits=24 buffers=%d chunkBytes=%d tries: ", (int) rate, (int) channels, kBuffers, gChunkBytes);
+        snprintf(tmp, sizeof(tmp), "OK rate=%d channels=%d bits=%d perfMode=%d buffers=%d chunkBytes=%d tries: ", (int) rate, (int) channels, (int) bits, (int) perfMode, kBuffers, gChunkBytes);
         status = std::string(tmp) + log;
     }
 done:
     LOGI("nativeOpen: %s", status.c_str());
     return env->NewStringUTF(status.c_str());
+}
+
+JNIEXPORT jstring JNICALL
+Java_id_g6hifiplayer_SlesPacked24_nativeOpen(JNIEnv* env, jobject, jint rate, jint channels) {
+    return openImpl(env, rate, channels, 24, 1);
+}
+
+// Build 1.56: route matrix entry point (bits 16 or 24, perfMode 0..4, see createPlayer).
+JNIEXPORT jstring JNICALL
+Java_id_g6hifiplayer_SlesPacked24_nativeOpenEx(JNIEnv* env, jobject, jint rate, jint channels, jint bits, jint perfMode) {
+    return openImpl(env, rate, channels, bits == 16 ? 16 : 24, perfMode);
 }
 
 // Blocking write: copies into free queue buffers and enqueues them. Returns bytes accepted, -1 aborted, -2 enqueue error.
