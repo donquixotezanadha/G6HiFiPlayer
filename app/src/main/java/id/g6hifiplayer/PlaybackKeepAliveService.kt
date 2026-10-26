@@ -211,7 +211,12 @@ class PlaybackKeepAliveService : Service() {
         } catch (_: Exception) { null }
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun actionPending(action: String, code: Int): PendingIntent {
-            val intent = Intent(this, NotificationActionReceiver::class.java).putExtra("notification_action", action)
+            // Build 1.55: every button has its own intent action + data URI, so the system can never treat two buttons as the
+            // same PendingIntent (extras alone are ignored when intents are compared).
+            val intent = Intent(this, NotificationActionReceiver::class.java)
+                .setAction("id.g6hifiplayer.notification." + action)
+                .setData(android.net.Uri.parse("g6hifi://notification/" + action))
+                .putExtra("notification_action", action)
             return PendingIntent.getBroadcast(this, code, intent, flags)
         }
         val open = PendingIntent.getActivity(this, 6100,

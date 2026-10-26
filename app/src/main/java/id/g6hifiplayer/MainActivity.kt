@@ -344,6 +344,15 @@ class MainActivity : Activity() {
             nav.addView(it, LinearLayout.LayoutParams(0, -1, 1f))
         }
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
+        // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
+        // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
+        scroll.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+            val viewport = bottom - top
+            if (viewport > 0 && ::playerPanel.isInitialized && playerPanel.minimumHeight != viewport) {
+                playerPanel.minimumHeight = viewport
+                playerPanel.requestLayout()
+            }
+        }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
         playerPanel = SwipeFrameLayout(this, onSwipeDown = { openQueueOverlay() }, onSwipeUp = { closeQueueOverlay() }).apply {
@@ -394,7 +403,15 @@ class MainActivity : Activity() {
         val stage = FrameLayout(this).apply { setBackgroundColor(if (classicTheme) CLASSIC_SURFACE else BG) }
         if (classicTheme) stage.addView(View(this).apply { background = newClassicDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
+        // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
+        // is lifted by the real bar height so its buttons stay tappable.
+        stage.setOnApplyWindowInsetsListener { _, insets ->
+            val bottomInset = if (classicTheme) insets.systemWindowInsetBottom else 0
+            if (root.paddingBottom != bottomInset) root.setPadding(0, 0, 0, bottomInset)
+            insets
+        }
         setContentView(stage)
+        stage.requestApplyInsets()
         buildingUi = false
         show("player"); renderLibrary(); restoreNowPlayingMetadata()
     }
@@ -521,11 +538,9 @@ class MainActivity : Activity() {
         // Build 1.45: Classic theme shows the cover as a square box above the track details.
         val displayMetrics = resources.displayMetrics
         val topInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        val boxTop = topInset + dp(20)
-        val boxSide = minOf(
-            displayMetrics.widthPixels - dp(72),
-            displayMetrics.heightPixels - dp(150) - dp(285) - boxTop - dp(12)
-        ).coerceAtLeast(dp(180))
+        val boxTop = topInset + dp(12)
+        // Initial size only; sizeClassicArt() fits the box to the space above the controls once the dock is measured.
+        val boxSide = minOf(displayMetrics.widthPixels - dp(32), displayMetrics.heightPixels / 2).coerceAtLeast(dp(180))
         artBox = FrameLayout(this).apply {
             visibility = if (classicTheme) View.VISIBLE else View.GONE
             background = shape(0xFF181820.toInt(), 6)
@@ -644,11 +659,29 @@ class MainActivity : Activity() {
 
         foreground.addView(bottomDock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1))
+        // Build 1.55: Classic cover box = the largest square between the status bar and the controls, centred in that gap.
+        playerPanel.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ -> sizeClassicArt(bottom - top, topInset) }
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
         // The no-track state is represented by the accent-colored artwork area, not the title field.
         // The views were just rebuilt: paint them with the current surface (default colour until a cover arrives).
         appliedPlayerSurface = null
         applyPlayerPalette(playerSurface)
+    }
+
+    private fun sizeClassicArt(panelHeight: Int, topInset: Int) {
+        if (!classicTheme || !::artBox.isInitialized || !::playerBottomDock.isInitialized) return
+        val dockHeight = playerBottomDock.height
+        if (dockHeight <= 0 || panelHeight <= 0) return
+        val sideGap = dp(16)
+        val minGap = dp(12)
+        val space = panelHeight - dockHeight - topInset - minGap * 2
+        val side = minOf(resources.displayMetrics.widthPixels - sideGap * 2, space).coerceAtLeast(dp(160))
+        val top = topInset + minGap + ((space - side) / 2).coerceAtLeast(0)
+        val lp = artBox.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (lp.width != side || lp.height != side || lp.topMargin != top) {
+            lp.width = side; lp.height = side; lp.topMargin = top
+            artBox.layoutParams = lp
+        }
     }
 
     /** Dominant colour of a cover: the most common colour family, counting saturated pixels more than greys. */
@@ -762,8 +795,9 @@ class MainActivity : Activity() {
     /** Status/navigation bars follow the page surface so no black strip is left at the bottom. */
     private fun applySystemBars() {
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = playerSurface
+        window.navigationBarColor = if (classicTheme) Color.TRANSPARENT else playerSurface
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            (if (classicTheme) View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION else 0) or
             (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
     }
 

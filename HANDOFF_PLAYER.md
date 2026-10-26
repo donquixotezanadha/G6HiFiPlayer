@@ -42,5 +42,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 ## In progress: Build 1.46 (branch claude-build-146-layout)
 - Baca BUILD146_NOTES.md: posisi kontrol Classic = Adaptive, cover diperbesar, navbar transparan, cek tombol notifikasi prev/next. Belum ada kode diubah.
 
+## Build 1.55 (branch claude-build-155-player)
+- See BUILD155_NOTES.md. Workflow build-155-claude.yml (artifact G6HiFiPlayer-Build155-v1.55.0). Not yet checked on the phone.
+
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).
