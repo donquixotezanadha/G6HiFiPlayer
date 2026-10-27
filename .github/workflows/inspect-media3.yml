@@ -1,0 +1,45 @@
+name: Inspect Media3 audio API (Build 1.60 prep)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude-build-160-engine"]
+    paths: [".github/workflows/inspect-media3.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Download Media3 1.10.1 AAR and print the audio output API
+        run: |
+          mkdir -p work && cd work
+          curl -fsSL -o exo.aar https://dl.google.com/dl/android/maven2/androidx/media3/media3-exoplayer/1.10.1/media3-exoplayer-1.10.1.aar
+          unzip -q exo.aar classes.jar -d exo
+          {
+            for c in AudioOutput 'AudioOutput$PositionSupplier' AudioOutputProvider 'AudioOutputProvider$OutputConfig' 'AudioOutputProvider$FormatConfig' 'AudioOutputProvider$Listener' ForwardingAudioOutputProvider ForwardingAudioOutput AudioTrackAudioOutput AudioTrackAudioOutputProvider 'AudioTrackAudioOutputProvider$Builder'; do
+              echo "=================== $c"
+              javap -p -cp exo/classes.jar "androidx.media3.exoplayer.audio.$c" || true
+            done
+            echo "=================== DefaultAudioSink (public/protected API)"
+            javap -cp exo/classes.jar 'androidx.media3.exoplayer.audio.DefaultAudioSink$Builder' || true
+          } > ../media3_audio_api.txt 2>&1
+          wc -l ../media3_audio_api.txt
+      - name: Publish result to branch ci-logs
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out && cp media3_audio_api.txt /tmp/out/
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          cp /tmp/out/* .
+          git add media3_audio_api.txt
+          git commit -m "media3 audio api dump"
+          git push -f origin ci-logs
