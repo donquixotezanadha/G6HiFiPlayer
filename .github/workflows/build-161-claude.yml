@@ -5,6 +5,9 @@ on:
   push:
     branches: ["claude-build-161-player"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,7 +30,21 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Build debug APK
-        run: gradle clean assembleDebug --stacktrace
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Publish build log to branch ci-logs
+        if: failure()
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out
+          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build161_errors.txt || true
+          tail -150 build-log.txt > /tmp/out/build161_tail.txt
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          cp /tmp/out/* .
+          git add build161_errors.txt build161_tail.txt
+          git commit -m "build 1.61 failure log"
+          git push -f origin ci-logs
       - name: Verify APK exists and is non-empty
         run: test -s app/build/outputs/apk/debug/app-debug.apk
       - name: Upload Build 1.61 APK
