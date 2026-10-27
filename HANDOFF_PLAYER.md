@@ -45,5 +45,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 ## Build 1.55 (branch claude-build-155-player)
 - See BUILD155_NOTES.md. Workflow build-155-claude.yml (artifact G6HiFiPlayer-Build155-v1.55.0). Not yet checked on the phone.
 
+## Build 1.60 (branch claude-build-160-engine)
+- Native DIRECT output in the main player (Media3 AudioOutputProvider + native track from Engine Lab 1.58/1.59). See BUILD160_NOTES.md. Workflow build-160-claude.yml (artifact G6HiFiPlayer-Build160-v1.60.0). Not yet checked on the phone.
+
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).

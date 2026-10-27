@@ -6,16 +6,24 @@ plugins {
 android {
     namespace = "id.g6hifiplayer"
     compileSdk = 36
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 155
-        versionName = "1.55.0"
+        versionCode = 160
+        versionName = "1.60.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 

@@ -382,6 +382,15 @@ class MainActivity : Activity() {
         themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2))
         themeCard.addView(text("Adaptive follows the cover colour. Classic shows the cover, darkened, behind every page with a purple accent.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         settingsPanel.addView(themeCard)
+        // Build 1.60: native DIRECT output switch (UAPP method; the player falls back to the normal output on any failure).
+        val directCard = card()
+        directCard.addView(text("NATIVE DIRECT OUTPUT", 12f, MUTED, true))
+        val directButtonRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        directButtons = directButtonRow
+        fillDirectButtons(directButtonRow)
+        directCard.addView(directButtonRow, LinearLayout.LayoutParams(-1, -2))
+        directCard.addView(text("ON sends the music to the headphone jack through the native DIRECT output (24-bit packed at the file's own sample rate, like UAPP). OFF uses the normal Android output. A change applies the next time playback starts after Close.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        settingsPanel.addView(directCard)
         // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
         val columnsCard = card()
         columnsCard.addView(text("ALBUM COLUMNS", 12f, MUTED, true))
@@ -887,6 +896,24 @@ class MainActivity : Activity() {
         libraryPanel.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { bottomMargin = dp(6) })
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
+    }
+
+    private var directButtons: LinearLayout? = null
+
+    /** The ON / OFF buttons of the native DIRECT output option shown in Setting. */
+    private fun fillDirectButtons(container: LinearLayout) {
+        val on = DirectOutputSettings.isEnabled(this)
+        container.removeAllViews()
+        container.addView(action("ON", on) { setDirectOutput(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        container.addView(action("OFF", !on) { setDirectOutput(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+    }
+
+    private fun setDirectOutput(enabled: Boolean) {
+        DirectOutputSettings.setEnabled(this, enabled)
+        recordDiagnostic("NATIVE_DIRECT_SETTING enabled=$enabled (applies when the output is created again)")
+        // Rebuild the buttons after the tap has finished so the pressed button is not torn down mid-click.
+        handler.post { directButtons?.let { fillDirectButtons(it) } }
     }
 
     /** The Adaptive / Classic theme buttons shown in Setting. */
@@ -2583,6 +2610,7 @@ class MainActivity : Activity() {
                     else "inactive") +
             "\nAudioManager mode: " + audioMode +
             "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "ROUTE UNCONFIRMED — getRoutedDevice() returned null; Android has not exposed the active route (not proof of disconnection)" }) +
+            "\nNative DIRECT output: " + (if (DirectOutputState.active) "ACTIVE " + DirectOutputState.rate + " Hz, " + DirectOutputState.sourceLabel + ", " + DirectOutputState.route else "not active (" + DirectOutputState.lastEvent + ")") +
             "\nActive DIRECT output mode: NOT EXPOSED by the public AudioTrack/Media3 inspection used here; capability checks do not identify the mode selected for this stream." +
             "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
             "\n" + connectionSummary +
@@ -2603,17 +2631,22 @@ class MainActivity : Activity() {
             val outputKhz = outputRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
             val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "route not reported" else "inactive" } catch (_: Exception) { "route not reported" }
             val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
+            // Build 1.60: when the native DIRECT output is active there is no Java AudioTrack to inspect.
+            val directActive = DirectOutputState.active && (try { player?.isPlaying == true } catch (_: Exception) { false })
             val bitPerfectText = when {
+                directActive -> "● NATIVE DIRECT • 24-bit packed"
                 playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLING / NOT BIT-PERFECT"
                 else -> "● BIT-PERFECT NOT CONFIRMED"
             }
-            val formatLine = "$extension$bitrateLabel • source $sourceKhz kHz → output $outputKhz kHz • $routeLabel"
+            val formatLine = if (directActive)
+                "$extension$bitrateLabel • source $sourceKhz kHz → output ${String.format(Locale.US, "%.1f", DirectOutputState.rate / 1000f)} kHz • ${DirectOutputState.sourceLabel}"
+            else "$extension$bitrateLabel • source $sourceKhz kHz → output $outputKhz kHz • $routeLabel"
             val compact = "$formatLine\n$bitPerfectText"
             val colored = android.text.SpannableString(compact)
             val start = compact.indexOf(bitPerfectText)
             if (start >= 0) {
                 // Android's public APIs cannot confirm bit-perfect delivery; orange means unknown or conversion indicated.
-                colored.setSpan(android.text.style.ForegroundColorSpan(0xFFFFA43A.toInt()), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                colored.setSpan(android.text.style.ForegroundColorSpan(if (directActive) 0xFF5BD98C.toInt() else 0xFFFFA43A.toInt()), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
             audioInfoInline.text = colored
         }

@@ -365,10 +365,12 @@ class PlaybackKeepAliveService : Service() {
                         val tracking = TrackingAudioOutputProvider(base) { track ->
                             audioTrackCallback?.invoke(track)
                         }
+                        // Build 1.60: eligible PCM goes to the native DIRECT output; anything else (or any failure) uses `tracking`.
+                        val direct = DirectAudioOutputProvider(tracking) { DirectOutputSettings.isEnabled(appContext) }
                         return DefaultAudioSink.Builder(context)
                             .setEnableFloatOutput(enableFloatOutput)
                             .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
-                            .setAudioOutputProvider(tracking)
+                            .setAudioOutputProvider(direct)
                             .build()
                     }
                 }
