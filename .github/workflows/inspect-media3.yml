@@ -24,12 +24,12 @@ jobs:
           curl -fsSL -o exo.aar https://dl.google.com/dl/android/maven2/androidx/media3/media3-exoplayer/1.10.1/media3-exoplayer-1.10.1.aar
           unzip -q exo.aar classes.jar -d exo
           {
-            for c in 'AudioOutput' 'AudioOutputProvider' 'AudioOutputProvider$OutputConfig' 'AudioOutputProvider$FormatConfig' 'AudioOutputProvider$Listener' 'ForwardingAudioOutputProvider' 'ForwardingAudioOutput' 'AudioSink' 'AudioSink$Listener'; do
-              echo "=================== $c"
-              javap -p -cp exo/classes.jar "androidx.media3.exoplayer.audio.$c" || true
-            done
-            echo "=================== BYTECODE AudioTrackAudioOutput write/getPositionUs/play/pause/flush/stop/isStalled/getBufferSizeInFrames"
-            javap -p -c -cp exo/classes.jar 'androidx.media3.exoplayer.audio.AudioTrackAudioOutput' || true
+            echo "=================== DefaultAudioSink (members)"
+            javap -p -cp exo/classes.jar 'androidx.media3.exoplayer.audio.DefaultAudioSink' || true
+            echo "=================== BYTECODE DefaultAudioSink"
+            javap -p -c -cp exo/classes.jar 'androidx.media3.exoplayer.audio.DefaultAudioSink' || true
+            echo "=================== BYTECODE DefaultAudioSink\$Configuration"
+            javap -p -c -cp exo/classes.jar 'androidx.media3.exoplayer.audio.DefaultAudioSink$Configuration' || true
           } > ../media3_audio_api3.txt 2>&1
           wc -l ../media3_audio_api3.txt
       - name: Publish result to branch ci-logs
