@@ -358,15 +358,17 @@ class PlaybackKeepAliveService : Service() {
                         enableFloatOutput: Boolean,
                         enableAudioOutputPlaybackParams: Boolean
                     ): AudioSink {
-                        // Build 1.61: the native DIRECT output is the only output; there is no fallback and no playback-speed processing.
+                        // Build 1.62: float output ON. With float OFF, Media3 1.10 puts ToInt16PcmAudioProcessor in front of
+                        // the output and cuts 24-bit files to 16-bit before they reach us. With float ON, 24-bit PCM travels
+                        // as float (exact) and DirectAudioOutput converts it back to 24-bit integers. 16-bit stays 16-bit.
                         return DefaultAudioSink.Builder(context)
-                            .setEnableFloatOutput(false)
+                            .setEnableFloatOutput(true)
                             .setEnableAudioOutputPlaybackParameters(false)
                             .setAudioOutputProvider(DirectAudioOutputProvider())
                             .build()
                     }
                 }
-                renderersFactory.setEnableAudioFloatOutput(false)
+                renderersFactory.setEnableAudioFloatOutput(true)
                 // Hi-res FLAC is served as a 24-bit WAV (see Pcm24DataSource) so the real bit depth reaches the output.
                 val player = ExoPlayer.Builder(appContext, renderersFactory)
                     .setMediaSourceFactory(DefaultMediaSourceFactory(Pcm24DataSource.Factory(appContext)))
@@ -375,10 +377,24 @@ class PlaybackKeepAliveService : Service() {
                         volume = 1.0f
                     }
                 ExclusiveAudioFocus.attach(appContext, player)
+                // Build 1.62: decode the next hi-res FLAC to 24-bit WAV in the background while the current track plays, so the
+                // next track starts without waiting for FFmpeg.
+                player.addListener(object : Player.Listener {
+                    override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { prefetchNext(player, appContext) }
+                    override fun onPlaybackStateChanged(playbackState: Int) { if (playbackState == Player.STATE_READY) prefetchNext(player, appContext) }
+                })
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player
             }
+        }
+
+        private fun prefetchNext(player: ExoPlayer, context: Context) {
+            try {
+                val next = player.nextMediaItemIndex
+                if (next == androidx.media3.common.C.INDEX_UNSET) return
+                player.getMediaItemAt(next).localConfiguration?.uri?.let { Pcm24Transcoder.prefetch(context, it) }
+            } catch (_: Exception) { }
         }
 
         private fun releasePlayer() {

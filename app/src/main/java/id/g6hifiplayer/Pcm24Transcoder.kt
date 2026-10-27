@@ -33,6 +33,22 @@ internal object Pcm24Transcoder {
     private val locks = ConcurrentHashMap<String, Any>()
     private val served = ConcurrentHashMap<String, String>()
 
+    private val prefetchQueued = ConcurrentHashMap.newKeySet<String>()
+    private val prefetchExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "pcm24-prefetch").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }
+    }
+
+    /** Starts decoding [uri] in the background (if it is a hi-res FLAC that needs it) so it is ready when the player asks. */
+    fun prefetch(context: Context, uri: Uri) {
+        if (uri.scheme != "content" && uri.scheme != "file") return
+        val key = uri.toString()
+        if (served.containsKey(key) || !prefetchQueued.add(key)) return
+        val app = context.applicationContext
+        prefetchExecutor.execute {
+            try { servedUri(app, uri) } catch (_: Throwable) { } finally { prefetchQueued.remove(key) }
+        }
+    }
+
     /** Reads the sample rate and bit depth from the FLAC or WAV header. Returns null for any other format. */
     fun sniff(context: Context, uri: Uri): SourceInfo? = try {
         val opened = context.contentResolver.openInputStream(uri)

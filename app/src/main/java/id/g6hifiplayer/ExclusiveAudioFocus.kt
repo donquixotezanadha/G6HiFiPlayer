@@ -10,17 +10,20 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 
 /**
- * Build 1.61: holds EXCLUSIVE audio focus while the player is playing (AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE: the system
- * does not play notification sounds, and other media apps are told to stop). The player has no software volume, so a
- * "duck" request from another app is ignored on purpose: the music is never turned down or mixed into by the app side.
- * A real takeover (phone call, alarm, another player that insists) pauses playback; it resumes by itself after a
+ * Build 1.61/1.62: holds EXCLUSIVE audio focus while the player is playing (AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE: the
+ * system does not play notification sounds, and other media apps are told to stop). The player has no software volume,
+ * so a "duck" request from another app is ignored on purpose: the music is never turned down or mixed into by the app
+ * side. A real takeover (phone call, alarm, another player that insists) pauses playback; it resumes by itself after a
  * transient loss and stays paused after a permanent one.
+ *
+ * Build 1.62 fixes: the focus is no longer given back while a track change passes through IDLE with playback still
+ * wanted, it is asked for again when playback becomes active without it, and a pause caused by a focus loss can no
+ * longer be mistaken for the user's own pause (which used to cancel the automatic resume).
  */
 internal object ExclusiveAudioFocus {
     private var request: AudioFocusRequest? = null
     private var holding = false
-    private var resumeOnGain = false
-    private var pausedByUs = false
+    private var pausedByFocus = false
     private var attachedTo: ExoPlayer? = null
     private var manager: AudioManager? = null
 
@@ -38,19 +41,15 @@ internal object ExclusiveAudioFocus {
         val changeListener = AudioManager.OnAudioFocusChangeListener { change ->
             when (change) {
                 AudioManager.AUDIOFOCUS_LOSS -> {
-                    resumeOnGain = false
-                    pausedByUs = true
+                    pausedByFocus = false
                     player.pause()
-                    pausedByUs = false
                     abandon(audioManager)
                     DirectOutputState.log("audio focus lost for good: paused")
                 }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                     if (player.playWhenReady) {
-                        resumeOnGain = true
-                        pausedByUs = true
+                        pausedByFocus = true
                         player.pause()
-                        pausedByUs = false
                         DirectOutputState.log("audio focus lost for a moment (call/alarm): paused")
                     }
                 }
@@ -58,8 +57,8 @@ internal object ExclusiveAudioFocus {
                     // No software volume in this player: keep playing at full level, untouched.
                 }
                 AudioManager.AUDIOFOCUS_GAIN -> {
-                    if (resumeOnGain) {
-                        resumeOnGain = false
+                    if (pausedByFocus) {
+                        pausedByFocus = false
                         player.play()
                         DirectOutputState.log("audio focus back: resumed")
                     }
@@ -74,25 +73,40 @@ internal object ExclusiveAudioFocus {
             .setWillPauseWhenDucked(false)
             .build().also { request = it }
 
+        fun ensureFocus() {
+            if (holding) return
+            val result = audioManager.requestAudioFocus(ensureRequest())
+            holding = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            DirectOutputState.log("exclusive audio focus ${if (holding) "granted" else "refused ($result)"}")
+            if (!holding) player.pause()
+        }
+
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (playWhenReady) {
-                    if (!holding) {
-                        val result = audioManager.requestAudioFocus(ensureRequest())
-                        holding = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-                        DirectOutputState.log("exclusive audio focus ${if (holding) "granted" else "refused ($result)"}")
-                        if (!holding) player.pause()
-                    }
-                } else if (!pausedByUs) {
-                    resumeOnGain = false
+                    pausedByFocus = false
+                    ensureFocus()
+                } else if (!pausedByFocus) {
                     abandon(audioManager)
                 }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
-                    resumeOnGain = false
-                    abandon(audioManager)
+                when (playbackState) {
+                    Player.STATE_ENDED -> {
+                        pausedByFocus = false
+                        abandon(audioManager)
+                    }
+                    Player.STATE_IDLE -> {
+                        // A track change or a new queue passes through IDLE while playback is still wanted: keep the focus.
+                        if (!player.playWhenReady) {
+                            pausedByFocus = false
+                            abandon(audioManager)
+                        }
+                    }
+                    Player.STATE_BUFFERING, Player.STATE_READY -> {
+                        if (player.playWhenReady && !holding && !pausedByFocus) ensureFocus()
+                    }
                 }
             }
         })
@@ -100,7 +114,7 @@ internal object ExclusiveAudioFocus {
 
     /** Called when the player is released (Close), so the focus never outlives the player. */
     fun release() {
-        resumeOnGain = false
+        pausedByFocus = false
         manager?.let { abandon(it) }
         attachedTo = null
     }

@@ -9,8 +9,11 @@ import androidx.media3.exoplayer.audio.AudioOutputProvider
 /**
  * Build 1.61: the only audio output of the player. Integer PCM (16/24/32-bit, mono or stereo, 8-192 kHz) goes to the
  * native DIRECT track ([DirectAudioOutput]); anything else is refused and playback reports an error. There is no
- * fallback to the normal Android AudioTrack (that path goes through the 48 kHz mixer), and float PCM is refused on
- * purpose: it also keeps Media3 from asking the decoder for float output.
+ * fallback to the normal Android AudioTrack (that path goes through the 48 kHz mixer).
+ *
+ * Build 1.62: float PCM is accepted. Media3 sends 24-bit files as float (the sink's float output is ON; with it OFF the
+ * sink cuts everything to 16-bit first). The float carries the 24-bit samples exactly and is converted back to 24-bit
+ * integers in [DirectAudioOutput].
  */
 @UnstableApi
 internal class DirectAudioOutputProvider : AudioOutputProvider {

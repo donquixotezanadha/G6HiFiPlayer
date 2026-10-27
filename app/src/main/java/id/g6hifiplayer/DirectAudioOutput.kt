@@ -15,7 +15,7 @@ import java.util.concurrent.CopyOnWriteArraySet
  *
  * The native track is always 24-bit packed stereo at the source sample rate, flags = DIRECT. Input PCM from the sink is
  * converted without any gain or dither: 24-bit is copied byte for byte, 16-bit is padded with a zero low byte (same value,
- * lossless), 32-bit int keeps its top 24 bits. Float is not accepted (see DirectAudioOutputProvider).
+ * lossless), 32-bit int keeps its top 24 bits. Float (Media3's carrier for 24-bit files) is converted back to the exact 24-bit integers.
  * Volume is left to the hardware/stream volume; setVolume() is ignored on purpose.
  */
 @UnstableApi
@@ -116,9 +116,24 @@ internal class DirectAudioOutput private constructor(
         if (released) return
         released = true
         try { NativeDirectStream.close(handle) } catch (_: Throwable) { }
-        DirectOutputState.active = false
-        DirectOutputState.log("released")
+        // Build 1.62: the sink may open the next track's output before it releases this one. Only the output that is
+        // still the current one may switch the "DIRECT active" state off; otherwise the info line wrongly turns orange.
+        synchronized(lock) {
+            if (live === this) {
+                live = null
+                DirectOutputState.active = false
+            }
+        }
+        DirectOutputState.log("released ${sampleRateHz} Hz output")
         for (l in listeners) l.onReleased()
+    }
+
+    /** Closes this output at once because the next track needs the single DIRECT slot (see [create]). */
+    private fun forceClose() {
+        if (released) return
+        DirectOutputState.log("closing the previous ${sampleRateHz} Hz output to make room for the next track")
+        try { NativeDirectStream.pause(handle); NativeDirectStream.flush(handle); NativeDirectStream.stop(handle) } catch (_: Throwable) { }
+        release()
     }
 
     override fun setVolume(volume: Float) {
@@ -192,6 +207,20 @@ internal class DirectAudioOutput private constructor(
                         out[o + 1] = buffer.get(s + 2)
                         out[o + 2] = buffer.get(s + 3)
                     }
+                    C.ENCODING_PCM_FLOAT -> {
+                        // Media3 hands 24-bit (and deeper) PCM over as float (ToFloatPcmAudioProcessor). A float carries a
+                        // 24-bit integer exactly (24-bit mantissa), so n / 2^23 -> n is exact: no rounding error, no gain.
+                        val bits = (buffer.get(s).toInt() and 0xFF) or
+                            ((buffer.get(s + 1).toInt() and 0xFF) shl 8) or
+                            ((buffer.get(s + 2).toInt() and 0xFF) shl 16) or
+                            ((buffer.get(s + 3).toInt() and 0xFF) shl 24)
+                        val f = java.lang.Float.intBitsToFloat(bits)
+                        var v = if (f.isNaN()) 0 else Math.round(f * 8388608f)
+                        if (v > 8388607) v = 8388607 else if (v < -8388608) v = -8388608
+                        out[o] = v.toByte()
+                        out[o + 1] = (v shr 8).toByte()
+                        out[o + 2] = (v shr 16).toByte()
+                    }
                     else -> error("unsupported PCM encoding $inEncoding")
                 }
                 o += 3
@@ -209,10 +238,23 @@ internal class DirectAudioOutput private constructor(
         private const val FORMAT_PCM_24_BIT_PACKED = 6
         private const val FLAG_DIRECT = 1
 
+        // The output that is currently open (the policy allows only one DIRECT track at a time).
+        private val lock = Any()
+        private var live: DirectAudioOutput? = null
+
         fun bytesPerSample(encoding: Int): Int = when (encoding) {
             C.ENCODING_PCM_16BIT -> 2
             C.ENCODING_PCM_24BIT -> 3
             C.ENCODING_PCM_32BIT -> 4
+            C.ENCODING_PCM_FLOAT -> 4
+            else -> 0
+        }
+
+        /** Bit depth the PCM at the output really carries (float is the 24-bit carrier Media3 uses for 24-bit files). */
+        fun carriedBits(encoding: Int): Int = when (encoding) {
+            C.ENCODING_PCM_16BIT -> 16
+            C.ENCODING_PCM_24BIT, C.ENCODING_PCM_FLOAT -> 24
+            C.ENCODING_PCM_32BIT -> 32
             else -> 0
         }
 
@@ -223,6 +265,7 @@ internal class DirectAudioOutput private constructor(
             C.ENCODING_PCM_16BIT -> "PCM 16-bit padded to 24-bit"
             C.ENCODING_PCM_24BIT -> "PCM 24-bit"
             C.ENCODING_PCM_32BIT -> "PCM 32-bit (top 24 bits)"
+            C.ENCODING_PCM_FLOAT -> "PCM 24-bit"
             else -> "encoding $encoding"
         }
 
@@ -236,9 +279,15 @@ internal class DirectAudioOutput private constructor(
                 return null
             }
             // The previous track's DIRECT output may still be closing; the policy allows one DIRECT track at a time.
+            // Build 1.62: wait up to ~2 s for it to close by itself; if it is still open then, the sink has already asked for
+            // the next track's output, so the old one is no longer needed and is closed here instead of failing playback.
             var handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
             var attempts = 0
-            while (handle == 0L && attempts++ < 15) {
+            while (handle == 0L && attempts++ < 40) {
+                if (attempts == 20) {
+                    val old = synchronized(lock) { live }
+                    old?.forceClose()
+                }
                 try { Thread.sleep(100) } catch (_: InterruptedException) { break }
                 handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
             }
@@ -248,14 +297,16 @@ internal class DirectAudioOutput private constructor(
             }
             val bufferFrames = (config.sampleRate.toLong() * BUFFER_MS / 1000).toInt()
             val session = NativeDirectStream.session(handle)
+            val output = DirectAudioOutput(handle, config.sampleRate, channels, config.encoding, bytesPerSample(config.encoding),
+                bufferFrames, session)
+            synchronized(lock) { live = output }
             DirectOutputState.rate = config.sampleRate
             DirectOutputState.sourceLabel = describeInput(config.encoding)
-            DirectOutputState.inputBits = bytesPerSample(config.encoding) * 8
+            DirectOutputState.inputBits = carriedBits(config.encoding)
             DirectOutputState.active = true
             DirectOutputState.route = NativeDirectStream.routeInfo(handle)
             DirectOutputState.log("opened ${config.sampleRate} Hz ${channels}ch from ${describeInput(config.encoding)} -> 24-bit packed DIRECT, buffer $bufferFrames frames, route: ${DirectOutputState.route}")
-            return DirectAudioOutput(handle, config.sampleRate, channels, config.encoding, bytesPerSample(config.encoding),
-                bufferFrames, session)
+            return output
         }
     }
 }

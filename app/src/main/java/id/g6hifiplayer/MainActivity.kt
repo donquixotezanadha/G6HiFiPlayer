@@ -1857,8 +1857,10 @@ class MainActivity : Activity() {
             override fun onPlayerError(error: PlaybackException) {
                 // Build 1.61: there is no second decoder and no second output. A failure is reported as it is.
                 playView.isEnabled = true
-                val detail = error.cause?.message ?: error.message ?: "unsupported format"
-                statusView.text = "Playback failed • " + error.errorCodeName + ": " + detail
+                val chain = generateSequence<Throwable>(error) { it.cause }.mapNotNull { it.message?.takeIf { m -> m.isNotBlank() } }.distinct().take(3).toList()
+                val detail = chain.joinToString(" ← ").ifEmpty { "unsupported format" }
+                val recent = DirectOutputState.historyText().lines().takeLast(3).joinToString("\n") { it.substringAfter(" | ") }
+                statusView.text = "Playback failed • " + error.errorCodeName + ": " + detail + (if (recent.isNotBlank()) "\n" + recent else "")
                 recordDiagnostic("PLAYBACK_ERROR code=" + error.errorCodeName + " detail=" + detail, error)
                 refreshAudioInfo()
             }
