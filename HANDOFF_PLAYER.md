@@ -48,5 +48,8 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 ## Build 1.60 (branch claude-build-160-engine)
 - Native DIRECT output in the main player (Media3 AudioOutputProvider + native track from Engine Lab 1.58/1.59). See BUILD160_NOTES.md. Workflow build-160-claude.yml (artifact G6HiFiPlayer-Build160-v1.60.0). Not yet checked on the phone.
 
+## Build 1.61 (branch claude-build-161-player)
+- Pure 24-bit native DIRECT: FFmpeg pcm_s24le for FLAC > 16-bit via Pcm24DataSource, DirectAudioOutputProvider is the only output, exclusive audio focus, old AudioTrack/diagnostics code removed. See BUILD161_NOTES.md. Workflow build-161-claude.yml (artifact G6HiFiPlayer-Build161-v1.61.0). Not yet checked on the phone.
+
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).

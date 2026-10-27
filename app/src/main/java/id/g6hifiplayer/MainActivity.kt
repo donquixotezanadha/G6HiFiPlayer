@@ -19,20 +19,15 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.content.res.ColorStateList
-import android.media.AudioAttributes
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
-import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.AudioRouting
-import android.media.AudioTrack
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.common.util.UnstableApi
 import android.media.MediaExtractor
@@ -67,11 +62,10 @@ class MainActivity : Activity() {
     private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?, val trackNumber: Int = Int.MAX_VALUE)
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
-    @Volatile private var activeAudioTrack: AudioTrack? = null
-    private var audioTrackRoutingListener: AudioRouting.OnRoutingChangedListener? = null
     private var mediaSession: MediaSession? = null
     private val notificationWidgetExecutor = Executors.newSingleThreadExecutor()
     private var sourceRate: Int? = null
+    private var sourceBits: Int? = null
     private var sourceBitrate: Int? = null
     private var durationMs = 0
     private var prepared = false
@@ -153,12 +147,6 @@ class MainActivity : Activity() {
     private val metadataExecutor = Executors.newFixedThreadPool(2)
     private val artworkBytesCache = java.util.Collections.synchronizedMap(java.util.LinkedHashMap<String, ByteArray>(16, 0.75f, true))
     private val diagnosticEvents = java.util.Collections.synchronizedList(mutableListOf<String>())
-    private var lastDeviceEvent = "No device changes reported yet."
-    private var lastActiveRouteKey: String? = null
-    private var lastRouteApiError: String? = null
-    private var lastBufferDiagnosticKey: String? = null
-    private var lastLegacyRouteHints = "Not checked yet"
-    private var lastAudioConfigLog = "No audio configuration scan results yet."
     private lateinit var scanProgress: ProgressBar
     private lateinit var scanProgressText: TextView
     private lateinit var albumScanSummary: TextView
@@ -172,8 +160,6 @@ class MainActivity : Activity() {
     private lateinit var queuePanel: FrameLayout
     private lateinit var settingsPanel: LinearLayout
     private lateinit var queueRows: LinearLayout
-    private lateinit var audioPanel: LinearLayout
-    private lateinit var filePanel: LinearLayout
     private lateinit var navPlayer: FrameLayout
     private lateinit var navLibrary: FrameLayout
     private lateinit var navSongs: FrameLayout
@@ -192,9 +178,6 @@ class MainActivity : Activity() {
     private lateinit var seek: SeekBar
     private lateinit var elapsed: TextView
     private lateinit var duration: TextView
-    private lateinit var routeSummary: TextView
-    private lateinit var routeInfo: TextView
-    private lateinit var fileInfo: TextView
     private lateinit var artImage: ImageView
     private lateinit var playerBackdropImage: ImageView
     private lateinit var playerBottomShade: View
@@ -211,6 +194,10 @@ class MainActivity : Activity() {
         override fun run() {
             // Keep frame-time work low on older devices: update playback position only.
             // Audio route inspection is event-driven elsewhere, not polled every half-second.
+            if (!prepared && Pcm24Transcoder.busyTitle != null && ::statusView.isInitialized) {
+                statusView.text = "Decoding to 24-bit PCM (no resampling)…"
+                refreshAudioInfo()
+            }
             if (prepared) player?.let { p ->
                 persistPlaybackState(force = false)
                 if (!seeking) {
@@ -258,13 +245,10 @@ class MainActivity : Activity() {
         } else {
             recordDiagnostic("WIRED_UNPLUG_CHECK_CANCELLED wiredDeviceStillConnected=true")
         }
-        updateActiveRoute()
-        refreshAudioInfo()
     }
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             val details = addedDevices.joinToString { describe(it) }
-            lastDeviceEvent = "Output device connected: " + details
             recordDiagnostic("AUDIO_DEVICE_ADDED devices=" + details)
             val wiredAdded = addedDevices.any {
                 it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
@@ -272,12 +256,9 @@ class MainActivity : Activity() {
             }
             // A speaker-added event can accompany jack removal; it must not cancel the stop check.
             if (wiredAdded) handler.removeCallbacks(wiredDisconnectCheck)
-            activeAudioTrack?.let { preferWiredHeadphoneRoute(it, "output device added") }
-            updateActiveRoute(); refreshAudioInfo()
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
             val details = removedDevices.joinToString { describe(it) }
-            lastDeviceEvent = "Output device disconnected: " + details
             recordDiagnostic("AUDIO_DEVICE_REMOVED devices=" + details)
             val wiredRemoved = removedDevices.any {
                 it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
@@ -288,7 +269,6 @@ class MainActivity : Activity() {
                 handler.removeCallbacks(wiredDisconnectCheck)
                 handler.postDelayed(wiredDisconnectCheck, 120L)
             }
-            updateActiveRoute(); refreshAudioInfo()
         }
     }
 
@@ -305,7 +285,6 @@ class MainActivity : Activity() {
         }
         activeInstance = this
         pruneArtworkDiskCache()
-        PlaybackKeepAliveService.setAudioTrackCallback { track -> MainActivity.onServiceAudioTrackCreated(track) }
         PlaybackKeepAliveService.setPlaybackStoppedCallback { MainActivity.onServicePlaybackStopped() }
         player = PlaybackKeepAliveService.existingPlayer()
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
@@ -362,10 +341,8 @@ class MainActivity : Activity() {
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         queuePanel = SwipeFrameLayout(this, onSwipeDown = { }, onSwipeUp = { closeQueueOverlay() })
-        audioPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        filePanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel(); makeAudioPanel(); makeFilePanel()
+        makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
         val scanCard = card()
@@ -382,15 +359,6 @@ class MainActivity : Activity() {
         themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2))
         themeCard.addView(text("Adaptive follows the cover colour. Classic shows the cover, darkened, behind every page with a purple accent.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         settingsPanel.addView(themeCard)
-        // Build 1.60: native DIRECT output switch (UAPP method; the player falls back to the normal output on any failure).
-        val directCard = card()
-        directCard.addView(text("NATIVE DIRECT OUTPUT", 12f, MUTED, true))
-        val directButtonRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
-        directButtons = directButtonRow
-        fillDirectButtons(directButtonRow)
-        directCard.addView(directButtonRow, LinearLayout.LayoutParams(-1, -2))
-        directCard.addView(text("ON sends the music to the headphone jack through the native DIRECT output (24-bit packed at the file's own sample rate, like UAPP). OFF uses the normal Android output. A change applies the next time playback starts after Close.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
-        settingsPanel.addView(directCard)
         // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
         val columnsCard = card()
         columnsCard.addView(text("ALBUM COLUMNS", 12f, MUTED, true))
@@ -898,23 +866,7 @@ class MainActivity : Activity() {
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
     }
 
-    private var directButtons: LinearLayout? = null
 
-    /** The ON / OFF buttons of the native DIRECT output option shown in Setting. */
-    private fun fillDirectButtons(container: LinearLayout) {
-        val on = DirectOutputSettings.isEnabled(this)
-        container.removeAllViews()
-        container.addView(action("ON", on) { setDirectOutput(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-        container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        container.addView(action("OFF", !on) { setDirectOutput(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-    }
-
-    private fun setDirectOutput(enabled: Boolean) {
-        DirectOutputSettings.setEnabled(this, enabled)
-        recordDiagnostic("NATIVE_DIRECT_SETTING enabled=$enabled (applies when the output is created again)")
-        // Rebuild the buttons after the tap has finished so the pressed button is not torn down mid-click.
-        handler.post { directButtons?.let { fillDirectButtons(it) } }
-    }
 
     /** The Adaptive / Classic theme buttons shown in Setting. */
     private fun fillThemeButtons(container: LinearLayout) {
@@ -1270,43 +1222,8 @@ class MainActivity : Activity() {
         loadArtworkInto(queueMiniArt, track)
     }
 
-    private fun makeAudioPanel() {
-        val summary = card(); summary.addView(text("ACTIVE OUTPUT", 11f, accentColor, true))
-        routeSummary = text("Memeriksa…", 22f, WHITE, true).apply { setPadding(0, dp(8), 0, dp(5)) }
-        summary.addView(routeSummary); summary.addView(text("The stream route is read from Media3 AudioTrack. The internal LG Quad DAC backend is not exposed through the public API; detecting headphones does not prove a specific DAC backend.", 12f, MUTED, false)); audioPanel.addView(summary)
-        val detail = card(); detail.addView(text("ROUTE DIAGNOSTICS", 11f, MUTED, true))
-        routeInfo = text("", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
-        detail.addView(routeInfo)
-        detail.addView(action("PERBARUI INFORMASI", false) { refreshAudioInfo() }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14) })
-        val logActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
-        logActions.addView(action("COPY LOG", false) { copyAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        logActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        logActions.addView(action("SHARE LOG", false) { shareAudioLog() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        detail.addView(logActions)
-        detail.addView(action("COLLECT & SHARE DIAGNOSTICS", true) { collectAndShareDiagnostics() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
-        audioPanel.addView(detail)
-        val lg = card(); lg.addView(text("LG AUDIO INSPECTION", 11f, accentColor, true))
-        lg.addView(text("Searching readable LG configuration files and testing direct-playback support. Results do not prove the route used by the current track.", 12f, MUTED, false).apply { setPadding(0, dp(7), 0, dp(8)) })
-        lg.addView(action("SCAN LG CONFIGURATION", false) { scanAudioConfiguration() }, LinearLayout.LayoutParams(-1, dp(44))); audioPanel.addView(lg)
-        val note = card(); note.addView(text("MEASUREMENT LIMITATIONS", 11f, accentColor, true))
-        note.addView(text("The public Android API cannot conclusively report the active stream bit depth, actual DAC sample rate, or bit-perfect output. A source rate differing from the default does not by itself prove resampling.", 13f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
-        audioPanel.addView(note)
-    }
 
-    private fun makeFilePanel() {
-        val info = card(); info.addView(text("FILE INFORMATION", 11f, accentColor, true))
-        fileInfo = text("No file selected.", 13f, WHITE, false).apply { setPadding(0, dp(10), 0, 0); setTextIsSelectable(true) }
-        info.addView(fileInfo)
-        info.addView(action("CHOOSE AUDIO FILE", false) { pickFile() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(16) })
-        filePanel.addView(info)
-    }
 
-    private fun pickFile() {
-        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE); type = "audio/*"
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        }, REQUEST_AUDIO)
-    }
     private fun pickFolder() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
@@ -1328,20 +1245,9 @@ class MainActivity : Activity() {
             visibleTrackLimit = 80
             scanMusicFolder(uri); show("library"); return
         }
-        if (requestCode == REQUEST_AUDIO) {
-            try {
-                val flag = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
-                if (flag != 0) contentResolver.takePersistableUriPermission(uri, flag)
-            } catch (_: Exception) { }
-            tracks = listOf(readTrack(uri, null, null)); currentIndex = 0; selectedAlbum = null; playbackQueue = emptyList(); playbackOrder = listOf(0); playTrackAt(0, false, listOf(0))
-        }
+    }
     }
 
-    private fun appVersionLabel(): String = try {
-        val info = packageManager.getPackageInfo(packageName, 0)
-        val code = info.longVersionCode
-        "${info.versionName ?: "unknown"} ($code)"
-    } catch (_: Exception) { "unknown" }
 
     private fun recordDiagnostic(event: String, error: Throwable? = null) {
         val timestamp = System.currentTimeMillis()
@@ -1874,71 +1780,11 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
     }
 
-    private fun attachActiveAudioTrack(track: AudioTrack) {
-        val previous = activeAudioTrack
-        val previousListener = audioTrackRoutingListener
-        if (previous != null && previousListener != null) {
-            try { previous.removeOnRoutingChangedListener(previousListener) } catch (_: Exception) { }
-        }
-        activeAudioTrack = track
-        // Android may not report routedDevice on this LG Android 9 HAL. Ask policy to
-        // prefer the connected 3.5 mm device, but this is not proof of DIRECT/DAC use.
-        preferWiredHeadphoneRoute(track, "AudioTrack dibuat")
-        val listener = object : AudioRouting.OnRoutingChangedListener {
-            override fun onRoutingChanged(router: AudioRouting) {
-                val routed = try { router.routedDevice } catch (_: Exception) { null }
-                val label = routed?.let { describe(it) } ?: "route not reported by AudioTrack"
-                lastDeviceEvent = "AudioTrack route changed: " + label
-                recordDiagnostic("AUDIOTRACK_ROUTING_CHANGED route=" + label)
-                handler.post { updateActiveRoute(); refreshAudioInfo() }
-            }
-        }
-        audioTrackRoutingListener = listener
-        try { track.addOnRoutingChangedListener(listener, handler) }
-        catch (e: Exception) { recordDiagnostic("AUDIOTRACK_ROUTING_LISTENER_FAILED", e) }
-        recordDiagnostic(
-            "AUDIOTRACK_CREATED rate=${try { track.sampleRate } catch (_: Exception) { -1 }} " +
-                "encoding=${try { encodingName(track.audioFormat) } catch (_: Exception) { "unknown" }} " +
-                "channels=${try { track.channelCount } catch (_: Exception) { -1 }} " +
-                "bufferFrames=${try { track.bufferSizeInFrames } catch (_: Exception) { -1 }} " +
-                "session=${try { track.audioSessionId } catch (_: Exception) { -1 }}"
-        )
-        handler.post { updateActiveRoute(); refreshAudioInfo() }
-    }
 
-    private fun preferWiredHeadphoneRoute(track: AudioTrack, reason: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        val outputs = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) } catch (_: Exception) { emptyArray<AudioDeviceInfo>() }
-        val wired = outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
-            ?: outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
-        if (wired == null) {
-            recordDiagnostic("WIRED_ROUTE_PREFERENCE skipped reason=$reason connectedWiredDevice=false")
-            return
-        }
-        val accepted = try { track.setPreferredDevice(wired) } catch (e: Exception) {
-            recordDiagnostic("WIRED_ROUTE_PREFERENCE failed device=${describe(wired)} reason=$reason", e)
-            false
-        }
-        recordDiagnostic(
-            "WIRED_ROUTE_PREFERENCE requested=${describe(wired)} accepted=$accepted reason=$reason " +
-                "note=policy-hint-only-not-proof-of-DIRECT-or-Quad-DAC"
-        )
-        handler.post { updateActiveRoute(); refreshAudioInfo() }
-    }
 
-    private fun clearActiveAudioTrack() {
-        val track = activeAudioTrack
-        val listener = audioTrackRoutingListener
-        if (track != null && listener != null) {
-            try { track.removeOnRoutingChangedListener(listener) } catch (_: Exception) { }
-        }
-        audioTrackRoutingListener = null
-        activeAudioTrack = null
-    }
 
     private fun attachPlaybackListener(exo: ExoPlayer, initialTrack: Track) {
         playerListener?.let { try { exo.removeListener(it) } catch (_: Exception) { } }
-        var ffmpegFallbackAttempted = false
         val listener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val uri = mediaItem?.localConfiguration?.uri
@@ -1954,6 +1800,8 @@ class MainActivity : Activity() {
                     artistView.text = activeTrack.artist
                     albumView.text = activeTrack.album
                     sourceRate = null
+                    sourceBits = null
+        sourceBits = null
                     sourceBitrate = null
                     showMetadata(activeTrack.uri, activeTrack)
                     loadArtwork(activeTrack)
@@ -2005,59 +1853,14 @@ class MainActivity : Activity() {
                     syncPlaybackIcon(isPlaying)
                     refreshAudioInfo()
                     updatePlaybackNotification(isPlaying)
-                    updateActiveRoute()
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
-                val failedIndex = currentIndex
-                val failedTrack = tracks.getOrNull(failedIndex) ?: initialTrack
-                if (!ffmpegFallbackAttempted) {
-                    ffmpegFallbackAttempted = true
-                    val resume = pendingAutoplay || exo.playWhenReady || exo.isPlaying
-                    prepared = false
-                    playView.isEnabled = false
-                    statusView.text = "Native decoder failed; trying FFmpeg fallback…"
-                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR_FFMPEG_FALLBACK_START uri=" + failedTrack.uri + " code=" + error.errorCodeName, error)
-                    FfmpegAudioDecoder(this@MainActivity).decodeToWav(failedTrack.uri) { result ->
-                        handler.post {
-                            if (player !== exo || isFinishing || currentIndex != failedIndex) {
-                                result.getOrNull()?.delete()
-                                return@post
-                            }
-                            result.onSuccess { wav ->
-                                try {
-                                    val mediaPosition = exo.currentMediaItemIndex
-                                    if (mediaPosition !in 0 until exo.mediaItemCount) throw IllegalStateException("Current queue item is unavailable")
-                                    exo.replaceMediaItem(mediaPosition, MediaItem.Builder()
-                                        .setMediaId(failedTrack.uri.toString())
-                                        .setUri(Uri.fromFile(wav))
-                                        .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder()
-                                            .setTitle(failedTrack.title)
-                                            .setArtist(failedTrack.artist)
-                                            .setAlbumTitle(failedTrack.album)
-                                            .build())
-                                        .build())
-                                    pendingAutoplay = resume
-                                    exo.prepare()
-                                    statusView.text = "FFmpeg PCM fallback • preparing " + failedTrack.title
-                                    recordDiagnostic("FFMPEG_FALLBACK_READY file=" + wav.name + " queuePreserved=true no-explicit-resampling=true")
-                                } catch (e: Exception) {
-                                    playView.isEnabled = true
-                                    statusView.text = "FFmpeg fallback could not start: " + (e.message ?: e.javaClass.simpleName)
-                                    recordDiagnostic("FFMPEG_FALLBACK_PLAYER_FAILED", e)
-                                }
-                            }.onFailure { e ->
-                                playView.isEnabled = true
-                                statusView.text = "Audio decode failed (Media3 + FFmpeg): " + (e.message ?: e.javaClass.simpleName)
-                                recordDiagnostic("FFMPEG_FALLBACK_FAILED", e)
-                            }
-                        }
-                    }
-                } else {
-                    playView.isEnabled = true
-                    statusView.text = "Media3/FFmpeg playback failed • " + error.errorCodeName + ": " + (error.message ?: "unsupported format")
-                    recordDiagnostic("MEDIA3_PLAYBACK_ERROR_AFTER_FFMPEG code=" + error.errorCodeName, error)
-                }
+                // Build 1.61: there is no second decoder and no second output. A failure is reported as it is.
+                playView.isEnabled = true
+                val detail = error.cause?.message ?: error.message ?: "unsupported format"
+                statusView.text = "Playback failed • " + error.errorCodeName + ": " + detail
+                recordDiagnostic("PLAYBACK_ERROR code=" + error.errorCodeName + " detail=" + detail, error)
                 refreshAudioInfo()
             }
         }
@@ -2090,9 +1893,9 @@ class MainActivity : Activity() {
         pendingAutoplay = autoplay
         prepared = false
         sourceRate = null
+        sourceBits = null
         sourceBitrate = null
         durationMs = 0
-        lastActiveRouteKey = null
         titleView.text = track.title
         titleView.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         titleView.gravity = Gravity.START or Gravity.CENTER_VERTICAL
@@ -2236,12 +2039,12 @@ class MainActivity : Activity() {
             } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
             val parsedRate = rate.toIntOrNull()
             val parsedBitrate = bitrate.toIntOrNull()
-            val infoText = "Title: " + t.title + "\nArtist: " + t.artist + "\nAlbum: " + t.album + "\nDuration: " + fileDuration + " ms\nCodec/MIME: " + trackMime + "\nSource sample rate: " + rate + " Hz\nChannels: " + channels + "\nBitrate: " + bitrate + " bit/s (if reported)\nURI: " + uri
+            val sniffed = Pcm24Transcoder.sniff(this@MainActivity, uri)
             handler.post {
                 if (isFinishing || tracks.getOrNull(currentIndex)?.uri != uri) return@post
                 sourceRate = parsedRate
                 sourceBitrate = parsedBitrate
-                fileInfo.text = infoText
+                sourceBits = sniffed?.bits
                 refreshAudioInfo()
             }
         }
@@ -2498,185 +2301,48 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun refreshAudioInfo() {
-        val devices = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList() } catch (_: Exception) { emptyList() }
-        val isPlayingNow = try { player?.isPlaying == true } catch (_: Exception) { false }
-        val outputTrack = activeAudioTrack
-        val outputTrackPlaying = try { isPlayingNow && outputTrack != null && outputTrack.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try {
-            val routed = if (outputTrackPlaying) outputTrack?.routedDevice else null
-            lastRouteApiError = null
-            routed
-        } catch (e: Exception) {
-            val message = e.javaClass.simpleName + ": " + (e.message ?: "no details")
-            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
-            lastRouteApiError = message
-            null
-        }
-        val legacyHints = buildList {
-            try { if (audioManager.isWiredHeadsetOn) add("isWiredHeadsetOn=true (jack connection hint, not the active route)") } catch (_: Exception) { }
-            try { if (audioManager.isBluetoothA2dpOn) add("isBluetoothA2dpOn=true (Bluetooth A2DP hint, not the active route)") } catch (_: Exception) { }
-            try { if (audioManager.isBluetoothScoOn) add("isBluetoothScoOn=true (Bluetooth SCO hint, not the active route)") } catch (_: Exception) { }
-            try { if (audioManager.isSpeakerphoneOn) add("isSpeakerphoneOn=true (phone speaker flag, not proof of media routing)") } catch (_: Exception) { }
-        }.ifEmpty { listOf("No legacy flags are active; this does not prove that no jack/headphones are connected.") }.joinToString("; ")
-        if (legacyHints != lastLegacyRouteHints) {
-            recordDiagnostic("LEGACY_ROUTE_HINTS " + legacyHints)
-            lastLegacyRouteHints = legacyHints
-        }
-        val connectedWired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
-        val connectedBluetooth = devices.filter { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (Build.VERSION.SDK_INT >= 28 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET) }
-        val connectionSummary = buildString {
-            append("CONNECTED devices according to AudioManager: ")
-            append(if (devices.isEmpty()) "no output devices reported" else devices.joinToString { describe(it) })
-            append("\nIndikasi legacy AudioManager: ").append(legacyHints)
-            append("\nRegistered headphones/jack: ").append(if (connectedWired.isEmpty()) "none" else connectedWired.joinToString { describe(it) })
-            append("\nBluetooth devices listed: ").append(if (connectedBluetooth.isEmpty()) "none" else connectedBluetooth.joinToString { describe(it) })
-            append("\nIMPORTANT: The entries/flags above indicate connections or legacy hints, not the active stream route.")
-        }
-        val route = when {
-            active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
-            player == null -> "No active stream"
-            !isPlayingNow -> "Not playing; active routing is not being measured"
-            outputTrack == null -> "Media3 AudioTrack is not available for inspection"
-            else -> "ROUTE UNCONFIRMED — getRoutedDevice() returned null; this does not prove headphones are disconnected"
-        }
-        val playbackState = when {
-            player == null -> "no player"
-            !prepared -> "player not ready"
-            isPlayingNow -> "memutar"
-            else -> "paused / not playing"
-        }
-        val audioMode = try {
-            when (audioManager.mode) {
-                AudioManager.MODE_NORMAL -> "NORMAL"
-                AudioManager.MODE_RINGTONE -> "RINGTONE"
-                AudioManager.MODE_IN_CALL -> "IN_CALL"
-                AudioManager.MODE_IN_COMMUNICATION -> "IN_COMMUNICATION"
-                else -> "mode=" + audioManager.mode
-            }
-        } catch (_: Exception) { "unavailable" }
-        val sessionId = try { if (outputTrackPlaying) outputTrack?.audioSessionId?.toString() ?: "unavailable" else "inactive" } catch (_: Exception) { "unavailable" }
-        val outputRate = try { if (outputTrackPlaying) outputTrack?.sampleRate else null } catch (_: Exception) { null }
-        val outputEncoding = try { if (outputTrackPlaying) outputTrack?.audioFormat?.let { encodingName(it) } else null } catch (_: Exception) { null }
-        val outputChannels = try { if (outputTrackPlaying) outputTrack?.channelCount else null } catch (_: Exception) { null }
-        val outputBufferSizeFrames = try { if (outputTrackPlaying) outputTrack?.bufferSizeInFrames else null } catch (_: Exception) { null }
-        val outputBufferCapacityFrames = try { if (outputTrackPlaying) outputTrack?.bufferCapacityInFrames else null } catch (_: Exception) { null }
-        // Buffer capacity converted to time; this is not measured end-to-end latency.
-        val outputBufferCapacityMs = if (outputTrackPlaying && outputBufferCapacityFrames != null && outputRate != null && outputRate > 0)
-            outputBufferCapacityFrames * 1000.0 / outputRate else null
-        val outputPerformance = try {
-            if (outputTrackPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) outputTrack?.performanceMode?.let {
-                when (it) { AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> "LOW_LATENCY"; AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> "POWER_SAVING"; else -> "NONE/UNKNOWN" }
-            } else null
-        } catch (_: Exception) { null }
-        val activeCapabilities = if (active == null) "Active device capabilities cannot yet be linked to the actual route." else describeCapabilities(active)
-        val defaultRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE) ?: "Not reported"
-        val buffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER) ?: "Not reported"
-        val systemBufferFrames = buffer.toIntOrNull()
-        val bufferRatio = if (outputTrackPlaying && outputBufferSizeFrames != null && systemBufferFrames != null && systemBufferFrames > 0) outputBufferSizeFrames.toDouble() / systemBufferFrames else null
-        val outputUnderruns = try { if (outputTrackPlaying) outputTrack?.underrunCount else null } catch (_: Exception) { null }
-        if (outputTrackPlaying) {
-            val key = "session=${sessionId};rate=${outputRate};bufferSizeFrames=${outputBufferSizeFrames};bufferCapacityFrames=${outputBufferCapacityFrames};systemFrames=${systemBufferFrames};underruns=${outputUnderruns};mode=${outputPerformance}"
-            if (key != lastBufferDiagnosticKey) {
-                recordDiagnostic("AUDIOTRACK_BUFFER_DIAGNOSTIC $key bufferSizeToSystemBufferRatio=${bufferRatio?.let { String.format(Locale.US, "%.1fx", it) } ?: "unavailable"} note=AudioTrack-bufferSizeInFrames-is-current-track-buffer-setting; bufferCapacityInFrames-is-maximum-track-capacity; PROPERTY_OUTPUT_FRAMES_PER_BUFFER-is-a-system-property-not-a-measurement-of-this-track-buffer; capacity-time-is-not-measured-latency; no-buffer-size-forcing")
-                lastBufferDiagnosticKey = key
-            }
-        }
-        val wired = devices.filter { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES }
-        val wiredText = if (wired.isEmpty()) "Wired jack: not detected" else "Wired jack detected: " + wired.joinToString { describe(it) }
-        val rateNote = when {
-            sourceRate == null -> "Source sample rate has not been read."
-            outputTrackPlaying && outputRate != null && outputRate == sourceRate ->
-                "The source sample rate matches the AudioTrack configuration (${outputRate} Hz). This confirms the track configuration, not the physical DAC sample rate or bit-perfect output."
-            outputTrackPlaying && outputRate != null && outputRate != sourceRate ->
-                "The source sample rate (${sourceRate} Hz) differs from the AudioTrack configuration (${outputRate} Hz); format/rate conversion in the output pipeline should be investigated. This does not reveal what the HAL/DSP/DAC is doing."
-            sourceRate.toString() == defaultRate ->
-                "The source sample rate matches the system default property; this does not prove the stream format or DAC behavior."
-            else ->
-                "The source sample rate differs from the system default property, but the AudioTrack rate is unreadable; this is insufficient to conclude that resampling occurred."
-        }
-        routeSummary.text = route
-        routeInfo.text = "Status: " + (if (isPlayingNow) "PLAYING" else "not playing") +
-            "\nActual active route: " + route + "\n" + wiredText +
-            "\nStatus stream: " + playbackState + "\nAudio session ID: " + sessionId +
-            "\nActive AudioTrack output (track configuration, not a DAC measurement): " +
-                (if (outputTrackPlaying) (outputRate?.toString() ?: "?") + " Hz / " + (outputEncoding ?: "encoding unreadable") +
-                    " / " + (outputChannels?.toString() ?: "?") + " kanal / buffer size " + (outputBufferSizeFrames?.toString() ?: "unavailable") +
-                    " frame / capacity " + (outputBufferCapacityFrames?.toString() ?: "unavailable") + " frame (~" +
-                    (outputBufferCapacityMs?.let { String.format(Locale.US, "%.1f ms capacity", it) } ?: "duration unavailable") +
-                    "; bukan latensi terukur) / mode " + (outputPerformance ?: "unavailable") +
-                    " / underruns " + (outputUnderruns?.toString() ?: "unavailable") +
-                    " / rasio buffer size ke buffer sistem " + (bufferRatio?.let { String.format(Locale.US, "%.1fx", it) } ?: "unavailable")
-                    else "inactive") +
-            "\nAudioManager mode: " + audioMode +
-            "\nRoute API status: " + (when { active != null -> "AudioTrack reports the actual route"; !outputTrackPlaying -> "AudioTrack is not in PLAYING state"; lastRouteApiError != null -> "Route API failed: " + lastRouteApiError; else -> "ROUTE UNCONFIRMED — getRoutedDevice() returned null; Android has not exposed the active route (not proof of disconnection)" }) +
-            "\nNative DIRECT output: " + (if (DirectOutputState.active) "ACTIVE " + DirectOutputState.rate + " Hz, " + DirectOutputState.sourceLabel + ", " + DirectOutputState.route else "not active (" + DirectOutputState.lastEvent + ")") +
-            "\nActive DIRECT output mode: NOT EXPOSED by the public AudioTrack/Media3 inspection used here; capability checks do not identify the mode selected for this stream." +
-            "\nLG Quad DAC backend status: NOT CONFIRMED by the public API (the HAL backend name is not exposed to regular apps)." +
-            "\n" + connectionSummary +
-            "\nSource sample rate: " + (sourceRate?.toString() ?: "Not read yet") + " Hz" +
-            "\nSample rate default Android (properti low-latency/native, bukan pengukuran stream ini): " + defaultRate + " Hz\nBuffer default sistem: " + buffer + " frame" +
-            "\n" + activeCapabilities + "\n\nOutput devices reported by Android (not necessarily active):\n" +
-            (if (devices.isEmpty()) "No devices reported." else devices.joinToString("\n") { "• " + describe(it) }) +
-            "\nLast event: " + lastDeviceEvent + "\n\n" + rateNote +
-            "\n\nAudioTrack shows the format configured for the app stream. The audio HAL/DSP/DAC may still convert it; this is not proof of bit-perfect output or the physical DAC sample rate."
-        if (::audioInfoInline.isInitialized) {
-            val fileDetails = if (::fileInfo.isInitialized) fileInfo.text.toString() else "Choose a track to read file metadata."
-            val track = tracks.getOrNull(currentIndex)
-            val extension = track?.uri?.lastPathSegment?.substringAfterLast('.', "")?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: "AUDIO"
-            val sourceKhz = sourceRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
-            val outputTrack = activeAudioTrack
-            val playingOutput = try { player?.isPlaying == true && outputTrack?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-            val outputRate = try { if (playingOutput) outputTrack?.sampleRate else null } catch (_: Exception) { null }
-            val outputKhz = outputRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
-            val routeLabel = try { if (playingOutput) outputTrack?.routedDevice?.let { deviceType(it.type) } ?: "route not reported" else "inactive" } catch (_: Exception) { "route not reported" }
-            val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
-            // Build 1.60: when the native DIRECT output is active there is no Java AudioTrack to inspect.
-            val directActive = DirectOutputState.active && (try { player?.isPlaying == true } catch (_: Exception) { false })
-            val bitPerfectText = when {
-                directActive -> "● NATIVE DIRECT • 24-bit packed"
-                playingOutput && sourceRate != null && outputRate != null && sourceRate != outputRate -> "● RESAMPLING / NOT BIT-PERFECT"
-                else -> "● BIT-PERFECT NOT CONFIRMED"
-            }
-            val formatLine = if (directActive)
-                "$extension$bitrateLabel • source $sourceKhz kHz → output ${String.format(Locale.US, "%.1f", DirectOutputState.rate / 1000f)} kHz • ${DirectOutputState.sourceLabel}"
-            else "$extension$bitrateLabel • source $sourceKhz kHz → output $outputKhz kHz • $routeLabel"
-            val compact = "$formatLine\n$bitPerfectText"
-            val colored = android.text.SpannableString(compact)
-            val start = compact.indexOf(bitPerfectText)
-            if (start >= 0) {
-                // Android's public APIs cannot confirm bit-perfect delivery; orange means unknown or conversion indicated.
-                colored.setSpan(android.text.style.ForegroundColorSpan(if (directActive) 0xFF5BD98C.toInt() else 0xFFFFA43A.toInt()), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-            audioInfoInline.text = colored
-        }
-    }
 
-    private fun copyText(value: String) {
-        try {
-            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("G6 HiFi Player log", value))
-            Toast.makeText(this, "Log disalin ke clipboard.", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) { Toast.makeText(this, "Unable to copy log: " + e.message, Toast.LENGTH_LONG).show() }
-    }
-    private fun shareText(value: String) {
-        try {
-            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "G6 HiFi Player — log audio"); putExtra(Intent.EXTRA_TEXT, value)
-            }, "Share audio log"))
-        } catch (e: Exception) { Toast.makeText(this, "Unable to open the share menu.", Toast.LENGTH_SHORT).show() }
-    }
-    private fun copyAudioLog() {
-        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Route information is unavailable."
-        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "File information is unavailable."
-        val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
-        copyText("G6 HiFi Player — AUDIO DIAGNOSTICS / SCAN\nTime: ${System.currentTimeMillis()}\nDevice: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nApp version: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nLG CONFIGURATION:\n$lastAudioConfigLog\n\nLATEST EVENTS:\n$events")
-    }
-    private fun shareAudioLog() {
-        val route = if (::routeInfo.isInitialized) routeInfo.text.toString() else "Route information is unavailable."
-        val file = if (::fileInfo.isInitialized) fileInfo.text.toString() else "File information is unavailable."
-        val events = synchronized(diagnosticEvents) { diagnosticEvents.joinToString("\n\n") }
-        shareText("G6 HiFi Player — AUDIO DIAGNOSTICS / SCAN\nTime: ${System.currentTimeMillis()}\nDevice: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})\nApp version: ${appVersionLabel()}\n\nROUTE:\n$route\n\nFILE:\n$file\n\nLG CONFIGURATION:\n$lastAudioConfigLog\n\nLATEST EVENTS:\n$events")
+
+    /**
+     * Build 1.61: the info line under the progress bar. It says what really reaches the native DIRECT output:
+     * the source (rate / bit depth read from the file header) and the PCM that the decoder handed to the output.
+     * BIT-PERFECT is only shown when the output is the DIRECT track, the rate is unchanged and the depth is not reduced.
+     */
+    private fun refreshAudioInfo() {
+        if (!::audioInfoInline.isInitialized) return
+        val track = tracks.getOrNull(currentIndex)
+        val extension = track?.uri?.lastPathSegment?.substringAfterLast('.', "")?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: "AUDIO"
+        val srcRate = sourceRate
+        val srcBits = sourceBits
+        val sourceKhz = srcRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
+        val bitsLabel = srcBits?.let { " / $it-bit" } ?: ""
+        val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
+        val direct = prepared && player != null && DirectOutputState.active
+        val green = 0xFF5BD98C.toInt()
+        val orange = 0xFFFFA43A.toInt()
+        val formatLine: String
+        val verdict: String
+        val color: Int
+        if (!direct) {
+            formatLine = "$extension$bitrateLabel • source $sourceKhz kHz$bitsLabel"
+            verdict = if (Pcm24Transcoder.busyTitle != null) "● DECODING TO 24-BIT…" else "● DIRECT OUTPUT NOT ACTIVE"
+            color = orange
+        } else {
+            val outRate = DirectOutputState.rate
+            val outKhz = String.format(Locale.US, "%.1f", outRate / 1000f)
+            formatLine = "$extension$bitrateLabel • source $sourceKhz kHz$bitsLabel → output $outKhz kHz • ${DirectOutputState.sourceLabel}"
+            when {
+                srcRate != null && srcRate != outRate -> { verdict = "● SAMPLE RATE CHANGED"; color = orange }
+                srcBits != null && DirectOutputState.inputBits < srcBits -> { verdict = "● DEPTH REDUCED TO ${DirectOutputState.inputBits}-BIT"; color = orange }
+                srcBits != null -> { verdict = "● BIT-PERFECT • NATIVE DIRECT • 24-bit packed"; color = green }
+                else -> { verdict = "● NATIVE DIRECT • 24-bit packed (lossy or unknown source)"; color = green }
+            }
+        }
+        val compact = "$formatLine\n$verdict"
+        val colored = android.text.SpannableString(compact)
+        val start = compact.indexOf(verdict)
+        if (start >= 0) colored.setSpan(android.text.style.ForegroundColorSpan(color), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        audioInfoInline.text = colored
     }
 
     private fun createNotificationChannel() {
@@ -2754,13 +2420,13 @@ class MainActivity : Activity() {
         pendingAutoplay = false
         prepared = false
         seeking = false
-        clearActiveAudioTrack()
         try { PlaybackKeepAliveService.stopPlayback(this) } catch (_: Exception) { }
         playerListener?.let { listener -> player?.let { p -> try { p.removeListener(listener) } catch (_: Exception) { } } }
         playerListener = null
         player = null
         currentIndex = -1
         sourceRate = null
+        sourceBits = null
         sourceBitrate = null
         durationMs = 0
         playView.isEnabled = false
@@ -2788,12 +2454,12 @@ class MainActivity : Activity() {
         pendingAutoplay = false
         prepared = false
         seeking = false
-        clearActiveAudioTrack()
         playerListener?.let { listener -> player?.let { p -> try { p.removeListener(listener) } catch (_: Exception) { } } }
         playerListener = null
         player = null
         currentIndex = -1
         sourceRate = null
+        sourceBits = null
         sourceBitrate = null
         durationMs = 0
         if (::playView.isInitialized) {
@@ -2832,136 +2498,8 @@ class MainActivity : Activity() {
         intent.getStringExtra("notification_action")?.let { handleNotificationAction(it) }
     }
 
-    private fun scanAudioConfiguration(showDialog: Boolean = true) {
-        val paths = listOf(
-            "/vendor/etc/audio_output_policy.conf",
-            "/vendor/etc/audio/mixer_paths.xml",
-            "/vendor/etc/audio/mixer_paths_wcd9335.xml",
-            "/vendor/etc/audio/mixer_paths_wcd9340.xml",
-            "/vendor/etc/audio/mixer_paths_msm8996.xml",
-            "/vendor/etc/audio/audio_platform_info.xml",
-            "/vendor/etc/audio/audio_platform_info_extcodec.xml",
-            "/odm/etc/audio_output_policy.conf",
-            "/odm/etc/audio_policy.conf",
-            "/odm/etc/audio_policy_configuration.xml",
-            "/odm/etc/mixer_paths.xml",
-            "/odm/etc/audio_platform_info.xml",
-            "/system/vendor/etc/audio_output_policy.conf",
-            "/system/vendor/etc/audio_policy.conf",
-            "/system/vendor/etc/audio_policy_configuration.xml",
-            "/system/vendor/etc/mixer_paths.xml",
-            "/system/vendor/etc/audio_platform_info.xml",
-            "/system/vendor/etc/audio_platform_info_extcodec.xml",
-            "/vendor/etc/audio_policy.conf",
-            "/vendor/etc/audio_policy_configuration.xml",
-            "/vendor/etc/mixer_paths.xml",
-            "/vendor/etc/mixer_paths_wcd9335.xml",
-            "/vendor/etc/mixer_paths_wcd9340.xml",
-            "/vendor/etc/audio_platform_info.xml",
-            "/vendor/etc/audio_platform_info_extcodec.xml",
-            "/vendor/etc/audio_effects.conf",
-            "/vendor/etc/audio_effects.xml",
-            "/system/etc/audio_policy.conf",
-            "/system/etc/audio_policy_configuration.xml",
-            "/system/etc/audio_effects.conf",
-            "/system/etc/audio_effects.xml"
-        )
-        val keys = listOf("direct_pcm", "direct_hd", "pcm_8_24", "pcm_24", "192000", "176400", "96000",
-            "88200", "flag_dsd", "supports_pcm", "samplingrates", "sampling_rates", "audio_output_flag_direct",
-            "compress_offload", "deep_buffer", "headphone", "headset", "hifi", "quad", "wcd9335", "wcd9340", "SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC", "tert-mi2s-headphones", "SEC_MI2S_RX", "hifi_dac", "mixer_path")
-        val report = StringBuilder()
-        var readable = 0
-        for (path in paths) {
-            val file = File(path)
-            try {
-                if (!file.exists()) {
-                    report.append("\n").append(path).append("\nStatus: not present at this path.\n")
-                    continue
-                }
-                if (!file.isFile || !file.canRead()) {
-                    report.append("\n").append(path).append("\nStatus: present but inaccessible to a regular app.\n")
-                    continue
-                }
-                val matches = file.useLines { lines ->
-                    lines.filter { line -> keys.any { key -> line.lowercase(Locale.ROOT).contains(key) } }
-                        .take(24).toList()
-                }
-                readable++
-                report.append("\n").append(path).append('\n').append("Status: readable.\n")
-                if (matches.isEmpty()) report.append("No lines matched the audio search keywords.\n")
-                else matches.forEach { report.append(it.trim()).append('\n') }
-            } catch (e: Exception) {
-                report.append("\n").append(path).append("\nStatus: failed to read (").append(e.javaClass.simpleName).append(": ").append(e.message ?: "no details").append(").\n")
-            }
-        }
-        report.append("\nDirect playback PCM stereo (system capability, not the active stream):\n")
-        report.append("IMPORTANT: isDirectPlaybackSupported() reports whether a format is supported by the device/API; it does not reveal whether the current Media3 AudioTrack was opened with DIRECT output flags. The active output mode is not exposed by the public inspection APIs used by this app.\n")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
-            for (rate in listOf(44100, 48000, 96000, 192000)) {
-                val supported = try {
-                    val f = AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build()
-                    AudioTrack.isDirectPlaybackSupported(f, attrs)
-                } catch (_: Exception) { false }
-                report.append(rate).append(" Hz / PCM 16-bit: ").append(if (supported) "reported as supported by the API" else "not reported as supported").append('\n')
-            }
-        } else report.append("The direct-playback API is unavailable on this Android version.\n")
-        report.append("\nReadable configuration files: ").append(readable).append(" of ").append(paths.size)
-        report.append("\nConfiguration files indicate capabilities declared by the system; they do not prove Media3 is using DIRECT_HD/direct_pcm_24 or that the DAC receives a specific sample rate.")
-        report.append("\nBUFFER DATA PROVENANCE: bufferSizeInFrames and bufferCapacityInFrames come from the active AudioTrack object; PROPERTY_OUTPUT_FRAMES_PER_BUFFER is a separate AudioManager system property. These values are not interchangeable, and capacity-derived time is not measured end-to-end latency.")
-        report.append("\n\nLG G6-SPECIFIC INTERPRETATION: SND_DEVICE_LGE_OUT_HEADPHONES_HIFI_DAC together with the headphones backend tert-mi2s-headphones and SEC_MI2S_RX indicates a possible Quad DAC path configuration. Configuration files only show that a path is defined, not that the current stream is using it.")
-        report.append("\nLG QUAD DAC BACKEND STATUS: not confirmed through the public API. Wired-device preference only asks AudioPolicy to select the 3.5 mm jack; it does not force AUDIO_OUTPUT_FLAG_DIRECT or prove the HAL/DAC backend.")
-        report.append("\n\nTo inspect the backend while playing through the 3.5 mm jack, run these commands from a computer with USB debugging enabled:")
-        report.append("\nadb shell dumpsys media.audio_flinger")
-        report.append("\nadb shell dumpsys media.audio_policy")
-        report.append("\nSend both outputs with the app log. If system output does not include a relevant backend or output thread name, physical DAC verification may require vendor/root access; do not infer DAC activity from the AudioTrack rate alone.")
-        lastAudioConfigLog = report.toString()
-        if (showDialog) {
-            AlertDialog.Builder(this).setTitle("LG audio scan results").setMessage(lastAudioConfigLog)
-                .setNeutralButton("COPY LOG") { _, _ -> copyText(lastAudioConfigLog) }
-                .setNegativeButton("SHARE LOG") { _, _ -> shareText(lastAudioConfigLog) }
-                .setPositiveButton("CLOSE", null).show()
-        }
-    }
 
-    private fun collectAndShareDiagnostics() {
-        refreshAudioInfo()
-        scanAudioConfiguration(showDialog = false)
-        shareAudioLog()
-    }
 
-    private fun updateActiveRoute() {
-        val track = activeAudioTrack
-        val playing = try { player?.isPlaying == true && track?.playState == AudioTrack.PLAYSTATE_PLAYING } catch (_: Exception) { false }
-        val active = try { val routed = if (playing) track?.routedDevice else null; lastRouteApiError = null; routed } catch (e: Exception) {
-            val message = e.javaClass.simpleName + ": " + (e.message ?: "no details")
-            if (lastRouteApiError != message) recordDiagnostic("AUDIOTRACK_ROUTED_DEVICE_QUERY_FAILED " + message, e)
-            lastRouteApiError = message
-            null
-        }
-        val routeKey = when {
-            player == null -> "no-player"
-            !playing -> "not-playing"
-            active != null -> "${active.id}:${active.type}:${deviceName(active)}"
-            else -> "audio-track-route-unreported"
-        }
-        if (routeKey != lastActiveRouteKey) {
-            val previous = lastActiveRouteKey
-            lastActiveRouteKey = routeKey
-            val label = when {
-                player == null -> "No active stream"
-                !playing -> "Not playing"
-                active != null -> deviceName(active) + " • " + deviceType(active.type) + " (type=" + active.type + ", id=" + active.id + ")"
-                else -> "AudioTrack is active; the routed device has not been reported"
-            }
-            if (::routeSummary.isInitialized) routeSummary.text = label
-            if (previous != null && previous != routeKey) {
-                lastDeviceEvent = "AudioTrack route: " + label
-                recordDiagnostic("OUTPUT_ROUTE_CHANGED previous=" + previous + " current=" + routeKey + " routedDevice=" + (active?.let { describe(it) } ?: "null") + " playing=" + playing)
-            }
-            if (::routeInfo.isInitialized) refreshAudioInfo()
-        }
-    }
     private fun show(which: String) {
         if (which == "queue") {
             show("player")
@@ -3140,20 +2678,6 @@ class MainActivity : Activity() {
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun describe(d: AudioDeviceInfo) = deviceName(d) + " (" + deviceType(d.type) + ", type=" + d.type + ", id=" + d.id + ")"
-    private fun describeCapabilities(d: AudioDeviceInfo): String {
-        val rates = try { d.sampleRates.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "not reported" } catch (_: Exception) { "unavailable" }
-        val channels = try { d.channelCounts.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "not reported" } catch (_: Exception) { "unavailable" }
-        val encodings = try { d.encodings.takeIf { it.isNotEmpty() }?.joinToString(", ") { encodingName(it) } ?: "not reported" } catch (_: Exception) { "unavailable" }
-        return "Capabilities reported for the active device (not proof of the active stream format):\nSample rates: " + rates + " Hz\nChannel count: " + channels + "\nEncoding: " + encodings
-    }
-    private fun encodingName(encoding: Int) = when (encoding) {
-        AudioFormat.ENCODING_PCM_8BIT -> "PCM 8-bit"
-        AudioFormat.ENCODING_PCM_16BIT -> "PCM 16-bit"
-        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "PCM 24-bit packed"
-        AudioFormat.ENCODING_PCM_32BIT -> "PCM 32-bit"
-        AudioFormat.ENCODING_PCM_FLOAT -> "PCM float"
-        else -> "encoding=" + encoding
-    }
     private fun deviceName(d: AudioDeviceInfo) = d.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Audio device"
     private fun deviceType(type: Int) = when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
@@ -3231,7 +2755,7 @@ class MainActivity : Activity() {
         handler.removeCallbacks(ticker)
 
         // Removing the task can destroy the Activity while the foreground playback session
-        // must continue. Keep the live owner, AudioTrack routing callback, MediaSession and
+        // must continue. Keep the live owner, MediaSession and
         // player intact until explicit Close or a task removal while playback is inactive.
         playerListener?.let { listener -> player?.let { p -> try { p.removeListener(listener) } catch (_: Exception) { } } }
         playerListener = null
@@ -3239,8 +2763,7 @@ class MainActivity : Activity() {
         if (keepPlaybackAlive) {
             try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
             handler.removeCallbacks(wiredDisconnectCheck)
-            clearActiveAudioTrack()
-            if (activeInstance === this) activeInstance = null
+                if (activeInstance === this) activeInstance = null
             mediaSession = null
             recordDiagnostic("ACTIVITY_DESTROYED playback=retained serviceOwnsPlayer=true mediaSession=service-owned")
             super.onDestroy()
@@ -3250,7 +2773,6 @@ class MainActivity : Activity() {
         try { audioManager.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) { }
         handler.removeCallbacks(wiredDisconnectCheck)
         notificationWidgetExecutor.shutdown()
-        clearActiveAudioTrack()
         // PlaybackKeepAliveService owns the ExoPlayer; Activity teardown never releases it.
         // The service, not this Activity, owns the MediaSession and foreground notification.
         mediaSession = null
@@ -3259,17 +2781,11 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
     companion object {
-        private const val REQUEST_AUDIO = 1001
         private const val CHANNEL_ID = "g6_hifi_playback"
         private const val NOTIFICATION_ID = 6106
         private const val KEY_LAST_TRACK_URI = "last_playback_track_uri"
         private const val KEY_LAST_POSITION_MS = "last_playback_position_ms"
         private var activeInstance: MainActivity? = null
-
-        @JvmStatic
-        internal fun onServiceAudioTrackCreated(track: AudioTrack) {
-            activeInstance?.attachActiveAudioTrack(track)
-        }
 
         /**
          * Returns true when a Recent Apps dismissal must not tear down an active playback

@@ -11,11 +11,11 @@ import java.nio.ByteBuffer
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
- * Build 1.60: Media3 AudioOutput that writes to the native DIRECT track (UAPP method).
+ * Build 1.60/1.61: Media3 AudioOutput that writes to the native DIRECT track (UAPP method).
  *
  * The native track is always 24-bit packed stereo at the source sample rate, flags = DIRECT. Input PCM from the sink is
  * converted without any gain or dither: 24-bit is copied byte for byte, 16-bit is padded with a zero low byte (same value,
- * lossless), 32-bit int keeps its top 24 bits, float is scaled by 2^23 and rounded (exact for 24-bit sources).
+ * lossless), 32-bit int keeps its top 24 bits. Float is not accepted (see DirectAudioOutputProvider).
  * Volume is left to the hardware/stream volume; setVolume() is ignored on purpose.
  */
 @UnstableApi
@@ -192,18 +192,7 @@ internal class DirectAudioOutput private constructor(
                         out[o + 1] = buffer.get(s + 2)
                         out[o + 2] = buffer.get(s + 3)
                     }
-                    else -> { // C.ENCODING_PCM_FLOAT
-                        val bits = (buffer.get(s).toInt() and 0xFF) or
-                            ((buffer.get(s + 1).toInt() and 0xFF) shl 8) or
-                            ((buffer.get(s + 2).toInt() and 0xFF) shl 16) or
-                            ((buffer.get(s + 3).toInt() and 0xFF) shl 24)
-                        var v = Math.round(java.lang.Float.intBitsToFloat(bits) * 8388608f)
-                        if (v > 8388607) v = 8388607
-                        if (v < -8388608) v = -8388608
-                        out[o] = v.toByte()
-                        out[o + 1] = (v shr 8).toByte()
-                        out[o + 2] = (v shr 16).toByte()
-                    }
+                    else -> error("unsupported PCM encoding $inEncoding")
                 }
                 o += 3
             }
@@ -223,7 +212,7 @@ internal class DirectAudioOutput private constructor(
         fun bytesPerSample(encoding: Int): Int = when (encoding) {
             C.ENCODING_PCM_16BIT -> 2
             C.ENCODING_PCM_24BIT -> 3
-            C.ENCODING_PCM_32BIT, C.ENCODING_PCM_FLOAT -> 4
+            C.ENCODING_PCM_32BIT -> 4
             else -> 0
         }
 
@@ -234,11 +223,10 @@ internal class DirectAudioOutput private constructor(
             C.ENCODING_PCM_16BIT -> "PCM 16-bit padded to 24-bit"
             C.ENCODING_PCM_24BIT -> "PCM 24-bit"
             C.ENCODING_PCM_32BIT -> "PCM 32-bit (top 24 bits)"
-            C.ENCODING_PCM_FLOAT -> "PCM float (to 24-bit)"
             else -> "encoding $encoding"
         }
 
-        /** Opens the native DIRECT track for this configuration, or returns null (the caller then uses the normal AudioTrack). */
+        /** Opens the native DIRECT track for this configuration, or returns null (the provider then reports an error; there is no other output). */
         fun create(config: AudioOutputProvider.OutputConfig): DirectAudioOutput? {
             val channels = if (config.channelMask == android.media.AudioFormat.CHANNEL_OUT_MONO) 1 else 2
             if (config.isTunneling || config.isOffload) return null
@@ -247,7 +235,13 @@ internal class DirectAudioOutput private constructor(
                 DirectOutputState.log("native DIRECT unavailable: ${NativeDirectStream.loadError}")
                 return null
             }
-            val handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
+            // The previous track's DIRECT output may still be closing; the policy allows one DIRECT track at a time.
+            var handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
+            var attempts = 0
+            while (handle == 0L && attempts++ < 15) {
+                try { Thread.sleep(100) } catch (_: InterruptedException) { break }
+                handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
+            }
             if (handle == 0L) {
                 DirectOutputState.log("native DIRECT open failed (${config.sampleRate} Hz): ${NativeDirectStream.lastLog()}")
                 return null
@@ -256,6 +250,7 @@ internal class DirectAudioOutput private constructor(
             val session = NativeDirectStream.session(handle)
             DirectOutputState.rate = config.sampleRate
             DirectOutputState.sourceLabel = describeInput(config.encoding)
+            DirectOutputState.inputBits = bytesPerSample(config.encoding) * 8
             DirectOutputState.active = true
             DirectOutputState.route = NativeDirectStream.routeInfo(handle)
             DirectOutputState.log("opened ${config.sampleRate} Hz ${channels}ch from ${describeInput(config.encoding)} -> 24-bit packed DIRECT, buffer $bufferFrames frames, route: ${DirectOutputState.route}")

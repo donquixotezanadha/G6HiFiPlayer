@@ -1,9 +1,7 @@
 package id.g6hifiplayer
 
-import android.content.Context
-
 /**
- * Build 1.60: thin wrapper around the native DIRECT AudioTrack (libg6direct.so, g6direct.cpp).
+ * Build 1.60/1.61: thin wrapper around the native DIRECT AudioTrack (libg6direct.so, g6direct.cpp).
  * Same method as UAPP: dlopen(NULL) + dlsym of android::AudioTrack, flags = DIRECT, format = 24-bit packed.
  */
 internal object NativeDirectStream {
@@ -43,27 +41,12 @@ internal object NativeDirectStream {
     external fun close(handle: Long)
 }
 
-/** The Setting switch for the native DIRECT output (default ON; the player falls back to the normal AudioTrack on any failure). */
-internal object DirectOutputSettings {
-    private const val PREFS = "g6_output"
-    private const val KEY = "native_direct"
-
-    fun isEnabled(context: Context): Boolean = try {
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY, true)
-    } catch (_: Exception) { true }
-
-    fun setEnabled(context: Context, enabled: Boolean) {
-        try {
-            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY, enabled).apply()
-        } catch (_: Exception) { }
-    }
-}
-
 /** What the native output is doing right now, for the Now Playing info line and the diagnostics text. */
 internal object DirectOutputState {
     @Volatile var active: Boolean = false
     @Volatile var rate: Int = 0
     @Volatile var sourceLabel: String = ""   // e.g. "PCM 16-bit padded to 24-bit"
+    @Volatile var inputBits: Int = 0         // bit depth of the PCM that reaches the output (16, 24 or 32)
     @Volatile var route: String = ""         // AudioOut_xx rate flags session
     @Volatile var lastEvent: String = "Native DIRECT output has not been used yet."
 

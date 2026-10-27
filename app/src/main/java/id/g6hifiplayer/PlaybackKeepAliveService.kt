@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.AudioTrack
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -21,8 +20,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 
 /** Service owns ExoPlayer lifetime, transport commands, MediaSession and fallback notification. */
@@ -289,10 +288,8 @@ class PlaybackKeepAliveService : Service() {
         @Volatile private var sharedPlayer: ExoPlayer? = null
         @Volatile private var serviceInstance: PlaybackKeepAliveService? = null
         @Volatile private var mediaSession: MediaSession? = null
-        @Volatile private var audioTrackCallback: ((AudioTrack) -> Unit)? = null
         @Volatile private var playbackStoppedCallback: (() -> Unit)? = null
 
-        fun setAudioTrackCallback(callback: ((AudioTrack) -> Unit)?) { audioTrackCallback = callback }
         fun setPlaybackStoppedCallback(callback: (() -> Unit)?) { playbackStoppedCallback = callback }
 
         fun existingPlayer(): ExoPlayer? = sharedPlayer
@@ -361,23 +358,23 @@ class PlaybackKeepAliveService : Service() {
                         enableFloatOutput: Boolean,
                         enableAudioOutputPlaybackParams: Boolean
                     ): AudioSink {
-                        val base = AudioTrackAudioOutputProvider.Builder(context).build()
-                        val tracking = TrackingAudioOutputProvider(base) { track ->
-                            audioTrackCallback?.invoke(track)
-                        }
-                        // Build 1.60: eligible PCM goes to the native DIRECT output; anything else (or any failure) uses `tracking`.
-                        val direct = DirectAudioOutputProvider(tracking) { DirectOutputSettings.isEnabled(appContext) }
+                        // Build 1.61: the native DIRECT output is the only output; there is no fallback and no playback-speed processing.
                         return DefaultAudioSink.Builder(context)
-                            .setEnableFloatOutput(enableFloatOutput)
-                            .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
-                            .setAudioOutputProvider(direct)
+                            .setEnableFloatOutput(false)
+                            .setEnableAudioOutputPlaybackParameters(false)
+                            .setAudioOutputProvider(DirectAudioOutputProvider())
                             .build()
                     }
                 }
                 renderersFactory.setEnableAudioFloatOutput(false)
-                val player = ExoPlayer.Builder(appContext, renderersFactory).build().apply {
-                    setHandleAudioBecomingNoisy(true)
-                }
+                // Hi-res FLAC is served as a 24-bit WAV (see Pcm24DataSource) so the real bit depth reaches the output.
+                val player = ExoPlayer.Builder(appContext, renderersFactory)
+                    .setMediaSourceFactory(DefaultMediaSourceFactory(Pcm24DataSource.Factory(appContext)))
+                    .build().apply {
+                        setHandleAudioBecomingNoisy(true)
+                        volume = 1.0f
+                    }
+                ExclusiveAudioFocus.attach(appContext, player)
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player
@@ -387,6 +384,7 @@ class PlaybackKeepAliveService : Service() {
         private fun releasePlayer() {
             synchronized(playerLock) {
                 try { sharedPlayer?.release() } catch (e: Exception) { android.util.Log.w(TAG, "Player release failed", e) }
+                ExclusiveAudioFocus.release()
                 sharedPlayer = null
             }
         }

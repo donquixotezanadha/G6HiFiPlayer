@@ -1,72 +1,71 @@
 package id.g6hifiplayer
 
 import android.media.AudioFormat
-import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioOutput
 import androidx.media3.exoplayer.audio.AudioOutputProvider
-import androidx.media3.exoplayer.audio.ForwardingAudioOutputProvider
 
 /**
- * Build 1.60: routes eligible PCM (mono/stereo 16/24/32-bit int or float, 8-192 kHz) to the native DIRECT output
- * ([DirectAudioOutput]). Everything else, and any failure to open the native track, goes to the delegate
- * (the normal Media3 AudioTrack output), so playback never breaks because of this experiment.
+ * Build 1.61: the only audio output of the player. Integer PCM (16/24/32-bit, mono or stereo, 8-192 kHz) goes to the
+ * native DIRECT track ([DirectAudioOutput]); anything else is refused and playback reports an error. There is no
+ * fallback to the normal Android AudioTrack (that path goes through the 48 kHz mixer), and float PCM is refused on
+ * purpose: it also keeps Media3 from asking the decoder for float output.
  */
 @UnstableApi
-internal class DirectAudioOutputProvider(
-    delegate: AudioOutputProvider,
-    private val enabled: () -> Boolean
-) : ForwardingAudioOutputProvider(delegate) {
+internal class DirectAudioOutputProvider : AudioOutputProvider {
 
-    private fun wantsDirect(formatConfig: AudioOutputProvider.FormatConfig): Boolean {
+    private fun eligible(formatConfig: AudioOutputProvider.FormatConfig): Boolean {
         val f = formatConfig.format
-        if (!enabled()) return false
         if (formatConfig.enableTunneling || formatConfig.enableOffload) return false
         if (f.sampleMimeType != MimeTypes.AUDIO_RAW) return false
         if (f.sampleRate <= 0 || f.channelCount <= 0) return false
-        if (!DirectAudioOutput.isEligible(f.pcmEncoding, f.sampleRate, f.channelCount)) return false
-        return NativeDirectStream.ensureLoaded()
+        return DirectAudioOutput.isEligible(f.pcmEncoding, f.sampleRate, f.channelCount) && NativeDirectStream.ensureLoaded()
     }
 
-    override fun getFormatSupport(formatConfig: AudioOutputProvider.FormatConfig): AudioOutputProvider.FormatSupport {
-        if (wantsDirect(formatConfig)) {
-            return super.getFormatSupport(formatConfig).buildUpon()
-                .setFormatSupportLevel(AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY)
-                .build()
-        }
-        return super.getFormatSupport(formatConfig)
-    }
+    override fun getFormatSupport(formatConfig: AudioOutputProvider.FormatConfig): AudioOutputProvider.FormatSupport =
+        AudioOutputProvider.FormatSupport.UNSUPPORTED.buildUpon()
+            .setFormatSupportLevel(if (eligible(formatConfig)) AudioOutputProvider.FORMAT_SUPPORTED_DIRECTLY else AudioOutputProvider.FORMAT_UNSUPPORTED)
+            .build()
 
+    @Throws(AudioOutputProvider.ConfigurationException::class)
     override fun getOutputConfig(formatConfig: AudioOutputProvider.FormatConfig): AudioOutputProvider.OutputConfig {
-        if (wantsDirect(formatConfig)) {
+        if (!eligible(formatConfig)) {
             val f = formatConfig.format
-            val mask = if (f.channelCount == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
-            val frameBytes = f.channelCount * DirectAudioOutput.bytesPerSample(f.pcmEncoding)
-            return AudioOutputProvider.OutputConfig.Builder()
-                .setEncoding(f.pcmEncoding)
-                .setSampleRate(f.sampleRate)
-                .setChannelMask(mask)
-                .setIsTunneling(false)
-                .setIsOffload(false)
-                .setBufferSize(f.sampleRate * frameBytes * 2 / 5)
-                .setAudioAttributes(formatConfig.audioAttributes)
-                .setAudioSessionId(formatConfig.audioSessionId)
-                .setUsePlaybackParameters(false)
-                .build()
+            throw AudioOutputProvider.ConfigurationException("not playable on the DIRECT output: ${f.sampleMimeType} pcmEncoding=${f.pcmEncoding} ${f.sampleRate} Hz ${f.channelCount} ch")
         }
-        return super.getOutputConfig(formatConfig)
+        val f = formatConfig.format
+        val mask = if (f.channelCount == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
+        val frameBytes = f.channelCount * DirectAudioOutput.bytesPerSample(f.pcmEncoding)
+        return AudioOutputProvider.OutputConfig.Builder()
+            .setEncoding(f.pcmEncoding)
+            .setSampleRate(f.sampleRate)
+            .setChannelMask(mask)
+            .setIsTunneling(false)
+            .setIsOffload(false)
+            .setBufferSize(f.sampleRate * frameBytes * 2 / 5)
+            .setAudioAttributes(formatConfig.audioAttributes)
+            .setAudioSessionId(formatConfig.audioSessionId)
+            .setUsePlaybackParameters(false)
+            .build()
     }
 
+    @Throws(AudioOutputProvider.InitializationException::class)
     override fun getAudioOutput(config: AudioOutputProvider.OutputConfig): AudioOutput {
-        if (enabled()) {
-            try {
-                DirectAudioOutput.create(config)?.let { return it }
-            } catch (t: Throwable) {
-                DirectOutputState.log("native DIRECT failed, using the normal AudioTrack: ${t.javaClass.simpleName}: ${t.message}")
-            }
+        val output = try {
+            DirectAudioOutput.create(config)
+        } catch (t: Throwable) {
+            DirectOutputState.log("native DIRECT output failed: ${t.javaClass.simpleName}: ${t.message}")
+            throw AudioOutputProvider.InitializationException(t)
         }
-        DirectOutputState.active = false
-        return super.getAudioOutput(config)
+        if (output == null) {
+            DirectOutputState.active = false
+            throw AudioOutputProvider.InitializationException()
+        }
+        return output
     }
+
+    override fun addListener(listener: AudioOutputProvider.Listener) { }
+    override fun removeListener(listener: AudioOutputProvider.Listener) { }
+    override fun release() { }
 }
