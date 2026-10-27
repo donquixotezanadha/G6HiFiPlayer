@@ -1246,7 +1246,6 @@ class MainActivity : Activity() {
             scanMusicFolder(uri); show("library"); return
         }
     }
-    }
 
 
     private fun recordDiagnostic(event: String, error: Throwable? = null) {
