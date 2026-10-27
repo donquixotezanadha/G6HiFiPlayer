@@ -24,22 +24,24 @@ jobs:
           curl -fsSL -o exo.aar https://dl.google.com/dl/android/maven2/androidx/media3/media3-exoplayer/1.10.1/media3-exoplayer-1.10.1.aar
           unzip -q exo.aar classes.jar -d exo
           {
-            for c in AudioOutput 'AudioOutput$PositionSupplier' AudioOutputProvider 'AudioOutputProvider$OutputConfig' 'AudioOutputProvider$FormatConfig' 'AudioOutputProvider$Listener' ForwardingAudioOutputProvider ForwardingAudioOutput AudioTrackAudioOutput AudioTrackAudioOutputProvider 'AudioTrackAudioOutputProvider$Builder'; do
+            for c in 'AudioOutputProvider$FormatSupport' 'AudioOutputProvider$OutputConfig$Builder' 'AudioOutputProvider$FormatConfig$Builder' 'AudioOutputProvider$ConfigurationException' 'AudioOutputProvider$InitializationException' 'AudioOutput$WriteException' 'AudioOutput$Listener' 'AudioSink$AudioTrackConfig'; do
               echo "=================== $c"
               javap -p -cp exo/classes.jar "androidx.media3.exoplayer.audio.$c" || true
             done
-            echo "=================== DefaultAudioSink (public/protected API)"
-            javap -cp exo/classes.jar 'androidx.media3.exoplayer.audio.DefaultAudioSink$Builder' || true
-          } > ../media3_audio_api.txt 2>&1
-          wc -l ../media3_audio_api.txt
+            echo "=================== BYTECODE AudioTrackAudioOutputProvider"
+            javap -p -c -cp exo/classes.jar 'androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider' || true
+            echo "=================== BYTECODE AudioTrackAudioOutput (getPositionUs/isStalled/write/getBufferSizeInFrames)"
+            javap -p -c -cp exo/classes.jar 'androidx.media3.exoplayer.audio.AudioTrackAudioOutput' || true
+          } > ../media3_audio_api2.txt 2>&1
+          wc -l ../media3_audio_api2.txt
       - name: Publish result to branch ci-logs
         run: |
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
-          mkdir -p /tmp/out && cp media3_audio_api.txt /tmp/out/
+          mkdir -p /tmp/out && cp media3_audio_api2.txt /tmp/out/
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add media3_audio_api.txt
+          git add media3_audio_api2.txt
           git commit -m "media3 audio api dump"
           git push -f origin ci-logs
