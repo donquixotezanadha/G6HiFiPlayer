@@ -50,12 +50,12 @@ class EngineLabActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         content.addView(TextView(this).apply {
-            text = "G6 Engine Lab · Build 1.58"
+            text = "G6 Engine Lab · Build 1.59"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
         })
         content.addView(TextView(this).apply {
-            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.58 opens 24-bit packed output (UAPP format) through native OpenSL ES, with the 1.37 reflection paths as fallback."
+            text = "Standalone PCM pipeline test. First prove audible playback; no bit-perfect claim; Build 1.59 opens 24-bit packed output (UAPP format) through native OpenSL ES, with the 1.37 reflection paths as fallback."
             textSize = 15f
             setPadding(0, dp(10), 0, dp(18))
         })
@@ -121,7 +121,7 @@ class EngineLabActivity : Activity() {
         }, matchWrap())
 
         content.addView(TextView(this).apply {
-            text = "Native DIRECT test (Build 1.58): one test at a time, each plays a quiet 1 kHz tone for 60 s. Plug the headphones into the jack first. Press 4B ALONE, wait for the line NATIVE_PLAY_ROUTE in the diagnostics, then in the computer run: adb shell dumpsys media.audio_flinger > af_4b.txt  (do it while the tone is playing). Afterwards do the same for 4C with af_4c.txt. Press Stop to end a test early."
+            text = "Native DIRECT test (Build 1.59): plug the headphones into the jack first. Button 5 runs 8 variants one after another (44.1 / 48 / 88.2 / 96 / 176.4 / 192 kHz at 24-bit, plus 16-bit), 6 s of quiet 1 kHz tone each, about 80 s in total, and writes one NATIVE_PLAY_ROUTE line per variant. No adb needed: when it says NATIVE_MATRIX finished, press COPY DIAGNOSTICS AS TEXT and send the text. 4B and 4C below are the old single tests (60 s, for adb dumps). Press 4D to stop anything."
             textSize = 13f
             setPadding(0, dp(14), 0, dp(6))
         })
@@ -155,8 +155,16 @@ class EngineLabActivity : Activity() {
         content.addView(Button(this).apply {
             text = "4D · Stop native test"
             setOnClickListener {
-                NativeDirect.stop()
+                NativeDirect.stopAll()
                 recordDiagnostic("NATIVE_STOP_REQUEST")
+            }
+        }, matchWrap())
+        content.addView(Button(this).apply {
+            text = "5 · Native DIRECT matrix (auto, about 80 s)"
+            setOnClickListener {
+                if (!SlesPacked24.ensureLoaded { recordDiagnostic(it) }) return@setOnClickListener
+                pcmPlayer.stop()
+                NativeDirect.runMatrix { recordDiagnostic(it) }
             }
         }, matchWrap())
 
@@ -180,13 +188,13 @@ class EngineLabActivity : Activity() {
             setOnClickListener {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.58 diagnostics")
+                    putExtra(Intent.EXTRA_SUBJECT, "G6 Engine Lab Build 1.59 diagnostics")
                     putExtra(Intent.EXTRA_TEXT, diagnosticsText())
                 }
                 startActivity(Intent.createChooser(send, "Share diagnostic text"))
             }
         }, matchWrap())
-        recordDiagnostic("APP_START build=1.58 androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
+        recordDiagnostic("APP_START build=1.59androidSdk=${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         recordDiagnostic("OUTPUT_MODE_DEFAULT pcmBits=16")
         setContentView(root)
     }
@@ -252,7 +260,7 @@ class EngineLabActivity : Activity() {
         if (outputBits == 16) "Output mode: PCM16 (tap to switch to PCM24)" else "Output mode: PCM24-preserving (tap to switch to PCM16)"
 
     private fun diagnosticsText(): String = synchronized(diagnosticLog) {
-        "G6 Engine Lab Build 1.58 diagnostics\n" + diagnosticLog.toString()
+        "G6 Engine Lab Build 1.59 diagnostics\n" + diagnosticLog.toString()
     }
 
     override fun onDestroy() {
