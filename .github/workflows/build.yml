@@ -2,32 +2,45 @@ name: Build G6HiFiPlayer APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ main, master ]
+    branches: ["main", "master"]
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
 
-      - name: Build Debug APK with Gradle
-        run: ./gradlew assembleDebug
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Upload APK Artifact
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        run: gradle clean assembleDebug --stacktrace
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build106-Debug
+          name: G6HiFiPlayer-Build57-v0.57.0-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
