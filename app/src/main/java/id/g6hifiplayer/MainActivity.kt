@@ -505,7 +505,7 @@ class MainActivity : Activity() {
         val topInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Build 2.0: a smaller cover (about 62% of the screen width); title and controls sit directly under it.
         // sizeDarkArt() shrinks it further if the screen is short.
-        val boxSide = (displayMetrics.widthPixels * 0.62f).toInt().coerceAtLeast(dp(160))
+        val boxSide = (displayMetrics.widthPixels * ART_WIDTH_FRACTION).toInt().coerceAtLeast(dp(160))
         artBox = FrameLayout(this).apply {
             visibility = View.VISIBLE
             background = shape(0xFF181820.toInt(), 6)
@@ -653,9 +653,11 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(0, topInset, 0, 0)
         }
-        stack.addView(artBox, LinearLayout.LayoutParams(boxSide, boxSide).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(16) })
+        // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
+        stack.setPadding(0, topInset, 0, dp(20))
+        stack.addView(artBox, LinearLayout.LayoutParams(boxSide, boxSide).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(ART_GAP_DP) })
         stack.addView(bottomDock, LinearLayout.LayoutParams(-1, -2))
-        playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
+        playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         // Build 1.55: Classic cover box = the largest square between the status bar and the controls, centred in that gap.
         playerPanel.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ -> sizeDarkArt(bottom - top, topInset) }
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
@@ -669,8 +671,8 @@ class MainActivity : Activity() {
         if (!::artBox.isInitialized || !::playerBottomDock.isInitialized) return
         val dockHeight = playerBottomDock.height
         if (dockHeight <= 0 || panelHeight <= 0) return
-        val space = panelHeight - dockHeight - topInset - dp(16) - dp(24)
-        val side = minOf((resources.displayMetrics.widthPixels * 0.62f).toInt(), space).coerceAtLeast(dp(120))
+        val space = panelHeight - dockHeight - topInset - dp(ART_GAP_DP) - dp(20) - dp(12)
+        val side = minOf((resources.displayMetrics.widthPixels * ART_WIDTH_FRACTION).toInt(), space).coerceAtLeast(dp(120))
         val lp = artBox.layoutParams as? LinearLayout.LayoutParams ?: return
         if (lp.width != side || lp.height != side) {
             lp.width = side; lp.height = side
@@ -2686,8 +2688,9 @@ class MainActivity : Activity() {
     /** Build 2.0: in Setting only the button areas keep the dark rounded rectangle; descriptions sit on the plain page. */
     private fun buttonArea(horizontal: Boolean = true) = LinearLayout(this).apply {
         orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-        setPadding(dp(8), dp(8), dp(8), dp(8))
-        themed { background = shape(CARD, 16) }
+        // Build 2.1: no dark rectangle behind the buttons either; the buttons sit directly on the page.
+        setPadding(0, 0, 0, 0)
+        setBackgroundColor(Color.TRANSPARENT)
     }
     private fun text(value: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply {
         text = value; textSize = size; setTextColor(color)
@@ -2851,6 +2854,9 @@ class MainActivity : Activity() {
         /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
         private const val LIBRARY_CACHE_VERSION = 145
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
+        // Build 2.1: cover = 80% of the screen width; gap between cover and title.
+        private const val ART_WIDTH_FRACTION = 0.80f
+        private const val ART_GAP_DP = 28
         /** Classic theme page colour (the original black). */
         private const val DARK_SURFACE = 0xFF000000.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
