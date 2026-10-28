@@ -43,7 +43,9 @@ jobs:
 
       - name: Accept Android SDK licenses
         shell: bash
-        run: yes | sdkmanager --licenses
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses
 
       - name: Install Android platform and build tools
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
