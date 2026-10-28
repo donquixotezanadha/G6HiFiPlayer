@@ -47,6 +47,7 @@ import android.view.animation.DecelerateInterpolator
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -509,9 +510,9 @@ class MainActivity : Activity() {
         // Build 1.45: Classic theme shows the cover as a square box above the track details.
         val displayMetrics = resources.displayMetrics
         val topInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        // Build 2.0: a smaller cover (about 62% of the screen width); title and controls sit directly under it.
-        // sizeDarkArt() shrinks it further if the screen is short.
-        val boxSide = (displayMetrics.widthPixels * ART_WIDTH_FRACTION).toInt().coerceAtLeast(dp(160))
+        // Build 2.3: the cover is exactly as wide as the progress bar (screen width minus the 18dp side padding of the bar).
+        // sizeDarkArt() shrinks it only if the screen is too short for it.
+        val boxSide = (displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)).coerceAtLeast(dp(160))
         artBox = FrameLayout(this).apply {
             visibility = View.VISIBLE
             background = shape(0xFF181820.toInt(), 6)
@@ -624,7 +625,7 @@ class MainActivity : Activity() {
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(10), 0, dp(8))
+            setPadding(0, dp(10), 0, dp(4))
         }
         playerBottomDock = bottomDock
         // Build 1.66: measured positions of the control dock, so Classic and Adaptive can be compared from the diagnostics.
@@ -634,6 +635,8 @@ class MainActivity : Activity() {
                 lastDockLog = top
                 val loc = IntArray(2); v.getLocationOnScreen(loc)
                 val seekLoc = IntArray(2); seek.getLocationOnScreen(seekLoc)
+                // Build 2.3: the dock height decides how much room the cover has; re-centre the cover when it changes.
+                playerPanel.post { sizeDarkArt(playerPanel.height, topInset) }
                 recordDiagnostic("DOCK_LAYOUT theme=dark" +
                     " dockTopOnScreen=" + loc[1] + " dockHeight=" + (bottom - top) + " seekTopOnScreen=" + seekLoc[1] +
                     " panelMinHeight=" + playerPanel.minimumHeight + " rootPaddingBottom=" + (pageRoot?.paddingBottom ?: -1) +
@@ -660,8 +663,9 @@ class MainActivity : Activity() {
             setPadding(0, topInset, 0, 0)
         }
         // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
-        stack.setPadding(0, topInset, 0, dp(20))
-        stack.addView(artBox, LinearLayout.LayoutParams(boxSide, boxSide).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(ART_GAP_DP) })
+        // Build 2.3: lower again (bottom padding 20dp -> 8dp). The cover gets equal gaps above and below (see sizeDarkArt).
+        stack.setPadding(0, topInset, 0, dp(STACK_BOTTOM_PAD_DP))
+        stack.addView(artBox, LinearLayout.LayoutParams(boxSide, boxSide).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(ART_MIN_GAP_DP); bottomMargin = dp(ART_MIN_GAP_DP) })
         stack.addView(bottomDock, LinearLayout.LayoutParams(-1, -2))
         playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         // Build 1.55: Classic cover box = the largest square between the status bar and the controls, centred in that gap.
@@ -673,15 +677,23 @@ class MainActivity : Activity() {
         applyPlayerPalette(playerSurface)
     }
 
+    /**
+     * Build 2.3: the cover is as wide as the progress bar, and sits exactly in the middle of the gap between the status bar
+     * and the track title (equal space above and below). On a short screen it gets smaller instead of squeezing the controls.
+     */
     private fun sizeDarkArt(panelHeight: Int, topInset: Int) {
         if (!::artBox.isInitialized || !::playerBottomDock.isInitialized) return
         val dockHeight = playerBottomDock.height
         if (dockHeight <= 0 || panelHeight <= 0) return
-        val space = panelHeight - dockHeight - topInset - dp(ART_GAP_DP) - dp(20) - dp(12)
-        val side = minOf((resources.displayMetrics.widthPixels * ART_WIDTH_FRACTION).toInt(), space).coerceAtLeast(dp(120))
+        val free = panelHeight - dockHeight - topInset - dp(STACK_BOTTOM_PAD_DP)
+        val wide = resources.displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)
+        val side = minOf(wide, free - 2 * dp(ART_MIN_GAP_DP)).coerceAtLeast(dp(120))
+        val gap = ((free - side) / 2).coerceAtLeast(dp(ART_MIN_GAP_DP))
         val lp = artBox.layoutParams as? LinearLayout.LayoutParams ?: return
-        if (lp.width != side || lp.height != side) {
+        val bottom = (free - side - gap).coerceAtLeast(dp(ART_MIN_GAP_DP))
+        if (lp.width != side || lp.height != side || lp.topMargin != gap || lp.bottomMargin != bottom) {
             lp.width = side; lp.height = side
+            lp.topMargin = gap; lp.bottomMargin = bottom
             artBox.layoutParams = lp
         }
     }
@@ -1610,38 +1622,110 @@ class MainActivity : Activity() {
             if (entries.isEmpty()) {
                 selectedAlbum = null
             } else {
-                val detailHeader = LinearLayout(this).apply {
+                val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
+                val queueIndices = entries.map { it.index }
+                val backRow = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(4), 0, dp(10))
+                    setPadding(0, dp(4), 0, dp(12))
                 }
-                detailHeader.addView(action("‹ ALBUMS", false) {
+                backRow.addView(action("‹ ALBUMS", false) {
                     selectedAlbum = null
                     renderLibrary()
+                    scrollLibraryToTop()
                 }, LinearLayout.LayoutParams(dp(112), dp(42)))
-                detailHeader.addView(text(album, 18f, WHITE, true).apply {
+                albumRows.addView(backRow, LinearLayout.LayoutParams(-1, -2))
+
+                // Build 2.3: the cover sits in the middle, fairly large; the songs are a plain numbered list below it.
+                val contentWidth = resources.displayMetrics.widthPixels - dp(32)
+                val artSide = minOf((resources.displayMetrics.widthPixels * ALBUM_DETAIL_ART_FRACTION).toInt(), contentWidth)
+                val bigCover = ImageView(this).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    background = shape(0xFF181820.toInt(), 8)
+                    clipToOutline = true
+                    elevation = dp(6).toFloat()
+                    contentDescription = "Artwork $album"
+                }
+                albumRows.addView(bigCover, LinearLayout.LayoutParams(artSide, artSide).apply { gravity = Gravity.CENTER_HORIZONTAL })
+                loadBigArtworkInto(bigCover, entries.first().value)
+                albumRows.addView(text(album, 18f, WHITE, true).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
                     maxLines = 2
                     ellipsize = android.text.TextUtils.TruncateAt.END
-                    setPadding(dp(10), 0, 0, 0)
-                }, LinearLayout.LayoutParams(0, -2, 1f))
-                albumRows.addView(detailHeader, LinearLayout.LayoutParams(-1, -2))
-                albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
-                    setPadding(dp(4), 0, 0, dp(10))
-                })
+                    setPadding(dp(8), dp(16), dp(8), 0)
+                }, LinearLayout.LayoutParams(-1, -2))
+                albumRows.addView(text((if (albumArtist.isBlank()) "" else albumArtist + " • ") + entries.size + " tracks", 12f, MUTED, false).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    setPadding(dp(8), dp(3), dp(8), dp(12))
+                }, LinearLayout.LayoutParams(-1, -2))
                 val albumActions = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    setPadding(dp(4), dp(2), dp(4), dp(8))
+                    setPadding(dp(4), dp(2), dp(4), dp(10))
                 }
                 albumActions.addView(action("PLAY ALBUM", true) {
-                    val order = entries.map { it.index }
-                    if (order.isNotEmpty()) { playTrackAt(order.first(), true, order); show("player") }
+                    if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); show("player") }
                 }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
                 albumActions.addView(action("ADD TO QUEUE", false) {
-                    addAlbumToQueue(entries.map { it.index }, album)
+                    addAlbumToQueue(queueIndices, album)
                 }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
-                entries.forEach { entry -> addLibraryTrackRow(albumRows, entry, true, entries.map { it.index }) }
+                entries.forEachIndexed { position, entry -> addNumberedTrackRow(albumRows, entry, position + 1, albumArtist, queueIndices) }
+
+                // More albums of the same artist: a row that scrolls sideways when it does not fit on one screen.
+                val moreAlbums = if (albumArtist.isBlank()) emptyList() else albums.filter { other ->
+                    other != album && groupedAlbums[other].orEmpty().any { it.value.artist == albumArtist }
+                }
+                if (moreAlbums.isNotEmpty()) {
+                    albumRows.addView(text("More albums by $albumArtist", 14f, WHITE, true).apply {
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        setPadding(dp(4), dp(24), dp(4), dp(10))
+                    }, LinearLayout.LayoutParams(-1, -2))
+                    val scroller = HorizontalScrollView(this).apply {
+                        isHorizontalScrollBarEnabled = false
+                        overScrollMode = View.OVER_SCROLL_NEVER
+                    }
+                    val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                    val cardSide = dp(112)
+                    moreAlbums.forEach { other ->
+                        val otherEntries = groupedAlbums[other].orEmpty()
+                        val card = LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            gravity = Gravity.CENTER_HORIZONTAL
+                            setPadding(dp(4), dp(4), dp(4), dp(6))
+                            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
+                            isClickable = true
+                            isFocusable = true
+                            contentDescription = "Open album $other"
+                            setOnClickListener {
+                                selectedAlbum = other
+                                renderLibrary()
+                                scrollLibraryToTop()
+                            }
+                        }
+                        val otherCover = ImageView(this).apply {
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                            background = shape(0xFF181820.toInt(), 8)
+                            clipToOutline = true
+                            contentDescription = "Artwork $other"
+                        }
+                        card.addView(otherCover, LinearLayout.LayoutParams(cardSide, cardSide))
+                        card.addView(text(other, 12f, MUTED, true).apply {
+                            setPadding(dp(2), dp(6), dp(2), dp(1))
+                            maxLines = 2
+                            ellipsize = android.text.TextUtils.TruncateAt.END
+                            gravity = Gravity.CENTER_HORIZONTAL
+                        }, LinearLayout.LayoutParams(cardSide, -2))
+                        card.addView(text(otherEntries.size.toString() + " tracks", 10f, MUTED, false).apply {
+                            gravity = Gravity.CENTER_HORIZONTAL
+                        }, LinearLayout.LayoutParams(cardSide, -2))
+                        strip.addView(card, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8) })
+                        otherEntries.firstOrNull()?.let { loadArtworkInto(otherCover, it.value) }
+                    }
+                    scroller.addView(strip)
+                    albumRows.addView(scroller, LinearLayout.LayoutParams(-1, -2))
+                }
                 librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
                 return
             }
@@ -1669,6 +1753,7 @@ class MainActivity : Activity() {
                     selectedAlbum = album
                     renderLibrary()
                     show("library")
+                    scrollLibraryToTop()
                 }
                 setOnLongClickListener {
                     showAlbumOptions(album, indices)
@@ -1766,6 +1851,70 @@ class MainActivity : Activity() {
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         loadArtworkInto(cover, t)
     }
+    /** Build 2.3: one song of the opened album: number, title (and artist only when it differs from the album artist), no picture. */
+    private fun addNumberedTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, number: Int, albumArtist: String, queueIndices: List<Int>) {
+        val t = entry.value
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(8), dp(4), dp(8))
+            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12) }
+            isClickable = true
+            isFocusable = true
+        }
+        row.addView(text(number.toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(34), -2))
+        val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), 0, dp(4), 0) }
+        details.addView(text(t.title, 13f, WHITE, true).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        if (t.artist.isNotBlank() && t.artist != albumArtist) {
+            details.addView(text(t.artist, 11f, MUTED, false).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }
+        row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Add ${t.title} to queue" }
+        row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
+        row.setOnClickListener {
+            val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
+            playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
+            show("player")
+        }
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(2) })
+    }
+
+    /** Large cover for the opened-album page: the saved grid cover shows at once, the sharper one replaces it when decoded. */
+    private fun loadBigArtworkInto(target: ImageView, track: Track) {
+        val key = "big:" + track.uri.toString()
+        target.setTag(key)
+        val cached = bitmapArtworkCache.get(key)
+        if (cached != null && !cached.isRecycled) {
+            target.setImageBitmap(cached)
+            return
+        }
+        bitmapArtworkCache.get("thumb:" + track.uri.toString())?.takeIf { !it.isRecycled }?.let { target.setImageBitmap(it) }
+        artworkExecutor.execute {
+            val bitmap = try { readArtworkBytes(track)?.let { decodeArtwork(it, 800, android.graphics.Bitmap.Config.RGB_565) } } catch (_: Throwable) { null }
+            if (bitmap != null) bitmapArtworkCache.put(key, bitmap)
+            handler.post {
+                if (isFinishing) return@post
+                if (bitmap != null) { if (target.getTag() == key) target.setImageBitmap(bitmap) }
+                else { target.setTag(null); loadArtworkInto(target, track) }
+            }
+        }
+    }
+
+    /** The album pages live inside the page ScrollView; after opening another album it must start at the top. */
+    private fun scrollLibraryToTop() {
+        libraryPanel.post {
+            var v: View? = libraryPanel
+            while (v != null && v !is ScrollView) v = v.parent as? View
+            (v as? ScrollView)?.scrollTo(0, 0)
+        }
+    }
+
     private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) accentColor else WHITE, selected).apply {
         setPadding(dp(12), dp(11), dp(12), dp(11)); themed { background = shape(if (selected) LINE else Color.TRANSPARENT, 12) }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
@@ -2954,9 +3103,12 @@ class MainActivity : Activity() {
         /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
         private const val LIBRARY_CACHE_VERSION = 145
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
-        // Build 2.1: cover = 80% of the screen width; gap between cover and title.
-        private const val ART_WIDTH_FRACTION = 0.80f
-        private const val ART_GAP_DP = 28
+        // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
+        private const val SEEK_SIDE_PAD_DP = 18
+        private const val STACK_BOTTOM_PAD_DP = 8
+        private const val ART_MIN_GAP_DP = 12
+        /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
+        private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
         private const val DARK_SURFACE = 0xFF000000.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")

@@ -1,0 +1,81 @@
+name: Build G6 Player Build 2.3 - player layout, album page, notification cleanup
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude-build-203-player"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Publish build log to branch ci-logs
+        if: failure()
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out
+          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build203_errors.txt || true
+          tail -150 build-log.txt > /tmp/out/build203_tail.txt
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          cp /tmp/out/* .
+          git add build203_errors.txt build203_tail.txt
+          git commit -m "build 2.3 failure log"
+          git push -f origin ci-logs
+      - name: Verify APK exists and is non-empty
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          echo "APK bytes: $(stat -c%s "$APK")"
+          unzip -l "$APK" | grep -E "\.so$" || true
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so" || { echo "libg6direct.so is missing from the APK"; exit 1; }
+      - name: Upload Build 2.3 APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build203-v2.3.0
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish direct artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## Download G6HiFiPlayer Build 2.3" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 2.3 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 2.3 = 2.2 + wider centred cover, numbered album page with more albums, black notification code removed, working Close player."
+      - name: Publish success marker to branch ci-logs
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out
+          echo "build 2.3 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build203_ok.txt
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          cp /tmp/out/* .
+          git add build203_ok.txt
+          git commit -m "build 2.3 ok"
+          git push -f origin ci-logs

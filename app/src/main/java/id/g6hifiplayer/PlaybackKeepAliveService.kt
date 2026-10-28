@@ -38,7 +38,11 @@ class PlaybackKeepAliveService : Service() {
     // Coalesce them so the notification is rebuilt once instead of once per callback.
     private val publishRunnable = Runnable { publishNotification(attachedPlayer ?: sharedPlayer) }
 
+    // Build 2.3: set by Close player; after that nothing may post the notification again.
+    private var closing = false
+
     private fun scheduleNotificationPublish() {
+        if (closing) return
         mainHandler.removeCallbacks(publishRunnable)
         mainHandler.postDelayed(publishRunnable, NOTIFICATION_COALESCE_MS)
     }
@@ -143,9 +147,8 @@ class PlaybackKeepAliveService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setColor(android.graphics.Color.BLACK)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setColorized(true)
-        builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionBroadcast("close", 6104)).build())
+        // Build 2.3: "Close player" now really closes (ACTION_EXIT): the notification goes away and exclusive mode ends.
+        builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionBroadcast("exit", 6104)).build())
         return builder.build()
     }
 
@@ -153,6 +156,10 @@ class PlaybackKeepAliveService : Service() {
         when (val action = intent?.action) {
             ACTION_STOP -> {
                 stopSessionAndPlayer()
+                return START_NOT_STICKY
+            }
+            ACTION_EXIT -> {
+                stopSessionAndPlayer(stopForGood = true)
                 return START_NOT_STICKY
             }
             ACTION_TOGGLE, ACTION_PLAY, ACTION_PAUSE, ACTION_NEXT, ACTION_PREVIOUS,
@@ -224,6 +231,7 @@ class PlaybackKeepAliveService : Service() {
     }
 
     private fun stopSessionAndPlayer(stopForGood: Boolean = false) {
+        if (stopForGood) closing = true
         mainHandler.removeCallbacks(publishRunnable)
         foregroundStarted = false
         synchronized(playerLock) {
@@ -304,6 +312,7 @@ class PlaybackKeepAliveService : Service() {
     }
 
     private fun publishNotification(player: ExoPlayer?) {
+        if (closing) return
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, buildNotification(player)) }
         catch (e: Exception) { android.util.Log.w(TAG, "Playback notification update failed", e) }
     }
@@ -360,19 +369,16 @@ class PlaybackKeepAliveService : Service() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
-            // Build 2.0: fixed black notification (white text and controls) instead of the cover's dominant colour.
-            .setColor(android.graphics.Color.BLACK)
             // Same vector icons as the in-app transport buttons (previous / play-pause / next).
             .addAction(Notification.Action.Builder(R.drawable.ic_previous_24, "Previous", actionPending("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24,
                 if (playing) "Pause" else "Play", actionPending("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(R.drawable.ic_next_24, "Next", actionPending("next", 6103)).build())
-            .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionPending("close", 6104)).build())
+            .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionPending("exit", 6104)).build())
         // Preserve the last known artwork on state-only updates (especially PLAYING -> PAUSED).
         // The service can publish before MainActivity's next UI callback, so read MediaSession's
         // stored bitmap rather than depending on an Activity view still being attached.
         if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setColorized(true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setStyle(Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
         }
@@ -399,6 +405,8 @@ class PlaybackKeepAliveService : Service() {
     companion object {
         const val ACTION_START = "id.g6hifiplayer.action.START_PLAYBACK_GUARD"
         const val ACTION_STOP = "id.g6hifiplayer.action.STOP_PLAYBACK_GUARD"
+        /** Build 2.3: Close player from a notification button: stops everything for good (no standby notification left behind). */
+        const val ACTION_EXIT = "id.g6hifiplayer.action.EXIT"
         const val ACTION_TOGGLE = "id.g6hifiplayer.action.TOGGLE"
         const val ACTION_PLAY = "id.g6hifiplayer.action.PLAY"
         const val ACTION_PAUSE = "id.g6hifiplayer.action.PAUSE"
@@ -484,6 +492,7 @@ class PlaybackKeepAliveService : Service() {
                 "next" -> ACTION_NEXT
                 "previous" -> ACTION_PREVIOUS
                 "close", "stop" -> ACTION_STOP
+                "exit" -> ACTION_EXIT
                 "dismiss" -> ACTION_DISMISS
                 "exclusive_on" -> ACTION_EXCLUSIVE_ON
                 "exclusive_off" -> ACTION_EXCLUSIVE_OFF
@@ -493,6 +502,20 @@ class PlaybackKeepAliveService : Service() {
             // The service is already running (normal case while music is loaded): call it directly.
             // This skips the startForegroundService() round trip, which delayed every tap.
             val live = serviceInstance
+            if (serviceAction == ACTION_EXIT) {
+                // Close player: handled right here so it works even when the service has to be taken down.
+                if (live != null) {
+                    live.mainHandler.post { live.stopSessionAndPlayer(stopForGood = true) }
+                } else {
+                    // The service is gone but a notification may still be on screen: remove it.
+                    try {
+                        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        nm.cancel(NOTIFICATION_ID); nm.cancel(PROMPT_NOTIFICATION_ID)
+                    } catch (_: Exception) { }
+                    ExclusiveAudioFocus.release()
+                }
+                return
+            }
             if (live != null && serviceAction != ACTION_STOP && serviceAction != ACTION_DISMISS) {
                 if (Looper.myLooper() == Looper.getMainLooper()) live.handleTransport(serviceAction)
                 else live.mainHandler.post { live.handleTransport(serviceAction) }
