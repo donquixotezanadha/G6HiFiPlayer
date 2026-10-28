@@ -129,6 +129,12 @@ class MainActivity : Activity() {
     private val noArtworkTracks = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
     private val artworkDecodeLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
     private val artworkDiskDir by lazy { File(cacheDir, "player_art").apply { mkdirs() } }
+    // Build 2.2: small (320 px) JPEG copies of the album-grid covers, so the grid paints from disk at start-up.
+    private val thumbDiskDir by lazy { File(cacheDir, "thumbs").apply { mkdirs() } }
+    // Build 2.2: every library scan gets a number; a result from an older scan is dropped.
+    private var scanGeneration = 0
+    @Volatile private var backgroundScanRunning = false
+    private var lastBackgroundScanAt = 0L
     private var visibleTrackLimit = 80
     private val artworkExecutor = Executors.newFixedThreadPool(2)
     // Coalesce duplicate thumbnail requests when grid cells are rebuilt after album expansion.
@@ -1272,6 +1278,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 recordDiagnostic("LIBRARY_CACHE_READ_FAILED", e)
             }
+            cached?.let { prewarmAlbumThumbs(it) }
             handler.post {
                 val library = cached
                 if (library != null) {
@@ -1285,6 +1292,8 @@ class MainActivity : Activity() {
                     statusView.text = "Library restored from cache • " + library.size + " tracks."
                     recordDiagnostic("LIBRARY_CACHE_RESTORED tracks=" + library.size)
                     restoreLastPlayback(library)
+                    // Build 2.2: the saved library is already on screen; check the folder for changes quietly.
+                    backgroundRefreshLibrary(treeUri)
                 } else {
                     scanMusicFolder(treeUri)
                 }
@@ -1457,6 +1466,7 @@ class MainActivity : Activity() {
     private fun scanMusicFolder(uri: Uri) {
         // Scanning is a library workflow: move to Albums first so progress and newly found art are visible.
         show("library")
+        scanGeneration++
         recordDiagnostic("SCAN_START uri=$uri")
         librarySummary.text = "Scanning folders and subfolders…"
         albumScanSummary.text = "Scanning folders and subfolders…"
@@ -1471,6 +1481,7 @@ class MainActivity : Activity() {
             catch (e: Exception) { error = e.javaClass.simpleName + ": " + (e.message ?: "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
             val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+            prewarmAlbumThumbs(sorted)
             handler.post {
                 // A rescan used to wipe the queue and the current track. Carry both over by track URI.
                 val previousCurrentUri = tracks.getOrNull(currentIndex)?.uri
@@ -1499,17 +1510,19 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun scanDirectory(dir: DocumentFile, output: MutableList<Track>, covers: MutableMap<String, Uri?>, depth: Int, count: IntArray) {
+    private fun scanDirectory(dir: DocumentFile, output: MutableList<Track>, covers: MutableMap<String, Uri?>, depth: Int, count: IntArray, known: Map<String, Track>? = null) {
         if (depth > 12) return
         val children = try { dir.listFiles() } catch (_: Exception) { emptyArray() }
         for (file in children) try {
-            if (file.isDirectory) scanDirectory(file, output, covers, depth + 1, count)
+            if (file.isDirectory) scanDirectory(file, output, covers, depth + 1, count, known)
             else if (isAudioFile(file)) {
                 val key = dir.uri.toString()
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
-                synchronized(output) { output.add(readTrack(file.uri, covers[key], dir.name)) }
+                // Build 2.2: a file already in the saved library keeps its saved tags (no tag reading again); only its folder picture is refreshed.
+                val prior = known?.get(file.uri.toString())
+                synchronized(output) { output.add(if (prior != null) prior.copy(coverUri = covers[key]) else readTrack(file.uri, covers[key], dir.name)) }
                 count[0]++
-                if (count[0] == 1 || count[0] % 50 == 0) {
+                if (known == null && (count[0] == 1 || count[0] % 50 == 0)) {
                     val processedCount = count[0]
                     val folderName = dir.name ?: "folder"
                     handler.post {
@@ -2112,6 +2125,8 @@ class MainActivity : Activity() {
             target.setImageBitmap(cached)
             return
         }
+        // Build 2.2: a cover found to be missing is remembered on disk, so no file is opened for it at every start.
+        if (thumbNoneMarker(track).exists()) return
 
         // A grid rebuild can request the same album artwork several times before the first
         // decode finishes. Join the existing request instead of queuing duplicate MediaMetadataRetriever
@@ -2125,9 +2140,10 @@ class MainActivity : Activity() {
             artworkTargetsInFlight[key] = mutableListOf(java.lang.ref.WeakReference(target))
         }
         artworkExecutor.execute {
-            val bitmap = bitmapArtworkCache.get(key) ?: readArtworkBytes(track)
+            val bitmap = bitmapArtworkCache.get(key) ?: loadThumbFromDisk(track) ?: (readArtworkBytes(track)
                 ?.let { decodeArtwork(it, 320, android.graphics.Bitmap.Config.RGB_565) }
-                ?.also { bitmapArtworkCache.put(key, it) }
+                ?.also { bitmapArtworkCache.put(key, it); saveThumbToDisk(track, it) }
+                ?: run { try { thumbNoneMarker(track).createNewFile() } catch (_: Exception) { }; null })
             handler.post {
                 val targets = synchronized(artworkTargetsInFlight) {
                     artworkTargetsInFlight.remove(key).orEmpty().toList()
@@ -2139,6 +2155,90 @@ class MainActivity : Activity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun thumbDiskFile(t: Track): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|thumb" + LIBRARY_CACHE_VERSION).toByteArray())
+        return File(thumbDiskDir, digest.joinToString("") { "%02x".format(it) } + ".jpg")
+    }
+    private fun thumbNoneMarker(t: Track): File = File(thumbDiskFile(t).path + ".none")
+
+    /** Reads the saved 320 px cover of a track from disk (a few ms) and puts it in the memory cache. */
+    private fun loadThumbFromDisk(t: Track): android.graphics.Bitmap? {
+        return try {
+            val file = thumbDiskFile(t)
+            if (file.length() <= 0L) return null
+            val options = BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }
+            BitmapFactory.decodeFile(file.path, options)?.also { bitmapArtworkCache.put("thumb:" + t.uri.toString(), it) }
+        } catch (_: Throwable) { null }
+    }
+
+    private fun saveThumbToDisk(t: Track, bitmap: android.graphics.Bitmap) {
+        try {
+            val file = thumbDiskFile(t)
+            val temporary = File(file.path + ".tmp")
+            java.io.FileOutputStream(temporary).use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            if (!temporary.renameTo(file)) temporary.delete()
+        } catch (_: Throwable) { }
+    }
+
+    /** Loads the grid cover of every album from disk into memory, so the grid paints at once with no loading. Call off the UI thread. */
+    private fun prewarmAlbumThumbs(library: List<Track>) {
+        val seen = HashSet<String>()
+        for (t in library) {
+            if (!seen.add(t.album)) continue
+            if (bitmapArtworkCache.get("thumb:" + t.uri.toString()) == null) loadThumbFromDisk(t)
+        }
+    }
+
+    /**
+     * Build 2.2: runs after the saved library is shown. Reads the folder quietly in the background (no page change,
+     * no progress bar), reuses the saved tag data of files already known, and updates the lists only if something changed.
+     */
+    private fun backgroundRefreshLibrary(treeUri: Uri) {
+        if (backgroundScanRunning) return
+        backgroundScanRunning = true
+        lastBackgroundScanAt = System.currentTimeMillis()
+        val generation = scanGeneration
+        val known = HashMap<String, Track>().apply { tracks.forEach { put(it.uri.toString(), it) } }
+        recordDiagnostic("BG_SCAN_START known=" + known.size)
+        Thread({
+            try {
+                val found = mutableListOf<Track>()
+                val count = intArrayOf(0)
+                var failed = false
+                try { DocumentFile.fromTreeUri(this, treeUri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count, known) } }
+                catch (e: Exception) { failed = true; recordDiagnostic("BG_SCAN_FAILED", e) }
+                // A failed or empty read never replaces a good saved library.
+                if (failed || found.isEmpty()) return@Thread
+                val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+                val oldSignature = tracks.map { it.uri.toString() + "|" + (it.coverUri?.toString() ?: "") }.toSet()
+                val newSignature = sorted.map { it.uri.toString() + "|" + (it.coverUri?.toString() ?: "") }.toSet()
+                if (oldSignature == newSignature) { recordDiagnostic("BG_SCAN_NO_CHANGE tracks=" + sorted.size); return@Thread }
+                prewarmAlbumThumbs(sorted)
+                handler.post {
+                    if (isFinishing || generation != scanGeneration) return@post
+                    val previousCurrentUri = tracks.getOrNull(currentIndex)?.uri
+                    remapPlaybackLists(tracks, sorted)
+                    tracks = sorted
+                    currentIndex = previousCurrentUri?.let { u -> sorted.indexOfFirst { it.uri == u } } ?: -1
+                    noArtworkTracks.clear()
+                    Thread({ saveLibraryCache(treeUri, sorted) }, "g6-library-cache-save").start()
+                    try { renderLibrary() } catch (e: Throwable) { recordDiagnostic("BG_LIBRARY_RENDER_FAILED", e) }
+                    librarySummary.text = sorted.size.toString() + " tracks • " + sorted.map { it.album }.distinct().size + " albums"
+                    albumScanSummary.text = librarySummary.text
+                    recordDiagnostic("BG_SCAN_UPDATED tracks=" + sorted.size)
+                }
+            } finally { backgroundScanRunning = false }
+        }, "g6-library-bgscan").apply { priority = Thread.MIN_PRIORITY }.start()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Coming back to the app later also checks the folder again (at most once per minute).
+        if (tracks.isNotEmpty() && System.currentTimeMillis() - lastBackgroundScanAt > 60_000L) {
+            getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let { backgroundRefreshLibrary(Uri.parse(it)) }
         }
     }
 
