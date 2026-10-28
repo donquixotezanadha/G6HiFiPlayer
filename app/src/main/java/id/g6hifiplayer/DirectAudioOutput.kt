@@ -233,7 +233,7 @@ internal class DirectAudioOutput private constructor(
 
     /** Counts non-zero samples and samples with a non-zero low byte in [outBuf] (24-bit packed, little endian). */
     private fun countDepth(length: Int) {
-        if (DirectOutputState.depthVerdict() != 0) return
+        if (DirectOutputState.depthVerdict() == 1) return
         var active = 0L
         var low = 0L
         var i = 0

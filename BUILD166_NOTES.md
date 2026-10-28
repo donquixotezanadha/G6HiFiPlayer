@@ -1,7 +1,23 @@
-# Build 1.66 — catatan perubahan (BELUM ADA KODE YANG DIUBAH)
+# Build 1.66 — catatan perubahan
 
 Branch: `claude-build-166-player` (dari `claude-build-165-player`, Build 1.65).
 Ditulis 28 Okt 2026 karena token pengguna habis. Isi di bawah adalah rencana + hasil membaca kode 1.65, belum diukur di HP.
+
+
+## STATUS (28 Okt 2026): sudah diimplementasikan di branch ini, menunggu uji di HP
+
+Yang diubah di kode:
+1. **Label** (`MainActivity.refreshAudioInfo`): hijau `BIT-PERFECT • NATIVE DIRECT` jika rate sama, kedalaman tidak turun, flags rute DIRECT (`DirectOutputState.routeIsDirect()`, dibaca dari `flags=0x..` pada route) dan jack terpasang. Isi data jadi catatan abu-abu di baris yang sama (`real 24-bit data` / `low 8 bits empty in this file` / `16-bit padded to 24`), bukan oranye. Baris info dipaksa 2 baris (`minLines/maxLines = 2`) dan teks format dipersingkat (tanpa kata "source"/"output") supaya kontrol tidak bergeser.
+   Penghitungan kedalaman: "kosong" baru dinyatakan setelah 3 juta sampel non-nol (±15 dtk), penghitungan jalan terus, dan di-reset di setiap `onMediaItemTransition` (sebelumnya hanya saat output dibuka, jadi lagu berurutan dengan format sama mewarisi hasil lagu sebelumnya). Bila flags tidak bisa dibaca (`getFlags` tidak ter-resolve) rute dianggap tidak diketahui dan tidak dihukum.
+2. **Classic dock**: penyebab pasti BELUM diketahui (struktur Adaptive dan Classic sama di kode). Yang dilakukan: tinggi baris info tetap, dan log diagnostik `DOCK_LAYOUT theme=... dockTopOnScreen=... seekTopOnScreen=... rootPaddingBottom=...` setiap posisi dock berubah, supaya kedua tema bisa dibandingkan dari diagnostics di HP. Jika masih berbeda, kirim baris `DOCK_LAYOUT` untuk Classic dan Adaptive.
+3. **Exclusive mode** (Setting -> EXCLUSIVE MODE ON/OFF, default ON):
+   - `PlaybackKeepAliveService`: service standby (notifikasi "Exclusive mode ready") memantau jack lewat `AudioDeviceCallback`. Saat jack dicolok muncul notifikasi heads-up "Headphones connected" dengan tombol **Take over** / **Not now** (channel `g6_exclusive_prompt`, tanpa suara, hilang sendiri 60 dtk).
+   - **Take over** -> `ExclusiveAudioFocus.startTakeover()`: memegang audio focus `GAIN_TRANSIENT_EXCLUSIVE` walau tidak sedang memutar, sampai jack dicabut atau tombol **Release**. Jika aplikasi lain mengambil focus permanen, pemutar meminta kembali setelah 1,2 dtk (maks 4 kali per 20 dtk), musik tidak berhenti. Panggilan telepon/alarm (focus sementara) tetap menjeda lalu melanjutkan.
+   - Close player tidak mematikan pemantau jack selama mode ON; geser dari recent apps juga tidak. Mode OFF mematikan semuanya.
+   - Batas: tanpa root, suara sistem/aplikasi lain tidak bisa diblokir 100%; ini sama dengan cara UAPP (audio focus). Setelah HP restart, aplikasi harus dibuka sekali (widget boot receiver sengaja tanpa service).
+4. Versi 1.66.0 (versionCode 166), workflow `build-166-claude.yml`, artifact `G6HiFiPlayer-Build166-v1.66.0`.
+
+Uji di HP: (a) lagu 96 kHz tadi: baris hijau + catatan abu-abu; (b) cabut-colok jack: notifikasi muncul, tekan Take over, buka YouTube/ bunyikan notifikasi: tidak mengganggu; (c) Setting -> OFF: tidak ada notifikasi; (d) bandingkan posisi dock Classic vs Adaptive (baris DOCK_LAYOUT).
 
 ## Perubahan 1 — Label bit-perfect harus sama dengan hasil dump
 

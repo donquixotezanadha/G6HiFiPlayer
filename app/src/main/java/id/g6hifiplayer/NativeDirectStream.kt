@@ -57,11 +57,26 @@ internal object DirectOutputState {
 
     fun resetDepthCheck() { activeSamples = 0L; lowByteSamples = 0L }
 
-    /** 0 = not enough audio yet, 1 = the low 8 bits carry data (real 24-bit), 2 = low 8 bits always empty. */
+    /**
+     * 0 = not enough audio yet, 1 = the low 8 bits carry data (real 24-bit), 2 = low 8 bits empty so far.
+     * Build 1.66: "empty" is only claimed after about 15 s of audio (3 million non-zero samples), not from a quiet intro,
+     * and the counting goes on after that, so a later passage with real low bits corrects the answer.
+     */
     fun depthVerdict(): Int = when {
         lowByteSamples >= 200L -> 1
-        activeSamples >= 400_000L -> 2
+        activeSamples >= 3_000_000L -> 2
         else -> 0
+    }
+
+    /**
+     * Build 1.66: is the native track on a DIRECT output thread? Read from the route text ("... flags=0x1 ...").
+     * true = DIRECT flag read, false = flags read and not DIRECT (mixer), null = flags could not be read.
+     */
+    fun routeIsDirect(): Boolean? {
+        val m = Regex("flags=0x([0-9a-fA-F]+)").find(route) ?: return null
+        val v = m.groupValues[1].toLongOrNull(16) ?: return null
+        if (v == 0xFFFFFC19L) return null // getFlags was not resolvable (native placeholder -999)
+        return (v and 1L) != 0L
     }
 
     private val history = ArrayDeque<String>()

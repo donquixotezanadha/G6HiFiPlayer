@@ -8,6 +8,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -52,6 +55,117 @@ class PlaybackKeepAliveService : Service() {
         }
         ensureMediaSession(applicationContext)
         sharedPlayer?.let { attachPlayer(it) }
+        if (exclusiveEnabled()) registerJackWatcher()
+    }
+
+    // ---- Build 1.66: exclusive mode (jack plug-in confirmation) --------------------------------------------------
+    private var jackCallback: AudioDeviceCallback? = null
+
+    private fun exclusiveEnabled(): Boolean = exclusiveEnabled(applicationContext)
+
+    private fun isWired(d: AudioDeviceInfo) = d.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || d.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+
+    private fun wiredNow(): Boolean {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        return try { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { isWired(it) } } catch (_: Exception) { false }
+    }
+
+    /** Listens for the headphone jack while the service lives. A new plug-in raises the confirmation notification. */
+    private fun registerJackWatcher() {
+        if (jackCallback != null) return
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        var initialReport = true // the system first reports the devices that are already connected; that is not a plug-in
+        val cb = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                if (initialReport) return
+                if (addedDevices.any { isWired(it) } && exclusiveEnabled() && !ExclusiveAudioFocus.takeover) showTakeoverPrompt()
+            }
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                if (removedDevices.none { isWired(it) }) return
+                // Debounce: a route hand-off can briefly report the jack as removed.
+                mainHandler.postDelayed({
+                    if (!wiredNow()) {
+                        cancelTakeoverPrompt()
+                        if (ExclusiveAudioFocus.takeover) ExclusiveAudioFocus.stopTakeover()
+                        scheduleNotificationPublish()
+                    }
+                }, 400L)
+            }
+        }
+        jackCallback = cb
+        am.registerAudioDeviceCallback(cb, mainHandler)
+        mainHandler.post { initialReport = false }
+    }
+
+    private fun unregisterJackWatcher() {
+        val cb = jackCallback ?: return
+        try { (getSystemService(AUDIO_SERVICE) as AudioManager).unregisterAudioDeviceCallback(cb) } catch (_: Exception) { }
+        jackCallback = null
+    }
+
+    private fun ensurePromptChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(PROMPT_CHANNEL_ID, "Exclusive mode prompt", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Asks to take over all audio when headphones are plugged in"
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
+            }
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        }
+    }
+
+    private fun actionBroadcast(action: String, code: Int): PendingIntent {
+        val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        val intent = Intent(this, NotificationActionReceiver::class.java)
+            .setAction("id.g6hifiplayer.notification." + action)
+            .setData(android.net.Uri.parse("g6hifi://notification/" + action))
+            .putExtra("notification_action", action)
+        return PendingIntent.getBroadcast(this, code, intent, flags)
+    }
+
+    /** Heads-up notification: "Headphones connected - take over all audio?" with Take over / Not now. */
+    private fun showTakeoverPrompt() {
+        ensurePromptChannel()
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, PROMPT_CHANNEL_ID) else Notification.Builder(this)
+        builder.setSmallIcon(R.drawable.ic_stat_music)
+            .setContentTitle("Headphones connected")
+            .setContentText("Take over all audio on the jack? Other apps and system sounds stay away until you unplug.")
+            .setStyle(Notification.BigTextStyle().bigText("Take over all audio on the jack? Other apps and system sounds stay away until you unplug or release it."))
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .addAction(Notification.Action.Builder(R.drawable.ic_play_24, "Take over", actionBroadcast("exclusive_on", 6201)).build())
+            .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Not now", actionBroadcast("exclusive_no", 6202)).build())
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            @Suppress("DEPRECATION") builder.setPriority(Notification.PRIORITY_HIGH)
+        }
+        if (Build.VERSION.SDK_INT >= 26) builder.setTimeoutAfter(60_000L)
+        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(PROMPT_NOTIFICATION_ID, builder.build()) }
+        catch (e: Exception) { android.util.Log.w(TAG, "Exclusive prompt failed", e) }
+    }
+
+    private fun cancelTakeoverPrompt() {
+        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(PROMPT_NOTIFICATION_ID) } catch (_: Exception) { }
+    }
+
+    /** Foreground notification while nothing is loaded and exclusive mode is on. */
+    private fun buildStandbyNotification(): Notification {
+        val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        val open = PendingIntent.getActivity(this, 6100,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), flags)
+        val active = ExclusiveAudioFocus.takeover
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
+        builder.setSmallIcon(R.drawable.ic_stat_music)
+            .setContentTitle(if (active) "Exclusive mode ON" else "Exclusive mode ready")
+            .setContentText(if (active) "This player holds all audio on the jack." else "Plug in headphones to be asked to take over all audio.")
+            .setContentIntent(open)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+        if (active) builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Release", actionBroadcast("exclusive_off", 6203)).build())
+        else if (wiredNow()) builder.addAction(Notification.Action.Builder(R.drawable.ic_play_24, "Take over", actionBroadcast("exclusive_on", 6201)).build())
+        builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionBroadcast("close", 6104)).build())
+        return builder.build()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -60,7 +174,8 @@ class PlaybackKeepAliveService : Service() {
                 stopSessionAndPlayer()
                 return START_NOT_STICKY
             }
-            ACTION_TOGGLE, ACTION_PLAY, ACTION_PAUSE, ACTION_NEXT, ACTION_PREVIOUS -> handleTransport(action.orEmpty())
+            ACTION_TOGGLE, ACTION_PLAY, ACTION_PAUSE, ACTION_NEXT, ACTION_PREVIOUS,
+            ACTION_EXCLUSIVE_ON, ACTION_EXCLUSIVE_OFF, ACTION_EXCLUSIVE_NO, ACTION_EXCLUSIVE_ARM -> handleTransport(action.orEmpty())
             ACTION_DISMISS -> {
                 // A notification dismissal never stops the foreground playback session.
                 if (!foregroundStarted) ensureForeground()
@@ -77,6 +192,25 @@ class PlaybackKeepAliveService : Service() {
 
     /** Runs a transport command on the shared player. Must be called on the main thread. */
     private fun handleTransport(serviceAction: String) {
+        when (serviceAction) {
+            ACTION_EXCLUSIVE_ON -> {
+                cancelTakeoverPrompt()
+                if (!wiredNow()) { android.util.Log.i(TAG, "exclusive: jack not connected, ignored"); return }
+                if (!foregroundStarted) ensureForeground()
+                ExclusiveAudioFocus.startTakeover(applicationContext)
+                registerJackWatcher()
+                scheduleNotificationPublish()
+                return
+            }
+            ACTION_EXCLUSIVE_OFF -> { ExclusiveAudioFocus.stopTakeover(); scheduleNotificationPublish(); return }
+            ACTION_EXCLUSIVE_NO -> { cancelTakeoverPrompt(); return }
+            ACTION_EXCLUSIVE_ARM -> {
+                if (!foregroundStarted) ensureForeground()
+                registerJackWatcher()
+                scheduleNotificationPublish()
+                return
+            }
+        }
         val p = sharedPlayer ?: return
         when (serviceAction) {
             ACTION_TOGGLE -> {
@@ -102,6 +236,7 @@ class PlaybackKeepAliveService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val active = sharedPlayer?.let { it.isPlaying || it.playWhenReady } == true
         if (active) android.util.Log.i(TAG, "Recent task removed; service-owned player and MediaSession remain active")
+        else if (exclusiveEnabled()) android.util.Log.i(TAG, "Recent task removed; exclusive mode keeps the service armed")
         else stopSessionAndPlayer()
         super.onTaskRemoved(rootIntent)
     }
@@ -114,7 +249,7 @@ class PlaybackKeepAliveService : Service() {
         foregroundStarted = true
     }
 
-    private fun stopSessionAndPlayer() {
+    private fun stopSessionAndPlayer(stopForGood: Boolean = false) {
         mainHandler.removeCallbacks(publishRunnable)
         foregroundStarted = false
         synchronized(playerLock) {
@@ -126,6 +261,19 @@ class PlaybackKeepAliveService : Service() {
         }
         try { mediaSession?.setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_STOPPED, 0L, 0f).setActions(0L).build()) } catch (_: Exception) { }
         try { mediaSession?.isActive = false } catch (_: Exception) { }
+        ExclusiveAudioFocus.release()
+        if (exclusiveEnabled() && !stopForGood) {
+            // Close player: playback ends but the jack watcher stays armed (Setting -> Exclusive mode OFF to stop it).
+            try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, false, 0, 0) } catch (_: Exception) { }
+            try { playbackStoppedCallback?.invoke() } catch (e: Exception) { android.util.Log.w(TAG, "UI stop callback failed", e) }
+            registerJackWatcher()
+            if (!foregroundStarted) ensureForeground()
+            foregroundStarted = true
+            publishNotification(null)
+            return
+        }
+        unregisterJackWatcher()
+        cancelTakeoverPrompt()
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
         try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, false, 0, 0) } catch (_: Exception) { }
         try { playbackStoppedCallback?.invoke() } catch (e: Exception) { android.util.Log.w(TAG, "UI stop callback failed", e) }
@@ -187,6 +335,7 @@ class PlaybackKeepAliveService : Service() {
     }
 
     private fun buildNotification(player: ExoPlayer?): Notification {
+        if (exclusiveEnabled() && player?.currentMediaItem == null) return buildStandbyNotification()
         val session = ensureMediaSession(applicationContext)
         val itemMetadata = player?.currentMediaItem?.mediaMetadata
         // MainActivity publishes the real tagged cover into this service-owned MediaSession.
@@ -259,6 +408,7 @@ class PlaybackKeepAliveService : Service() {
     }
 
     override fun onDestroy() {
+        unregisterJackWatcher()
         if (serviceInstance === this) serviceInstance = null
         try { attachedPlayer?.let { p -> serviceListener?.let { p.removeListener(it) } } } catch (_: Exception) { }
         attachedPlayer = null
@@ -278,6 +428,38 @@ class PlaybackKeepAliveService : Service() {
         const val ACTION_NEXT = "id.g6hifiplayer.action.NEXT"
         const val ACTION_PREVIOUS = "id.g6hifiplayer.action.PREVIOUS"
         const val ACTION_DISMISS = "id.g6hifiplayer.action.DISMISS"
+        const val ACTION_EXCLUSIVE_ON = "id.g6hifiplayer.action.EXCLUSIVE_ON"
+        const val ACTION_EXCLUSIVE_OFF = "id.g6hifiplayer.action.EXCLUSIVE_OFF"
+        const val ACTION_EXCLUSIVE_NO = "id.g6hifiplayer.action.EXCLUSIVE_NO"
+        const val ACTION_EXCLUSIVE_ARM = "id.g6hifiplayer.action.EXCLUSIVE_ARM"
+        private const val PROMPT_CHANNEL_ID = "g6_exclusive_prompt"
+        private const val PROMPT_NOTIFICATION_ID = 6107
+        const val PREFS_NAME = "id.g6hifiplayer.MainActivity" // the file MainActivity.getPreferences() uses
+
+        /** Exclusive mode setting (Setting tab). On by default. */
+        @JvmStatic fun exclusiveEnabled(context: Context): Boolean =
+            context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean("exclusive_mode", true)
+
+        /** Starts the service in standby so the jack plug-in prompt works (called when the app opens / the setting is turned on). */
+        @JvmStatic fun armExclusive(context: Context) {
+            val ctx = context.applicationContext
+            if (!exclusiveEnabled(ctx)) return
+            val live = serviceInstance
+            if (live != null) { live.mainHandler.post { live.handleTransport(ACTION_EXCLUSIVE_ARM) }; return }
+            val intent = Intent(ctx, PlaybackKeepAliveService::class.java).setAction(ACTION_EXCLUSIVE_ARM)
+            try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(intent) else ctx.startService(intent) }
+            catch (e: Exception) { android.util.Log.w(TAG, "Arming exclusive mode failed", e) }
+        }
+
+        /** Setting turned off: leave exclusive mode and stop the standby service if nothing is playing. */
+        @JvmStatic fun disarmExclusive(context: Context) {
+            ExclusiveAudioFocus.stopTakeover()
+            val live = serviceInstance ?: return
+            val idle = sharedPlayer?.let { !it.isPlaying && !it.playWhenReady } != false
+            if (idle) live.mainHandler.post { live.stopSessionAndPlayer(stopForGood = true) } else live.scheduleNotificationPublish()
+        }
+
+        @JvmStatic fun exclusiveActive(): Boolean = ExclusiveAudioFocus.takeover
         private const val CHANNEL_ID = "g6_hifi_playback"
         private const val NOTIFICATION_ID = 6106
         private const val TAG = "G6PlaybackService"
@@ -327,6 +509,9 @@ class PlaybackKeepAliveService : Service() {
                 "previous" -> ACTION_PREVIOUS
                 "close", "stop" -> ACTION_STOP
                 "dismiss" -> ACTION_DISMISS
+                "exclusive_on" -> ACTION_EXCLUSIVE_ON
+                "exclusive_off" -> ACTION_EXCLUSIVE_OFF
+                "exclusive_no" -> ACTION_EXCLUSIVE_NO
                 else -> return
             }
             // The service is already running (normal case while music is loaded): call it directly.

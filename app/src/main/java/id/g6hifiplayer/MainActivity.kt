@@ -289,6 +289,7 @@ class MainActivity : Activity() {
         player = PlaybackKeepAliveService.existingPlayer()
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, handler)
+        PlaybackKeepAliveService.armExclusive(this) // Build 1.66: start watching the headphone jack (no-op when the setting is OFF)
         createNotificationChannel()
         createMediaSession()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
@@ -366,6 +367,14 @@ class MainActivity : Activity() {
         fillColumnButtons(columnButtons)
         columnsCard.addView(columnButtons, LinearLayout.LayoutParams(-1, -2))
         settingsPanel.addView(columnsCard)
+        // Build 1.66: exclusive mode. When the headphone jack is plugged in, a notification asks to take over all audio.
+        val exclusiveCard = card()
+        exclusiveCard.addView(text("EXCLUSIVE MODE", 12f, MUTED, true))
+        val exclusiveButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        fillExclusiveButtons(exclusiveButtons)
+        exclusiveCard.addView(exclusiveButtons, LinearLayout.LayoutParams(-1, -2))
+        exclusiveCard.addView(text("ON: plugging in the jack shows a notification; tap Take over and this player holds all audio until you unplug (other apps and system sounds stay away, like UAPP). Needs the app to have been opened once since the phone started.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        settingsPanel.addView(exclusiveCard)
         // Build 1.44: Setting shows only the folder scan and the column option. The audio/file info panels
         // are still created (other code updates their text) but are no longer attached to the screen.
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(settingsPanel)
@@ -543,7 +552,8 @@ class MainActivity : Activity() {
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
             gravity = Gravity.CENTER
             textAlignment = View.TEXT_ALIGNMENT_CENTER
-            maxLines = 3
+            maxLines = 2
+            minLines = 2
             setPadding(0, dp(2), 0, dp(4))
             visibility = View.VISIBLE
             setTextIsSelectable(true)
@@ -624,6 +634,19 @@ class MainActivity : Activity() {
             setPadding(0, dp(10), 0, dp(8))
         }
         playerBottomDock = bottomDock
+        // Build 1.66: measured positions of the control dock, so Classic and Adaptive can be compared from the diagnostics.
+        var lastDockLog = Int.MIN_VALUE
+        bottomDock.addOnLayoutChangeListener { v, _, top, _, bottom, _, _, _, _ ->
+            if (kotlin.math.abs(top - lastDockLog) > 2) {
+                lastDockLog = top
+                val loc = IntArray(2); v.getLocationOnScreen(loc)
+                val seekLoc = IntArray(2); seek.getLocationOnScreen(seekLoc)
+                recordDiagnostic("DOCK_LAYOUT theme=" + (if (classicTheme) "classic" else "adaptive") +
+                    " dockTopOnScreen=" + loc[1] + " dockHeight=" + (bottom - top) + " seekTopOnScreen=" + seekLoc[1] +
+                    " panelMinHeight=" + playerPanel.minimumHeight + " rootPaddingBottom=" + (pageRoot?.paddingBottom ?: -1) +
+                    " screenHeight=" + resources.displayMetrics.heightPixels)
+            }
+        }
         // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
         bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
@@ -874,6 +897,24 @@ class MainActivity : Activity() {
         container.addView(action("ADAPTIVE", !classicTheme) { setClassicTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
         container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         container.addView(action("CLASSIC", classicTheme) { setClassicTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+    }
+
+    /** Build 1.66: the Exclusive mode ON / OFF buttons shown in Setting. */
+    private fun fillExclusiveButtons(container: LinearLayout) {
+        container.removeAllViews()
+        val on = PlaybackKeepAliveService.exclusiveEnabled(this)
+        container.addView(action("ON", on) { setExclusiveMode(true, container) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        container.addView(action("OFF", !on) { setExclusiveMode(false, container) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+    }
+
+    private fun setExclusiveMode(enabled: Boolean, container: LinearLayout) {
+        getPreferences(MODE_PRIVATE).edit().putBoolean("exclusive_mode", enabled).apply()
+        if (enabled) {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
+            PlaybackKeepAliveService.armExclusive(this)
+        } else PlaybackKeepAliveService.disarmExclusive(this)
+        handler.post { if (!isFinishing) fillExclusiveButtons(container) }
     }
 
     private fun setClassicTheme(classic: Boolean) {
@@ -1802,6 +1843,7 @@ class MainActivity : Activity() {
                     sourceBits = null
         sourceBits = null
                     sourceBitrate = null
+                    DirectOutputState.resetDepthCheck() // Build 1.66: a new track gets a new real-24-bit check
                     showMetadata(activeTrack.uri, activeTrack)
                     loadArtwork(activeTrack)
                     if (::queueRows.isInitialized) renderQueueRows()
@@ -2321,31 +2363,54 @@ class MainActivity : Activity() {
         val direct = prepared && player != null && DirectOutputState.active
         val green = 0xFF5BD98C.toInt()
         val orange = 0xFFFFA43A.toInt()
+        val grey = 0xFFA4A4B2.toInt()
         val formatLine: String
-        val verdict: String
+        var verdict: String
+        var note = ""
         val color: Int
         if (!direct) {
-            formatLine = "$extension$bitrateLabel • source $sourceKhz kHz$bitsLabel"
+            formatLine = "$extension$bitrateLabel • $sourceKhz kHz$bitsLabel"
             verdict = "● DIRECT OUTPUT NOT ACTIVE"
             color = orange
         } else {
             val outRate = DirectOutputState.rate
             val outKhz = String.format(Locale.US, "%.1f", outRate / 1000f)
-            formatLine = "$extension$bitrateLabel • source $sourceKhz kHz$bitsLabel → output $outKhz kHz • ${DirectOutputState.sourceLabel}"
+            formatLine = "$extension$bitrateLabel • $sourceKhz kHz$bitsLabel → $outKhz kHz • ${DirectOutputState.sourceLabel}"
+            // Build 1.66: the green label is about the ROUTE only (same as the adb dump): DIRECT flag, not the mixer thread,
+            // headphone jack. What the samples contain is a separate grey note, never an orange failure.
+            val routeDirect = DirectOutputState.routeIsDirect()
             when {
                 srcRate != null && srcRate != outRate -> { verdict = "● SAMPLE RATE CHANGED"; color = orange }
                 srcBits != null && DirectOutputState.inputBits < srcBits -> { verdict = "● DEPTH REDUCED TO ${DirectOutputState.inputBits}-BIT"; color = orange }
-                srcBits != null && srcBits > 16 && DirectOutputState.depthVerdict() == 2 -> { verdict = "● 24-BIT CARRIER, BUT LOW 8 BITS ARE EMPTY"; color = orange }
-                srcBits != null && srcBits > 16 && DirectOutputState.depthVerdict() == 1 -> { verdict = "● BIT-PERFECT • NATIVE DIRECT • real 24-bit data"; color = green }
-                srcBits != null -> { verdict = "● BIT-PERFECT • NATIVE DIRECT • 24-bit packed"; color = green }
+                routeDirect == false -> { verdict = "● NOT ON THE DIRECT THREAD (MIXER)"; color = orange }
+                !wiredJackConnected() -> { verdict = "● OUTPUT IS NOT THE HEADPHONE JACK"; color = orange }
+                srcBits != null -> {
+                    verdict = "● BIT-PERFECT • NATIVE DIRECT"
+                    color = green
+                    note = when {
+                        srcBits <= 16 -> " • 16-bit padded to 24"
+                        DirectOutputState.depthVerdict() == 1 -> " • real 24-bit data"
+                        DirectOutputState.depthVerdict() == 2 -> " • low 8 bits empty in this file"
+                        else -> ""
+                    }
+                }
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed (lossy or unknown source)"; color = green }
             }
         }
-        val compact = "$formatLine\n$verdict"
+        val compact = "$formatLine\n$verdict$note"
         val colored = android.text.SpannableString(compact)
         val start = compact.indexOf(verdict)
-        if (start >= 0) colored.setSpan(android.text.style.ForegroundColorSpan(color), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (start >= 0) {
+            colored.setSpan(android.text.style.ForegroundColorSpan(color), start, start + verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (note.isNotEmpty()) colored.setSpan(android.text.style.ForegroundColorSpan(grey), start + verdict.length, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
         audioInfoInline.text = colored
+    }
+
+    /** Build 1.66: is a wired headphone / jack output connected right now? */
+    private fun wiredJackConnected(): Boolean {
+        val outputs = try { audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) } catch (_: Exception) { return true }
+        return outputs.any { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
     }
 
     private fun createNotificationChannel() {
