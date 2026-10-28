@@ -543,7 +543,7 @@ class MainActivity : Activity() {
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
             gravity = Gravity.CENTER
             textAlignment = View.TEXT_ALIGNMENT_CENTER
-            maxLines = 2
+            maxLines = 4
             setPadding(0, dp(2), 0, dp(4))
             visibility = View.VISIBLE
             setTextIsSelectable(true)
@@ -2339,7 +2339,10 @@ class MainActivity : Activity() {
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed (lossy or unknown source)"; color = green }
             }
         }
-        val compact = "$formatLine\n$verdict"
+        // Build 1.64: when FFmpeg could not make the 24-bit file, say why (third line, readable from a screenshot).
+        val failure = Pcm24Transcoder.lastFailure?.takeIf { srcBits != null && srcBits > 16 }
+        val failureLine = if (failure != null) "\n24-bit conversion failed: " + failure.take(140) else ""
+        val compact = "$formatLine\n$verdict$failureLine"
         val colored = android.text.SpannableString(compact)
         val start = compact.indexOf(verdict)
         if (start >= 0) colored.setSpan(android.text.style.ForegroundColorSpan(color), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

@@ -56,3 +56,6 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 ## Next
 - Only what the user asks for after testing 1.41 (tune the fade width/strength, colour choice per cover).
+
+## Build 1.64 (branch claude-build-164-player)
+- Starts from 1.62 (NOT from the 1.63 branch: it dropped the native build and swapped ffmpeg-kit-audio for -full). Hi-res FLAC that FFmpeg cannot convert is played as it is, and the info line shows the failure reason. See BUILD164_NOTES.md. Workflow build-164-claude.yml (artifact G6HiFiPlayer-Build164-v1.64.0). Not yet checked on the phone.

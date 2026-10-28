@@ -30,8 +30,16 @@ internal object Pcm24Transcoder {
     @Volatile var busyTitle: String? = null
         private set
 
+    /**
+     * Build 1.64: why the last 24-bit conversion failed (null when the last one worked). The Now Playing info line shows it,
+     * so a failure can be read off the screen instead of ending in silence.
+     */
+    @Volatile var lastFailure: String? = null
+        private set
+
     private val locks = ConcurrentHashMap<String, Any>()
     private val served = ConcurrentHashMap<String, String>()
+    private val failed = ConcurrentHashMap<String, String>()
 
     private val prefetchQueued = ConcurrentHashMap.newKeySet<String>()
     private val prefetchExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
@@ -141,9 +149,21 @@ internal object Pcm24Transcoder {
         val lock = locks.getOrPut(key) { Any() }
         synchronized(lock) {
             served[key]?.let { path -> val f = File(path); if (f.isFile && f.length() > 44L) return Uri.fromFile(f) }
+            // Build 1.64: a track that FFmpeg cannot convert is no longer refused. It is played as it is (Android's own decoder,
+            // float output ON) and the info line says honestly which depth arrived and why the 24-bit conversion failed.
+            failed[key]?.let { return uri }
             val info = sniff(context, uri)
             if (!needsTranscode(info)) return uri
-            val wav = transcode(context, uri, info!!)
+            val wav = try {
+                transcode(context, uri, info!!)
+            } catch (e: Throwable) {
+                val why = (e.message ?: e.javaClass.simpleName).replace('\n', ' ').take(300)
+                failed[key] = why
+                lastFailure = "${e.javaClass.simpleName}: $why"
+                DirectOutputState.log("24-bit conversion failed, playing the original file instead: ${lastFailure}")
+                return uri
+            }
+            lastFailure = null
             served[key] = wav.absolutePath
             return Uri.fromFile(wav)
         }
