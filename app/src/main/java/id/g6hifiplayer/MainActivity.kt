@@ -289,7 +289,7 @@ class MainActivity : Activity() {
         player = PlaybackKeepAliveService.existingPlayer()
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, handler)
-        PlaybackKeepAliveService.armExclusive(this) // Build 1.66: start watching the headphone jack (no-op when the setting is OFF)
+        PlaybackKeepAliveService.armExclusive(this) // Build 1.67: exclusive mode is always on; it follows the headphone jack
         createNotificationChannel()
         createMediaSession()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
@@ -367,14 +367,6 @@ class MainActivity : Activity() {
         fillColumnButtons(columnButtons)
         columnsCard.addView(columnButtons, LinearLayout.LayoutParams(-1, -2))
         settingsPanel.addView(columnsCard)
-        // Build 1.66: exclusive mode. When the headphone jack is plugged in, a notification asks to take over all audio.
-        val exclusiveCard = card()
-        exclusiveCard.addView(text("EXCLUSIVE MODE", 12f, MUTED, true))
-        val exclusiveButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
-        fillExclusiveButtons(exclusiveButtons)
-        exclusiveCard.addView(exclusiveButtons, LinearLayout.LayoutParams(-1, -2))
-        exclusiveCard.addView(text("ON: plugging in the jack shows a notification; tap Take over and this player holds all audio until you unplug (other apps and system sounds stay away, like UAPP). Needs the app to have been opened once since the phone started.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
-        settingsPanel.addView(exclusiveCard)
         // Build 1.44: Setting shows only the folder scan and the column option. The audio/file info panels
         // are still created (other code updates their text) but are no longer attached to the screen.
         content.addView(playerPanel); content.addView(libraryPanel); content.addView(settingsPanel)
@@ -897,24 +889,6 @@ class MainActivity : Activity() {
         container.addView(action("ADAPTIVE", !classicTheme) { setClassicTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
         container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         container.addView(action("CLASSIC", classicTheme) { setClassicTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-    }
-
-    /** Build 1.66: the Exclusive mode ON / OFF buttons shown in Setting. */
-    private fun fillExclusiveButtons(container: LinearLayout) {
-        container.removeAllViews()
-        val on = PlaybackKeepAliveService.exclusiveEnabled(this)
-        container.addView(action("ON", on) { setExclusiveMode(true, container) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-        container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        container.addView(action("OFF", !on) { setExclusiveMode(false, container) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-    }
-
-    private fun setExclusiveMode(enabled: Boolean, container: LinearLayout) {
-        getPreferences(MODE_PRIVATE).edit().putBoolean("exclusive_mode", enabled).apply()
-        if (enabled) {
-            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 303)
-            PlaybackKeepAliveService.armExclusive(this)
-        } else PlaybackKeepAliveService.disarmExclusive(this)
-        handler.post { if (!isFinishing) fillExclusiveButtons(container) }
     }
 
     private fun setClassicTheme(classic: Boolean) {
@@ -2353,48 +2327,49 @@ class MainActivity : Activity() {
      */
     private fun refreshAudioInfo() {
         if (!::audioInfoInline.isInitialized) return
-        val track = tracks.getOrNull(currentIndex)
-        val extension = track?.uri?.lastPathSegment?.substringAfterLast('.', "")?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: "AUDIO"
         val srcRate = sourceRate
         val srcBits = sourceBits
         val sourceKhz = srcRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
         val bitsLabel = srcBits?.let { " / $it-bit" } ?: ""
-        val bitrateLabel = sourceBitrate?.let { " • ${it / 1000} kbps" } ?: ""
         val direct = prepared && player != null && DirectOutputState.active
+        val jack = wiredJackConnected()
+        val device = if (jack) "headset" else "speaker"
         val green = 0xFF5BD98C.toInt()
         val orange = 0xFFFFA43A.toInt()
         val grey = 0xFFA4A4B2.toInt()
+        // Build 1.67: line 1 is always ONE short line: source -> output, by headset / speaker.
+        // Line 2 is the status (route verdict + a grey note about the data).
         val formatLine: String
         var verdict: String
         var note = ""
         val color: Int
         if (!direct) {
-            formatLine = "$extension$bitrateLabel • $sourceKhz kHz$bitsLabel"
+            formatLine = "$sourceKhz kHz$bitsLabel • by $device"
             verdict = "● DIRECT OUTPUT NOT ACTIVE"
             color = orange
         } else {
             val outRate = DirectOutputState.rate
             val outKhz = String.format(Locale.US, "%.1f", outRate / 1000f)
-            formatLine = "$extension$bitrateLabel • $sourceKhz kHz$bitsLabel → $outKhz kHz • ${DirectOutputState.sourceLabel}"
-            // Build 1.66: the green label is about the ROUTE only (same as the adb dump): DIRECT flag, not the mixer thread,
+            formatLine = "$sourceKhz kHz$bitsLabel → $outKhz kHz • by $device"
+            // The green label is about the ROUTE only (same as the adb dump): DIRECT flag, not the mixer thread,
             // headphone jack. What the samples contain is a separate grey note, never an orange failure.
             val routeDirect = DirectOutputState.routeIsDirect()
             when {
                 srcRate != null && srcRate != outRate -> { verdict = "● SAMPLE RATE CHANGED"; color = orange }
                 srcBits != null && DirectOutputState.inputBits < srcBits -> { verdict = "● DEPTH REDUCED TO ${DirectOutputState.inputBits}-BIT"; color = orange }
                 routeDirect == false -> { verdict = "● NOT ON THE DIRECT THREAD (MIXER)"; color = orange }
-                !wiredJackConnected() -> { verdict = "● OUTPUT IS NOT THE HEADPHONE JACK"; color = orange }
+                !jack -> { verdict = "● SPEAKER • NOT BIT-PERFECT"; color = orange }
                 srcBits != null -> {
-                    verdict = "● BIT-PERFECT • NATIVE DIRECT"
+                    verdict = "● BIT-PERFECT"
                     color = green
                     note = when {
                         srcBits <= 16 -> " • 16-bit padded to 24"
-                        DirectOutputState.depthVerdict() == 1 -> " • real 24-bit data"
-                        DirectOutputState.depthVerdict() == 2 -> " • low 8 bits empty in this file"
+                        DirectOutputState.depthVerdict() == 1 -> " • real 24-bit"
+                        DirectOutputState.depthVerdict() == 2 -> " • low 8 bits empty"
                         else -> ""
                     }
                 }
-                else -> { verdict = "● NATIVE DIRECT • 24-bit packed (lossy or unknown source)"; color = green }
+                else -> { verdict = "● NATIVE DIRECT • 24-bit packed"; color = green }
             }
         }
         val compact = "$formatLine\n$verdict$note"
@@ -2405,6 +2380,25 @@ class MainActivity : Activity() {
             if (note.isNotEmpty()) colored.setSpan(android.text.style.ForegroundColorSpan(grey), start + verdict.length, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         audioInfoInline.text = colored
+        fitAudioInfoLines(formatLine, "$verdict$note")
+    }
+
+    /** Build 1.67: both lines must stay on one row each. If one is too wide for the screen, the text size shrinks a little. */
+    private fun fitAudioInfoLines(line1: String, line2: String) {
+        audioInfoInline.post {
+            val avail = audioInfoInline.width - audioInfoInline.paddingLeft - audioInfoInline.paddingRight
+            if (avail <= 0) return@post
+            var size = 9f
+            val paint = android.graphics.Paint(audioInfoInline.paint)
+            paint.typeface = audioInfoInline.typeface
+            while (size > 6f) {
+                paint.textSize = size * resources.displayMetrics.scaledDensity
+                if (maxOf(paint.measureText(line1), paint.measureText(line2)) <= avail) break
+                size -= 0.5f
+            }
+            if (audioInfoInline.textSize != size * resources.displayMetrics.scaledDensity)
+                audioInfoInline.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, size)
+        }
     }
 
     /** Build 1.66: is a wired headphone / jack output connected right now? */

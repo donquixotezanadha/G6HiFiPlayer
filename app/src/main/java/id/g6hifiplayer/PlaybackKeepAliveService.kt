@@ -78,7 +78,8 @@ class PlaybackKeepAliveService : Service() {
         val cb = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
                 if (initialReport) return
-                if (addedDevices.any { isWired(it) } && exclusiveEnabled() && !ExclusiveAudioFocus.takeover) showTakeoverPrompt()
+                // Build 1.67: no question any more. Plugging in the jack takes over all audio at once.
+                if (addedDevices.any { isWired(it) } && !ExclusiveAudioFocus.takeover) autoTakeover()
             }
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                 if (removedDevices.none { isWired(it) }) return
@@ -94,7 +95,11 @@ class PlaybackKeepAliveService : Service() {
         }
         jackCallback = cb
         am.registerAudioDeviceCallback(cb, mainHandler)
-        mainHandler.post { initialReport = false }
+        mainHandler.post {
+            initialReport = false
+            // The jack is already plugged in when the service starts: take over right away.
+            if (wiredNow() && !ExclusiveAudioFocus.takeover) autoTakeover()
+        }
     }
 
     private fun unregisterJackWatcher() {
@@ -103,16 +108,13 @@ class PlaybackKeepAliveService : Service() {
         jackCallback = null
     }
 
-    private fun ensurePromptChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(PROMPT_CHANNEL_ID, "Exclusive mode prompt", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Asks to take over all audio when headphones are plugged in"
-                setSound(null, null)
-                enableVibration(false)
-                setShowBadge(false)
-            }
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
-        }
+    /** Build 1.67: exclusive mode is automatic while a headset is plugged in. */
+    private fun autoTakeover() {
+        if (!wiredNow()) return
+        cancelTakeoverPrompt() // removes the old "Take over?" notification of Build 1.66 if it is still shown
+        if (!foregroundStarted) ensureForeground()
+        ExclusiveAudioFocus.startTakeover(applicationContext)
+        scheduleNotificationPublish()
     }
 
     private fun actionBroadcast(action: String, code: Int): PendingIntent {
@@ -122,27 +124,6 @@ class PlaybackKeepAliveService : Service() {
             .setData(android.net.Uri.parse("g6hifi://notification/" + action))
             .putExtra("notification_action", action)
         return PendingIntent.getBroadcast(this, code, intent, flags)
-    }
-
-    /** Heads-up notification: "Headphones connected - take over all audio?" with Take over / Not now. */
-    private fun showTakeoverPrompt() {
-        ensurePromptChannel()
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, PROMPT_CHANNEL_ID) else Notification.Builder(this)
-        builder.setSmallIcon(R.drawable.ic_stat_music)
-            .setContentTitle("Headphones connected")
-            .setContentText("Take over all audio on the jack? Other apps and system sounds stay away until you unplug.")
-            .setStyle(Notification.BigTextStyle().bigText("Take over all audio on the jack? Other apps and system sounds stay away until you unplug or release it."))
-            .setCategory(Notification.CATEGORY_STATUS)
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
-            .addAction(Notification.Action.Builder(R.drawable.ic_play_24, "Take over", actionBroadcast("exclusive_on", 6201)).build())
-            .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Not now", actionBroadcast("exclusive_no", 6202)).build())
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            @Suppress("DEPRECATION") builder.setPriority(Notification.PRIORITY_HIGH)
-        }
-        if (Build.VERSION.SDK_INT >= 26) builder.setTimeoutAfter(60_000L)
-        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(PROMPT_NOTIFICATION_ID, builder.build()) }
-        catch (e: Exception) { android.util.Log.w(TAG, "Exclusive prompt failed", e) }
     }
 
     private fun cancelTakeoverPrompt() {
@@ -158,12 +139,10 @@ class PlaybackKeepAliveService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         builder.setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(if (active) "Exclusive mode ON" else "Exclusive mode ready")
-            .setContentText(if (active) "This player holds all audio on the jack." else "Plug in headphones to be asked to take over all audio.")
+            .setContentText(if (active) "This player holds all audio on the jack." else "Plug in headphones: this player takes over all audio by itself.")
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-        if (active) builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Release", actionBroadcast("exclusive_off", 6203)).build())
-        else if (wiredNow()) builder.addAction(Notification.Action.Builder(R.drawable.ic_play_24, "Take over", actionBroadcast("exclusive_on", 6201)).build())
         builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionBroadcast("close", 6104)).build())
         return builder.build()
     }
@@ -193,21 +172,14 @@ class PlaybackKeepAliveService : Service() {
     /** Runs a transport command on the shared player. Must be called on the main thread. */
     private fun handleTransport(serviceAction: String) {
         when (serviceAction) {
-            ACTION_EXCLUSIVE_ON -> {
-                cancelTakeoverPrompt()
-                if (!wiredNow()) { android.util.Log.i(TAG, "exclusive: jack not connected, ignored"); return }
-                if (!foregroundStarted) ensureForeground()
-                ExclusiveAudioFocus.startTakeover(applicationContext)
-                registerJackWatcher()
-                scheduleNotificationPublish()
-                return
-            }
+            ACTION_EXCLUSIVE_ON -> { registerJackWatcher(); autoTakeover(); return }
             ACTION_EXCLUSIVE_OFF -> { ExclusiveAudioFocus.stopTakeover(); scheduleNotificationPublish(); return }
             ACTION_EXCLUSIVE_NO -> { cancelTakeoverPrompt(); return }
             ACTION_EXCLUSIVE_ARM -> {
                 if (!foregroundStarted) ensureForeground()
                 registerJackWatcher()
-                scheduleNotificationPublish()
+                // Opening the app with the headset plugged in (e.g. after closing the player) takes over again.
+                if (wiredNow() && !ExclusiveAudioFocus.takeover) autoTakeover() else scheduleNotificationPublish()
                 return
             }
         }
@@ -437,8 +409,7 @@ class PlaybackKeepAliveService : Service() {
         const val PREFS_NAME = "id.g6hifiplayer.MainActivity" // the file MainActivity.getPreferences() uses
 
         /** Exclusive mode setting (Setting tab). On by default. */
-        @JvmStatic fun exclusiveEnabled(context: Context): Boolean =
-            context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean("exclusive_mode", true)
+        @JvmStatic fun exclusiveEnabled(context: Context): Boolean = true // Build 1.67: no setting, always on
 
         /** Starts the service in standby so the jack plug-in prompt works (called when the app opens / the setting is turned on). */
         @JvmStatic fun armExclusive(context: Context) {
