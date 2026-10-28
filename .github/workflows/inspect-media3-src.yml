@@ -1,0 +1,42 @@
+name: Inspect Media3 sources (Build 1.64 prep)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude-build-164-player"]
+    paths: [".github/workflows/inspect-media3-src.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Media3 1.10.1 source jars
+        run: |
+          mkdir -p work/src && cd work
+          for m in exoplayer extractor common decoder; do
+            curl -fsSL -o $m.jar https://dl.google.com/dl/android/maven2/androidx/media3/media3-$m/1.10.1/media3-$m-1.10.1-sources.jar || echo "missing $m"
+            [ -s $m.jar ] && unzip -q -o $m.jar -d src/$m || true
+          done
+          mkdir -p ../out
+          A=src/exoplayer/androidx/media3/exoplayer
+          cp $A/audio/DefaultAudioSink.java $A/audio/MediaCodecAudioRenderer.java $A/audio/AudioOutputProvider.java \
+             $A/audio/ToFloatPcmAudioProcessor.java $A/audio/AudioSink.java ../out/ 2>&1 || true
+          cp $A/mediacodec/MediaCodecRenderer.java ../out/ 2>&1 || true
+          find src -name 'WavExtractor.java' -o -name 'WavFormat.java' -o -name 'WavHeaderReader.java' -o -name 'PassthroughOutputWriter*' | xargs -I{} cp {} ../out/ || true
+          cp $A/DefaultRenderersFactory.java ../out/ || true
+          ls -l ../out
+      - name: Publish to branch ci-logs
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out && cp out/* /tmp/out/
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          mkdir -p media3src && cp /tmp/out/* media3src/
+          git add media3src
+          git commit -m "media3 1.10.1 sources"
+          git push -f origin ci-logs
