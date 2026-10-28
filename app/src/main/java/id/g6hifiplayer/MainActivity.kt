@@ -190,14 +190,14 @@ class MainActivity : Activity() {
     private lateinit var trackRows: LinearLayout
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val handler = Handler(Looper.getMainLooper())
+    private var lastDepthVerdict = 0
     private val ticker = object : Runnable {
         override fun run() {
             // Keep frame-time work low on older devices: update playback position only.
             // Audio route inspection is event-driven elsewhere, not polled every half-second.
-            if (!prepared && Pcm24Transcoder.busyTitle != null && ::statusView.isInitialized) {
-                statusView.text = "Decoding to 24-bit PCM (no resampling)…"
-                refreshAudioInfo()
-            }
+            // Build 1.65: the real-24-bit check needs a few seconds of audio; refresh the info line when its answer changes.
+            val depthNow = DirectOutputState.depthVerdict()
+            if (depthNow != lastDepthVerdict) { lastDepthVerdict = depthNow; refreshAudioInfo() }
             if (prepared) player?.let { p ->
                 persistPlaybackState(force = false)
                 if (!seeking) {
@@ -543,7 +543,7 @@ class MainActivity : Activity() {
         audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
             gravity = Gravity.CENTER
             textAlignment = View.TEXT_ALIGNMENT_CENTER
-            maxLines = 4
+            maxLines = 3
             setPadding(0, dp(2), 0, dp(4))
             visibility = View.VISIBLE
             setTextIsSelectable(true)
@@ -2040,7 +2040,7 @@ class MainActivity : Activity() {
             } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
             val parsedRate = rate.toIntOrNull()
             val parsedBitrate = bitrate.toIntOrNull()
-            val sniffed = Pcm24Transcoder.sniff(this@MainActivity, uri)
+            val sniffed = AudioSniffer.sniff(this@MainActivity, uri)
             handler.post {
                 if (isFinishing || tracks.getOrNull(currentIndex)?.uri != uri) return@post
                 sourceRate = parsedRate
@@ -2326,7 +2326,7 @@ class MainActivity : Activity() {
         val color: Int
         if (!direct) {
             formatLine = "$extension$bitrateLabel • source $sourceKhz kHz$bitsLabel"
-            verdict = if (Pcm24Transcoder.busyTitle != null) "● DECODING TO 24-BIT…" else "● DIRECT OUTPUT NOT ACTIVE"
+            verdict = "● DIRECT OUTPUT NOT ACTIVE"
             color = orange
         } else {
             val outRate = DirectOutputState.rate
@@ -2335,14 +2335,13 @@ class MainActivity : Activity() {
             when {
                 srcRate != null && srcRate != outRate -> { verdict = "● SAMPLE RATE CHANGED"; color = orange }
                 srcBits != null && DirectOutputState.inputBits < srcBits -> { verdict = "● DEPTH REDUCED TO ${DirectOutputState.inputBits}-BIT"; color = orange }
+                srcBits != null && srcBits > 16 && DirectOutputState.depthVerdict() == 2 -> { verdict = "● 24-BIT CARRIER, BUT LOW 8 BITS ARE EMPTY"; color = orange }
+                srcBits != null && srcBits > 16 && DirectOutputState.depthVerdict() == 1 -> { verdict = "● BIT-PERFECT • NATIVE DIRECT • real 24-bit data"; color = green }
                 srcBits != null -> { verdict = "● BIT-PERFECT • NATIVE DIRECT • 24-bit packed"; color = green }
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed (lossy or unknown source)"; color = green }
             }
         }
-        // Build 1.64: when FFmpeg could not make the 24-bit file, say why (third line, readable from a screenshot).
-        val failure = Pcm24Transcoder.lastFailure?.takeIf { srcBits != null && srcBits > 16 }
-        val failureLine = if (failure != null) "\n24-bit conversion failed: " + failure.take(140) else ""
-        val compact = "$formatLine\n$verdict$failureLine"
+        val compact = "$formatLine\n$verdict"
         val colored = android.text.SpannableString(compact)
         val start = compact.indexOf(verdict)
         if (start >= 0) colored.setSpan(android.text.style.ForegroundColorSpan(color), start, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

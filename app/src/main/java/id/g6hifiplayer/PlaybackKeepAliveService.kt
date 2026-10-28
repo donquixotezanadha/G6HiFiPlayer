@@ -369,33 +369,18 @@ class PlaybackKeepAliveService : Service() {
                     }
                 }
                 renderersFactory.setEnableAudioFloatOutput(true)
-                // Hi-res FLAC is served as a 24-bit WAV (see Pcm24DataSource) so the real bit depth reaches the output.
                 val player = ExoPlayer.Builder(appContext, renderersFactory)
-                    .setMediaSourceFactory(DefaultMediaSourceFactory(Pcm24DataSource.Factory(appContext)))
                     .build().apply {
                         setHandleAudioBecomingNoisy(true)
                         volume = 1.0f
                     }
                 ExclusiveAudioFocus.attach(appContext, player)
-                // Build 1.62: decode the next hi-res FLAC to 24-bit WAV in the background while the current track plays, so the
-                // next track starts without waiting for FFmpeg.
-                player.addListener(object : Player.Listener {
-                    override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { prefetchNext(player, appContext) }
-                    override fun onPlaybackStateChanged(playbackState: Int) { if (playbackState == Player.STATE_READY) prefetchNext(player, appContext) }
-                })
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player
             }
         }
 
-        private fun prefetchNext(player: ExoPlayer, context: Context) {
-            try {
-                val next = player.nextMediaItemIndex
-                if (next == androidx.media3.common.C.INDEX_UNSET) return
-                player.getMediaItemAt(next).localConfiguration?.uri?.let { Pcm24Transcoder.prefetch(context, it) }
-            } catch (_: Exception) { }
-        }
 
         private fun releasePlayer() {
             synchronized(playerLock) {

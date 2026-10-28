@@ -59,3 +59,6 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 ## Build 1.64 (branch claude-build-164-player)
 - Starts from 1.62 (NOT from the 1.63 branch: it dropped the native build and swapped ffmpeg-kit-audio for -full). Hi-res FLAC that FFmpeg cannot convert is played as it is, and the info line shows the failure reason. See BUILD164_NOTES.md. Workflow build-164-claude.yml (artifact G6HiFiPlayer-Build164-v1.64.0). Not yet checked on the phone.
+
+## Build 1.65 (branch claude-build-165-player)
+- 1.64 phone test: plays, DIRECT 96 kHz PCM_24_BIT_PACKED, green; FFmpeg failed with NoClassDefFoundError and was not needed (platform FLAC decoder + float output gives 24-bit). 1.65 removes FFmpeg and adds a real-24-bit check on the info line. See BUILD165_NOTES.md. Workflow build-165-claude.yml (artifact G6HiFiPlayer-Build165-v1.65.0). Not yet checked on the phone.

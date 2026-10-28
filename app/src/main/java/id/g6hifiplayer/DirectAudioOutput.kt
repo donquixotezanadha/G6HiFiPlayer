@@ -227,7 +227,24 @@ internal class DirectAudioOutput private constructor(
             }
             src += channels * inBytes
         }
+        countDepth(o)
         return o
+    }
+
+    /** Counts non-zero samples and samples with a non-zero low byte in [outBuf] (24-bit packed, little endian). */
+    private fun countDepth(length: Int) {
+        if (DirectOutputState.depthVerdict() != 0) return
+        var active = 0L
+        var low = 0L
+        var i = 0
+        val b = outBuf
+        while (i + 2 < length) {
+            val lo = b[i].toInt()
+            if (lo != 0) { low++; active++ } else if (b[i + 1].toInt() != 0 || b[i + 2].toInt() != 0) active++
+            i += 3
+        }
+        DirectOutputState.activeSamples += active
+        DirectOutputState.lowByteSamples += low
     }
 
     companion object {
@@ -303,6 +320,7 @@ internal class DirectAudioOutput private constructor(
             DirectOutputState.rate = config.sampleRate
             DirectOutputState.sourceLabel = describeInput(config.encoding)
             DirectOutputState.inputBits = carriedBits(config.encoding)
+            DirectOutputState.resetDepthCheck()
             DirectOutputState.active = true
             DirectOutputState.route = NativeDirectStream.routeInfo(handle)
             DirectOutputState.log("opened ${config.sampleRate} Hz ${channels}ch from ${describeInput(config.encoding)} -> 24-bit packed DIRECT, buffer $bufferFrames frames, route: ${DirectOutputState.route}")
