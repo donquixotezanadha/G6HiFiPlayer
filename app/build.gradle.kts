@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "id.g6hifiplayer"
     compileSdk = 36
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "id.g6hifiplayer"
@@ -13,6 +14,17 @@ android {
         targetSdk = 35
         versionCode = 163
         versionName = "1.63.0"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     compileOptions {
@@ -28,6 +40,7 @@ android {
 dependencies {
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
+    implementation("androidx.media3:media3-datasource:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
-    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.7")
+    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.7")
 }

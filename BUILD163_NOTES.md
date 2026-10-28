@@ -1,15 +1,11 @@
 # Build 1.63.0
 
-## Build configuration
-- Android application version: `1.63.0`
-- `versionCode`: `163`
-- Android compile SDK: `36`
-- Android target SDK: `35`
-- Minimum SDK: `28`
-- Java source/target compatibility: `17`
-- Kotlin JVM target: `17`
+## Why (28 Oct)
+The first 1.63 attempt (made outside this line) failed on the phone and the APK grew from 14 MB to 78 MB. Cause, read from the diff against 1.62:
+- `externalNativeBuild` / CMake / `ndkVersion` / `abiFilters arm64-v8a` were removed from `app/build.gradle.kts`: the native DIRECT output (`libg6direct.so`) was no longer built, so `System.loadLibrary("g6direct")` fails at run time (the Kotlin code still calls it; it only compiles, it does not work).
+- `ffmpeg-kit-audio` was swapped for `ffmpeg-kit-full` (all codecs, all ABIs): that is the size growth.
 
-## CI build
-The workflow `.github/workflows/build-163-claude.yml` builds the debug APK with Gradle 8.9, Android platform 36, and Android build-tools 36.0.0. It verifies that `app/build/outputs/apk/debug/app-debug.apk` exists and is non-empty, then uploads it as `G6HiFiPlayer-Build163-v1.63.0`.
-
-This is a CI packaging/version checkpoint. A successful build confirms compilation and packaging only; it does not claim device playback validation or bit-perfect output.
+## What changed
+- `app/build.gradle.kts` is again exactly the 1.62 configuration (NDK 26.1.10909125, CMake 3.22.1, arm64-v8a only, `ffmpeg-kit-audio`, `media3-datasource`), only versionCode 163 / versionName 1.63.0.
+- Workflow `build-163-claude.yml` keeps the new SDK-licence handling and installs `ndk;26.1.10909125` and `cmake;3.22.1` again.
+- Source code under `app/src` is unchanged from 1.62 in this first step.
