@@ -9,3 +9,4 @@ The first 1.63 attempt (made outside this line) failed on the phone and the APK 
 - `app/build.gradle.kts` is again exactly the 1.62 configuration (NDK 26.1.10909125, CMake 3.22.1, arm64-v8a only, `ffmpeg-kit-audio`, `media3-datasource`), only versionCode 163 / versionName 1.63.0.
 - Workflow `build-163-claude.yml` keeps the new SDK-licence handling and installs `ndk;26.1.10909125` and `cmake;3.22.1` again.
 - Source code under `app/src` is unchanged from 1.62 in this first step.
+- CI now fails if `lib/arm64-v8a/libg6direct.so` is missing from the APK and prints the native libraries and the APK size in the log. The artifact is zipped with the default compression again (as in 1.62), so its download size is comparable with 1.62.
