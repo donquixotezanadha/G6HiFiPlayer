@@ -143,6 +143,8 @@ class PlaybackKeepAliveService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setColor(android.graphics.Color.BLACK)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setColorized(true)
         builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionBroadcast("close", 6104)).build())
         return builder.build()
     }
@@ -358,6 +360,8 @@ class PlaybackKeepAliveService : Service() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
+            // Build 2.0: fixed black notification (white text and controls) instead of the cover's dominant colour.
+            .setColor(android.graphics.Color.BLACK)
             // Same vector icons as the in-app transport buttons (previous / play-pause / next).
             .addAction(Notification.Action.Builder(R.drawable.ic_previous_24, "Previous", actionPending("previous", 6101)).build())
             .addAction(Notification.Action.Builder(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24,
@@ -368,6 +372,7 @@ class PlaybackKeepAliveService : Service() {
         // The service can publish before MainActivity's next UI callback, so read MediaSession's
         // stored bitmap rather than depending on an Activity view still being attached.
         if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setColorized(true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setStyle(Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
         }

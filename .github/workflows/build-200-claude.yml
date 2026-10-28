@@ -1,9 +1,9 @@
-name: Build G6 Player Build 1.67 - one-line info, automatic exclusive mode
+name: Build G6 Player Build 2.0 - dark theme, small cover, black notification
 
 on:
   workflow_dispatch:
   push:
-    branches: ["claude-build-167-player"]
+    branches: ["claude-build-200-player"]
 
 permissions:
   contents: write
@@ -37,13 +37,13 @@ jobs:
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build167_errors.txt || true
-          tail -150 build-log.txt > /tmp/out/build167_tail.txt
+          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build200_errors.txt || true
+          tail -150 build-log.txt > /tmp/out/build200_tail.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add build167_errors.txt build167_tail.txt
-          git commit -m "build 1.67 failure log"
+          git add build200_errors.txt build200_tail.txt
+          git commit -m "build 2.0 failure log"
           git push -f origin ci-logs
       - name: Verify APK exists and is non-empty
         run: |
@@ -52,30 +52,30 @@ jobs:
           echo "APK bytes: $(stat -c%s "$APK")"
           unzip -l "$APK" | grep -E "\.so$" || true
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so" || { echo "libg6direct.so is missing from the APK"; exit 1; }
-      - name: Upload Build 1.67 APK
+      - name: Upload Build 2.0 APK
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build167-v1.67.0
+          name: G6HiFiPlayer-Build200-v2.0.0
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## Download G6HiFiPlayer Build 1.67" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Download G6HiFiPlayer Build 2.0" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download Build 1.67 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 2.0 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 1.67 = 1.66 + one-line info (source to output, by headset or speaker) and automatic exclusive mode (no notification, no setting)."
+          echo "Build 2.0 = 1.67 + Dark theme only (Light placeholder), smaller cover with controls below, Setting without description boxes, black notification, two-line scrolling audio info."
       - name: Publish success marker to branch ci-logs
         run: |
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          echo "build 1.67 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build167_ok.txt
+          echo "build 2.0 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build200_ok.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add build167_ok.txt
-          git commit -m "build 1.67 ok"
+          git add build200_ok.txt
+          git commit -m "build 2.0 ok"
           git push -f origin ci-logs

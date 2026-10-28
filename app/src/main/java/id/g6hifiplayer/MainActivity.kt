@@ -88,7 +88,7 @@ class MainActivity : Activity() {
     private var artToken = 0
     // Build 1.42: one palette for every page. Surface = dominant cover colour, ink = white/near-black by contrast.
     // Build 1.45: in the Classic theme the accent is the original purple instead of the page ink.
-    private val accentColor get() = if (classicTheme) DEFAULT_ACCENT else playerInk
+    private val accentColor get() = DEFAULT_ACCENT
     // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
     // text/button colour with the best contrast on it. This is the default ("Adaptive" in Setting).
     private var playerSurface = DEFAULT_ACCENT
@@ -96,19 +96,18 @@ class MainActivity : Activity() {
     private var appliedPlayerSurface: Int? = null
     private val dominantColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
     // Build 1.45 Classic theme: the cover, softened and darkened, behind every page; purple accent, white and grey text.
-    private var classicTheme = false
-    private var classicBackdropBitmap: android.graphics.Bitmap? = null
-    private var classicBackdropSource: java.lang.ref.WeakReference<android.graphics.Bitmap>? = null
-    private val classicDrawables = mutableListOf<ClassicBackdropDrawable>()
+    private var darkBackdropBitmap: android.graphics.Bitmap? = null
+    private var darkBackdropSource: java.lang.ref.WeakReference<android.graphics.Bitmap>? = null
+    private val darkDrawables = mutableListOf<DarkBackdropDrawable>()
     private lateinit var artBox: FrameLayout
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
-    private val lightTheme get() = playerInk != Color.WHITE
+    private val lightTheme get() = false
     private val BG get() = playerSurface
-    private val CARD get() = if (classicTheme) 0xB8101014.toInt() else mixColors(playerSurface, playerInk, 0.10f)
-    private val ART get() = if (classicTheme) 0xFF181820.toInt() else mixColors(playerSurface, playerInk, 0.14f)
-    private val LINE get() = if (classicTheme) 0xCC292932.toInt() else mixColors(playerSurface, playerInk, 0.18f)
+    private val CARD get() = 0xB8101014.toInt()
+    private val ART get() = 0xFF181820.toInt()
+    private val LINE get() = 0xCC292932.toInt()
     private val WHITE get() = playerInk
-    private val MUTED get() = if (classicTheme) 0xFFA4A4B2.toInt() else mixColors(playerSurface, playerInk, 0.70f)
+    private val MUTED get() = 0xFFA4A4B2.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
     private var buildingUi = false
@@ -151,6 +150,8 @@ class MainActivity : Activity() {
     private lateinit var scanProgressText: TextView
     private lateinit var albumScanSummary: TextView
     private lateinit var audioInfoInline: TextView
+    private lateinit var audioStatusInline: TextView
+    private var sourceFormat: String? = null
     private lateinit var playerPanel: FrameLayout
     private lateinit var libraryPanel: LinearLayout
     private lateinit var songsPanel: LinearLayout
@@ -179,8 +180,6 @@ class MainActivity : Activity() {
     private lateinit var elapsed: TextView
     private lateinit var duration: TextView
     private lateinit var artImage: ImageView
-    private lateinit var playerBackdropImage: ImageView
-    private lateinit var playerBottomShade: View
     private lateinit var playerBottomDock: LinearLayout
     private lateinit var prevView: TextView
     private lateinit var nextView: TextView
@@ -275,8 +274,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
-        classicTheme = getPreferences(MODE_PRIVATE).getBoolean("theme_classic", false)
-        if (classicTheme) { playerSurface = CLASSIC_SURFACE; playerInk = Color.WHITE }
+        playerSurface = DARK_SURFACE; playerInk = Color.WHITE // Build 2.0: Dark is the only theme (Light is a placeholder in Setting)
         // Fully transparent status bar; icon colour follows the page ink.
         applySystemBars()
         activeInstance?.let { previous ->
@@ -301,9 +299,9 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         buildingUi = true
-        classicDrawables.clear()
-        // Classic theme: the page is transparent and the softened cover is drawn behind it (see ClassicBackdropDrawable).
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(if (classicTheme) Color.TRANSPARENT else BG) }
+        darkDrawables.clear()
+        // Classic theme: the page is transparent and the softened cover is drawn behind it (see DarkBackdropDrawable).
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.TRANSPARENT) }
         pageRoot = root
         // The bottom bar has no background of its own: it shows the same surface as the page above it.
         val nav = LinearLayout(this).apply {
@@ -348,24 +346,26 @@ class MainActivity : Activity() {
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
         val scanCard = card()
         scanCard.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
-        scanCard.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(10) })
+        val scanButtons = buttonArea(false)
+        scanButtons.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
+        scanCard.addView(scanButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
         librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         scanCard.addView(librarySummary)
         settingsPanel.addView(scanCard)
-        // Build 1.45: theme option. Adaptive = cover colour (default); Classic = darkened cover behind every page.
+        // Build 2.0: theme option. Dark is the only theme for now; Light is a placeholder button.
         val themeCard = card()
         themeCard.addView(text("THEME", 12f, MUTED, true))
-        val themeButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        val themeButtons = buttonArea()
         fillThemeButtons(themeButtons)
-        themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2))
-        themeCard.addView(text("Adaptive follows the cover colour. Classic shows the cover, darkened, behind every page with a purple accent.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        themeCard.addView(text("Dark shows the cover, darkened, behind every page with a purple accent. Light is coming later.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         settingsPanel.addView(themeCard)
         // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
         val columnsCard = card()
         columnsCard.addView(text("ALBUM COLUMNS", 12f, MUTED, true))
-        val columnButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        val columnButtons = buttonArea()
         fillColumnButtons(columnButtons)
-        columnsCard.addView(columnButtons, LinearLayout.LayoutParams(-1, -2))
+        columnsCard.addView(columnButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
         settingsPanel.addView(columnsCard)
         // Build 1.44: Setting shows only the folder scan and the column option. The audio/file info panels
         // are still created (other code updates their text) but are no longer attached to the screen.
@@ -378,13 +378,13 @@ class MainActivity : Activity() {
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
-        val stage = FrameLayout(this).apply { setBackgroundColor(if (classicTheme) CLASSIC_SURFACE else BG) }
-        if (classicTheme) stage.addView(View(this).apply { background = newClassicDrawable() }, FrameLayout.LayoutParams(-1, -1))
+        val stage = FrameLayout(this).apply { setBackgroundColor(DARK_SURFACE) }
+        stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
         // is lifted by the real bar height so its buttons stay tappable.
         stage.setOnApplyWindowInsetsListener { _, insets ->
-            val bottomInset = if (classicTheme) insets.systemWindowInsetBottom else 0
+            val bottomInset = insets.systemWindowInsetBottom
             if (root.paddingBottom != bottomInset) root.setPadding(0, 0, 0, bottomInset)
             insets
         }
@@ -490,37 +490,24 @@ class MainActivity : Activity() {
     }
 
     private fun makePlayerPanel() {
-        // Full-bleed artwork is exclusive to Now Playing; the bottom dock stays fixed.
-        playerBackdropImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            themed { setBackgroundColor(playerSurface) }
-            contentDescription = "Album artwork background"
-            // Classic theme: the shared page backdrop and the artwork box replace the full-bleed cover.
-            if (classicTheme) visibility = View.GONE
-        }
-        playerPanel.themed { setBackgroundColor(if (classicTheme) Color.TRANSPARENT else playerSurface) }
-        playerPanel.addView(playerBackdropImage, FrameLayout.LayoutParams(-1, -1))
-
-        // One tinted shade over the cover: the dominant colour rising from the bottom behind the controls
-        // (Build 1.42: the left-to-right shade is gone). Colours are set by applyPlayerPalette().
-        playerBottomShade = View(this).apply { isClickable = false }
-        playerPanel.addView(playerBottomShade, FrameLayout.LayoutParams(-1, -1))
+        // Build 2.0: Dark theme only. The page backdrop is shared (see DarkBackdropDrawable); Now Playing shows the cover in a small box.
+        playerPanel.setBackgroundColor(Color.TRANSPARENT)
 
         artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("NO MUSIC PLAYING", 22f, WHITE, true).apply {
             gravity = Gravity.CENTER
             setPadding(dp(20), dp(20), dp(20), dp(220))
-            themed { background = android.graphics.drawable.ColorDrawable(if (classicTheme) Color.TRANSPARENT else playerSurface) }
+            themed { background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT) }
         }
 
         // Build 1.45: Classic theme shows the cover as a square box above the track details.
         val displayMetrics = resources.displayMetrics
         val topInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-        val boxTop = topInset + dp(12)
-        // Initial size only; sizeClassicArt() fits the box to the space above the controls once the dock is measured.
-        val boxSide = minOf(displayMetrics.widthPixels - dp(32), displayMetrics.heightPixels / 2).coerceAtLeast(dp(180))
+        // Build 2.0: a smaller cover (about 62% of the screen width); title and controls sit directly under it.
+        // sizeDarkArt() shrinks it further if the screen is short.
+        val boxSide = (displayMetrics.widthPixels * 0.62f).toInt().coerceAtLeast(dp(160))
         artBox = FrameLayout(this).apply {
-            visibility = if (classicTheme) View.VISIBLE else View.GONE
+            visibility = View.VISIBLE
             background = shape(0xFF181820.toInt(), 6)
             clipToOutline = true
             outlineProvider = object : android.view.ViewOutlineProvider() {
@@ -532,23 +519,31 @@ class MainActivity : Activity() {
             contentDescription = "Album artwork"
         }
         artBox.addView(artImage, FrameLayout.LayoutParams(-1, -1))
-        playerPanel.addView(artBox, FrameLayout.LayoutParams(boxSide, boxSide, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = boxTop })
         // The "no cover" label sits above the box so it stays readable.
         playerPanel.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
 
-        val foreground = FrameLayout(this).apply {
-            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
-        }
         // Build 1.44: no status-bar scrim. The system bar is fully transparent and the pages show their own surface.
 
-        audioInfoInline = text("FLAC • source — kHz → output — kHz\nBIT-PERFECT NOT CONFIRMED", 9f, MUTED, false).apply {
+        // Build 2.0: two single-line rows. Each one scrolls sideways (marquee) when it is wider than the screen.
+        audioInfoInline = text("FLAC • — kHz → — kHz", 10f, MUTED, false).apply {
             gravity = Gravity.CENTER
             textAlignment = View.TEXT_ALIGNMENT_CENTER
-            maxLines = 2
-            minLines = 2
-            setPadding(0, dp(2), 0, dp(4))
+            isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+            marqueeRepeatLimit = -1
+            isSelected = true
+            setPadding(0, dp(2), 0, 0)
             visibility = View.VISIBLE
-            setTextIsSelectable(true)
+        }
+        audioStatusInline = text("BIT-PERFECT NOT CONFIRMED", 10f, MUTED, false).apply {
+            gravity = Gravity.CENTER
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+            marqueeRepeatLimit = -1
+            isSelected = true
+            setPadding(0, 0, 0, dp(4))
+            visibility = View.VISIBLE
         }
         titleView = text("", 20f, WHITE, true).apply {
             setPadding(0, 0, 0, dp(2))
@@ -633,7 +628,7 @@ class MainActivity : Activity() {
                 lastDockLog = top
                 val loc = IntArray(2); v.getLocationOnScreen(loc)
                 val seekLoc = IntArray(2); seek.getLocationOnScreen(seekLoc)
-                recordDiagnostic("DOCK_LAYOUT theme=" + (if (classicTheme) "classic" else "adaptive") +
+                recordDiagnostic("DOCK_LAYOUT theme=dark" +
                     " dockTopOnScreen=" + loc[1] + " dockHeight=" + (bottom - top) + " seekTopOnScreen=" + seekLoc[1] +
                     " panelMinHeight=" + playerPanel.minimumHeight + " rootPaddingBottom=" + (pageRoot?.paddingBottom ?: -1) +
                     " screenHeight=" + resources.displayMetrics.heightPixels)
@@ -645,14 +640,24 @@ class MainActivity : Activity() {
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1) })
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(18); rightMargin = dp(18); topMargin = dp(4); bottomMargin = dp(2)
+            leftMargin = dp(18); rightMargin = dp(18); topMargin = dp(4)
+            gravity = Gravity.CENTER_HORIZONTAL
+        })
+        bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
+            leftMargin = dp(18); rightMargin = dp(18); bottomMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
-        foreground.addView(bottomDock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        playerPanel.addView(foreground, FrameLayout.LayoutParams(-1, -1))
+        // Build 2.0: cover, title, progress and controls are one column, centred vertically on the page.
+        val stack = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, topInset, 0, 0)
+        }
+        stack.addView(artBox, LinearLayout.LayoutParams(boxSide, boxSide).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(16) })
+        stack.addView(bottomDock, LinearLayout.LayoutParams(-1, -2))
+        playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
         // Build 1.55: Classic cover box = the largest square between the status bar and the controls, centred in that gap.
-        playerPanel.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ -> sizeClassicArt(bottom - top, topInset) }
+        playerPanel.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ -> sizeDarkArt(bottom - top, topInset) }
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
         // The no-track state is represented by the accent-colored artwork area, not the title field.
         // The views were just rebuilt: paint them with the current surface (default colour until a cover arrives).
@@ -660,18 +665,15 @@ class MainActivity : Activity() {
         applyPlayerPalette(playerSurface)
     }
 
-    private fun sizeClassicArt(panelHeight: Int, topInset: Int) {
-        if (!classicTheme || !::artBox.isInitialized || !::playerBottomDock.isInitialized) return
+    private fun sizeDarkArt(panelHeight: Int, topInset: Int) {
+        if (!::artBox.isInitialized || !::playerBottomDock.isInitialized) return
         val dockHeight = playerBottomDock.height
         if (dockHeight <= 0 || panelHeight <= 0) return
-        val sideGap = dp(16)
-        val minGap = dp(12)
-        val space = panelHeight - dockHeight - topInset - minGap * 2
-        val side = minOf(resources.displayMetrics.widthPixels - sideGap * 2, space).coerceAtLeast(dp(160))
-        val top = topInset + minGap + ((space - side) / 2).coerceAtLeast(0)
-        val lp = artBox.layoutParams as? FrameLayout.LayoutParams ?: return
-        if (lp.width != side || lp.height != side || lp.topMargin != top) {
-            lp.width = side; lp.height = side; lp.topMargin = top
+        val space = panelHeight - dockHeight - topInset - dp(16) - dp(24)
+        val side = minOf((resources.displayMetrics.widthPixels * 0.62f).toInt(), space).coerceAtLeast(dp(120))
+        val lp = artBox.layoutParams as? LinearLayout.LayoutParams ?: return
+        if (lp.width != side || lp.height != side) {
+            lp.width = side; lp.height = side
             artBox.layoutParams = lp
         }
     }
@@ -787,39 +789,23 @@ class MainActivity : Activity() {
     /** Status/navigation bars follow the page surface so no black strip is left at the bottom. */
     private fun applySystemBars() {
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = if (classicTheme) Color.TRANSPARENT else playerSurface
+        window.navigationBarColor = Color.TRANSPARENT
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            (if (classicTheme) View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION else 0) or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
             (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
     }
 
-    /** Colours every page from the cover: Now Playing at once, the other tabs when they are next shown. */
-    private fun applyPlayerPalette(requestedSurface: Int) {
-        if (!::playerBottomShade.isInitialized || !::playerBottomDock.isInitialized) return
-        // Classic theme: the palette is fixed (black, white, grey, purple); only the backdrop follows the cover.
-        val surface = if (classicTheme) CLASSIC_SURFACE else requestedSurface
-        if (appliedPlayerSurface == surface) return
-        appliedPlayerSurface = surface
-        playerSurface = surface
-        val ink = if (classicTheme) Color.WHITE else inkFor(surface)
-        playerInk = ink
+    /** Dark theme palette: black page, white and grey text, purple accent. Only the backdrop follows the cover. */
+    private fun applyPlayerPalette(@Suppress("UNUSED_PARAMETER") requestedSurface: Int) {
+        if (!::playerBottomDock.isInitialized) return
+        if (appliedPlayerSurface == DARK_SURFACE) return
+        appliedPlayerSurface = DARK_SURFACE
+        playerSurface = DARK_SURFACE
+        playerInk = Color.WHITE
+        val ink = Color.WHITE
         val inkMuted = MUTED
-        if (classicTheme) {
-            playerBottomShade.visibility = View.GONE
-            playerBottomDock.background = null
-            pageRoot?.setBackgroundColor(Color.TRANSPARENT)
-        } else {
-            playerBottomShade.visibility = View.VISIBLE
-            playerBottomShade.background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(withAlpha(surface, 0x00), withAlpha(surface, 0x20), withAlpha(surface, 0xB0), surface or 0xFF000000.toInt())
-            )
-            playerBottomDock.background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(withAlpha(surface, 0x00), withAlpha(surface, 0xD9), surface or 0xFF000000.toInt())
-            )
-            pageRoot?.setBackgroundColor(surface)
-        }
+        playerBottomDock.background = null
+        pageRoot?.setBackgroundColor(Color.TRANSPARENT)
         applySystemBars()
         if (::titleView.isInitialized) titleView.setTextColor(ink)
         if (::artistView.isInitialized) artistView.setTextColor(inkMuted)
@@ -827,25 +813,18 @@ class MainActivity : Activity() {
         if (::elapsed.isInitialized) elapsed.setTextColor(inkMuted)
         if (::duration.isInitialized) duration.setTextColor(inkMuted)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(inkMuted)
+        if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
         if (::prevView.isInitialized) prevView.setTextColor(ink)
         if (::nextView.isInitialized) nextView.setTextColor(ink)
         if (::seek.isInitialized) {
-            if (classicTheme) {
-                seek.progressDrawable = RoundedProgressDrawable(0xFF343148.toInt(), DEFAULT_ACCENT, dp(4))
-                seek.thumbTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
-            } else {
-                seek.progressDrawable = RoundedProgressDrawable(withAlpha(ink, 0x4D), ink, dp(4))
-                seek.thumbTintList = ColorStateList.valueOf(ink)
-            }
+            seek.progressDrawable = RoundedProgressDrawable(0xFF343148.toInt(), DEFAULT_ACCENT, dp(4))
+            seek.thumbTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
             seek.invalidate()
         }
         if (::playView.isInitialized) {
-            playView.background = if (classicTheme) RippleDrawable(
+            playView.background = RippleDrawable(
                 ColorStateList.valueOf(withAlpha(DEFAULT_ACCENT, 0x55)),
                 shape(0xFF29265A.toInt(), 16), null
-            ) else RippleDrawable(
-                ColorStateList.valueOf(withAlpha(ink, 0x55)),
-                shape(withAlpha(ink, 0x2E), 16), null
             )
             syncPlaybackIcon()
         }
@@ -883,27 +862,14 @@ class MainActivity : Activity() {
 
 
 
-    /** The Adaptive / Classic theme buttons shown in Setting. */
+    /** The Dark / Light theme buttons shown in Setting. Light is only a placeholder for now. */
     private fun fillThemeButtons(container: LinearLayout) {
         container.removeAllViews()
-        container.addView(action("ADAPTIVE", !classicTheme) { setClassicTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        container.addView(action("DARK", true) { }, LinearLayout.LayoutParams(0, dp(40), 1f))
         container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        container.addView(action("CLASSIC", classicTheme) { setClassicTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-    }
-
-    private fun setClassicTheme(classic: Boolean) {
-        if (classicTheme == classic) return
-        classicTheme = classic
-        getPreferences(MODE_PRIVATE).edit().putBoolean("theme_classic", classic).apply()
-        if (classic) { playerSurface = CLASSIC_SURFACE; playerInk = Color.WHITE }
-        else { playerSurface = DEFAULT_ACCENT; playerInk = Color.WHITE }
-        appliedPlayerSurface = null
-        // Rebuild after the tap has finished so the pressed button is not torn down mid-click.
-        handler.post {
-            if (isFinishing) return@post
-            buildUi()
-            show("settings")
-        }
+        container.addView(action("LIGHT", false) {
+            Toast.makeText(this, "Light theme is coming later.", Toast.LENGTH_SHORT).show()
+        }.apply { alpha = 0.5f }, LinearLayout.LayoutParams(0, dp(40), 1f))
     }
 
     /** Cover for the Classic backdrop: scaled to ~96 px and box-blurred, so it can be stretched over the screen cheaply. */
@@ -959,23 +925,22 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun newClassicDrawable(): ClassicBackdropDrawable =
-        ClassicBackdropDrawable().also { it.bitmap = classicBackdropBitmap; classicDrawables.add(it) }
+    private fun newDarkDrawable(): DarkBackdropDrawable =
+        DarkBackdropDrawable().also { it.bitmap = darkBackdropBitmap; darkDrawables.add(it) }
 
     /** Called with the cover that is on screen (or null when the track has none); repaints every Classic backdrop. */
-    private fun updateClassicBackdrop(source: android.graphics.Bitmap?) {
-        if (!classicTheme) return
-        if (source != null && source === classicBackdropSource?.get() && classicBackdropBitmap != null) return
-        classicBackdropSource = source?.let { java.lang.ref.WeakReference(it) }
-        classicBackdropBitmap = source?.let { softCoverForBackdrop(it) }
-        classicDrawables.forEach { it.bitmap = classicBackdropBitmap }
+    private fun updateDarkBackdrop(source: android.graphics.Bitmap?) {
+        if (source != null && source === darkBackdropSource?.get() && darkBackdropBitmap != null) return
+        darkBackdropSource = source?.let { java.lang.ref.WeakReference(it) }
+        darkBackdropBitmap = source?.let { softCoverForBackdrop(it) }
+        darkDrawables.forEach { it.bitmap = darkBackdropBitmap }
     }
 
     /**
      * Classic theme page background: the softened cover filling the screen (centre-crop), a black veil so the
      * page reads as "semi black", and a little extra black towards the bottom behind the controls.
      */
-    private class ClassicBackdropDrawable : android.graphics.drawable.Drawable() {
+    private class DarkBackdropDrawable : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
@@ -1053,13 +1018,11 @@ class MainActivity : Activity() {
     }
 
     private fun makeQueuePanel() {
-        if (!classicTheme) queuePanel.themed { setBackgroundColor(BG) }
         queuePanel.visibility = View.GONE
         val surface = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             // Classic theme: the queue overlay shows the same darkened cover as the pages behind it.
-            if (classicTheme) background = newClassicDrawable()
-            else themed { background = android.graphics.drawable.ColorDrawable(BG) }
+            background = newDarkDrawable()
         }
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
@@ -1814,8 +1777,8 @@ class MainActivity : Activity() {
                     artistView.text = activeTrack.artist
                     albumView.text = activeTrack.album
                     sourceRate = null
-                    sourceBits = null
-        sourceBits = null
+                    sourceBits = null; sourceFormat = null
+        sourceBits = null; sourceFormat = null
                     sourceBitrate = null
                     DirectOutputState.resetDepthCheck() // Build 1.66: a new track gets a new real-24-bit check
                     showMetadata(activeTrack.uri, activeTrack)
@@ -1910,7 +1873,7 @@ class MainActivity : Activity() {
         pendingAutoplay = autoplay
         prepared = false
         sourceRate = null
-        sourceBits = null
+        sourceBits = null; sourceFormat = null
         sourceBitrate = null
         durationMs = 0
         titleView.text = track.title
@@ -1976,7 +1939,7 @@ class MainActivity : Activity() {
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
-        playView.imageTintList = ColorStateList.valueOf(if (classicTheme) DEFAULT_ACCENT else playerInk)
+        playView.imageTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
         if (::queueMiniPlayView.isInitialized) {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
@@ -2028,6 +1991,21 @@ class MainActivity : Activity() {
         handler.postDelayed({ if (!isFinishing) metadataExecutor.execute { readFileMetadata(uri, t) } }, 250L)
     }
 
+    /** Build 2.0: short file type for the info row (FLAC / WAV / M4A ...), from the container and track MIME types. */
+    private fun fileTypeLabel(containerMime: String, trackMime: String): String? {
+        val m = (containerMime + " " + trackMime).lowercase(Locale.ROOT)
+        return when {
+            m.contains("flac") -> "FLAC"
+            m.contains("wav") || m.contains("audio/raw") || m.contains("x-wav") -> "WAV"
+            m.contains("alac") -> "M4A"
+            m.contains("mp4") || m.contains("m4a") || m.contains("aac") || m.contains("mp4a") -> "M4A"
+            m.contains("mpeg") || m.contains("mp3") -> "MP3"
+            m.contains("ogg") || m.contains("vorbis") || m.contains("opus") -> "OGG"
+            m.contains("aiff") -> "AIFF"
+            else -> null
+        }
+    }
+
     private fun readFileMetadata(uri: Uri, t: Track) {
         run {
             val r = MediaMetadataRetriever()
@@ -2056,12 +2034,14 @@ class MainActivity : Activity() {
             } catch (_: Exception) { } finally { try { extractor.release() } catch (_: Exception) { } }
             val parsedRate = rate.toIntOrNull()
             val parsedBitrate = bitrate.toIntOrNull()
+            val typeName = fileTypeLabel(mime, trackMime)
             val sniffed = AudioSniffer.sniff(this@MainActivity, uri)
             handler.post {
                 if (isFinishing || tracks.getOrNull(currentIndex)?.uri != uri) return@post
                 sourceRate = parsedRate
                 sourceBitrate = parsedBitrate
                 sourceBits = sniffed?.bits
+                sourceFormat = typeName
                 refreshAudioInfo()
             }
         }
@@ -2167,18 +2147,16 @@ class MainActivity : Activity() {
     private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?, provisional: Boolean = false, key: String? = null) {
         if (bitmap != null && !isFinishing) {
             artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
-            if (::playerBackdropImage.isInitialized && !classicTheme) playerBackdropImage.setImageBitmap(bitmap)
-            // Classic theme: the cover is softened and darkened behind every page instead of recolouring them.
-            updateClassicBackdrop(bitmap)
+                        // Classic theme: the cover is softened and darkened behind every page instead of recolouring them.
+            updateDarkBackdrop(bitmap)
             // Colour comes from the cover that is on screen. A provisional thumbnail is sampled but not remembered.
-            applyPlayerPalette(if (classicTheme) CLASSIC_SURFACE else dominantColorFor(key, bitmap, remember = !provisional))
+            applyPlayerPalette(DARK_SURFACE)
             if (provisional) return
             if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
         } else {
-            artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(if (classicTheme) Color.TRANSPARENT else playerSurface)
-            if (::playerBackdropImage.isInitialized) playerBackdropImage.setImageDrawable(null)
-            updateClassicBackdrop(null)
-            applyPlayerPalette(if (classicTheme) CLASSIC_SURFACE else DEFAULT_ACCENT)
+            artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            updateDarkBackdrop(null)
+            applyPlayerPalette(DARK_SURFACE)
         }
     }
 
@@ -2326,7 +2304,7 @@ class MainActivity : Activity() {
      * BIT-PERFECT is only shown when the output is the DIRECT track, the rate is unchanged and the depth is not reduced.
      */
     private fun refreshAudioInfo() {
-        if (!::audioInfoInline.isInitialized) return
+        if (!::audioInfoInline.isInitialized || !::audioStatusInline.isInitialized) return
         val srcRate = sourceRate
         val srcBits = sourceBits
         val sourceKhz = srcRate?.let { String.format(Locale.US, "%.1f", it / 1000f) } ?: "?"
@@ -2337,20 +2315,21 @@ class MainActivity : Activity() {
         val green = 0xFF5BD98C.toInt()
         val orange = 0xFFFFA43A.toInt()
         val grey = 0xFFA4A4B2.toInt()
-        // Build 1.67: line 1 is always ONE short line: source -> output, by headset / speaker.
-        // Line 2 is the status (route verdict + a grey note about the data).
+        // Build 2.0: row 1 = file type + source -> output (no headset / speaker here).
+        // Row 2 = route verdict + headset / speaker + a grey note about the data. Both rows are one line and scroll when too long.
+        val typeLabel = sourceFormat?.let { "$it • " } ?: ""
         val formatLine: String
         var verdict: String
         var note = ""
         val color: Int
         if (!direct) {
-            formatLine = "$sourceKhz kHz$bitsLabel • by $device"
+            formatLine = "$typeLabel$sourceKhz kHz$bitsLabel"
             verdict = "● DIRECT OUTPUT NOT ACTIVE"
             color = orange
         } else {
             val outRate = DirectOutputState.rate
             val outKhz = String.format(Locale.US, "%.1f", outRate / 1000f)
-            formatLine = "$sourceKhz kHz$bitsLabel → $outKhz kHz • by $device"
+            formatLine = "$typeLabel$sourceKhz kHz$bitsLabel → $outKhz kHz"
             // The green label is about the ROUTE only (same as the adb dump): DIRECT flag, not the mixer thread,
             // headphone jack. What the samples contain is a separate grey note, never an orange failure.
             val routeDirect = DirectOutputState.routeIsDirect()
@@ -2358,7 +2337,7 @@ class MainActivity : Activity() {
                 srcRate != null && srcRate != outRate -> { verdict = "● SAMPLE RATE CHANGED"; color = orange }
                 srcBits != null && DirectOutputState.inputBits < srcBits -> { verdict = "● DEPTH REDUCED TO ${DirectOutputState.inputBits}-BIT"; color = orange }
                 routeDirect == false -> { verdict = "● NOT ON THE DIRECT THREAD (MIXER)"; color = orange }
-                !jack -> { verdict = "● SPEAKER • NOT BIT-PERFECT"; color = orange }
+                !jack -> { verdict = "● NOT BIT-PERFECT"; color = orange }
                 srcBits != null -> {
                     verdict = "● BIT-PERFECT"
                     color = green
@@ -2372,33 +2351,14 @@ class MainActivity : Activity() {
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed"; color = green }
             }
         }
-        val compact = "$formatLine\n$verdict$note"
-        val colored = android.text.SpannableString(compact)
-        val start = compact.indexOf(verdict)
-        if (start >= 0) {
-            colored.setSpan(android.text.style.ForegroundColorSpan(color), start, start + verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            if (note.isNotEmpty()) colored.setSpan(android.text.style.ForegroundColorSpan(grey), start + verdict.length, compact.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        audioInfoInline.text = colored
-        fitAudioInfoLines(formatLine, "$verdict$note")
-    }
-
-    /** Build 1.67: both lines must stay on one row each. If one is too wide for the screen, the text size shrinks a little. */
-    private fun fitAudioInfoLines(line1: String, line2: String) {
-        audioInfoInline.post {
-            val avail = audioInfoInline.width - audioInfoInline.paddingLeft - audioInfoInline.paddingRight
-            if (avail <= 0) return@post
-            var size = 9f
-            val paint = android.graphics.Paint(audioInfoInline.paint)
-            paint.typeface = audioInfoInline.typeface
-            while (size > 6f) {
-                paint.textSize = size * resources.displayMetrics.scaledDensity
-                if (maxOf(paint.measureText(line1), paint.measureText(line2)) <= avail) break
-                size -= 0.5f
-            }
-            if (audioInfoInline.textSize != size * resources.displayMetrics.scaledDensity)
-                audioInfoInline.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, size)
-        }
+        val tail = " • $device$note"
+        val status = android.text.SpannableString(verdict + tail)
+        status.setSpan(android.text.style.ForegroundColorSpan(color), 0, verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        status.setSpan(android.text.style.ForegroundColorSpan(grey), verdict.length, status.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (audioInfoInline.text.toString() != formatLine) audioInfoInline.text = formatLine
+        audioStatusInline.text = status
+        audioInfoInline.isSelected = true
+        audioStatusInline.isSelected = true
     }
 
     /** Build 1.66: is a wired headphone / jack output connected right now? */
@@ -2488,7 +2448,7 @@ class MainActivity : Activity() {
         player = null
         currentIndex = -1
         sourceRate = null
-        sourceBits = null
+        sourceBits = null; sourceFormat = null
         sourceBitrate = null
         durationMs = 0
         playView.isEnabled = false
@@ -2521,7 +2481,7 @@ class MainActivity : Activity() {
         player = null
         currentIndex = -1
         sourceRate = null
-        sourceBits = null
+        sourceBits = null; sourceFormat = null
         sourceBitrate = null
         durationMs = 0
         if (::playView.isInitialized) {
@@ -2720,8 +2680,14 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) }
     }
     private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); themed { background = shape(CARD, 21) }
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
+        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); setBackgroundColor(Color.TRANSPARENT)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) }
+    }
+    /** Build 2.0: in Setting only the button areas keep the dark rounded rectangle; descriptions sit on the plain page. */
+    private fun buttonArea(horizontal: Boolean = true) = LinearLayout(this).apply {
+        orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        setPadding(dp(8), dp(8), dp(8), dp(8))
+        themed { background = shape(CARD, 16) }
     }
     private fun text(value: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply {
         text = value; textSize = size; setTextColor(color)
@@ -2886,7 +2852,7 @@ class MainActivity : Activity() {
         private const val LIBRARY_CACHE_VERSION = 145
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         /** Classic theme page colour (the original black). */
-        private const val CLASSIC_SURFACE = 0xFF000000.toInt()
+        private const val DARK_SURFACE = 0xFF000000.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }
 }
