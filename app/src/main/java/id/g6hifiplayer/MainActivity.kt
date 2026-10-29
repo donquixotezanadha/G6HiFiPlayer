@@ -2204,9 +2204,10 @@ class MainActivity : Activity() {
             glowTo(0f, durationMs)
         }
 
-        /** Build 2.12: the light is as big as the button plus a little margin (extraPx), instead of fading out under the icon. */
+        /** Build 2.12: the light is as big as the button plus a little margin (extraPx), instead of fading out under the icon.
+         *  Build 2.15: the whole glow size (radius) is cut to 50% (GLOW_SIZE_SCALE); shape, opacity and animation unchanged. */
         private fun radius(b: android.graphics.Rect): Float =
-            (minOf(b.width(), b.height()) / 2f + extraPx).coerceAtLeast(1f)
+            ((minOf(b.width(), b.height()) / 2f + extraPx) * GLOW_SIZE_SCALE).coerceAtLeast(1f)
 
         override fun onBoundsChange(bounds: android.graphics.Rect) {
             paint.shader = android.graphics.RadialGradient(
@@ -3329,6 +3330,8 @@ class MainActivity : Activity() {
         private const val SIDE_ICON_PAD_DP = 10
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
         private const val GLOW_EXTRA_DP = 5
+        /** Build 2.15: glow size factor (1.0 = size of 2.14). */
+        private const val GLOW_SIZE_SCALE = 0.5f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */

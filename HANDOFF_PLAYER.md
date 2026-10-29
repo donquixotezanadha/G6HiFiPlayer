@@ -68,3 +68,6 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 ## Build 2.14 (branch claude-build-214-player)
 - 2.13 + glow peak opacity 30% (was 50%) + old widgets deleted, new 4x2 (80% black background) and 2x2 widgets in G6Widgets.kt (both registered in the manifest; the old 2x2 never was). See BUILD214_NOTES.md. Workflow build-214-claude.yml (artifact G6HiFiPlayer-Build214-v2.14.0; success marker build214_ok.txt on branch ci-logs). Not yet checked on the phone.
+
+## Build 2.15 (branch claude-build-215-player)
+- 2.14 + glow size cut to 50% (GLOW_SIZE_SCALE = 0.5 in GlowDrawable.radius; opacity, shape, animation, positions unchanged). See BUILD215_NOTES.md. Workflow build-215-claude.yml (artifact G6HiFiPlayer-Build215-v2.15.0; success marker build215_ok.txt on branch ci-logs). Not yet checked on the phone.
