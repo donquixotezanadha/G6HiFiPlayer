@@ -614,9 +614,9 @@ class MainActivity : Activity() {
         }
         // Build 2.9: bigger plain white icons with a soft glow on touch (no circular ripple).
         // Hit areas: prev/next TRANSPORT_SIDE_DP (icon ~38dp), play/pause TRANSPORT_PLAY_DP (icon ~54dp).
-        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 13) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 12) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_24, "Next", 13) { playNext() }
+        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 12) { playPrevious() }
+        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 10) { togglePlayback() }
+        nextView = transportButton(R.drawable.ic_next_24, "Next", 12) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
@@ -650,7 +650,7 @@ class MainActivity : Activity() {
         // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
         // Build 2.7: even, slightly larger gaps: cover - title/artist - progress - controls - info.
-        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP) })
+        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(PROGRESS_TOP_GAP_DP) })
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP - 2) })
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
@@ -1869,7 +1869,7 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Add ${t.title} to queue" }
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
@@ -1880,7 +1880,7 @@ class MainActivity : Activity() {
         loadArtworkInto(cover, t)
     }
     /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
-    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView)
+    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: TextView? = null)
     private val albumPlayingMarks = ArrayList<AlbumRowMark>()
     /** Build 2.5: the queue list uses the same row design as the album list, so it has its own playing marks. */
     private val queuePlayingMarks = ArrayList<AlbumRowMark>()
@@ -1894,6 +1894,8 @@ class MainActivity : Activity() {
             m.bars.playing = current && playing
             m.title.setTextColor(if (current) accentColor else WHITE)
             m.number.setTextColor(if (current) accentColor else MUTED)
+            // Build 2.10: the queue's "x" is grey except on the selected track, where it keeps the accent.
+            m.action?.setTextColor(if (current) accentColor else ACTION_GREY)
             m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 12)
         }
     }
@@ -1927,7 +1929,7 @@ class MainActivity : Activity() {
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
         val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
         row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
-        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Add ${t.title} to queue" }
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(36)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
@@ -3058,10 +3060,10 @@ class MainActivity : Activity() {
             val remove = iconAction("×") {
                 if (trackIndex == currentIndex) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
                 else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }
-            }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Remove ${track.title} from queue" }
+            }.apply { textSize = 22f; setTextColor(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
             row.addView(remove, LinearLayout.LayoutParams(dp(40), dp(36)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2))
-            queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars))
+            queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars, remove))
         }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
@@ -3299,8 +3301,11 @@ class MainActivity : Activity() {
         private const val ART_PAUSED_SCALE = 0.95f
         /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
         private const val PROGRESS_THICKNESS_DP = 3
-        private const val TRANSPORT_SIDE_DP = 64
-        private const val TRANSPORT_PLAY_DP = 78
+        /** Build 2.10: grey of the "+" / "x" buttons in the lists, and a much smaller gap between the track description and the progress times. */
+        private const val ACTION_GREY = 0xFF8E8E98.toInt()
+        private const val PROGRESS_TOP_GAP_DP = 2
+        private const val TRANSPORT_SIDE_DP = 80
+        private const val TRANSPORT_PLAY_DP = 96
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
