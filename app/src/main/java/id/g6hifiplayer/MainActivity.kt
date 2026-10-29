@@ -569,7 +569,7 @@ class MainActivity : Activity() {
         }
         val metadata = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), 0, dp(18), 0)
+            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
         }
         metadata.addView(titleView, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
         metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
@@ -577,7 +577,7 @@ class MainActivity : Activity() {
 
         val times = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(18), 0, dp(18), 0)
+            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
         }
         elapsed = text("0:00", 11f, MUTED, false)
         duration = text("0:00", 11f, MUTED, false)
@@ -593,7 +593,7 @@ class MainActivity : Activity() {
             progressDrawable = RoundedProgressDrawable(0x4DFFFFFF, Color.WHITE, dp(4))
             thumbTintList = ColorStateList.valueOf(Color.WHITE)
             minimumHeight = dp(28)
-            setPadding(dp(18), 0, dp(18), 0)
+            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
                     if (fromUser) elapsed.text = time(value)
@@ -609,11 +609,11 @@ class MainActivity : Activity() {
         val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(6), dp(18), dp(6))
+            setPadding(dp(SEEK_SIDE_PAD_DP), dp(6), dp(SEEK_SIDE_PAD_DP), dp(6))
         }
         // Build 2.5: smaller transport controls (play 76x56 -> 62x46dp, prev/next 48 -> 40dp tall, icons 20 -> 17sp).
-        prevView = iconAction("⏮") { playPrevious() }.apply { textSize = 17f }
-        transport.addView(prevView, LinearLayout.LayoutParams(0, dp(40), 1f))
+        prevView = iconAction("⏮") { playPrevious() }.apply { textSize = 18f }
+        transport.addView(prevView, LinearLayout.LayoutParams(0, dp(44), 1f))
         playView = ImageView(this).apply {
             contentDescription = "Play or pause"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -623,9 +623,9 @@ class MainActivity : Activity() {
         }
         syncPlaybackIcon()
         // Slightly lengthen the rounded rectangle versus Build 44 without returning to the oversized original.
-        transport.addView(playView, LinearLayout.LayoutParams(dp(62), dp(46)))
-        nextView = iconAction("⏭") { playNext() }.apply { textSize = 17f }
-        transport.addView(nextView, LinearLayout.LayoutParams(0, dp(40), 1f))
+        transport.addView(playView, LinearLayout.LayoutParams(dp(68), dp(50)))
+        nextView = iconAction("⏭") { playNext() }.apply { textSize = 18f }
+        transport.addView(nextView, LinearLayout.LayoutParams(0, dp(44), 1f))
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -653,11 +653,11 @@ class MainActivity : Activity() {
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1) })
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(18); rightMargin = dp(18); topMargin = dp(4)
+            leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); topMargin = dp(4)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(18); rightMargin = dp(18); bottomMargin = dp(2)
+            leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); bottomMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
@@ -1890,7 +1890,7 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(3), dp(4), dp(3))
+            setPadding(dp(4), dp(5), dp(4), dp(5))
             isClickable = true
             isFocusable = true
         }
@@ -2917,7 +2917,7 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(4), dp(3), dp(4), dp(3))
+                setPadding(dp(4), dp(5), dp(4), dp(5))
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
@@ -3170,10 +3170,10 @@ class MainActivity : Activity() {
         private const val LIBRARY_CACHE_VERSION = 145
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
-        private const val SEEK_SIDE_PAD_DP = 18
+        private const val SEEK_SIDE_PAD_DP = 30
         private const val STACK_BOTTOM_PAD_DP = 8
         private const val ART_MIN_GAP_DP = 12
-        private const val ART_WIDTH_FRACTION = 0.86f
+        private const val ART_WIDTH_FRACTION = 1.0f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
