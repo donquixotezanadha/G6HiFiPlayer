@@ -3,7 +3,7 @@ name: Build G6 Player Build 2.4 - album list, rounded covers, close cleanup
 on:
   workflow_dispatch:
   push:
-    branches: ["claude-build-204-player"]
+    branches: ["claude-build-205-player"]
 
 permissions:
   contents: write
@@ -37,13 +37,13 @@ jobs:
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build204_errors.txt || true
-          tail -150 build-log.txt > /tmp/out/build204_tail.txt
+          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build205_errors.txt || true
+          tail -150 build-log.txt > /tmp/out/build205_tail.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add build204_errors.txt build204_tail.txt
-          git commit -m "build 2.4 failure log"
+          git add build205_errors.txt build205_tail.txt
+          git commit -m "build 2.5 failure log"
           git push -f origin ci-logs
       - name: Verify APK exists and is non-empty
         run: |
@@ -56,7 +56,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build204-v2.4.0
+          name: G6HiFiPlayer-Build205-v2.5.0
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -72,10 +72,10 @@ jobs:
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          echo "build 2.4 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build204_ok.txt
+          echo "build 2.5 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build205_ok.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add build204_ok.txt
-          git commit -m "build 2.4 ok"
+          git add build205_ok.txt
+          git commit -m "build 2.5 ok"
           git push -f origin ci-logs

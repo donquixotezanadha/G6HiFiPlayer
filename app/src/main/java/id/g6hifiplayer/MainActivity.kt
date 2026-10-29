@@ -514,7 +514,8 @@ class MainActivity : Activity() {
         val topInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Build 2.3: the cover is exactly as wide as the progress bar (screen width minus the 18dp side padding of the bar).
         // sizeDarkArt() shrinks it only if the screen is too short for it.
-        val boxSide = (displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)).coerceAtLeast(dp(160))
+        // Build 2.5: a little smaller than the progress bar (ART_WIDTH_FRACTION) so the page feels less full.
+        val boxSide = ((displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt().coerceAtLeast(dp(160))
         artBox = FrameLayout(this).apply {
             visibility = View.VISIBLE
             background = shape(0xFF181820.toInt(), 6)
@@ -554,15 +555,15 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, dp(4))
             visibility = View.VISIBLE
         }
-        titleView = text("", 20f, WHITE, true).apply {
+        titleView = text("", 17f, WHITE, true).apply {
             setPadding(0, 0, 0, dp(2))
             maxLines = 2; isSingleLine = false
             ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
-        artistView = text("", 15f, MUTED, false)
-        albumView = text("", 13f, MUTED, false).apply {
+        artistView = text("", 13f, MUTED, false)
+        albumView = text("", 11f, MUTED, false).apply {
             setPadding(0, dp(2), 0, 0); maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
@@ -610,20 +611,21 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(6), dp(18), dp(6))
         }
-        prevView = iconAction("⏮") { playPrevious() }
-        transport.addView(prevView, LinearLayout.LayoutParams(0, dp(48), 1f))
+        // Build 2.5: smaller transport controls (play 76x56 -> 62x46dp, prev/next 48 -> 40dp tall, icons 20 -> 17sp).
+        prevView = iconAction("⏮") { playPrevious() }.apply { textSize = 17f }
+        transport.addView(prevView, LinearLayout.LayoutParams(0, dp(40), 1f))
         playView = ImageView(this).apply {
             contentDescription = "Play or pause"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(dp(9), dp(9), dp(9), dp(9))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
             isClickable = true; isFocusable = true
             setOnClickListener { togglePlayback() }
         }
         syncPlaybackIcon()
         // Slightly lengthen the rounded rectangle versus Build 44 without returning to the oversized original.
-        transport.addView(playView, LinearLayout.LayoutParams(dp(76), dp(56)))
-        nextView = iconAction("⏭") { playNext() }
-        transport.addView(nextView, LinearLayout.LayoutParams(0, dp(48), 1f))
+        transport.addView(playView, LinearLayout.LayoutParams(dp(62), dp(46)))
+        nextView = iconAction("⏭") { playNext() }.apply { textSize = 17f }
+        transport.addView(nextView, LinearLayout.LayoutParams(0, dp(40), 1f))
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -688,7 +690,7 @@ class MainActivity : Activity() {
         val dockHeight = playerBottomDock.height
         if (dockHeight <= 0 || panelHeight <= 0) return
         val free = panelHeight - dockHeight - topInset - dp(STACK_BOTTOM_PAD_DP)
-        val wide = resources.displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)
+        val wide = ((resources.displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt()
         val side = minOf(wide, free - 2 * dp(ART_MIN_GAP_DP)).coerceAtLeast(dp(120))
         val gap = ((free - side) / 2).coerceAtLeast(dp(ART_MIN_GAP_DP))
         val lp = artBox.layoutParams as? LinearLayout.LayoutParams ?: return
@@ -1867,10 +1869,12 @@ class MainActivity : Activity() {
     /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
     private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView)
     private val albumPlayingMarks = ArrayList<AlbumRowMark>()
+    /** Build 2.5: the queue list uses the same row design as the album list, so it has its own playing marks. */
+    private val queuePlayingMarks = ArrayList<AlbumRowMark>()
 
     private fun updateAlbumPlayingMarks(playing: Boolean) {
-        if (albumPlayingMarks.isEmpty()) return
-        albumPlayingMarks.forEach { m ->
+        if (albumPlayingMarks.isEmpty() && queuePlayingMarks.isEmpty()) return
+        (albumPlayingMarks + queuePlayingMarks).forEach { m ->
             val current = currentIndex >= 0 && m.index == currentIndex
             m.bars.visibility = if (current) View.VISIBLE else View.INVISIBLE
             m.bars.setBarColor(accentColor)
@@ -2904,36 +2908,48 @@ class MainActivity : Activity() {
         if (!::queueRows.isInitialized) return
         updateQueueMiniPlayer()
         queueRows.removeAllViews()
+        queuePlayingMarks.clear()
         val queue = playbackQueue.filter { it in tracks.indices }
         if (queue.isEmpty()) { queueRows.addView(text("The queue is empty. Add an album from the Albums tab.", 13f, MUTED, false)); return }
         queue.forEachIndexed { position, trackIndex ->
             val track = tracks[trackIndex]
+            // Build 2.5: same row as the opened-album list (size, spacing, playing highlight and bars), text only, "x" instead of "+".
             val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(8), dp(8), dp(8), dp(8))
-                themed {
-                    background = RippleDrawable(
-                        ColorStateList.valueOf(withAlpha(accentColor, 0x38)),
-                        shape(if (trackIndex == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12),
-                        null
-                    )
-                }
-                isClickable = true; isFocusable = true
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(4), dp(3), dp(4), dp(3))
+                isClickable = true
+                isFocusable = true
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
             }
-            val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 8) }; contentDescription = "Artwork " + track.album }
-            row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
-            val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(6), 0) }
-            info.addView(text((position + 1).toString() + ". " + track.title, 12f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-            info.addView(text(track.artist + " • " + track.album, 12f, MUTED, false).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
-            row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(iconAction("×") {
+            val numberView = text((position + 1).toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
+            row.addView(numberView, LinearLayout.LayoutParams(dp(34), -2))
+            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), 0, dp(4), 0) }
+            val titleView = text(track.title, 13f, WHITE, true).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            details.addView(titleView)
+            val fileType = track.uri.lastPathSegment?.substringAfterLast('.', "")?.takeIf { it.length in 2..5 }?.uppercase(Locale.ROOT).orEmpty()
+            val parts = listOf(fileType, track.year.orEmpty(), track.artist).filter { it.isNotBlank() }
+            if (parts.isNotEmpty()) {
+                details.addView(text(parts.joinToString(" • "), 11f, MUTED, false).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+            }
+            row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+            val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
+            row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
+            val remove = iconAction("×") {
                 if (trackIndex == currentIndex) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
                 else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }
-            }, LinearLayout.LayoutParams(dp(38), dp(44)))
-            queueRows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
-            loadArtworkInto(cover, track)
+            }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Remove ${track.title} from queue" }
+            row.addView(remove, LinearLayout.LayoutParams(dp(40), dp(36)))
+            queueRows.addView(row, LinearLayout.LayoutParams(-1, -2))
+            queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars))
         }
+        updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
     private fun showAlbumOptions(album: String, indices: List<Int>) {
         val dialog = AlertDialog.Builder(this).create()
@@ -3157,6 +3173,7 @@ class MainActivity : Activity() {
         private const val SEEK_SIDE_PAD_DP = 18
         private const val STACK_BOTTOM_PAD_DP = 8
         private const val ART_MIN_GAP_DP = 12
+        private const val ART_WIDTH_FRACTION = 0.86f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
