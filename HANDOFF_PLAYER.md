@@ -62,3 +62,6 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 ## Build 1.65 (branch claude-build-165-player)
 - 1.64 phone test: plays, DIRECT 96 kHz PCM_24_BIT_PACKED, green; FFmpeg failed with NoClassDefFoundError and was not needed (platform FLAC decoder + float output gives 24-bit). 1.65 removes FFmpeg and adds a real-24-bit check on the info line. See BUILD165_NOTES.md. Workflow build-165-claude.yml (artifact G6HiFiPlayer-Build165-v1.65.0). Not yet checked on the phone.
+
+## Build 2.13 (branch claude-build-213-player)
+- 2.12 + play icon 38dp, previous/next icons 32dp (padding only, positions unchanged). See BUILD213_NOTES.md. Workflow build-213-claude.yml (artifact G6HiFiPlayer-Build213-v2.13.0; success marker build213_ok.txt on branch ci-logs). Not yet checked on the phone.

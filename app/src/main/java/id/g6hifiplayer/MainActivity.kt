@@ -615,11 +615,12 @@ class MainActivity : Activity() {
         // Build 2.11: hit areas are back to the Build 2.8 sizes (52dp / 60dp) so every position is the same as in 2.8, but the
         // icon itself now fills the whole area (FIT_CENTER, no padding). Before, CENTER_INSIDE kept the 24dp vector at 24dp
         // whatever the area was, so Builds 2.9 and 2.10 only enlarged the invisible area.
-        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 0) { playPrevious() }
-        // Build 2.12: the play/pause icon is halfway between 2.8 (24dp) and 2.11 (60dp): 42dp. The hit area stays 60dp, so the
-        // centre (position) does not move; the difference is only padding (PLAY_ICON_PAD_DP) around the icon.
+        // Build 2.13: all three icons shrink together. Play/pause: 60dp area - 2*11dp = 38dp icon (was 42dp in 2.12). Previous/Next:
+        // 52dp area - 2*10dp = 32dp icon (were 52dp in 2.12, so only Play had changed). The hit areas stay 60dp / 52dp, so the
+        // centres (positions) do not move; the difference is only padding around the icons.
+        prevView = transportButton(R.drawable.ic_previous_24, "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
         playView = transportButton(R.drawable.ic_play_24, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_24, "Next", 0) { playNext() }
+        nextView = transportButton(R.drawable.ic_next_24, "Next", SIDE_ICON_PAD_DP) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
@@ -3322,8 +3323,10 @@ class MainActivity : Activity() {
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
         private const val TRANSPORT_SIDE_DP = 52
         private const val TRANSPORT_PLAY_DP = 60
-        /** Build 2.12: padding around the play/pause icon inside its 60dp area -> icon 42dp (midway between 24dp in 2.8 and 60dp in 2.11). */
-        private const val PLAY_ICON_PAD_DP = 9
+        /** Build 2.13: padding around the play/pause icon inside its 60dp area -> icon 38dp (2.12: 9dp -> 42dp; 2.11: 0 -> 60dp). */
+        private const val PLAY_ICON_PAD_DP = 11
+        /** Build 2.13: padding around the previous/next icons inside their 52dp area -> icon 32dp (2.12 and 2.11: 0 -> 52dp). */
+        private const val SIDE_ICON_PAD_DP = 10
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
         private const val GLOW_EXTRA_DP = 5
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
