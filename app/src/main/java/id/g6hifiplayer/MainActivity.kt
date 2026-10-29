@@ -190,8 +190,8 @@ class MainActivity : Activity() {
     private lateinit var duration: TextView
     private lateinit var artImage: ImageView
     private lateinit var playerBottomDock: LinearLayout
-    private lateinit var prevView: TextView
-    private lateinit var nextView: TextView
+    private lateinit var prevView: ImageView
+    private lateinit var nextView: ImageView
     private lateinit var artPlaceholder: TextView
     private lateinit var librarySummary: TextView
     private lateinit var albumRows: LinearLayout
@@ -611,21 +611,20 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(SEEK_SIDE_PAD_DP), dp(6), dp(SEEK_SIDE_PAD_DP), dp(6))
         }
-        // Build 2.5: smaller transport controls (play 76x56 -> 62x46dp, prev/next 48 -> 40dp tall, icons 20 -> 17sp).
-        prevView = iconAction("⏮") { playPrevious() }.apply { textSize = 18f }
-        transport.addView(prevView, LinearLayout.LayoutParams(0, dp(44), 1f))
-        playView = ImageView(this).apply {
-            contentDescription = "Play or pause"
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            isClickable = true; isFocusable = true
-            setOnClickListener { togglePlayback() }
-        }
+        // Build 2.8: plain white button icons (no purple box, no text glyphs), a little larger than before,
+        // each with a soft white ripple. Round hit areas: prev/next 52dp, play/pause 60dp.
+        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 12) { playPrevious() }
+        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 10) { togglePlayback() }
+        nextView = transportButton(R.drawable.ic_next_24, "Next", 12) { playNext() }
         syncPlaybackIcon()
-        // Slightly lengthen the rounded rectangle versus Build 44 without returning to the oversized original.
-        transport.addView(playView, LinearLayout.LayoutParams(dp(68), dp(50)))
-        nextView = iconAction("⏭") { playNext() }.apply { textSize = 18f }
-        transport.addView(nextView, LinearLayout.LayoutParams(0, dp(44), 1f))
+        transport.clipChildren = false
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
+        transport.addView(prevView, LinearLayout.LayoutParams(dp(52), dp(52)))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1f))
+        transport.addView(playView, LinearLayout.LayoutParams(dp(60), dp(60)))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1f))
+        transport.addView(nextView, LinearLayout.LayoutParams(dp(52), dp(52)))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -839,8 +838,8 @@ class MainActivity : Activity() {
         if (::duration.isInitialized) duration.setTextColor(inkMuted)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(inkMuted)
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
-        if (::prevView.isInitialized) prevView.setTextColor(ink)
-        if (::nextView.isInitialized) nextView.setTextColor(ink)
+        if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(Color.WHITE)
         if (::seek.isInitialized) {
             // Build 2.7: grey track, accent for the played part, white thumb.
             seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(4))
@@ -848,10 +847,8 @@ class MainActivity : Activity() {
             seek.invalidate()
         }
         if (::playView.isInitialized) {
-            playView.background = RippleDrawable(
-                ColorStateList.valueOf(withAlpha(DEFAULT_ACCENT, 0x55)),
-                shape(0xFF29265A.toInt(), 16), null
-            )
+            // Build 2.8: no filled box any more; only the white ripple (see transportButton).
+            playView.background = whiteRipple()
             syncPlaybackIcon()
         }
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
@@ -1799,6 +1796,19 @@ class MainActivity : Activity() {
             gridRow?.addView(cell, lp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
+        // Build 2.8: the last row may hold fewer albums than columns. Empty cells of the same weight keep every
+        // cover the same size as in a full row (before, a single album stretched across the whole width).
+        val lastCount = albums.size % albumGridColumns
+        if (lastCount != 0) {
+            for (position in lastCount until albumGridColumns) {
+                val filler = View(this)
+                val flp = LinearLayout.LayoutParams(0, 1, 1f).apply {
+                    if (position != 0) leftMargin = dp(3)
+                    if (position != albumGridColumns - 1) rightMargin = dp(3)
+                }
+                gridRow?.addView(filler, flp)
+            }
+        }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 
@@ -2147,12 +2157,72 @@ class MainActivity : Activity() {
         updateAlbumPlayingMarks(playing)
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
-        playView.imageTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
+        playView.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        animateArtForState(playing)
         if (::queueMiniPlayView.isInitialized) {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
         }
+    }
+
+    /** Build 2.8: soft white ripple on a round hit area (used by the Now Playing transport buttons). */
+    private fun whiteRipple(): RippleDrawable {
+        val mask = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) }
+        return RippleDrawable(ColorStateList.valueOf(withAlpha(Color.WHITE, 0x70)), null, mask)
+    }
+
+    /** Build 2.8: white icon button with white ripple and a short press "glow" (scale down on touch, spring back). */
+    private fun transportButton(iconRes: Int, description: String, paddingDp: Int, click: () -> Unit) = ImageView(this).apply {
+        setImageResource(iconRes)
+        imageTintList = ColorStateList.valueOf(Color.WHITE)
+        contentDescription = description
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
+        background = whiteRipple()
+        isClickable = true; isFocusable = true
+        setOnClickListener { click() }
+        setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.animate().cancel()
+                    v.animate().scaleX(0.88f).scaleY(0.88f).setDuration(90).start()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().cancel()
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                        .setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
+                }
+            }
+            false
+        }
+    }
+
+    private var artAnimView: View? = null
+    private var artAnimTarget = 1f
+
+    /**
+     * Build 2.8: Poweramp-like cover animation. Paused: the cover settles back to 88%; playing: it grows back to
+     * 100% with a small overshoot. The first call for a (re)built view jumps straight to the state without animating.
+     */
+    private fun animateArtForState(playing: Boolean) {
+        if (!::artBox.isInitialized) return
+        val target = if (playing) 1f else ART_PAUSED_SCALE
+        if (artAnimView !== artBox) {
+            artAnimView = artBox
+            artAnimTarget = target
+            artBox.animate().cancel()
+            artBox.scaleX = target; artBox.scaleY = target
+            return
+        }
+        if (artAnimTarget == target) return
+        artAnimTarget = target
+        artBox.animate().cancel()
+        artBox.animate().scaleX(target).scaleY(target)
+            .setDuration(if (playing) 380L else 280L)
+            .setInterpolator(
+                if (playing) android.view.animation.OvershootInterpolator(1.8f) else DecelerateInterpolator(1.5f)
+            ).start()
     }
 
     private fun startPlaybackKeepAlive() {
@@ -3057,7 +3127,10 @@ class MainActivity : Activity() {
             show("player")
             return
         }
-        handleNotificationAction("close")
+        // Build 2.8: Back on the Now Playing page only sends the app to the background (like Home).
+        // It used to run the "close" action, which stopped the music and removed the task. The real
+        // close stays on the "Close player" button of the notification.
+        try { moveTaskToBack(true) } catch (_: Exception) { }
     }
 
     private inner class SwipeFrameLayout(
@@ -3180,6 +3253,8 @@ class MainActivity : Activity() {
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
         private const val PROGRESS_TRACK_GREY = 0xFF5E5E66.toInt()
+        /** Build 2.8: scale of the Now Playing cover while paused. */
+        private const val ART_PAUSED_SCALE = 0.88f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
