@@ -612,11 +612,12 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(SEEK_SIDE_PAD_DP), dp(6), dp(SEEK_SIDE_PAD_DP), dp(6))
         }
-        // Build 2.9: bigger plain white icons with a soft glow on touch (no circular ripple).
-        // Hit areas: prev/next TRANSPORT_SIDE_DP (icon ~38dp), play/pause TRANSPORT_PLAY_DP (icon ~54dp).
-        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 12) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 10) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_24, "Next", 12) { playNext() }
+        // Build 2.11: hit areas are back to the Build 2.8 sizes (52dp / 60dp) so every position is the same as in 2.8, but the
+        // icon itself now fills the whole area (FIT_CENTER, no padding). Before, CENTER_INSIDE kept the 24dp vector at 24dp
+        // whatever the area was, so Builds 2.9 and 2.10 only enlarged the invisible area.
+        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 0) { playPrevious() }
+        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 0) { togglePlayback() }
+        nextView = transportButton(R.drawable.ic_next_24, "Next", 0) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
@@ -690,7 +691,11 @@ class MainActivity : Activity() {
         if (!::artBox.isInitialized || !::playerBottomDock.isInitialized) return
         val dockHeight = playerBottomDock.height
         if (dockHeight <= 0 || panelHeight <= 0) return
-        val free = panelHeight - dockHeight - topInset - dp(STACK_BOTTOM_PAD_DP)
+        // Build 2.11: the panel grows when its content is taller than the page, and then it measured its own overflow as
+        // free room, so the cover never shrank and the bottom lines slid under the bottom bar. playerPanel.minimumHeight
+        // is the visible page height (see the scroll listener in buildUi), so the cover is sized against that.
+        val visible = if (playerPanel.minimumHeight > 0) minOf(panelHeight, playerPanel.minimumHeight) else panelHeight
+        val free = visible - dockHeight - topInset - dp(STACK_BOTTOM_PAD_DP)
         val wide = ((resources.displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt()
         val side = minOf(wide, free - 2 * dp(ART_MIN_GAP_DP)).coerceAtLeast(dp(120))
         val gap = ((free - side) / 2).coerceAtLeast(dp(ART_MIN_GAP_DP))
@@ -2219,7 +2224,7 @@ class MainActivity : Activity() {
         setImageResource(iconRes)
         imageTintList = ColorStateList.valueOf(Color.WHITE)
         contentDescription = description
-        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        scaleType = ImageView.ScaleType.FIT_CENTER
         setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
         background = GlowDrawable()
         isClickable = true; isFocusable = true
@@ -3301,11 +3306,11 @@ class MainActivity : Activity() {
         private const val ART_PAUSED_SCALE = 0.95f
         /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
         private const val PROGRESS_THICKNESS_DP = 3
-        /** Build 2.10: grey of the "+" / "x" buttons in the lists, and a much smaller gap between the track description and the progress times. */
+        /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
         private const val ACTION_GREY = 0xFF8E8E98.toInt()
-        private const val PROGRESS_TOP_GAP_DP = 2
-        private const val TRANSPORT_SIDE_DP = 80
-        private const val TRANSPORT_PLAY_DP = 96
+        private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
+        private const val TRANSPORT_SIDE_DP = 52
+        private const val TRANSPORT_PLAY_DP = 60
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
