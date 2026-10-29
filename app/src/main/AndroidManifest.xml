@@ -30,12 +30,19 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
         <receiver android:name="id.g6hifiplayer.NotificationActionReceiver" android:exported="false" />
-        <receiver android:name="id.g6hifiplayer.G6MusicWidgetProvider" android:exported="true">
+        <!-- Build 2.14: two widgets, both registered (the pre-2.14 widgets were removed). -->
+        <receiver android:name="id.g6hifiplayer.G6Widget4x2Provider" android:label="Music 4x2" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_player_4x2" />
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_4x2_info" />
+        </receiver>
+        <receiver android:name="id.g6hifiplayer.G6Widget2x2Provider" android:label="Music 2x2" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_2x2_info" />
         </receiver>
     </application>
 </manifest>

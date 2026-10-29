@@ -221,7 +221,7 @@ class MainActivity : Activity() {
                     val widgetNow = System.currentTimeMillis()
                     if (p.isPlaying && widgetNow - lastWidgetProgressUpdateAtMs >= 1000L) {
                         lastWidgetProgressUpdateAtMs = widgetNow
-                        G6MusicWidgetProvider.refreshProgress(this@MainActivity, pos, durationMs)
+                        G6Widgets.refreshProgress(this@MainActivity, pos, durationMs)
                     }
                 }
             }
@@ -2211,7 +2211,8 @@ class MainActivity : Activity() {
         override fun onBoundsChange(bounds: android.graphics.Rect) {
             paint.shader = android.graphics.RadialGradient(
                 bounds.exactCenterX(), bounds.exactCenterY(), radius(bounds),
-                intArrayOf(0x80FFFFFF.toInt(), 0x66FFFFFF, 0x30FFFFFF, 0x00FFFFFF),
+                // Build 2.14: peak opacity 30% (was 50%: 0x80); the other stops scaled by the same factor (0.6).
+                intArrayOf(0x4DFFFFFF, 0x3DFFFFFF, 0x1DFFFFFF, 0x00FFFFFF),
                 floatArrayOf(0f, 0.55f, 0.82f, 1f),
                 android.graphics.Shader.TileMode.CLAMP
             )
@@ -2821,7 +2822,6 @@ class MainActivity : Activity() {
         val widgetTitle = track.title
         val widgetArtist = track.artist
         val widgetAlbum = track.album
-        val widgetLightTheme = lightTheme
         val widgetPosition = try { player?.currentPosition?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
         val widgetDuration = try { player?.duration?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0 } catch (_: Exception) { 0 }
         // Widget rendering may write artwork to disk and rebuild RemoteViews. Serialize it away
@@ -2829,9 +2829,9 @@ class MainActivity : Activity() {
         try {
             notificationWidgetExecutor.execute {
                 try {
-                    G6MusicWidgetProvider.refresh(
+                    G6Widgets.refresh(
                         widgetContext, widgetTitle, widgetArtist, widgetAlbum, isPlaying,
-                        widgetBitmap, widgetLightTheme, widgetPosition, widgetDuration
+                        widgetBitmap, widgetPosition, widgetDuration
                     )
                 } catch (e: Exception) {
                     android.util.Log.w("G6HiFiPlayer", "Async widget refresh failed", e)
@@ -2895,7 +2895,7 @@ class MainActivity : Activity() {
         } catch (_: Exception) { }
         try { stopService(Intent(this, PlaybackKeepAliveService::class.java)) } catch (_: Exception) { }
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
-        try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, lightTheme, 0, 0) } catch (_: Exception) { }
+        try { G6Widgets.refresh(this, "", "", "", false, null, 0, 0) } catch (_: Exception) { }
         refreshAudioInfo()
         recordDiagnostic("PLAYER_CLOSE playback=stopped player=released mediaSession=inactive foregroundService=stopped")
     }

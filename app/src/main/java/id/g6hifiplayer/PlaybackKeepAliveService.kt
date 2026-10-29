@@ -247,7 +247,7 @@ class PlaybackKeepAliveService : Service() {
         ExclusiveAudioFocus.release()
         if (exclusiveEnabled() && !stopForGood) {
             // Close player: playback ends but the jack watcher stays armed (Setting -> Exclusive mode OFF to stop it).
-            try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, false, 0, 0) } catch (_: Exception) { }
+            try { G6Widgets.refresh(this, "", "", "", false, null, 0, 0) } catch (_: Exception) { }
             try { playbackStoppedCallback?.invoke() } catch (e: Exception) { android.util.Log.w(TAG, "UI stop callback failed", e) }
             registerJackWatcher()
             if (!foregroundStarted) ensureForeground()
@@ -258,7 +258,7 @@ class PlaybackKeepAliveService : Service() {
         unregisterJackWatcher()
         cancelTakeoverPrompt()
         try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) { }
-        try { G6MusicWidgetProvider.refresh(this, "", "", "", false, null, false, 0, 0) } catch (_: Exception) { }
+        try { G6Widgets.refresh(this, "", "", "", false, null, 0, 0) } catch (_: Exception) { }
         try { playbackStoppedCallback?.invoke() } catch (e: Exception) { android.util.Log.w(TAG, "UI stop callback failed", e) }
         stopForegroundCompat()
         stopSelf()

@@ -65,3 +65,6 @@ Engine Lab (bit-perfect experiments) is a separate app on branches claude-build-
 
 ## Build 2.13 (branch claude-build-213-player)
 - 2.12 + play icon 38dp, previous/next icons 32dp (padding only, positions unchanged). See BUILD213_NOTES.md. Workflow build-213-claude.yml (artifact G6HiFiPlayer-Build213-v2.13.0; success marker build213_ok.txt on branch ci-logs). Not yet checked on the phone.
+
+## Build 2.14 (branch claude-build-214-player)
+- 2.13 + glow peak opacity 30% (was 50%) + old widgets deleted, new 4x2 (80% black background) and 2x2 widgets in G6Widgets.kt (both registered in the manifest; the old 2x2 never was). See BUILD214_NOTES.md. Workflow build-214-claude.yml (artifact G6HiFiPlayer-Build214-v2.14.0; success marker build214_ok.txt on branch ci-logs). Not yet checked on the phone.
