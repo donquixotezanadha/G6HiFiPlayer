@@ -16,7 +16,8 @@ internal class WavTags(
     val artist: String?,
     val album: String?,
     val trackNumber: Int?,
-    val picture: ByteArray?
+    val picture: ByteArray?,
+    val year: String? = null
 )
 
 /**
@@ -51,6 +52,8 @@ internal object WavTagReader {
         var id3AlbumArtist: String? = null
         var id3Album: String? = null
         var id3Track: Int? = null
+        var id3Year: String? = null
+        var infoYear: String? = null
         var infoTitle: String? = null
         var infoArtist: String? = null
         var infoAlbum: String? = null
@@ -113,7 +116,8 @@ internal object WavTagReader {
             artist = found.id3Artist ?: found.id3AlbumArtist ?: found.infoArtist,
             album = found.id3Album ?: found.infoAlbum,
             trackNumber = found.id3Track ?: found.infoTrack,
-            picture = found.picture
+            picture = found.picture,
+            year = yearOf(found.id3Year) ?: yearOf(found.infoYear)
         )
     }
 
@@ -132,6 +136,7 @@ internal object WavTagReader {
                 "IART" -> if (out.infoArtist == null) out.infoArtist = value
                 "IPRD" -> if (out.infoAlbum == null) out.infoAlbum = value
                 "ITRK", "IPRT" -> if (out.infoTrack == null) out.infoTrack = trackNumberOf(value)
+                "ICRD" -> if (out.infoYear == null) out.infoYear = value
             }
             p = (s + len + (len and 1L)).toInt()
         }
@@ -170,7 +175,7 @@ internal object WavTagReader {
             if (size < 0 || s + size > body.size) break
             p = s + size
             val wanted = when (id) {
-                "TIT2", "TT2", "TPE1", "TP1", "TPE2", "TP2", "TALB", "TAL", "TRCK", "TRK" -> true
+                "TIT2", "TT2", "TPE1", "TP1", "TPE2", "TP2", "TALB", "TAL", "TRCK", "TRK", "TYER", "TYE", "TDRC", "TDRL" -> true
                 "APIC", "PIC" -> wantPicture
                 else -> false
             }
@@ -190,10 +195,15 @@ internal object WavTagReader {
                 "TPE2", "TP2" -> if (out.id3AlbumArtist == null) out.id3AlbumArtist = id3Text(data)
                 "TALB", "TAL" -> if (out.id3Album == null) out.id3Album = id3Text(data)
                 "TRCK", "TRK" -> if (out.id3Track == null) out.id3Track = trackNumberOf(id3Text(data))
+                "TYER", "TYE", "TDRC", "TDRL" -> if (out.id3Year == null) out.id3Year = id3Text(data)
                 "APIC", "PIC" -> id3Picture(data, major, out)
             }
         }
     }
+
+    /** First four-digit year (1000-2999) found in a date text, or null. */
+    internal fun yearOf(value: String?): String? =
+        value?.let { Regex("(?<!\\d)([12]\\d{3})(?!\\d)").find(it)?.groupValues?.get(1) }
 
     private fun id3Text(frame: ByteArray): String? {
         if (frame.size < 2) return null

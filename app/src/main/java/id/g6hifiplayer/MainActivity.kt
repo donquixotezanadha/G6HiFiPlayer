@@ -60,7 +60,9 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
-    private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?, val trackNumber: Int = Int.MAX_VALUE)
+    private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?, val trackNumber: Int = Int.MAX_VALUE,
+                                  /** Build 2.4: year from the ID tag. null = not read yet (library saved by an older build), "" = the file has none. */
+                                  val year: String? = null)
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
     private var mediaSession: MediaSession? = null
@@ -1281,7 +1283,8 @@ class MainActivity : Activity() {
                                 item.optString("artist", "Artist unavailable"),
                                 item.optString("album", "Unknown album"),
                                 coverText.takeIf { it.isNotBlank() }?.let { Uri.parse(it) },
-                                item.optInt("trackNumber", Int.MAX_VALUE)
+                                item.optInt("trackNumber", Int.MAX_VALUE),
+                                if (item.has("year")) item.optString("year", "") else null
                             ))
                         }
                         if (list.isNotEmpty()) cached = list
@@ -1459,7 +1462,8 @@ class MainActivity : Activity() {
                     .put("artist", track.artist)
                     .put("album", track.album)
                     .put("coverUri", track.coverUri?.toString() ?: "")
-                    .put("trackNumber", track.trackNumber))
+                    .put("trackNumber", track.trackNumber)
+                    .apply { track.year?.let { put("year", it) } })
             }
             val root = org.json.JSONObject().put("cacheVersion", LIBRARY_CACHE_VERSION).put("treeUri", treeUri.toString()).put("tracks", array)
             val file = File(cacheDir, "library-cache.json")
@@ -1531,7 +1535,7 @@ class MainActivity : Activity() {
                 val key = dir.uri.toString()
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
                 // Build 2.2: a file already in the saved library keeps its saved tags (no tag reading again); only its folder picture is refreshed.
-                val prior = known?.get(file.uri.toString())
+                val prior = known?.get(file.uri.toString())?.takeIf { it.year != null } // Build 2.4: entries without a year are read again once
                 synchronized(output) { output.add(if (prior != null) prior.copy(coverUri = covers[key]) else readTrack(file.uri, covers[key], dir.name)) }
                 count[0]++
                 if (known == null && (count[0] == 1 || count[0] % 50 == 0)) {
@@ -1582,6 +1586,7 @@ class MainActivity : Activity() {
         val r = MediaMetadataRetriever()
         var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Local audio"
         var artist = "Artist unavailable"; var album = folderName ?: "Unknown album"; var trackNumber = Int.MAX_VALUE
+        var year = ""
         try {
             r.setDataSource(this, uri)
             fun meta(key: Int) = r.extractMetadata(key)?.takeIf { it.isNotBlank() }
@@ -1589,6 +1594,7 @@ class MainActivity : Activity() {
             artist = meta(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: artist
             album = meta(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: album
             trackNumber = meta(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.substringBefore("/")?.toIntOrNull() ?: Int.MAX_VALUE
+            year = WavTagReader.yearOf(meta(MediaMetadataRetriever.METADATA_KEY_YEAR)) ?: WavTagReader.yearOf(meta(MediaMetadataRetriever.METADATA_KEY_DATE)) ?: ""
         } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
         // Build 1.45: MediaMetadataRetriever returns no tags for most WAV files; read the LIST/INFO and ID3 chunks ourselves.
         if (WavTagReader.isWavName(uri.lastPathSegment)) {
@@ -1597,13 +1603,15 @@ class MainActivity : Activity() {
                 wav.artist?.let { artist = it }
                 wav.album?.let { album = it }
                 wav.trackNumber?.let { trackNumber = it }
+                wav.year?.let { year = it }
             }
         }
-        return Track(uri, title, artist, album, coverUri, trackNumber)
+        return Track(uri, title, artist, album, coverUri, trackNumber, year)
     }
 
     private fun renderLibrary() {
         if (!::albumRows.isInitialized) return
+        albumPlayingMarks.clear()
         albumRows.removeAllViews()
         if (tracks.isEmpty()) {
             albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
@@ -1641,8 +1649,8 @@ class MainActivity : Activity() {
                 val artSide = minOf((resources.displayMetrics.widthPixels * ALBUM_DETAIL_ART_FRACTION).toInt(), contentWidth)
                 val bigCover = ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(0xFF181820.toInt(), 8)
-                    clipToOutline = true
+                    background = shape(0xFF181820.toInt(), 10)
+                    roundCorners(10)
                     elevation = dp(6).toFloat()
                     contentDescription = "Artwork $album"
                 }
@@ -1671,6 +1679,7 @@ class MainActivity : Activity() {
                 }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
                 entries.forEachIndexed { position, entry -> addNumberedTrackRow(albumRows, entry, position + 1, albumArtist, queueIndices) }
+                updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
 
                 // More albums of the same artist: a row that scrolls sideways when it does not fit on one screen.
                 val moreAlbums = if (albumArtist.isBlank()) emptyList() else albums.filter { other ->
@@ -1706,8 +1715,8 @@ class MainActivity : Activity() {
                         }
                         val otherCover = ImageView(this).apply {
                             scaleType = ImageView.ScaleType.CENTER_CROP
-                            background = shape(0xFF181820.toInt(), 8)
-                            clipToOutline = true
+                            background = shape(0xFF181820.toInt(), 10)
+                            roundCorners(10)
                             contentDescription = "Artwork $other"
                         }
                         card.addView(otherCover, LinearLayout.LayoutParams(cardSide, cardSide))
@@ -1760,12 +1769,16 @@ class MainActivity : Activity() {
                     true
                 }
             }
-            val cover = ImageView(this).apply {
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                background = shape(Color.TRANSPARENT, 8)
+            // Build 2.4: square cover with rounded corners (the corners were not clipped before).
+            val cover = object : ImageView(this) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
+            }.apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                background = shape(0xFF181820.toInt(), 10)
+                roundCorners(10)
                 contentDescription = "Artwork $album"
             }
-            cell.addView(cover, LinearLayout.LayoutParams(-1, dp(if (albumGridColumns == 2) 148 else 108)))
+            cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             cell.addView(text(album, 12f, MUTED, true).apply {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
                 maxLines = 2
@@ -1851,38 +1864,61 @@ class MainActivity : Activity() {
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         loadArtworkInto(cover, t)
     }
-    /** Build 2.3: one song of the opened album: number, title (and artist only when it differs from the album artist), no picture. */
+    /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
+    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView)
+    private val albumPlayingMarks = ArrayList<AlbumRowMark>()
+
+    private fun updateAlbumPlayingMarks(playing: Boolean) {
+        if (albumPlayingMarks.isEmpty()) return
+        albumPlayingMarks.forEach { m ->
+            val current = currentIndex >= 0 && m.index == currentIndex
+            m.bars.visibility = if (current) View.VISIBLE else View.INVISIBLE
+            m.bars.setBarColor(accentColor)
+            m.bars.playing = current && playing
+            m.title.setTextColor(if (current) accentColor else WHITE)
+            m.number.setTextColor(if (current) accentColor else MUTED)
+            m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 12)
+        }
+    }
+
     private fun addNumberedTrackRow(parent: LinearLayout, entry: IndexedValue<Track>, number: Int, albumArtist: String, queueIndices: List<Int>) {
         val t = entry.value
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(8), dp(4), dp(8))
-            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12) }
+            setPadding(dp(4), dp(3), dp(4), dp(3))
             isClickable = true
             isFocusable = true
         }
-        row.addView(text(number.toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(34), -2))
+        val numberView = text(number.toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
+        row.addView(numberView, LinearLayout.LayoutParams(dp(34), -2))
         val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), 0, dp(4), 0) }
-        details.addView(text(t.title, 13f, WHITE, true).apply {
+        val titleView = text(t.title, 13f, WHITE, true).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-        })
-        if (t.artist.isNotBlank() && t.artist != albumArtist) {
-            details.addView(text(t.artist, 11f, MUTED, false).apply {
+        }
+        details.addView(titleView)
+        // File type from the file name, year from the ID tag; both are left out when the file does not have them.
+        val fileType = t.uri.lastPathSegment?.substringAfterLast('.', "")?.takeIf { it.length in 2..5 }?.uppercase(Locale.ROOT).orEmpty()
+        val parts = listOf(fileType, t.year.orEmpty(), if (t.artist.isNotBlank() && t.artist != albumArtist) t.artist else "").filter { it.isNotBlank() }
+        if (parts.isNotEmpty()) {
+            details.addView(text(parts.joinToString(" • "), 11f, MUTED, false).apply {
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
         }
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+        val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
+        row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
         val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(accentColor); contentDescription = "Add ${t.title} to queue" }
-        row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
+        row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(36)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
             playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
             show("player")
         }
-        parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(2) })
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2))
+        albumPlayingMarks.add(AlbumRowMark(entry.index, row, numberView, titleView, bars))
     }
 
     /** Large cover for the opened-album page: the saved grid cover shows at once, the sharper one replaces it when decoded. */
@@ -1935,6 +1971,7 @@ class MainActivity : Activity() {
                 }
                 if (itemPosition >= 0) {
                     currentIndex = playbackOrder[itemPosition]
+                    updateAlbumPlayingMarks(try { exo.isPlaying } catch (_: Exception) { false })
                     val activeTrack = tracks.getOrNull(currentIndex) ?: return
                     notificationDismissed = false
                     titleView.text = activeTrack.title
@@ -2101,6 +2138,7 @@ class MainActivity : Activity() {
     private fun syncPlaybackIcon(isPlaying: Boolean? = null) {
         if (!::playView.isInitialized) return
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
+        updateAlbumPlayingMarks(playing)
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
@@ -2385,6 +2423,8 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        // Build 2.4: the takeover notification is gone after Close; opening the player again arms it again.
+        if (!isFinishing) PlaybackKeepAliveService.armExclusive(this)
         // Coming back to the app later also checks the folder again (at most once per minute).
         if (tracks.isNotEmpty() && System.currentTimeMillis() - lastBackgroundScanAt > 60_000L) {
             getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let { backgroundRefreshLibrary(Uri.parse(it)) }
@@ -2593,7 +2633,7 @@ class MainActivity : Activity() {
                     verdict = "● BIT-PERFECT"
                     color = green
                     note = when {
-                        srcBits <= 16 -> " • 16-bit padded to 24"
+                        srcBits <= 16 -> ""
                         DirectOutputState.depthVerdict() == 1 -> " • real 24-bit"
                         DirectOutputState.depthVerdict() == 2 -> " • low 8 bits empty"
                         else -> ""
@@ -2957,6 +2997,16 @@ class MainActivity : Activity() {
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
+
+    /** Build 2.4: clips a view (an album cover) to rounded corners, whatever its background is. */
+    private fun View.roundCorners(radiusDp: Int) {
+        clipToOutline = true
+        outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: android.graphics.Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, dp(radiusDp).toFloat())
+            }
+        }
+    }
     private fun describe(d: AudioDeviceInfo) = deviceName(d) + " (" + deviceType(d.type) + ", type=" + d.type + ", id=" + d.id + ")"
     private fun deviceName(d: AudioDeviceInfo) = d.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Audio device"
     private fun deviceType(type: Int) = when (type) {

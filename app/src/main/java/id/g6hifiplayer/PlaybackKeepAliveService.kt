@@ -155,7 +155,9 @@ class PlaybackKeepAliveService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (val action = intent?.action) {
             ACTION_STOP -> {
-                stopSessionAndPlayer()
+                // Build 2.4: Close (also the in-app close) ends everything, including the "Exclusive mode" notification.
+                // Takeover starts again only when the player is opened again (MainActivity -> armExclusive).
+                stopSessionAndPlayer(stopForGood = true)
                 return START_NOT_STICKY
             }
             ACTION_EXIT -> {
@@ -217,8 +219,7 @@ class PlaybackKeepAliveService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val active = sharedPlayer?.let { it.isPlaying || it.playWhenReady } == true
         if (active) android.util.Log.i(TAG, "Recent task removed; service-owned player and MediaSession remain active")
-        else if (exclusiveEnabled()) android.util.Log.i(TAG, "Recent task removed; exclusive mode keeps the service armed")
-        else stopSessionAndPlayer()
+        else stopSessionAndPlayer(stopForGood = true) // Build 2.4: nothing playing -> no standby notification; takeover returns when the app is opened
         super.onTaskRemoved(rootIntent)
     }
 
