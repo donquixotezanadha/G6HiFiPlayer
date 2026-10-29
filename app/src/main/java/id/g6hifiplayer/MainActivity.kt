@@ -590,7 +590,8 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
-            progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(4))
+            // Build 2.9: slightly thinner track (4dp -> PROGRESS_THICKNESS_DP).
+            progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
             thumbTintList = ColorStateList.valueOf(Color.WHITE)
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
@@ -611,19 +612,19 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(SEEK_SIDE_PAD_DP), dp(6), dp(SEEK_SIDE_PAD_DP), dp(6))
         }
-        // Build 2.8: plain white button icons (no purple box, no text glyphs), a little larger than before,
-        // each with a soft white ripple. Round hit areas: prev/next 52dp, play/pause 60dp.
-        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 12) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 10) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_24, "Next", 12) { playNext() }
+        // Build 2.9: bigger plain white icons with a soft glow on touch (no circular ripple).
+        // Hit areas: prev/next TRANSPORT_SIDE_DP (icon ~38dp), play/pause TRANSPORT_PLAY_DP (icon ~54dp).
+        prevView = transportButton(R.drawable.ic_previous_24, "Previous", 13) { playPrevious() }
+        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 12) { togglePlayback() }
+        nextView = transportButton(R.drawable.ic_next_24, "Next", 13) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
-        transport.addView(prevView, LinearLayout.LayoutParams(dp(52), dp(52)))
+        transport.addView(prevView, LinearLayout.LayoutParams(dp(TRANSPORT_SIDE_DP), dp(TRANSPORT_SIDE_DP)))
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1f))
-        transport.addView(playView, LinearLayout.LayoutParams(dp(60), dp(60)))
+        transport.addView(playView, LinearLayout.LayoutParams(dp(TRANSPORT_PLAY_DP), dp(TRANSPORT_PLAY_DP)))
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1f))
-        transport.addView(nextView, LinearLayout.LayoutParams(dp(52), dp(52)))
+        transport.addView(nextView, LinearLayout.LayoutParams(dp(TRANSPORT_SIDE_DP), dp(TRANSPORT_SIDE_DP)))
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
 
         val bottomDock = LinearLayout(this).apply {
@@ -842,13 +843,13 @@ class MainActivity : Activity() {
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(Color.WHITE)
         if (::seek.isInitialized) {
             // Build 2.7: grey track, accent for the played part, white thumb.
-            seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(4))
+            seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
             seek.thumbTintList = ColorStateList.valueOf(Color.WHITE)
             seek.invalidate()
         }
         if (::playView.isInitialized) {
-            // Build 2.8: no filled box any more; only the white ripple (see transportButton).
-            playView.background = whiteRipple()
+            // Build 2.9: no filled box and no circular ripple; only the soft glow (see transportButton).
+            if (playView.background !is GlowDrawable) playView.background = GlowDrawable()
             syncPlaybackIcon()
         }
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
@@ -2166,32 +2167,73 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Build 2.8: soft white ripple on a round hit area (used by the Now Playing transport buttons). */
-    private fun whiteRipple(): RippleDrawable {
-        val mask = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) }
-        return RippleDrawable(ColorStateList.valueOf(withAlpha(Color.WHITE, 0x70)), null, mask)
+    /**
+     * Build 2.9: soft light behind a button instead of the circular ripple. A radial white gradient that is brightest in
+     * the centre and fades to fully transparent at the edge (so no ring or hard circle is ever visible). It fades in
+     * quickly on touch and fades out slowly on release.
+     */
+    private class GlowDrawable : android.graphics.drawable.Drawable() {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private var glow = 0f
+        private var baseAlpha = 255
+        private var animator: android.animation.ValueAnimator? = null
+
+        fun glowTo(target: Float, durationMs: Long) {
+            animator?.cancel()
+            val a = android.animation.ValueAnimator.ofFloat(glow, target)
+            a.duration = durationMs
+            a.interpolator = DecelerateInterpolator()
+            a.addUpdateListener { glow = it.animatedValue as Float; invalidateSelf() }
+            animator = a
+            a.start()
+        }
+
+        override fun onBoundsChange(bounds: android.graphics.Rect) {
+            val r = (minOf(bounds.width(), bounds.height()) / 2f).coerceAtLeast(1f)
+            paint.shader = android.graphics.RadialGradient(
+                bounds.exactCenterX(), bounds.exactCenterY(), r,
+                intArrayOf(0x66FFFFFF, 0x38FFFFFF, 0x10FFFFFF, 0x00FFFFFF),
+                floatArrayOf(0f, 0.4f, 0.75f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        }
+
+        override fun draw(canvas: android.graphics.Canvas) {
+            if (glow <= 0.01f) return
+            val b = bounds
+            if (b.width() <= 0 || b.height() <= 0) return
+            paint.alpha = (glow * baseAlpha).toInt().coerceIn(0, 255)
+            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), minOf(b.width(), b.height()) / 2f, paint)
+        }
+
+        override fun setAlpha(alpha: Int) { baseAlpha = alpha.coerceIn(0, 255); invalidateSelf() }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { paint.colorFilter = colorFilter; invalidateSelf() }
+        @Suppress("DEPRECATION")
+        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
     }
 
-    /** Build 2.8: white icon button with white ripple and a short press "glow" (scale down on touch, spring back). */
+    /** Build 2.9: white icon button with a soft glow on touch and a tiny press (scale down, smooth return). */
     private fun transportButton(iconRes: Int, description: String, paddingDp: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(iconRes)
         imageTintList = ColorStateList.valueOf(Color.WHITE)
         contentDescription = description
         scaleType = ImageView.ScaleType.CENTER_INSIDE
         setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
-        background = whiteRipple()
+        background = GlowDrawable()
         isClickable = true; isFocusable = true
         setOnClickListener { click() }
         setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    (v.background as? GlowDrawable)?.glowTo(1f, 120L)
                     v.animate().cancel()
-                    v.animate().scaleX(0.88f).scaleY(0.88f).setDuration(90).start()
+                    v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(110).start()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    (v.background as? GlowDrawable)?.glowTo(0f, 520L)
                     v.animate().cancel()
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(260)
-                        .setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(280)
+                        .setInterpolator(DecelerateInterpolator(1.4f)).start()
                 }
             }
             false
@@ -2202,8 +2244,9 @@ class MainActivity : Activity() {
     private var artAnimTarget = 1f
 
     /**
-     * Build 2.8: Poweramp-like cover animation. Paused: the cover settles back to 88%; playing: it grows back to
-     * 100% with a small overshoot. The first call for a (re)built view jumps straight to the state without animating.
+     * Build 2.9: gentle cover animation. Paused: the cover settles back a little (ART_PAUSED_SCALE); playing: it returns to
+     * exactly 100% (as wide as the progress bar) with no overshoot, so it never gets wider than the track.
+     * The first call for a (re)built view jumps straight to the state without animating.
      */
     private fun animateArtForState(playing: Boolean) {
         if (!::artBox.isInitialized) return
@@ -2219,10 +2262,8 @@ class MainActivity : Activity() {
         artAnimTarget = target
         artBox.animate().cancel()
         artBox.animate().scaleX(target).scaleY(target)
-            .setDuration(if (playing) 380L else 280L)
-            .setInterpolator(
-                if (playing) android.view.animation.OvershootInterpolator(1.8f) else DecelerateInterpolator(1.5f)
-            ).start()
+            .setDuration(if (playing) 320L else 260L)
+            .setInterpolator(DecelerateInterpolator(1.5f)).start()
     }
 
     private fun startPlaybackKeepAlive() {
@@ -2710,7 +2751,8 @@ class MainActivity : Activity() {
                     color = green
                     note = when {
                         srcBits <= 16 -> ""
-                        DirectOutputState.depthVerdict() == 1 -> " • real 24-bit"
+                        // Build 2.9: no "real 24-bit" text; BIT-PERFECT already says it.
+                        DirectOutputState.depthVerdict() == 1 -> ""
                         DirectOutputState.depthVerdict() == 2 -> " • low 8 bits empty"
                         else -> ""
                     }
@@ -3253,8 +3295,12 @@ class MainActivity : Activity() {
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
         private const val PROGRESS_TRACK_GREY = 0xFF5E5E66.toInt()
-        /** Build 2.8: scale of the Now Playing cover while paused. */
-        private const val ART_PAUSED_SCALE = 0.88f
+        /** Build 2.9: scale of the Now Playing cover while paused (was 88%; now a small step). */
+        private const val ART_PAUSED_SCALE = 0.95f
+        /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
+        private const val PROGRESS_THICKNESS_DP = 3
+        private const val TRANSPORT_SIDE_DP = 64
+        private const val TRANSPORT_PLAY_DP = 78
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
