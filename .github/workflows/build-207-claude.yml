@@ -1,9 +1,9 @@
-name: Build G6 Player Build 2.6 - layout Now Playing dan gap list
+name: Build G6 Player Build 2.7 - gap Now Playing dan warna progress
 
 on:
   workflow_dispatch:
   push:
-    branches: ["claude-build-206-player"]
+    branches: ["claude-build-207-player"]
 
 permissions:
   contents: write
@@ -37,13 +37,13 @@ jobs:
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build206_errors.txt || true
-          tail -150 build-log.txt > /tmp/out/build206_tail.txt
+          grep -nE "^e: |error:|FAILED|What went wrong|Caused by|Execution failed|Unresolved|warning: " build-log.txt | head -200 > /tmp/out/build207_errors.txt || true
+          tail -150 build-log.txt > /tmp/out/build207_tail.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add build206_errors.txt build206_tail.txt
-          git commit -m "build 2.6 failure log"
+          git add build207_errors.txt build207_tail.txt
+          git commit -m "build 2.7 failure log"
           git push -f origin ci-logs
       - name: Verify APK exists and is non-empty
         run: |
@@ -52,30 +52,30 @@ jobs:
           echo "APK bytes: $(stat -c%s "$APK")"
           unzip -l "$APK" | grep -E "\.so$" || true
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so" || { echo "libg6direct.so is missing from the APK"; exit 1; }
-      - name: Upload Build 2.6 APK
+      - name: Upload Build 2.7 APK
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build206-v2.6.0
+          name: G6HiFiPlayer-Build207-v2.7.0
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## Download G6HiFiPlayer Build 2.6" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Download G6HiFiPlayer Build 2.7" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download Build 2.6 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 2.7 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 2.6 = 2.5 + slightly larger cover and controls, progress bar and title with the same width, a little more gap in the queue and album lists."
+          echo "Build 2.7 = 2.6 + larger even gaps in Now Playing (cover, title, progress, controls, info), grey progress track with accent played part and white thumb."
       - name: Publish success marker to branch ci-logs
         run: |
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          echo "build 2.6 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build206_ok.txt
+          echo "build 2.7 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build207_ok.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
-          git add build206_ok.txt
-          git commit -m "build 2.6 ok"
+          git add build207_ok.txt
+          git commit -m "build 2.7 ok"
           git push -f origin ci-logs

@@ -590,7 +590,7 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
-            progressDrawable = RoundedProgressDrawable(0x4DFFFFFF, Color.WHITE, dp(4))
+            progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(4))
             thumbTintList = ColorStateList.valueOf(Color.WHITE)
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
@@ -629,7 +629,7 @@ class MainActivity : Activity() {
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(10), 0, dp(4))
+            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(4))
         }
         playerBottomDock = bottomDock
         // Build 1.66: measured positions of the control dock, so Classic and Adaptive can be compared from the diagnostics.
@@ -649,11 +649,12 @@ class MainActivity : Activity() {
         }
         // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
-        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
+        // Build 2.7: even, slightly larger gaps: cover - title/artist - progress - controls - info.
+        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP) })
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
-        bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(1) })
+        bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP - 2) })
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); topMargin = dp(4)
+            leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); topMargin = dp(DOCK_GAP_DP - 2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
@@ -841,8 +842,9 @@ class MainActivity : Activity() {
         if (::prevView.isInitialized) prevView.setTextColor(ink)
         if (::nextView.isInitialized) nextView.setTextColor(ink)
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(0xFF343148.toInt(), DEFAULT_ACCENT, dp(4))
-            seek.thumbTintList = ColorStateList.valueOf(DEFAULT_ACCENT)
+            // Build 2.7: grey track, accent for the played part, white thumb.
+            seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(4))
+            seek.thumbTintList = ColorStateList.valueOf(Color.WHITE)
             seek.invalidate()
         }
         if (::playView.isInitialized) {
@@ -3174,6 +3176,10 @@ class MainActivity : Activity() {
         private const val STACK_BOTTOM_PAD_DP = 8
         private const val ART_MIN_GAP_DP = 12
         private const val ART_WIDTH_FRACTION = 1.0f
+        /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
+        private const val DOCK_GAP_DP = 14
+        private const val DOCK_TOP_PAD_DP = 14
+        private const val PROGRESS_TRACK_GREY = 0xFF5E5E66.toInt()
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
