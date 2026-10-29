@@ -616,7 +616,9 @@ class MainActivity : Activity() {
         // icon itself now fills the whole area (FIT_CENTER, no padding). Before, CENTER_INSIDE kept the 24dp vector at 24dp
         // whatever the area was, so Builds 2.9 and 2.10 only enlarged the invisible area.
         prevView = transportButton(R.drawable.ic_previous_24, "Previous", 0) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_24, "Play or pause", 0) { togglePlayback() }
+        // Build 2.12: the play/pause icon is halfway between 2.8 (24dp) and 2.11 (60dp): 42dp. The hit area stays 60dp, so the
+        // centre (position) does not move; the difference is only padding (PLAY_ICON_PAD_DP) around the icon.
+        playView = transportButton(R.drawable.ic_play_24, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
         nextView = transportButton(R.drawable.ic_next_24, "Next", 0) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
@@ -854,7 +856,7 @@ class MainActivity : Activity() {
         }
         if (::playView.isInitialized) {
             // Build 2.9: no filled box and no circular ripple; only the soft glow (see transportButton).
-            if (playView.background !is GlowDrawable) playView.background = GlowDrawable()
+            if (playView.background !is GlowDrawable) playView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat())
             syncPlaybackIcon()
         }
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
@@ -2179,7 +2181,7 @@ class MainActivity : Activity() {
      * the centre and fades to fully transparent at the edge (so no ring or hard circle is ever visible). It fades in
      * quickly on touch and fades out slowly on release.
      */
-    private class GlowDrawable : android.graphics.drawable.Drawable() {
+    private class GlowDrawable(private val extraPx: Float = 0f) : android.graphics.drawable.Drawable() {
         private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         private var glow = 0f
         private var baseAlpha = 255
@@ -2195,12 +2197,21 @@ class MainActivity : Activity() {
             a.start()
         }
 
+        /** Build 2.12: on release the light first jumps to (at least) a clearly visible level, then fades out slowly, so even a quick tap shows it. */
+        fun fadeOut(durationMs: Long) {
+            if (glow < 0.85f) glow = 0.85f
+            glowTo(0f, durationMs)
+        }
+
+        /** Build 2.12: the light is as big as the button plus a little margin (extraPx), instead of fading out under the icon. */
+        private fun radius(b: android.graphics.Rect): Float =
+            (minOf(b.width(), b.height()) / 2f + extraPx).coerceAtLeast(1f)
+
         override fun onBoundsChange(bounds: android.graphics.Rect) {
-            val r = (minOf(bounds.width(), bounds.height()) / 2f).coerceAtLeast(1f)
             paint.shader = android.graphics.RadialGradient(
-                bounds.exactCenterX(), bounds.exactCenterY(), r,
-                intArrayOf(0x66FFFFFF, 0x38FFFFFF, 0x10FFFFFF, 0x00FFFFFF),
-                floatArrayOf(0f, 0.4f, 0.75f, 1f),
+                bounds.exactCenterX(), bounds.exactCenterY(), radius(bounds),
+                intArrayOf(0x80FFFFFF.toInt(), 0x66FFFFFF, 0x30FFFFFF, 0x00FFFFFF),
+                floatArrayOf(0f, 0.55f, 0.82f, 1f),
                 android.graphics.Shader.TileMode.CLAMP
             )
         }
@@ -2210,7 +2221,7 @@ class MainActivity : Activity() {
             val b = bounds
             if (b.width() <= 0 || b.height() <= 0) return
             paint.alpha = (glow * baseAlpha).toInt().coerceIn(0, 255)
-            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), minOf(b.width(), b.height()) / 2f, paint)
+            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius(b), paint)
         }
 
         override fun setAlpha(alpha: Int) { baseAlpha = alpha.coerceIn(0, 255); invalidateSelf() }
@@ -2226,7 +2237,7 @@ class MainActivity : Activity() {
         contentDescription = description
         scaleType = ImageView.ScaleType.FIT_CENTER
         setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
-        background = GlowDrawable()
+        background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat())
         isClickable = true; isFocusable = true
         setOnClickListener { click() }
         setOnTouchListener { v, event ->
@@ -2237,7 +2248,7 @@ class MainActivity : Activity() {
                     v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(110).start()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    (v.background as? GlowDrawable)?.glowTo(0f, 520L)
+                    (v.background as? GlowDrawable)?.fadeOut(520L)
                     v.animate().cancel()
                     v.animate().scaleX(1f).scaleY(1f).setDuration(280)
                         .setInterpolator(DecelerateInterpolator(1.4f)).start()
@@ -3311,6 +3322,10 @@ class MainActivity : Activity() {
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
         private const val TRANSPORT_SIDE_DP = 52
         private const val TRANSPORT_PLAY_DP = 60
+        /** Build 2.12: padding around the play/pause icon inside its 60dp area -> icon 42dp (midway between 24dp in 2.8 and 60dp in 2.11). */
+        private const val PLAY_ICON_PAD_DP = 9
+        /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
+        private const val GLOW_EXTRA_DP = 5
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
