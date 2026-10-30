@@ -28,8 +28,8 @@ class HiResBadgeDrawable(context: Context, private val minWidthPx: Float = 0f, p
         val b = bounds
         val w = b.width().toFloat()
         if (w <= 0f || b.height() <= 0) return
-        // Small square logo: about 20% of the cover width (never below minWidthPx, never above 40%).
-        val side = maxOf(w * 0.20f, minWidthPx).coerceAtMost(w * 0.4f)
+        // Build 2.31: reduce the logo to 60% of its previous size (12% vs 20% of the cover width).
+        val side = maxOf(w * 0.12f, minWidthPx).coerceAtMost(w * 0.4f)
         if (circle) {
             // Bottom-right corner of the logo at 0.66 of the radius from the centre on both axes (inside the circle).
             val r = minOf(w, b.height().toFloat()) / 2f
