@@ -1,0 +1,64 @@
+name: Build G6 Player Build 2.52 - 2x2 widget refinement from stable 2.48
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-252-from-248-widget-2x2"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Build 2.48 baseline with isolated 2x2 changes
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK version, size, native library, and widget registration
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          APK_BYTES=$(stat -c%s "$APK")
+          echo "APK bytes: $APK_BYTES"
+          test "$APK_BYTES" -lt 20000000 || { echo "APK unexpectedly large; refusing artifact"; exit 1; }
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='252' versionName='2.52.0'"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so" || { echo "libg6direct.so is missing"; exit 1; }
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q "G6Widget4x2Provider" /tmp/manifest.txt
+          grep -q "G6Widget2x2Provider" /tmp/manifest.txt
+          echo "Both widget receivers are registered"
+      - name: Upload Build 2.52 APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build252-from-248
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Publish direct artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## Download G6HiFiPlayer Build 2.52 (based on stable Build 2.48)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 2.52 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Only the 2x2 widget control size, position, and isolated rounded background differ from the Build 2.48 baseline. The shared 4x2 button drawable and player code are unchanged."
