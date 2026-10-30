@@ -11,7 +11,7 @@
     <LinearLayout
         android:id="@+id/w_card"
         android:layout_width="match_parent"
-        android:layout_height="112dp"
+        android:layout_height="match_parent"
         android:layout_gravity="center"
         android:orientation="horizontal"
         android:gravity="center_vertical"
