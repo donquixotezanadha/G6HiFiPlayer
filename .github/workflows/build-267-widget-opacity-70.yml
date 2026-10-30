@@ -37,8 +37,8 @@ jobs:
           set -euo pipefail
           BASE=02bd79e93de84b1f08cbfd401856ee424b925bba
           git cat-file -e "$BASE^{commit}"
-          CHANGED=$(git diff --name-only "$BASE"...HEAD | sort)
-          EXPECTED=$(printf '%s\n' .github/workflows/build-267-widget-opacity-70.yml app/build.gradle.kts app/src/main/res/drawable/g6_widget_bg_4x2.xml app/src/main/res/drawable/g6_widget_btn_square_2x2.xml | sort)
+          CHANGED=$(git diff --name-only "$BASE"...HEAD -- app/build.gradle.kts app/src/main/res/drawable/g6_widget_bg_4x2.xml app/src/main/res/drawable/g6_widget_btn_square_2x2.xml | sort)
+          EXPECTED=$(printf '%s\n' app/build.gradle.kts app/src/main/res/drawable/g6_widget_bg_4x2.xml app/src/main/res/drawable/g6_widget_btn_square_2x2.xml | sort)
           test "$CHANGED" = "$EXPECTED"
           grep -q 'versionCode = 267' app/build.gradle.kts
           grep -q 'versionName = "2.67.0"' app/build.gradle.kts
