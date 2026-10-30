@@ -1,0 +1,70 @@
+name: Build G6 Player Build 2.50 - compact 110dp widget
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude-build-250-widget-110dp"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK and widget providers
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q "G6Widget4x2Provider" /tmp/manifest.txt
+          grep -q "G6Widget2x2Provider" /tmp/manifest.txt
+          echo "APK bytes: $(stat -c%s "$APK")"
+      - name: Upload Build 2.50 APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-Build250-v2.50.0
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish direct artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## Download G6HiFiPlayer Build 2.50" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Build 2.50 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 2.50 starts from the Build 2.48 branch to preserve its cache logic; only the 4x1 widget content layout is compacted to 110dp."
+      - name: Publish success marker to branch ci-logs
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out
+          echo "build 2.50 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build250_ok.txt
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          cp /tmp/out/* .
+          git add build250_ok.txt
+          git commit -m "build 2.50 ok"
+          git push -f origin ci-logs
