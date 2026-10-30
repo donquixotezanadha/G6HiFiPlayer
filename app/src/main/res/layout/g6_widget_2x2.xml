@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.17: 2x2 widget as in the reference picture: big round cover, small rounded-square play button at the bottom-left, overlapping the cover. -->
+<!-- Build 2.53: stable 2.48 widget layout; slightly larger bottom-left control. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -17,12 +17,12 @@
 
     <ImageButton
         android:id="@+id/w_play"
-        android:layout_width="42dp"
-        android:layout_height="42dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_gravity="bottom|start"
-        android:padding="9dp"
+        android:padding="7dp"
         android:scaleType="fitCenter"
-        android:background="@drawable/g6_widget_btn_square"
-        android:src="@drawable/g6_w_ic_play"
+        android:background="@drawable/g6_widget_btn_square_2x2"
+        android:src="@drawable/g6_w_ic_play_2x2"
         android:contentDescription="Play or pause" />
 </FrameLayout>
