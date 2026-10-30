@@ -122,9 +122,30 @@ object G6Widgets {
         }
     }
 
-    /** Build 2.43 floating widget has no progress bar. */
+    /** Build 2.44: update the floating widget progress without rebuilding artwork or metadata. */
     fun refreshProgress(context: Context, position: Int, duration: Int) {
-        // Intentionally empty; retained so existing player callbacks remain compatible.
+        val app = context.applicationContext
+        val safePosition = position.coerceAtLeast(0)
+        val safeDuration = duration.coerceAtLeast(0)
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(K_POS, safePosition)
+            .putInt(K_DUR, safeDuration)
+            .apply()
+
+        val manager = AppWidgetManager.getInstance(app)
+        val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
+        if (ids.isEmpty()) return
+        val progress = if (safeDuration > 0) {
+            ((safePosition.toLong() * 100L) / safeDuration).toInt().coerceIn(0, 100)
+        } else 0
+        val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
+            setProgressBar(R.id.w_progress, 100, progress, false)
+        }
+        try {
+            manager.partiallyUpdateAppWidget(ids, views)
+        } catch (e: Exception) {
+            Log.w(TAG, "4x1 progress update failed", e)
+        }
     }
 
     // ---- called by the providers ------------------------------------------------------------
@@ -207,6 +228,7 @@ object G6Widgets {
             setTextViewText(R.id.w_artist, artist)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setProgressBar(R.id.w_progress, 100, if (duration > 0) ((position.toLong() * 100L) / duration).toInt().coerceIn(0, 100) else 0, false)
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x2Provider::class.java, 4202, "toggle"))
             setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget4x2Provider::class.java, 4203, "next"))
