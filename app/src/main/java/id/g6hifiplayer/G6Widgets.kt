@@ -120,23 +120,24 @@ object G6Widgets {
                 val cachedIdentity = prefs.getString(K_ART_ID, null)
                 if (artwork != null && !artwork.isRecycled) {
                     if (cachedIdentity != identity || !file.exists()) {
-                        if (cachedIdentity != identity) {
-                            file.delete()
-                            prefs.edit().remove(K_ART_ID).apply()
-                        }
-                        artChanged = saveThumb(artwork, file)
-                        if (artChanged) {
+                        val newTrackIdentity = cachedIdentity != identity
+                        if (newTrackIdentity) file.delete()
+                        val saved = saveThumb(artwork, file)
+                        if (saved) {
                             prefs.edit().putString(K_ART_ID, identity).apply()
-                        } else {
-                            file.delete()
-                            prefs.edit().remove(K_ART_ID).apply()
                             artChanged = true
+                        } else {
+                            // Remember which track the placeholder belongs to. Do not repeatedly
+                            // force full widget renders if this track's artwork cannot be written.
+                            file.delete()
+                            prefs.edit().putString(K_ART_ID, identity).apply()
+                            artChanged = newTrackIdentity
                         }
                     }
-                } else if (cachedIdentity != identity || !file.exists()) {
-                    // Do not let a previous track's image survive while this track's art is pending.
+                } else if (cachedIdentity != identity) {
+                    // Invalidate the old cover once, then keep the new track identity while its art is pending.
                     file.delete()
-                    prefs.edit().remove(K_ART_ID).apply()
+                    prefs.edit().putString(K_ART_ID, identity).apply()
                     artChanged = true
                 }
             }
