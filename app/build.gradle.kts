@@ -12,8 +12,8 @@ android {
         applicationId = "id.g6hifiplayer"
         minSdk = 28
         targetSdk = 35
-        versionCode = 231
-        versionName = "2.31.0"
+        versionCode = 241
+        versionName = "2.41.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
