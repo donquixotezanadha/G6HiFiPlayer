@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.55: move the progress track and controls slightly lower; preserve the 2.54 card geometry. -->
+<!-- Build 2.56: slightly smaller title and artist text; preserve the 2.55 layout geometry. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -41,7 +41,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="NO MUSIC PLAYING"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFFFF" />
 
@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textColor="#FFE0E0E6" />
 
             <ImageView
