@@ -62,7 +62,9 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private data class Track(val uri: Uri, val title: String, val artist: String, val album: String, val coverUri: Uri?, val trackNumber: Int = Int.MAX_VALUE,
                                   /** Build 2.4: year from the ID tag. null = not read yet (library saved by an older build), "" = the file has none. */
-                                  val year: String? = null)
+                                  val year: String? = null,
+                                  /** Build 2.31: source bit depth cached during library scan for persistent Hi-Res cover badges. */
+                                  val bitDepth: Int? = null)
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
     private var mediaSession: MediaSession? = null
@@ -1294,7 +1296,8 @@ class MainActivity : Activity() {
                                 item.optString("album", "Unknown album"),
                                 coverText.takeIf { it.isNotBlank() }?.let { Uri.parse(it) },
                                 item.optInt("trackNumber", Int.MAX_VALUE),
-                                if (item.has("year")) item.optString("year", "") else null
+                                if (item.has("year")) item.optString("year", "") else null,
+                                item.optInt("bitDepth", 0).takeIf { it > 0 }
                             ))
                         }
                         if (list.isNotEmpty()) cached = list
@@ -1473,7 +1476,10 @@ class MainActivity : Activity() {
                     .put("album", track.album)
                     .put("coverUri", track.coverUri?.toString() ?: "")
                     .put("trackNumber", track.trackNumber)
-                    .apply { track.year?.let { put("year", it) } })
+                    .apply {
+                        track.year?.let { put("year", it) }
+                        track.bitDepth?.let { put("bitDepth", it) }
+                    })
             }
             val root = org.json.JSONObject().put("cacheVersion", LIBRARY_CACHE_VERSION).put("treeUri", treeUri.toString()).put("tracks", array)
             val file = File(cacheDir, "library-cache.json")
@@ -1616,7 +1622,8 @@ class MainActivity : Activity() {
                 wav.year?.let { year = it }
             }
         }
-        return Track(uri, title, artist, album, coverUri, trackNumber, year)
+        val bitDepth = AudioSniffer.sniff(this, uri)?.bits
+        return Track(uri, title, artist, album, coverUri, trackNumber, year, bitDepth)
     }
 
     private fun renderLibrary() {
@@ -1664,6 +1671,7 @@ class MainActivity : Activity() {
                     elevation = dp(6).toFloat()
                     contentDescription = "Artwork $album"
                 }
+                applyAlbumHiResBadge(bigCover, entries.map { it.value })
                 albumRows.addView(bigCover, LinearLayout.LayoutParams(artSide, artSide).apply { gravity = Gravity.CENTER_HORIZONTAL })
                 loadBigArtworkInto(bigCover, entries.first().value)
                 albumRows.addView(text(album, 18f, WHITE, true).apply {
@@ -1729,6 +1737,7 @@ class MainActivity : Activity() {
                             roundCorners(10)
                             contentDescription = "Artwork $other"
                         }
+                        applyAlbumHiResBadge(otherCover, otherEntries.map { it.value })
                         card.addView(otherCover, LinearLayout.LayoutParams(cardSide, cardSide))
                         card.addView(text(other, 12f, MUTED, true).apply {
                             setPadding(dp(2), dp(6), dp(2), dp(1))
@@ -1788,6 +1797,7 @@ class MainActivity : Activity() {
                 roundCorners(10)
                 contentDescription = "Artwork $album"
             }
+            applyAlbumHiResBadge(cover, entries.map { it.value })
             cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             cell.addView(text(album, 12f, MUTED, true).apply {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
@@ -1863,6 +1873,7 @@ class MainActivity : Activity() {
             isFocusable = true
         }
         val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 8) } }
+        applyTrackHiResBadge(cover, t)
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val details = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2742,17 +2753,27 @@ class MainActivity : Activity() {
 
 
     /** Build 2.16: the playing track is 24-bit (or more) = hi-res. */
-    private fun isHiResNow(): Boolean = (sourceBits ?: 0) >= 24
+    /** Prefer the live header read, but use the scan cache immediately while a new track is preparing. */
+    private fun isHiResNow(): Boolean = ((sourceBits ?: tracks.getOrNull(currentIndex)?.bitDepth) ?: 0) >= 24
     private var hiResBadgeShown = false
 
-    /** Build 2.16: shows / hides the Hi-Res badge on the covers in the player (Now Playing and the mini player) and refreshes the notification cover. */
+    /** Build 2.31: the cached source depth keeps the badge stable across 24-bit track changes and visible before playback prepares. */
     private fun updateHiResBadges() {
-        val hires = isHiResNow() && prepared
+        val hires = isHiResNow()
         if (hires == hiResBadgeShown) return
         hiResBadgeShown = hires
         if (::artImage.isInitialized) artImage.foreground = if (hires) HiResBadgeDrawable(this) else null
-        if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(18).toFloat()) else null
+        if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(11).toFloat()) else null
         if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+    }
+
+    /** Build 2.31: persistent badge for each cached album/track cover, independent of the currently playing song. */
+    private fun applyTrackHiResBadge(target: ImageView, track: Track) {
+        target.foreground = if ((track.bitDepth ?: 0) >= 24) HiResBadgeDrawable(this) else null
+    }
+
+    private fun applyAlbumHiResBadge(target: ImageView, albumTracks: List<Track>) {
+        target.foreground = if (albumTracks.any { (it.bitDepth ?: 0) >= 24 }) HiResBadgeDrawable(this) else null
     }
 
     /**
@@ -3335,7 +3356,7 @@ class MainActivity : Activity() {
         }
         private const val REQUEST_FOLDER = 1002
         /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
-        private const val LIBRARY_CACHE_VERSION = 145
+        private const val LIBRARY_CACHE_VERSION = 146
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
         private const val SEEK_SIDE_PAD_DP = 30
