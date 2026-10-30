@@ -29,7 +29,7 @@ internal object AudioSniffer {
     }
 
     /**
-     * Build 2.41: ALAC-in-MP4/M4A stores its source depth in the ALACSpecificConfig atom,
+     * Build 2.42: ALAC-in-MP4/M4A stores its source depth in the ALACSpecificConfig atom,
      * not in the FLAC/WAV headers handled above. Prefer MediaExtractor's reported bit depth,
      * then inspect a bounded MP4 header region for the ALAC config. Do not guess from extension:
      * an M4A/AAC file remains unbadged unless it is positively identified as ALAC 24-bit.
@@ -55,41 +55,63 @@ internal object AudioSniffer {
             } finally { try { extractor.release() } catch (_: Exception) { } }
         } catch (_: Exception) { }
 
-        val bytes = try {
+        // Stream the entire container with a small overlap. The MP4 'moov' atom may
+        // occur after a large 'mdat', so reading only the first 16 MiB misses valid ALAC files.
+        try {
             val opened = context.contentResolver.openInputStream(uri) ?: return null
             opened.use { stream ->
-                val out = ByteArrayOutputStream()
-                val chunk = ByteArray(8192)
-                var total = 0
-                while (total < 16 * 1024 * 1024) {
-                    val n = stream.read(chunk, 0, minOf(chunk.size, 16 * 1024 * 1024 - total))
+                val chunk = ByteArray(64 * 1024)
+                var tail = ByteArray(0)
+                while (true) {
+                    val n = stream.read(chunk)
                     if (n <= 0) break
-                    out.write(chunk, 0, n)
-                    total += n
+                    val combined = ByteArray(tail.size + n)
+                    System.arraycopy(tail, 0, combined, 0, tail.size)
+                    System.arraycopy(chunk, 0, combined, tail.size, n)
+                    val found = parseAlacConfig(combined)
+                    if (found != null) return found
+                    val keep = minOf(40, combined.size)
+                    tail = combined.copyOfRange(combined.size - keep, combined.size)
                 }
-                out.toByteArray()
             }
-        } catch (_: Exception) { return null }
+        } catch (_: Exception) { }
+        return null
+    }
 
+    /**
+     * ALAC atom layout:
+     * size[4], type[4], full-box flags[4], frameLength[4], compatibleVersion[1],
+     * bitDepth[1], pb[1], mb[1], kb[1], numChannels[1], maxRun[2],
+     * maxFrameBytes[4], avgBitRate[4], sampleRate[4].
+     * Therefore bitDepth is at typeOffset + 13 (not +17; +17 is channel count).
+     */
+    private fun parseAlacConfig(data: ByteArray): SourceInfo? {
         var from = 0
-        while (from + 20 < bytes.size) {
-            val type = indexOfAlac(bytes, from)
-            if (type < 0) break
-            from = type + 4
-            // Box: [size:4]["alac":4][full-box flags:4][ALACSpecificConfig...]
-            if (type < 4 || type + 17 >= bytes.size) continue
-            val boxSize = ((bytes[type - 4].toLong() and 0xFF) shl 24) or
-                ((bytes[type - 3].toLong() and 0xFF) shl 16) or
-                ((bytes[type - 2].toLong() and 0xFF) shl 8) or
-                (bytes[type - 1].toLong() and 0xFF)
-            if (boxSize < 28 || boxSize > bytes.size - (type - 4)) continue
-            val bits = bytes[type + 17].toInt() and 0xFF
-            if (bits in listOf(16, 20, 24, 32)) return SourceInfo("ALAC", bits, rate, channels)
+        while (from + 32 < data.size) {
+            val type = indexOfAlac(data, from)
+            if (type < 0) return null
+            from = type + 1
+            if (type < 4 || type + 31 >= data.size) continue
+            val boxSize = ((data[type - 4].toLong() and 0xFF) shl 24) or
+                ((data[type - 3].toLong() and 0xFF) shl 16) or
+                ((data[type - 2].toLong() and 0xFF) shl 8) or
+                (data[type - 1].toLong() and 0xFF)
+            if (boxSize < 36 || boxSize > Int.MAX_VALUE) continue
+            val bits = data[type + 13].toInt() and 0xFF
+            val channels = data[type + 17].toInt() and 0xFF
+            val rate = ((data[type + 28].toLong() and 0xFF) shl 24) or
+                ((data[type + 29].toLong() and 0xFF) shl 16) or
+                ((data[type + 30].toLong() and 0xFF) shl 8) or
+                (data[type + 31].toLong() and 0xFF)
+            if (bits in listOf(16, 20, 24, 32) && channels in 1..8 && rate in 8000..768000) {
+                return SourceInfo("ALAC", bits, rate.toInt(), channels)
+            }
         }
         return null
     }
 
     private fun indexOfAlac(data: ByteArray, start: Int): Int {
+        if (data.size < 4 || start > data.size - 4) return -1
         for (i in start..data.size - 4) {
             if (data[i] == 'a'.code.toByte() && data[i + 1] == 'l'.code.toByte() &&
                 data[i + 2] == 'a'.code.toByte() && data[i + 3] == 'c'.code.toByte()) return i
