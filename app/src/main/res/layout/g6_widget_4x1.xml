@@ -76,7 +76,7 @@
                     android:padding="8dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
-                    android:src="@drawable/g6_w_ic_prev"
+                    android:src="@drawable/ic_previous_24"
                     android:contentDescription="Previous" />
 
                 <ImageButton
@@ -86,7 +86,7 @@
                     android:padding="7dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
-                    android:src="@drawable/g6_w_ic_play"
+                    android:src="@drawable/ic_play_24"
                     android:contentDescription="Play or pause" />
 
                 <ImageButton
@@ -96,7 +96,7 @@
                     android:padding="8dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
-                    android:src="@drawable/g6_w_ic_next"
+                    android:src="@drawable/ic_next_24"
                     android:contentDescription="Next" />
             </LinearLayout>
         </LinearLayout>
