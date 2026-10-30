@@ -60,7 +60,7 @@ jobs:
           grep -q "G6Widget4x2Provider" /tmp/manifest.txt
           grep -q "G6Widget2x2Provider" /tmp/manifest.txt
           if grep -q "G6MusicWidgetProvider" /tmp/manifest.txt; then echo "old widget provider is still registered"; exit 1; fi
-          echo "widgets ok: 4x2 and 2x2 registered, old provider gone"
+          echo "widgets ok: 4x1 and 2x2 registered, old provider gone"
       - name: Upload Build 2.41 APK
         id: upload-apk
         uses: actions/upload-artifact@v4
@@ -71,11 +71,11 @@ jobs:
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## Download G6HiFiPlayer Build 2.30" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Download G6HiFiPlayer Build 2.41" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Download Build 2.41 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 2.41 = Build 2.30 + smaller Hi-Res logo and cached bit-depth badges across album artwork."
+          echo "Build 2.41 = Build 2.31 + ALAC Hi-Res detection and a rounded 4x1 widget."
       - name: Publish success marker to branch ci-logs
         run: |
           git config user.name "ci"
