@@ -122,9 +122,26 @@ object G6Widgets {
         }
     }
 
-    /** Build 2.43 floating widget has no progress bar. */
+    /** Update only the progress image; no ProgressBar widget is inflated by the launcher. */
     fun refreshProgress(context: Context, position: Int, duration: Int) {
-        // Intentionally empty; retained so existing player callbacks remain compatible.
+        val app = context.applicationContext
+        val manager = AppWidgetManager.getInstance(app)
+        val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
+        if (ids.isEmpty()) return
+        val progress = if (duration > 0) {
+            ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
+        } else 0
+        val bitmap = progressBitmap(progress)
+        try {
+            val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
+                setImageViewBitmap(R.id.w_progress, bitmap)
+            }
+            manager.partiallyUpdateAppWidget(ids, views)
+        } catch (e: Exception) {
+            Log.w(TAG, "4x1 progress update failed", e)
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }
 
     // ---- called by the providers ------------------------------------------------------------
@@ -206,7 +223,8 @@ object G6Widgets {
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play)
+            setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0))
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x2Provider::class.java, 4202, "toggle"))
             setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget4x2Provider::class.java, 4203, "next"))
@@ -225,7 +243,7 @@ object G6Widgets {
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
-        val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
+        val icon = if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
@@ -244,6 +262,24 @@ object G6Widgets {
     private fun isLarge(manager: AppWidgetManager, id: Int): Boolean {
         val options: Bundle? = try { manager.getAppWidgetOptions(id) } catch (_: Exception) { null }
         return (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0) >= LARGE_MIN_HEIGHT_DP
+    }
+
+    /** Draw a tiny accent progress line into a bitmap so the launcher only inflates an ordinary ImageView. */
+    private fun progressBitmap(progress: Int): Bitmap {
+        val width = 400
+        val height = 6
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val radius = height / 2f
+        paint.color = 0xFF5E5E66.toInt()
+        canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
+        val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
+        if (filled > 0f) {
+            paint.color = 0xFF6662C6.toInt()
+            canvas.drawRoundRect(RectF(0f, 0f, filled, height.toFloat()), radius, radius, paint)
+        }
+        return bitmap
     }
 
     // ---- cover ------------------------------------------------------------------------------
