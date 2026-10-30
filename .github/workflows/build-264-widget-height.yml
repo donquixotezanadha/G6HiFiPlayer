@@ -1,0 +1,88 @@
+name: G6HiFiPlayer Build 2.64 - fixed 4x1 widget height
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-264-widget-height-test"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify Build 2.56 baseline and focused widget-only change
+        run: |
+          set -euo pipefail
+          BASE=a67e06dc93e113353f57e752c0a1084086951c7e
+          git cat-file -e "$BASE^{commit}"
+          git diff --exit-code "$BASE" -- app/src/main/java/id/g6hifiplayer/G6Widgets.kt app/src/main/java/id/g6hifiplayer/MainActivity.kt app/src/main/cpp app/src/main/res/layout/g6_widget_2x2.xml app/src/main/res/xml/g6_widget_2x2_info.xml
+          grep -q 'versionCode = 264' app/build.gradle.kts
+          grep -q 'versionName = "2.64.0"' app/build.gradle.kts
+          grep -q 'android:layout_height="110dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:layout_width="54dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:minHeight="110dp"' app/src/main/res/xml/g6_widget_4x2_info.xml
+          ! grep -A5 'android:id="@+id/w_card"' app/src/main/res/layout/g6_widget_4x1.xml | grep -q 'android:layout_height="match_parent"'
+          echo "Verified: Build 2.56 logic/cache and 2x2 layout preserved; only 4x1 layout, provider minHeight, version, and build workflow changed."
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK identity and widget registration
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          APK_BYTES=$(stat -c%s "$APK")
+          echo "APK bytes: $APK_BYTES"
+          test "$APK_BYTES" -lt 20000000
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='264' versionName='2.64.0'"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q "G6Widget4x2Provider" /tmp/manifest.txt
+          grep -q "G6Widget2x2Provider" /tmp/manifest.txt
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/G6HiFiPlayer-2.64.0-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-2.64.0-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+          echo "Verified source commit: $GITHUB_SHA"
+      - name: Upload Build 2.64 artifact
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-2.64.0-${{ github.sha }}
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish build identity
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## G6HiFiPlayer Build 2.64 - fixed 4x1 widget height" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base: Build 2.56 commit a67e06dc93e113353f57e752c0a1084086951c7e" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: 2.64.0 (versionCode 264)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 4x1 compact contents retained; card height fixed at 110dp; provider minHeight 110dp" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 2x2 widget, cache/player code, and transparency resources unchanged from Build 2.56" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 2.64 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
