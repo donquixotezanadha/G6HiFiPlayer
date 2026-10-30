@@ -35,26 +35,8 @@ internal object AudioSniffer {
      * an M4A/AAC file remains unbadged unless it is positively identified as ALAC 24-bit.
      */
     private fun sniffAlac(context: Context, uri: Uri): SourceInfo? {
-        var rate = 0
-        var channels = 0
-        try {
-            val extractor = MediaExtractor()
-            try {
-                extractor.setDataSource(context, uri, null)
-                for (i in 0 until extractor.trackCount) {
-                    val format = extractor.getTrackFormat(i)
-                    val mime = if (format.containsKey(MediaFormat.KEY_MIME)) format.getString(MediaFormat.KEY_MIME).orEmpty() else ""
-                    if (!mime.contains("alac", ignoreCase = true)) continue
-                    rate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else 0
-                    channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 0
-                    val bits = listOf("bits-per-sample", "bit-depth").firstNotNullOfOrNull { key ->
-                        if (format.containsKey(key)) runCatching { format.getInteger(key) }.getOrNull() else null
-                    }
-                    if (bits != null && bits in listOf(16, 20, 24, 32)) return SourceInfo("ALAC", bits, rate, channels)
-                }
-            } finally { try { extractor.release() } catch (_: Exception) { } }
-        } catch (_: Exception) { }
-
+        // The ALACSpecificConfig is the source of truth. Android 9's extractor can
+        // expose decoder/output bit depth (often 16-bit) rather than the encoded ALAC depth.
         // Stream the entire container with a small overlap. The MP4 'moov' atom may
         // occur after a large 'mdat', so reading only the first 16 MiB misses valid ALAC files.
         try {
@@ -75,6 +57,28 @@ internal object AudioSniffer {
                 }
             }
         } catch (_: Exception) { }
+
+        // Fallback only when the container config could not be read. Do not let an
+        // extractor-reported 16-bit output override a valid 24-bit ALACSpecificConfig.
+        var rate = 0
+        var channels = 0
+                try {
+                    val extractor = MediaExtractor()
+                    try {
+                        extractor.setDataSource(context, uri, null)
+                        for (i in 0 until extractor.trackCount) {
+                            val format = extractor.getTrackFormat(i)
+                            val mime = if (format.containsKey(MediaFormat.KEY_MIME)) format.getString(MediaFormat.KEY_MIME).orEmpty() else ""
+                            if (!mime.contains("alac", ignoreCase = true)) continue
+                            rate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else 0
+                            channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 0
+                            val bits = listOf("bits-per-sample", "bit-depth").firstNotNullOfOrNull { key ->
+                                if (format.containsKey(key)) runCatching { format.getInteger(key) }.getOrNull() else null
+                            }
+                            if (bits != null && bits in listOf(16, 20, 24, 32)) return SourceInfo("ALAC", bits, rate, channels)
+                        }
+                    } finally { try { extractor.release() } catch (_: Exception) { } }
+                } catch (_: Exception) { }
         return null
     }
 
