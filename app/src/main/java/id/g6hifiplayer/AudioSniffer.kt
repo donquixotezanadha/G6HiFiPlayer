@@ -23,6 +23,8 @@ internal object AudioSniffer {
             if (opened == null) null else opened.use { sniffStream(it) }
         } catch (_: Exception) { null }
         if (ordinary != null) return ordinary
+        val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase(java.util.Locale.ROOT)
+        if (extension !in setOf("m4a", "mp4", "alac")) return null
         return sniffAlac(context, uri)
     }
 
