@@ -454,6 +454,11 @@ open class G6WidgetProviderBase : AppWidgetProvider() {
             G6Widgets.onBoot(context)
             return
         }
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            // A package update must re-issue complete RemoteViews so old launcher layouts are replaced.
+            G6Widgets.renderAll(context)
+            return
+        }
         val action = intent.getStringExtra(G6Widgets.EXTRA_ACTION) ?: return
         G6Widgets.handleAction(action)
     }
