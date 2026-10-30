@@ -81,7 +81,7 @@ jobs:
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/out
-          echo "build 2.41 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build242_ok.txt
+          echo "build 2.42 OK run=${{ github.run_id }} apk_bytes=$(stat -c %s app/build/outputs/apk/debug/app-debug.apk) sha=${{ github.sha }}" > /tmp/out/build242_ok.txt
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
           cp /tmp/out/* .
