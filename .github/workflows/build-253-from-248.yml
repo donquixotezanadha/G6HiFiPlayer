@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: build-253-from-248-widget-runtime-fix
+          fetch-depth: 0
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
