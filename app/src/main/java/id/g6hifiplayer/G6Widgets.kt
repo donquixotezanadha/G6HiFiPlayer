@@ -122,17 +122,9 @@ object G6Widgets {
         }
     }
 
-    /** About once a second while playing: only the 4x1 progress bar changes. */
+    /** Build 2.43 floating widget has no progress bar. */
     fun refreshProgress(context: Context, position: Int, duration: Int) {
-        val app = context.applicationContext
-        val manager = AppWidgetManager.getInstance(app)
-        val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
-        if (ids.isEmpty()) return
-        val total = duration.coerceAtLeast(1)
-        val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
-            setProgressBar(R.id.w_progress, total, position.coerceIn(0, total), false)
-        }
-        try { manager.partiallyUpdateAppWidget(ids, views) } catch (e: Exception) { Log.w(TAG, "progress update failed", e) }
+        // Intentionally empty; retained so existing player callbacks remain compatible.
     }
 
     // ---- called by the providers ------------------------------------------------------------
@@ -214,7 +206,7 @@ object G6Widgets {
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play)
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             setProgressBar(R.id.w_progress, total, if (hasTrack) position.coerceIn(0, total) else 0, false)
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x2Provider::class.java, 4202, "toggle"))
@@ -237,10 +229,8 @@ object G6Widgets {
         val icon = if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
-            val total = duration.coerceAtLeast(1)
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
-                setProgressBar(R.id.w_progress, total, position.coerceIn(0, total), false)
             }
             try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 playback update failed", e) }
         }
