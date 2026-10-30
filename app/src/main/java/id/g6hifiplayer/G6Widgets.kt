@@ -59,9 +59,13 @@ object G6Widgets {
     private const val K_DUR = "duration"
     private const val K_ART_ID = "art_identity"
     private const val K_OLD_CLEANED = "old_cleaned"
+    private const val K_RENDER_VERSION = "widget_render_version"
+    private const val WIDGET_RENDER_VERSION = 254
+    private const val PROGRESS_CACHE_INTERVAL_MS = 5_000L
 
     private val lock = Any()
     private var lastToggleAtMs = Long.MIN_VALUE
+    private var lastProgressPersistAtMs = Long.MIN_VALUE
 
     // ---- called by the player -------------------------------------------------------------
 
@@ -81,26 +85,56 @@ object G6Widgets {
         synchronized(lock) {
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             cleanupOldWidgetData(app, prefs)
-            val hasTrack = title.isNotBlank() && title != "G6HiFiPlayer"
-            // Build 2.17: the Hi-Res badge is drawn when the widget is rendered; a 16/24-bit change of the same track redraws it.
+            val validTitle = title.isNotBlank() &&
+                title != "G6HiFiPlayer" &&
+                title != EMPTY_TITLE &&
+                title != "Nothing playing"
+
+            // Empty metadata is common during stop/close transitions. Keep the last real
+            // track snapshot; only change the play state instead of erasing the cache.
+            if (!validTitle && prefs.getBoolean(K_HAS, false)) {
+                prefs.edit().putBoolean(K_PLAYING, false).apply()
+                refreshPlayback(
+                    app,
+                    false,
+                    prefs.getInt(K_POS, position).coerceAtLeast(0),
+                    prefs.getInt(K_DUR, duration).coerceAtLeast(0)
+                )
+                return
+            }
+
+            val hasTrack = validTitle
+            val forceFullRender = prefs.getInt(K_RENDER_VERSION, 0) != WIDGET_RENDER_VERSION
             val sameTrack = prefs.getBoolean(K_HAS, false) == hasTrack &&
                 prefs.getBoolean(K_HIRES, false) == (hasTrack && hires) &&
                 prefs.getString(K_TITLE, null) == title &&
                 prefs.getString(K_ARTIST, null) == artist &&
                 prefs.getString(K_ALBUM, null) == album
 
-            // The cover is stored once per track as a small square file; play/pause refreshes never touch it.
+            // Cache one small cover per track. Invalidate a previous cover before trying
+            // to write a new identity, so a failed decode/write can never show the old album.
             var artChanged = false
             if (hasTrack) {
                 val identity = listOf(title, artist, album).joinToString("\u001F")
                 val file = File(app.filesDir, ART_FILE)
+                val cachedIdentity = prefs.getString(K_ART_ID, null)
                 if (artwork != null && !artwork.isRecycled) {
-                    if (prefs.getString(K_ART_ID, null) != identity || !file.exists()) {
+                    if (cachedIdentity != identity || !file.exists()) {
+                        if (cachedIdentity != identity) {
+                            file.delete()
+                            prefs.edit().remove(K_ART_ID).apply()
+                        }
                         artChanged = saveThumb(artwork, file)
-                        if (artChanged) prefs.edit().putString(K_ART_ID, identity).apply()
+                        if (artChanged) {
+                            prefs.edit().putString(K_ART_ID, identity).apply()
+                        } else {
+                            file.delete()
+                            prefs.edit().remove(K_ART_ID).apply()
+                            artChanged = true
+                        }
                     }
-                } else if (prefs.getString(K_ART_ID, null) != identity) {
-                    // New track and its cover is not ready yet: do not keep showing the previous cover.
+                } else if (cachedIdentity != identity || !file.exists()) {
+                    // Do not let a previous track's image survive while this track's art is pending.
                     file.delete()
                     prefs.edit().remove(K_ART_ID).apply()
                     artChanged = true
@@ -118,13 +152,34 @@ object G6Widgets {
                 .putInt(K_DUR, duration.coerceAtLeast(0))
                 .apply()
 
-            if (sameTrack && !artChanged) refreshPlayback(app, playing, position, duration) else renderAll(app)
+            if (forceFullRender || !sameTrack || artChanged) {
+                renderAll(app)
+                // Persist the layout generation only after issuing a full RemoteViews update.
+                prefs.edit().putInt(K_RENDER_VERSION, WIDGET_RENDER_VERSION).apply()
+            } else {
+                refreshPlayback(app, playing, position, duration)
+            }
         }
     }
 
     /** Update only the progress image; no ProgressBar widget is inflated by the launcher. */
     fun refreshProgress(context: Context, position: Int, duration: Int) {
         val app = context.applicationContext
+        val now = SystemClock.elapsedRealtime()
+        synchronized(lock) {
+            val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val shouldPersist = prefs.getBoolean(K_HAS, false) &&
+                (lastProgressPersistAtMs == Long.MIN_VALUE ||
+                    now - lastProgressPersistAtMs >= PROGRESS_CACHE_INTERVAL_MS ||
+                    (duration > 0 && position >= duration - 1_500))
+            if (shouldPersist) {
+                prefs.edit()
+                    .putInt(K_POS, position.coerceAtLeast(0))
+                    .putInt(K_DUR, duration.coerceAtLeast(0))
+                    .apply()
+                lastProgressPersistAtMs = now
+            }
+        }
         val manager = AppWidgetManager.getInstance(app)
         val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
         if (ids.isEmpty()) return
@@ -235,7 +290,7 @@ object G6Widgets {
     private fun build2x2(context: Context, playing: Boolean, cover: Bitmap): RemoteViews =
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
             setImageViewBitmap(R.id.w_art, cover)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2)
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
@@ -244,7 +299,7 @@ object G6Widgets {
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
         val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
-        val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play
+        val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
