@@ -214,8 +214,6 @@ object G6Widgets {
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
-            setTextViewText(R.id.w_album, album)
-            setViewVisibility(R.id.w_album, if (hasTrack && album.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play)
             setProgressBar(R.id.w_progress, total, if (hasTrack) position.coerceIn(0, total) else 0, false)
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
