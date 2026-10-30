@@ -258,7 +258,7 @@ object G6Widgets {
     private fun build2x2(context: Context, playing: Boolean, cover: Bitmap): RemoteViews =
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
             setImageViewBitmap(R.id.w_art, cover)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2)
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
@@ -267,7 +267,7 @@ object G6Widgets {
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
         val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
-        val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play
+        val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
