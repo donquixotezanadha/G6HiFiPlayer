@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.43: floating compact player card centred inside the 4x2 widget area. -->
+<!-- Build 2.46: Build 2.43 card with bitmap-backed progress and larger touch targets. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -54,41 +54,49 @@
                 android:textSize="14sp"
                 android:textColor="#FFE0E0E6" />
 
+            <ImageView
+                android:id="@+id/w_progress"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:layout_marginTop="5dp"
+                android:scaleType="fitXY"
+                android:contentDescription="Track progress" />
+
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="38dp"
-                android:layout_marginTop="5dp"
+                android:layout_height="44dp"
+                android:layout_marginTop="3dp"
                 android:orientation="horizontal"
                 android:gravity="start|center_vertical">
 
                 <ImageButton
                     android:id="@+id/w_prev"
-                    android:layout_width="38dp"
-                    android:layout_height="36dp"
-                    android:padding="7dp"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:padding="8dp"
                     android:scaleType="fitCenter"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_previous_24"
+                    android:background="@drawable/g6_widget_btn"
+                    android:src="@drawable/g6_w_ic_prev"
                     android:contentDescription="Previous" />
 
                 <ImageButton
                     android:id="@+id/w_play"
-                    android:layout_width="42dp"
-                    android:layout_height="38dp"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
                     android:padding="7dp"
                     android:scaleType="fitCenter"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_play_24"
+                    android:background="@drawable/g6_widget_btn"
+                    android:src="@drawable/g6_w_ic_play"
                     android:contentDescription="Play or pause" />
 
                 <ImageButton
                     android:id="@+id/w_next"
-                    android:layout_width="38dp"
-                    android:layout_height="36dp"
-                    android:padding="7dp"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:padding="8dp"
                     android:scaleType="fitCenter"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_next_24"
+                    android:background="@drawable/g6_widget_btn"
+                    android:src="@drawable/g6_w_ic_next"
                     android:contentDescription="Next" />
             </LinearLayout>
         </LinearLayout>
