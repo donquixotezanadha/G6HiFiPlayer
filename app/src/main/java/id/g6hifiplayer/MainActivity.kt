@@ -1624,7 +1624,7 @@ class MainActivity : Activity() {
         }
         // AudioSniffer currently identifies integer bit depth for FLAC/WAV; skip unrelated formats during a large library scan.
         val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase(Locale.ROOT)
-        val bitDepth = if (extension == "flac" || extension == "wav" || extension == "wave") AudioSniffer.sniff(this, uri)?.bits else null
+        val bitDepth = if (extension == "flac" || extension == "wav" || extension == "wave" || extension == "m4a" || extension == "mp4" || extension == "alac") AudioSniffer.sniff(this, uri)?.bits else null
         return Track(uri, title, artist, album, coverUri, trackNumber, year, bitDepth)
     }
 
@@ -3359,7 +3359,7 @@ class MainActivity : Activity() {
         }
         private const val REQUEST_FOLDER = 1002
         /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
-        private const val LIBRARY_CACHE_VERSION = 146
+        private const val LIBRARY_CACHE_VERSION = 147
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
         private const val SEEK_SIDE_PAD_DP = 30
