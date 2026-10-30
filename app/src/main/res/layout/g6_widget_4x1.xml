@@ -15,15 +15,13 @@
         android:layout_gravity="center"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="8dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
         android:background="@drawable/g6_widget_bg_4x2">
 
-        <Space
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <ImageView
+        <ImageView
             android:id="@+id/w_art"
             android:layout_width="88dp"
             android:layout_height="88dp"
@@ -38,7 +36,8 @@
             android:layout_marginStart="12dp"
             android:orientation="vertical"
             android:gravity="top"
-            android:paddingBottom="4dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp">
 
             <TextView
                 android:id="@+id/w_title"
@@ -60,11 +59,16 @@
                 android:textSize="14sp"
                 android:textColor="#FFE0E0E6" />
 
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
             <ImageView
                 android:id="@+id/w_progress"
                 android:layout_width="match_parent"
                 android:layout_height="3dp"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="2dp"
                 android:scaleType="fitXY"
                 android:contentDescription="Track progress" />
 
