@@ -103,7 +103,7 @@ internal object AudioSniffer {
                 ((data[type + 29].toLong() and 0xFF) shl 16) or
                 ((data[type + 30].toLong() and 0xFF) shl 8) or
                 (data[type + 31].toLong() and 0xFF)
-            if (bits in listOf(16, 20, 24, 32) && channels in 1..8 && rate in 8000..768000) {
+            if (bits in listOf(16, 20, 24, 32) && channels in 1..8 && rate in 8000L..768000L) {
                 return SourceInfo("ALAC", bits, rate.toInt(), channels)
             }
         }
