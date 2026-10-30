@@ -2631,7 +2631,7 @@ class MainActivity : Activity() {
             try {
                 val copy = small.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
                 if (copy != null) {
-                    val badge = HiResBadgeDrawable()
+                    val badge = HiResBadgeDrawable(this)
                     badge.setBounds(0, 0, copy.width, copy.height)
                     badge.draw(android.graphics.Canvas(copy))
                     small = copy
@@ -2750,8 +2750,8 @@ class MainActivity : Activity() {
         val hires = isHiResNow() && prepared
         if (hires == hiResBadgeShown) return
         hiResBadgeShown = hires
-        if (::artImage.isInitialized) artImage.foreground = if (hires) HiResBadgeDrawable() else null
-        if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(dp(22).toFloat()) else null
+        if (::artImage.isInitialized) artImage.foreground = if (hires) HiResBadgeDrawable(this) else null
+        if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(18).toFloat()) else null
         if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
 

@@ -279,7 +279,7 @@ object G6Widgets {
                     if (rounded !== raw) raw.recycle()
                     if (hires) {
                         // Build 2.17: Hi-Res badge on the finished crop, so a round cover never cuts it off.
-                        val badge = HiResBadgeDrawable(circle = fraction >= 0.5f)
+                        val badge = HiResBadgeDrawable(context, circle = fraction >= 0.5f)
                         badge.setBounds(0, 0, rounded.width, rounded.height)
                         badge.draw(Canvas(rounded))
                     }
