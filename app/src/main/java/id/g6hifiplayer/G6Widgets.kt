@@ -81,7 +81,19 @@ object G6Widgets {
         synchronized(lock) {
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             cleanupOldWidgetData(app, prefs)
-            val hasTrack = title.isNotBlank() && title != "G6HiFiPlayer"
+            val validTitle = title.isNotBlank() &&
+                title != "G6HiFiPlayer" &&
+                title != EMPTY_TITLE &&
+                title != "Nothing playing"
+
+            // Build 2.48: a stop/close callback may send empty metadata. Keep the last real
+            // track and artwork instead of replacing the widget cache with "NO MUSIC PLAYING".
+            if (!validTitle && prefs.getBoolean(K_HAS, false)) {
+                prefs.edit().putBoolean(K_PLAYING, false).apply()
+                renderAll(app)
+                return
+            }
+            val hasTrack = validTitle
             // Build 2.17: the Hi-Res badge is drawn when the widget is rendered; a 16/24-bit change of the same track redraws it.
             val sameTrack = prefs.getBoolean(K_HAS, false) == hasTrack &&
                 prefs.getBoolean(K_HIRES, false) == (hasTrack && hires) &&
@@ -125,6 +137,17 @@ object G6Widgets {
     /** Update only the progress image; no ProgressBar widget is inflated by the launcher. */
     fun refreshProgress(context: Context, position: Int, duration: Int) {
         val app = context.applicationContext
+        // Build 2.48: persist the latest known position as the progress ticker advances,
+        // so the widget can restore a meaningful snapshot after the player closes or the phone reboots.
+        synchronized(lock) {
+            val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (prefs.getBoolean(K_HAS, false)) {
+                prefs.edit()
+                    .putInt(K_POS, position.coerceAtLeast(0))
+                    .putInt(K_DUR, duration.coerceAtLeast(0))
+                    .apply()
+            }
+        }
         val manager = AppWidgetManager.getInstance(app)
         val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
         if (ids.isEmpty()) return
