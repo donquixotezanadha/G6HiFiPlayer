@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.17: the 2x2 widget has no card, only the round cover and the play button. -->
+<!-- Build 2.18: 2x2 widget background = 80% black, rounded (same as the 4x2). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#00000000" />
+    <corners android:radius="22dp" />
+    <solid android:color="#CC000000" />
 </shape>

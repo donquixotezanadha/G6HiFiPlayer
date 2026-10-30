@@ -2407,39 +2407,13 @@ class MainActivity : Activity() {
         bounds.outWidth > 0 && bounds.outHeight > 0
     } catch (_: Throwable) { false }
 
-    private fun readArtworkBytes(track: Track): ByteArray? {
-        val key = track.uri.toString()
-        synchronized(artworkBytesCache) { artworkBytesCache[key]?.let { return it } }
-        var bytes: ByteArray? = null
-        val retriever = MediaMetadataRetriever()
-        try { retriever.setDataSource(this@MainActivity, track.uri); bytes = retriever.embeddedPicture }
-        catch (_: Exception) { }
-        finally { try { retriever.release() } catch (_: Exception) { } }
-        // Build 1.44: a cover embedded in the file wins; when there is none (WAV usually has none) or it cannot
-        // be read as a picture, the jpg/png found in the track's folder is used instead.
-        if (bytes != null && !looksLikeImage(bytes!!)) bytes = null
-        // Build 1.45: WAV keeps its cover in an ID3 chunk, which MediaMetadataRetriever does not read.
-        if (bytes == null && WavTagReader.isWavName(track.uri.lastPathSegment)) {
-            bytes = WavTagReader.read(this@MainActivity, track.uri, wantPicture = true)?.picture
-            if (bytes != null && !looksLikeImage(bytes!!)) bytes = null
-        }
-        if (bytes == null && track.coverUri != null) {
-            try { contentResolver.openInputStream(track.coverUri)?.use { bytes = it.readBytes() } } catch (_: Exception) { }
-            if (bytes != null && !looksLikeImage(bytes!!)) bytes = null
-        }
-        // Keep the in-memory cache bounded; exceptionally large embedded covers are not retained.
-        if (bytes != null && bytes!!.size <= 8 * 1024 * 1024) synchronized(artworkBytesCache) {
-            artworkBytesCache[key] = bytes!!
-            // Bound by total bytes, not only entry count: 24 large embedded covers could
-            // otherwise retain close to 192 MB on the LG G6 before bitmap memory is counted.
-            var cachedBytes = artworkBytesCache.values.sumOf { it.size.toLong() }
-            while (artworkBytesCache.isNotEmpty() && cachedBytes > 16L * 1024L * 1024L) {
-                val oldestKey = artworkBytesCache.keys.iterator().next()
-                cachedBytes -= artworkBytesCache.remove(oldestKey)?.size?.toLong() ?: 0L
-            }
-        }
-        return bytes
+    /** Build 2.18: every album art in the player is the Hi-Res Audio picture (res/drawable-nodpi/hires_cover.png). */
+    private val hiResArtBytes: ByteArray by lazy {
+        resources.openRawResource(R.drawable.hires_cover).use { it.readBytes() }
     }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun readArtworkBytes(track: Track): ByteArray? = hiResArtBytes
 
     private fun loadArtworkInto(target: ImageView, track: Track) {
         val key = "thumb:" + track.uri.toString()
@@ -2484,7 +2458,7 @@ class MainActivity : Activity() {
     }
 
     private fun thumbDiskFile(t: Track): File {
-        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|thumb" + LIBRARY_CACHE_VERSION).toByteArray())
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|thumb" + LIBRARY_CACHE_VERSION + ART_CACHE_TAG).toByteArray())
         return File(thumbDiskDir, digest.joinToString("") { "%02x".format(it) } + ".jpg")
     }
     private fun thumbNoneMarker(t: Track): File = File(thumbDiskFile(t).path + ".none")
@@ -2593,7 +2567,7 @@ class MainActivity : Activity() {
         // Build 1.44: the folder picture is part of the key, so a track that was cached as "no cover"
         // before its folder picture was found gets a fresh lookup.
         // Build 1.45: the key also carries the cache version, so covers cached as "none" before the WAV tag reader existed are tried again.
-        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|v" + LIBRARY_CACHE_VERSION).toByteArray())
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|v" + LIBRARY_CACHE_VERSION + ART_CACHE_TAG).toByteArray())
         return File(artworkDiskDir, digest.joinToString("") { "%02x".format(it) } + ".jpg")
     }
 
@@ -2612,34 +2586,6 @@ class MainActivity : Activity() {
                 }
             } catch (_: Throwable) { }
         }
-    }
-
-    /** Small cover for the notification, lock screen and MediaSession; created off the UI thread when possible. */
-    private fun notificationArtworkFor(track: Track, full: android.graphics.Bitmap?, badge: Boolean = true): android.graphics.Bitmap? {
-        if (full == null || full.isRecycled) return null
-        // Build 2.16: a 24-bit track gets the Hi-Res badge on the notification / lock screen cover.
-        // Build 2.17: the widgets get the plain cover (badge = false) and draw the badge themselves after cropping (round cover on the 2x2).
-        val hires = badge && isHiResNow() && tracks.getOrNull(currentIndex)?.uri == track.uri
-        val key = track.uri.toString() + if (hires) "|hires" else ""
-        notificationArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
-        val longest = maxOf(full.width, full.height).coerceAtLeast(1)
-        var small = if (longest <= 512) full else {
-            val ratio = 512f / longest
-            android.graphics.Bitmap.createScaledBitmap(full, (full.width * ratio).toInt().coerceAtLeast(1), (full.height * ratio).toInt().coerceAtLeast(1), true)
-        }
-        if (hires) {
-            try {
-                val copy = small.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
-                if (copy != null) {
-                    val badge = HiResBadgeDrawable()
-                    badge.setBounds(0, 0, copy.width, copy.height)
-                    badge.draw(android.graphics.Canvas(copy))
-                    small = copy
-                }
-            } catch (_: Throwable) { }
-        }
-        notificationArtworkCache.put(key, small)
-        return small
     }
 
     private fun decodePlayerArtwork(t: Track): android.graphics.Bitmap? {
@@ -2685,7 +2631,6 @@ class MainActivity : Activity() {
             playerArtworkCache.put(key, result)
             // Dominant colour is worked out here, off the UI thread, together with the cover itself.
             dominantColorFor(key, result, remember = true)
-            notificationArtworkFor(t, result)
             return result
         }
     }
@@ -2743,17 +2688,6 @@ class MainActivity : Activity() {
 
     /** Build 2.16: the playing track is 24-bit (or more) = hi-res. */
     private fun isHiResNow(): Boolean = (sourceBits ?: 0) >= 24
-    private var hiResBadgeShown = false
-
-    /** Build 2.16: shows / hides the Hi-Res badge on the covers in the player (Now Playing and the mini player) and refreshes the notification cover. */
-    private fun updateHiResBadges() {
-        val hires = isHiResNow() && prepared
-        if (hires == hiResBadgeShown) return
-        hiResBadgeShown = hires
-        if (::artImage.isInitialized) artImage.foreground = if (hires) HiResBadgeDrawable() else null
-        if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(dp(22).toFloat()) else null
-        if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
-    }
 
     /**
      * Build 1.61: the info line under the progress bar. It says what really reaches the native DIRECT output:
@@ -2761,7 +2695,6 @@ class MainActivity : Activity() {
      * BIT-PERFECT is only shown when the output is the DIRECT track, the rate is unchanged and the depth is not reduced.
      */
     private fun refreshAudioInfo() {
-        updateHiResBadges()
         if (!::audioInfoInline.isInitialized || !::audioStatusInline.isInitialized) return
         val srcRate = sourceRate
         val srcBits = sourceBits
@@ -2842,14 +2775,7 @@ class MainActivity : Activity() {
     private fun updatePlaybackNotification(isPlaying: Boolean) {
         if (notificationDismissed || !prepared || currentIndex !in tracks.indices) return
         val track = tracks[currentIndex]
-        // Cover of THIS track from the caches (never whatever the ImageView still shows), at 512 px at most.
-        val trackKey = track.uri.toString()
-        val fullCover = playerArtworkCache.get(trackKey)?.takeIf { !it.isRecycled }
-        val cover: android.graphics.Bitmap? = if (fullCover != null) notificationArtworkFor(track, fullCover)
-            else bitmapArtworkCache.get("thumb:$trackKey")?.takeIf { !it.isRecycled }
-        // Build 2.17: widgets get the cover without the badge; the widget code draws it on its own crop.
-        val widgetBitmap = if (fullCover != null) notificationArtworkFor(track, fullCover, badge = false) else cover
-        val widgetHiRes = isHiResNow()
+        // Build 2.18: no album art outside the player (notification, lock screen, widgets).
         val widgetContext = applicationContext
         val widgetTitle = track.title
         val widgetArtist = track.artist
@@ -2863,7 +2789,7 @@ class MainActivity : Activity() {
                 try {
                     G6Widgets.refresh(
                         widgetContext, widgetTitle, widgetArtist, widgetAlbum, isPlaying,
-                        widgetBitmap, widgetPosition, widgetDuration, widgetHiRes
+                        null, widgetPosition, widgetDuration
                     )
                 } catch (e: Exception) {
                     android.util.Log.w("G6HiFiPlayer", "Async widget refresh failed", e)
@@ -2877,19 +2803,13 @@ class MainActivity : Activity() {
         val session = mediaSession
         // Track metadata does not change during Play/Pause. Avoid rebuilding the metadata
         // bundle and copying artwork on every notification tap.
-        val metadataKey = track.uri.toString() + ":" + (cover?.let { System.identityHashCode(it) } ?: 0)
+        val metadataKey = track.uri.toString() + ":noart"
         if (metadataKey != lastNotificationMetadataKey) {
             val metadata = MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs.toLong())
-            // Publish the real album cover to MediaSession; Android may apply its own lock-screen blur.
-            if (cover != null && !cover.isRecycled) {
-                metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, cover)
-                metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, cover)
-                metadata.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, cover)
-            }
             session?.setMetadata(metadata.build())
             lastNotificationMetadataKey = metadataKey
         }
@@ -3336,6 +3256,8 @@ class MainActivity : Activity() {
         private const val REQUEST_FOLDER = 1002
         /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
         private const val LIBRARY_CACHE_VERSION = 145
+        /** Build 2.18: old per-track covers on disk are ignored (all art is the Hi-Res picture now). */
+        private const val ART_CACHE_TAG = "|hires218"
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
         private const val SEEK_SIDE_PAD_DP = 30

@@ -1,26 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.17: 2x2 widget as in the reference picture: big round cover, small rounded-square play button at the bottom-left, overlapping the cover. -->
+<!-- Build 2.18: no album art in the widget: a dark rounded card with the play button in the middle. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="4dp">
-
-    <ImageView
-        android:id="@+id/w_art"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginStart="14dp"
-        android:layout_marginBottom="14dp"
-        android:scaleType="fitCenter"
-        android:contentDescription="Album artwork" />
+    android:background="@drawable/g6_widget_bg_2x2">
 
     <ImageButton
         android:id="@+id/w_play"
-        android:layout_width="42dp"
-        android:layout_height="42dp"
-        android:layout_gravity="bottom|start"
-        android:padding="9dp"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center"
+        android:padding="12dp"
         android:scaleType="fitCenter"
         android:background="@drawable/g6_widget_btn_square"
         android:src="@drawable/g6_w_ic_play"

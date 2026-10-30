@@ -322,25 +322,16 @@ class PlaybackKeepAliveService : Service() {
         if (exclusiveEnabled() && player?.currentMediaItem == null) return buildStandbyNotification()
         val session = ensureMediaSession(applicationContext)
         val itemMetadata = player?.currentMediaItem?.mediaMetadata
-        // MainActivity publishes the real tagged cover into this service-owned MediaSession.
-        // Read it back when rebuilding the foreground notification so a Pause state update
-        // cannot replace the artwork-bearing notification with an artwork-free one.
         val sessionMetadata = try { session.controller.metadata } catch (_: Exception) { null }
         // The current media item is always up to date (also when the Activity is gone); the session
         // metadata may still describe the previous track for a moment after a skip.
         val itemTitle = itemMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
         val sessionTitle = sessionMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
-        val sessionIsCurrent = itemTitle == null || sessionTitle == itemTitle
         val title = itemTitle ?: sessionTitle ?: "Music playback"
         val artist = itemMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
             ?: sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST).orEmpty()
         val album = itemMetadata?.albumTitle?.toString()?.takeIf { it.isNotBlank() }
             ?: sessionMetadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()
-        val cover = if (!sessionIsCurrent) null else try {
-            sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                ?: sessionMetadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-        } catch (_: Exception) { null }
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         fun actionPending(action: String, code: Int): PendingIntent {
             // Build 1.55: every button has its own intent action + data URI, so the system can never treat two buttons as the
@@ -376,10 +367,7 @@ class PlaybackKeepAliveService : Service() {
                 if (playing) "Pause" else "Play", actionPending("toggle", 6102)).build())
             .addAction(Notification.Action.Builder(R.drawable.ic_next_24, "Next", actionPending("next", 6103)).build())
             .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionPending("exit", 6104)).build())
-        // Preserve the last known artwork on state-only updates (especially PLAYING -> PAUSED).
-        // The service can publish before MainActivity's next UI callback, so read MediaSession's
-        // stored bitmap rather than depending on an Activity view still being attached.
-        if (cover != null && !cover.isRecycled) builder.setLargeIcon(cover)
+        // Build 2.18: no album art in the notification or on the lock screen.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setStyle(Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
         }

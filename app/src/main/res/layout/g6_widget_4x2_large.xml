@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.17: 4x2 widget as in the reference picture: rounded cover on the left; title, singer, album, thin progress bar and previous / play / next on the right. Background 80% black. -->
+<!-- Build 2.18: no album art in the widget (2.19 brings the big art back); title, singer, album, thin progress bar and previous / play / next on the right. Background 80% black. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -9,18 +9,11 @@
     android:padding="12dp"
     android:background="@drawable/g6_widget_bg_4x2">
 
-    <ImageView
-        android:id="@+id/w_art"
-        android:layout_width="130dp"
-        android:layout_height="130dp"
-        android:scaleType="fitCenter"
-        android:contentDescription="Album artwork" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="16dp"
         android:orientation="vertical">
 
         <TextView

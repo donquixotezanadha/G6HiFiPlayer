@@ -82,30 +82,15 @@ object G6Widgets {
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             cleanupOldWidgetData(app, prefs)
             val hasTrack = title.isNotBlank() && title != "G6HiFiPlayer"
-            // Build 2.17: the Hi-Res badge is drawn when the widget is rendered; a 16/24-bit change of the same track redraws it.
             val sameTrack = prefs.getBoolean(K_HAS, false) == hasTrack &&
-                prefs.getBoolean(K_HIRES, false) == (hasTrack && hires) &&
                 prefs.getString(K_TITLE, null) == title &&
                 prefs.getString(K_ARTIST, null) == artist &&
                 prefs.getString(K_ALBUM, null) == album
 
-            // The cover is stored once per track as a small square file; play/pause refreshes never touch it.
-            var artChanged = false
-            if (hasTrack) {
-                val identity = listOf(title, artist, album).joinToString("\u001F")
-                val file = File(app.filesDir, ART_FILE)
-                if (artwork != null && !artwork.isRecycled) {
-                    if (prefs.getString(K_ART_ID, null) != identity || !file.exists()) {
-                        artChanged = saveThumb(artwork, file)
-                        if (artChanged) prefs.edit().putString(K_ART_ID, identity).apply()
-                    }
-                } else if (prefs.getString(K_ART_ID, null) != identity) {
-                    // New track and its cover is not ready yet: do not keep showing the previous cover.
-                    file.delete()
-                    prefs.edit().remove(K_ART_ID).apply()
-                    artChanged = true
-                }
-            }
+            // Build 2.18: widgets carry no album art. A cover file saved by an older build is removed once.
+            val oldArt = File(app.filesDir, ART_FILE)
+            if (oldArt.exists()) oldArt.delete()
+            val artChanged = false
 
             prefs.edit()
                 .putBoolean(K_HAS, hasTrack)
@@ -177,35 +162,22 @@ object G6Widgets {
             val playing = hasTrack && prefs.getBoolean(K_PLAYING, false)
             val position = prefs.getInt(K_POS, 0)
             val duration = prefs.getInt(K_DUR, 0)
-            val hires = hasTrack && prefs.getBoolean(K_HIRES, false)
 
             if (ids4.isNotEmpty()) {
-                // Rounded-square cover for the 4x2. updateAppWidget has already copied the bitmap into the outgoing parcel.
-                val cover = coverBitmap(app, hasTrack, CORNER_FRACTION, hires)
-                try {
-                    val large = ids4.filter { isLarge(manager, it) }.toIntArray()
-                    val compact = ids4.filter { !isLarge(manager, it) }.toIntArray()
-                    if (compact.isNotEmpty()) {
-                        val views = build4x2(app, R.layout.g6_widget_4x2_compact, title, artist, album, hasTrack, playing, position, duration, cover)
-                        try { manager.updateAppWidget(compact, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
-                    }
-                    if (large.isNotEmpty()) {
-                        val views = build4x2(app, R.layout.g6_widget_4x2_large, title, artist, album, hasTrack, playing, position, duration, cover)
-                        try { manager.updateAppWidget(large, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
-                    }
-                } finally {
-                    if (!cover.isRecycled) cover.recycle()
+                val large = ids4.filter { isLarge(manager, it) }.toIntArray()
+                val compact = ids4.filter { !isLarge(manager, it) }.toIntArray()
+                if (compact.isNotEmpty()) {
+                    val views = build4x2(app, R.layout.g6_widget_4x2_compact, title, artist, album, hasTrack, playing, position, duration)
+                    try { manager.updateAppWidget(compact, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
+                }
+                if (large.isNotEmpty()) {
+                    val views = build4x2(app, R.layout.g6_widget_4x2_large, title, artist, album, hasTrack, playing, position, duration)
+                    try { manager.updateAppWidget(large, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
                 }
             }
             if (ids2.isNotEmpty()) {
-                // Round cover for the 2x2.
-                val cover = coverBitmap(app, hasTrack, CIRCLE_FRACTION, hires)
-                try {
-                    val views = build2x2(app, playing, cover)
-                    try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
-                } finally {
-                    if (!cover.isRecycled) cover.recycle()
-                }
+                val views = build2x2(app, playing)
+                try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
             }
         }
     }
@@ -214,11 +186,10 @@ object G6Widgets {
 
     private fun build4x2(
         context: Context, layout: Int, title: String, artist: String, album: String, hasTrack: Boolean,
-        playing: Boolean, position: Int, duration: Int, cover: Bitmap
+        playing: Boolean, position: Int, duration: Int
     ): RemoteViews {
         val total = duration.coerceAtLeast(1)
         return RemoteViews(context.packageName, layout).apply {
-            setImageViewBitmap(R.id.w_art, cover)
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
@@ -233,9 +204,8 @@ object G6Widgets {
         }
     }
 
-    private fun build2x2(context: Context, playing: Boolean, cover: Bitmap): RemoteViews =
+    private fun build2x2(context: Context, playing: Boolean): RemoteViews =
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
-            setImageViewBitmap(R.id.w_art, cover)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play)
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
@@ -264,75 +234,6 @@ object G6Widgets {
     private fun isLarge(manager: AppWidgetManager, id: Int): Boolean {
         val options: Bundle? = try { manager.getAppWidgetOptions(id) } catch (_: Exception) { null }
         return (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0) >= LARGE_MIN_HEIGHT_DP
-    }
-
-    // ---- cover ------------------------------------------------------------------------------
-
-    /** Cover of the playing track with corner radius = [fraction] of its side (0.5 = circle), or a dark placeholder when there is none. */
-    private fun coverBitmap(context: Context, hasTrack: Boolean, fraction: Float, hires: Boolean): Bitmap {
-        if (hasTrack) {
-            val file = File(context.filesDir, ART_FILE)
-            if (file.exists()) {
-                val raw = try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null }
-                if (raw != null) {
-                    val rounded = roundCorners(raw, fraction)
-                    if (rounded !== raw) raw.recycle()
-                    if (hires) {
-                        // Build 2.17: Hi-Res badge on the finished crop, so a round cover never cuts it off.
-                        val badge = HiResBadgeDrawable(circle = fraction >= 0.5f)
-                        badge.setBounds(0, 0, rounded.width, rounded.height)
-                        badge.draw(Canvas(rounded))
-                    }
-                    return rounded
-                }
-            }
-        }
-        return placeholder(context, fraction)
-    }
-
-    private fun roundCorners(src: Bitmap, fraction: Float): Bitmap {
-        val w = src.width
-        val h = src.height
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-        val radius = minOf(w, h) * fraction
-        Canvas(out).drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radius, radius, paint)
-        return out
-    }
-
-    private fun placeholder(context: Context, fraction: Float): Bitmap {
-        val size = PLACEHOLDER_PX
-        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(out)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A2A33.toInt() }
-        val radius = size * fraction
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)
-        context.getDrawable(R.drawable.ic_stat_music)?.mutate()?.let { icon ->
-            icon.setTint(0xFF8E8E98.toInt())
-            val pad = (size * 0.28f).toInt()
-            icon.setBounds(pad, pad, size - pad, size - pad)
-            icon.draw(canvas)
-        }
-        return out
-    }
-
-    /** Centre-crops the cover to a square of THUMB_PX and stores it as JPEG. Returns false if anything went wrong. */
-    private fun saveThumb(src: Bitmap, file: File): Boolean {
-        return try {
-            val side = minOf(src.width, src.height)
-            if (side <= 0) return false
-            val square = Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
-            val px = minOf(THUMB_PX, side)
-            val scaled = if (side != px) Bitmap.createScaledBitmap(square, px, px, true) else square
-            file.outputStream().use { scaled.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-            if (scaled !== square) scaled.recycle()
-            if (square !== src) square.recycle()
-            true
-        } catch (e: Exception) {
-            Log.w(TAG, "could not save widget cover", e)
-            false
-        }
     }
 
     // ---- intents ----------------------------------------------------------------------------
