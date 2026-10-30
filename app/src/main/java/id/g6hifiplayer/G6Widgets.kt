@@ -247,7 +247,7 @@ object G6Widgets {
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
-        val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
+        val icon = if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
