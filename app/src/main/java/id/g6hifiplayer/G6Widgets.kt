@@ -23,7 +23,7 @@ import java.io.File
 /**
  * Build 2.14: the two home-screen widgets, written again from scratch (the old ones are gone).
  * Build 2.17: both follow the reference picture.
- *  - 4x2: rounded cover on the left; title, singer, album, thin progress bar, previous / play / next (outline icons). Background 80% black.
+ *  - 4x1: compact rounded cover, title/artist and previous / play / next controls on a rounded dark card.
  *  - 2x2: big round cover with a small rounded-square play button overlapping its bottom-left; no card behind it.
  * Both are registered in the manifest (the old 2x2 never was). Dark look only, like the player.
  * Nothing runs in the background: the player pushes its state here (refresh / refreshProgress).
@@ -41,11 +41,11 @@ object G6Widgets {
     /** Saved cover: square, this many pixels. Small enough to travel inside RemoteViews on Android 9. */
     private const val THUMB_PX = 400
     private const val PLACEHOLDER_PX = 256
-    /** Corner radius of the 4x2 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
+    /** Corner radius of the 4x1 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
     private const val CORNER_FRACTION = 0.12f
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
-    /** A 4x2 widget at least this tall (dp) gets the large layout (bigger cover and buttons). */
+    /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
     private const val TOGGLE_DEBOUNCE_MS = 180L
 
@@ -122,14 +122,14 @@ object G6Widgets {
         }
     }
 
-    /** About once a second while playing: only the 4x2 progress bar changes. */
+    /** About once a second while playing: only the 4x1 progress bar changes. */
     fun refreshProgress(context: Context, position: Int, duration: Int) {
         val app = context.applicationContext
         val manager = AppWidgetManager.getInstance(app)
         val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
         if (ids.isEmpty()) return
         val total = duration.coerceAtLeast(1)
-        val views = RemoteViews(app.packageName, R.layout.g6_widget_4x2_compact).apply {
+        val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
             setProgressBar(R.id.w_progress, total, position.coerceIn(0, total), false)
         }
         try { manager.partiallyUpdateAppWidget(ids, views) } catch (e: Exception) { Log.w(TAG, "progress update failed", e) }
@@ -180,19 +180,11 @@ object G6Widgets {
             val hires = hasTrack && prefs.getBoolean(K_HIRES, false)
 
             if (ids4.isNotEmpty()) {
-                // Rounded-square cover for the 4x2. updateAppWidget has already copied the bitmap into the outgoing parcel.
+                // Rounded-square cover for the 4x1. updateAppWidget has already copied the bitmap into the outgoing parcel.
                 val cover = coverBitmap(app, hasTrack, CORNER_FRACTION, hires)
                 try {
-                    val large = ids4.filter { isLarge(manager, it) }.toIntArray()
-                    val compact = ids4.filter { !isLarge(manager, it) }.toIntArray()
-                    if (compact.isNotEmpty()) {
-                        val views = build4x2(app, R.layout.g6_widget_4x2_compact, title, artist, album, hasTrack, playing, position, duration, cover)
-                        try { manager.updateAppWidget(compact, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
-                    }
-                    if (large.isNotEmpty()) {
-                        val views = build4x2(app, R.layout.g6_widget_4x2_large, title, artist, album, hasTrack, playing, position, duration, cover)
-                        try { manager.updateAppWidget(large, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
-                    }
+                    val views = build4x1(app, R.layout.g6_widget_4x1, title, artist, album, hasTrack, playing, position, duration, cover)
+                    try { manager.updateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
                 }
@@ -212,7 +204,7 @@ object G6Widgets {
 
     // ---- building the views -----------------------------------------------------------------
 
-    private fun build4x2(
+    private fun build4x1(
         context: Context, layout: Int, title: String, artist: String, album: String, hasTrack: Boolean,
         playing: Boolean, position: Int, duration: Int, cover: Bitmap
     ): RemoteViews {
@@ -248,11 +240,11 @@ object G6Widgets {
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val total = duration.coerceAtLeast(1)
-            val views = RemoteViews(context.packageName, R.layout.g6_widget_4x2_compact).apply {
+            val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
                 setProgressBar(R.id.w_progress, total, position.coerceIn(0, total), false)
             }
-            try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x2 playback update failed", e) }
+            try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 playback update failed", e) }
         }
         val ids2 = manager.getAppWidgetIds(ComponentName(context, G6Widget2x2Provider::class.java))
         if (ids2.isNotEmpty()) {
