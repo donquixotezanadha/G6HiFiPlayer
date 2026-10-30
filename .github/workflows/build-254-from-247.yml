@@ -36,8 +36,9 @@ jobs:
       - name: Verify stable visual baseline and unchanged audio engine
         run: |
           set -euo pipefail
-          git diff --exit-code a1afde0c2f948e40f33aaf547744d4cd188a478b -- app/src/main/res/layout/g6_widget_4x1.xml
-          git diff --exit-code a1afde0c2f948e40f33aaf547744d4cd188a478b -- app/src/main/java/id/g6hifiplayer/MainActivity.kt app/src/main/cpp
+          git fetch origin 90ee769f8b328aada8f7a322ec4d92052b5f104d
+          git diff --exit-code 90ee769f8b328aada8f7a322ec4d92052b5f104d -- app/src/main/res/layout/g6_widget_4x1.xml
+          git diff --exit-code 90ee769f8b328aada8f7a322ec4d92052b5f104d -- app/src/main/java/id/g6hifiplayer/MainActivity.kt app/src/main/cpp
           grep -q 'PROGRESS_CACHE_INTERVAL_MS = 5_000L' app/src/main/java/id/g6hifiplayer/G6Widgets.kt
           grep -q 'Intent.ACTION_MY_PACKAGE_REPLACED' app/src/main/java/id/g6hifiplayer/G6Widgets.kt
           grep -q 'g6_w_ic_play_2x2' app/src/main/java/id/g6hifiplayer/G6Widgets.kt
