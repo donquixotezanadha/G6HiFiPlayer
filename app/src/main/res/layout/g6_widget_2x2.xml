@@ -1,65 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.14: 2x2 widget. Square cover across the full width, previous / play / next on a dark fade at the bottom. -->
+<!-- Build 2.17: 2x2 widget as in the reference picture: big round cover, small rounded-square play button at the bottom-left, overlapping the cover. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/g6_widget_bg_2x2">
+    android:padding="4dp">
 
     <ImageView
         android:id="@+id/w_art"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:adjustViewBounds="true"
+        android:layout_height="match_parent"
+        android:layout_marginStart="14dp"
+        android:layout_marginBottom="14dp"
         android:scaleType="fitCenter"
         android:contentDescription="Album artwork" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="6dp"
-        android:background="@drawable/g6_widget_scrim">
-
-        <ImageButton
-            android:id="@+id/w_prev"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:padding="8dp"
-            android:scaleType="fitCenter"
-            android:background="@drawable/g6_widget_btn"
-            android:src="@drawable/ic_previous_24"
-            android:tint="#FFFFFFFF"
-            android:contentDescription="Previous" />
-
-        <ImageButton
-            android:id="@+id/w_play"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:padding="8dp"
-            android:scaleType="fitCenter"
-            android:background="@drawable/g6_widget_btn"
-            android:src="@drawable/ic_play_24"
-            android:tint="#FFFFFFFF"
-            android:contentDescription="Play or pause" />
-
-        <ImageButton
-            android:id="@+id/w_next"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:padding="8dp"
-            android:scaleType="fitCenter"
-            android:background="@drawable/g6_widget_btn"
-            android:src="@drawable/ic_next_24"
-            android:tint="#FFFFFFFF"
-            android:contentDescription="Next" />
-    </LinearLayout>
+    <ImageButton
+        android:id="@+id/w_play"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_gravity="bottom|start"
+        android:padding="9dp"
+        android:scaleType="fitCenter"
+        android:background="@drawable/g6_widget_btn_square"
+        android:src="@drawable/g6_w_ic_play"
+        android:contentDescription="Play or pause" />
 </FrameLayout>

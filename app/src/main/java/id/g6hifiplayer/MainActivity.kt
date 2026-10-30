@@ -2178,46 +2178,6 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Build 2.16: small "Hi-Res" badge in the bottom-right corner of a cover (used for 24-bit tracks).
-     * Drawn as a view foreground, or onto a bitmap for the notification / widgets. A plain badge of our own, not the official logo.
-     */
-    private class HiResBadgeDrawable(private val minWidthPx: Float = 0f) : android.graphics.drawable.Drawable() {
-        private val gold = 0xFFE8C468.toInt()
-        private val plate = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xD9101010.toInt() }
-        private val edge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; color = gold }
-        private val label = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = gold
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textAlign = android.graphics.Paint.Align.CENTER
-        }
-        private val box = android.graphics.RectF()
-
-        override fun draw(canvas: android.graphics.Canvas) {
-            val b = bounds
-            val w = b.width().toFloat()
-            if (w <= 0f || b.height() <= 0) return
-            val bw = maxOf(w * 0.30f, minWidthPx).coerceAtMost(w * 0.6f)
-            val bh = bw * 0.38f
-            val margin = maxOf(w * 0.04f, bw * 0.12f)
-            box.set(b.right - margin - bw, b.bottom - margin - bh, b.right - margin, b.bottom - margin)
-            val corner = bh * 0.28f
-            canvas.drawRoundRect(box, corner, corner, plate)
-            edge.strokeWidth = maxOf(1f, bh * 0.06f)
-            canvas.drawRoundRect(box, corner, corner, edge)
-            label.textSize = bh * 0.62f
-            val textWidth = label.measureText("Hi-Res")
-            if (textWidth > bw * 0.84f) label.textSize = label.textSize * (bw * 0.84f / textWidth)
-            val baseline = box.centerY() - (label.descent() + label.ascent()) / 2f
-            canvas.drawText("Hi-Res", box.centerX(), baseline, label)
-        }
-
-        override fun setAlpha(alpha: Int) { }
-        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { }
-        @Suppress("DEPRECATION")
-        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
-    }
-
-    /**
      * Build 2.9: soft light behind a button instead of the circular ripple. A radial white gradient that is brightest in
      * the centre and fades to fully transparent at the edge (so no ring or hard circle is ever visible). It fades in
      * quickly on touch and fades out slowly on release.
@@ -2655,10 +2615,11 @@ class MainActivity : Activity() {
     }
 
     /** Small cover for the notification, lock screen and MediaSession; created off the UI thread when possible. */
-    private fun notificationArtworkFor(track: Track, full: android.graphics.Bitmap?): android.graphics.Bitmap? {
+    private fun notificationArtworkFor(track: Track, full: android.graphics.Bitmap?, badge: Boolean = true): android.graphics.Bitmap? {
         if (full == null || full.isRecycled) return null
-        // Build 2.16: a 24-bit track gets the Hi-Res badge on the cover used by the notification, lock screen and widgets.
-        val hires = isHiResNow() && tracks.getOrNull(currentIndex)?.uri == track.uri
+        // Build 2.16: a 24-bit track gets the Hi-Res badge on the notification / lock screen cover.
+        // Build 2.17: the widgets get the plain cover (badge = false) and draw the badge themselves after cropping (round cover on the 2x2).
+        val hires = badge && isHiResNow() && tracks.getOrNull(currentIndex)?.uri == track.uri
         val key = track.uri.toString() + if (hires) "|hires" else ""
         notificationArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
         val longest = maxOf(full.width, full.height).coerceAtLeast(1)
@@ -2886,7 +2847,9 @@ class MainActivity : Activity() {
         val fullCover = playerArtworkCache.get(trackKey)?.takeIf { !it.isRecycled }
         val cover: android.graphics.Bitmap? = if (fullCover != null) notificationArtworkFor(track, fullCover)
             else bitmapArtworkCache.get("thumb:$trackKey")?.takeIf { !it.isRecycled }
-        val widgetBitmap = cover
+        // Build 2.17: widgets get the cover without the badge; the widget code draws it on its own crop.
+        val widgetBitmap = if (fullCover != null) notificationArtworkFor(track, fullCover, badge = false) else cover
+        val widgetHiRes = isHiResNow()
         val widgetContext = applicationContext
         val widgetTitle = track.title
         val widgetArtist = track.artist
@@ -2900,7 +2863,7 @@ class MainActivity : Activity() {
                 try {
                     G6Widgets.refresh(
                         widgetContext, widgetTitle, widgetArtist, widgetAlbum, isPlaying,
-                        widgetBitmap, widgetPosition, widgetDuration
+                        widgetBitmap, widgetPosition, widgetDuration, widgetHiRes
                     )
                 } catch (e: Exception) {
                     android.util.Log.w("G6HiFiPlayer", "Async widget refresh failed", e)

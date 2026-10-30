@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.14: 4x2 widget, compact variant. Background 80% black. Only RemoteViews-safe views. -->
+<!-- Build 2.17: 4x2 widget as in the reference picture: rounded cover on the left; title, singer, album, thin progress bar and previous / play / next on the right. Background 80% black. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -30,7 +30,6 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:text="NO MUSIC PLAYING"
-            android:textStyle="bold"
             android:textSize="15sp"
             android:textColor="#FFFFFFFF" />
 
@@ -40,7 +39,16 @@
             android:layout_height="wrap_content"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textSize="12sp"
+            android:textSize="11sp"
+            android:textColor="#FFE0E0E6" />
+
+        <TextView
+            android:id="@+id/w_album"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="11sp"
             android:textColor="#FFB3B3BB" />
 
         <ProgressBar
@@ -48,7 +56,7 @@
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="3dp"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:max="100"
             android:progress="0"
             android:indeterminate="false"
@@ -57,44 +65,41 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="3dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <ImageButton
                 android:id="@+id/w_prev"
                 android:layout_width="0dp"
-                android:layout_height="34dp"
+                android:layout_height="30dp"
                 android:layout_weight="1"
-                android:padding="7dp"
+                android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:background="@drawable/g6_widget_btn"
-                android:src="@drawable/ic_previous_24"
-                android:tint="#FFFFFFFF"
+                android:src="@drawable/g6_w_ic_prev"
                 android:contentDescription="Previous" />
 
             <ImageButton
                 android:id="@+id/w_play"
                 android:layout_width="0dp"
-                android:layout_height="34dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
-                android:padding="7dp"
+                android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:background="@drawable/g6_widget_btn"
-                android:src="@drawable/ic_play_24"
-                android:tint="#FFFFFFFF"
+                android:src="@drawable/g6_w_ic_play"
                 android:contentDescription="Play or pause" />
 
             <ImageButton
                 android:id="@+id/w_next"
                 android:layout_width="0dp"
-                android:layout_height="34dp"
+                android:layout_height="30dp"
                 android:layout_weight="1"
-                android:padding="7dp"
+                android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:background="@drawable/g6_widget_btn"
-                android:src="@drawable/ic_next_24"
-                android:tint="#FFFFFFFF"
+                android:src="@drawable/g6_w_ic_next"
                 android:contentDescription="Next" />
         </LinearLayout>
     </LinearLayout>

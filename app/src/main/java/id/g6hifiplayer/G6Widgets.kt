@@ -22,8 +22,9 @@ import java.io.File
 
 /**
  * Build 2.14: the two home-screen widgets, written again from scratch (the old ones are gone).
- *  - 4x2: cover, title, artist, progress bar, previous / play / next. Background 80% black.
- *  - 2x2: square cover with previous / play / next on a dark fade at the bottom.
+ * Build 2.17: both follow the reference picture.
+ *  - 4x2: rounded cover on the left; title, singer, album, thin progress bar, previous / play / next (outline icons). Background 80% black.
+ *  - 2x2: big round cover with a small rounded-square play button overlapping its bottom-left; no card behind it.
  * Both are registered in the manifest (the old 2x2 never was). Dark look only, like the player.
  * Nothing runs in the background: the player pushes its state here (refresh / refreshProgress).
  */
@@ -40,8 +41,10 @@ object G6Widgets {
     /** Saved cover: square, this many pixels. Small enough to travel inside RemoteViews on Android 9. */
     private const val THUMB_PX = 400
     private const val PLACEHOLDER_PX = 256
-    /** Corner radius of the cover as a fraction of its side (about 16dp on the 2x2, 7-10dp on the 4x2). */
-    private const val CORNER_FRACTION = 0.08f
+    /** Corner radius of the 4x2 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
+    private const val CORNER_FRACTION = 0.12f
+    /** The 2x2 cover is a circle: radius = half the side. */
+    private const val CIRCLE_FRACTION = 0.5f
     /** A 4x2 widget at least this tall (dp) gets the large layout (bigger cover and buttons). */
     private const val LARGE_MIN_HEIGHT_DP = 170
     private const val TOGGLE_DEBOUNCE_MS = 180L
@@ -51,6 +54,7 @@ object G6Widgets {
     private const val K_ARTIST = "artist"
     private const val K_ALBUM = "album"
     private const val K_PLAYING = "playing"
+    private const val K_HIRES = "hires"
     private const val K_POS = "position"
     private const val K_DUR = "duration"
     private const val K_ART_ID = "art_identity"
@@ -70,14 +74,17 @@ object G6Widgets {
         playing: Boolean,
         artwork: Bitmap?,
         position: Int,
-        duration: Int
+        duration: Int,
+        hires: Boolean = false
     ) {
         val app = context.applicationContext
         synchronized(lock) {
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             cleanupOldWidgetData(app, prefs)
             val hasTrack = title.isNotBlank() && title != "G6HiFiPlayer"
+            // Build 2.17: the Hi-Res badge is drawn when the widget is rendered; a 16/24-bit change of the same track redraws it.
             val sameTrack = prefs.getBoolean(K_HAS, false) == hasTrack &&
+                prefs.getBoolean(K_HIRES, false) == (hasTrack && hires) &&
                 prefs.getString(K_TITLE, null) == title &&
                 prefs.getString(K_ARTIST, null) == artist &&
                 prefs.getString(K_ALBUM, null) == album
@@ -106,6 +113,7 @@ object G6Widgets {
                 .putString(K_ARTIST, artist)
                 .putString(K_ALBUM, album)
                 .putBoolean(K_PLAYING, playing)
+                .putBoolean(K_HIRES, hasTrack && hires)
                 .putInt(K_POS, position.coerceAtLeast(0))
                 .putInt(K_DUR, duration.coerceAtLeast(0))
                 .apply()
@@ -166,32 +174,38 @@ object G6Widgets {
             val title = if (hasTrack) prefs.getString(K_TITLE, "").orEmpty().ifBlank { EMPTY_TITLE } else EMPTY_TITLE
             val artist = if (hasTrack) prefs.getString(K_ARTIST, "").orEmpty() else ""
             val album = if (hasTrack) prefs.getString(K_ALBUM, "").orEmpty() else ""
-            val subtitle = listOf(artist, album).filter { it.isNotBlank() }.joinToString(" • ")
             val playing = hasTrack && prefs.getBoolean(K_PLAYING, false)
             val position = prefs.getInt(K_POS, 0)
             val duration = prefs.getInt(K_DUR, 0)
-            val cover = coverBitmap(app, hasTrack)
+            val hires = hasTrack && prefs.getBoolean(K_HIRES, false)
 
-            try {
-                if (ids4.isNotEmpty()) {
+            if (ids4.isNotEmpty()) {
+                // Rounded-square cover for the 4x2. updateAppWidget has already copied the bitmap into the outgoing parcel.
+                val cover = coverBitmap(app, hasTrack, CORNER_FRACTION, hires)
+                try {
                     val large = ids4.filter { isLarge(manager, it) }.toIntArray()
                     val compact = ids4.filter { !isLarge(manager, it) }.toIntArray()
                     if (compact.isNotEmpty()) {
-                        val views = build4x2(app, R.layout.g6_widget_4x2_compact, title, subtitle, hasTrack, playing, position, duration, cover)
+                        val views = build4x2(app, R.layout.g6_widget_4x2_compact, title, artist, album, hasTrack, playing, position, duration, cover)
                         try { manager.updateAppWidget(compact, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
                     }
                     if (large.isNotEmpty()) {
-                        val views = build4x2(app, R.layout.g6_widget_4x2_large, title, subtitle, hasTrack, playing, position, duration, cover)
+                        val views = build4x2(app, R.layout.g6_widget_4x2_large, title, artist, album, hasTrack, playing, position, duration, cover)
                         try { manager.updateAppWidget(large, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
                     }
+                } finally {
+                    if (!cover.isRecycled) cover.recycle()
                 }
-                if (ids2.isNotEmpty()) {
+            }
+            if (ids2.isNotEmpty()) {
+                // Round cover for the 2x2.
+                val cover = coverBitmap(app, hasTrack, CIRCLE_FRACTION, hires)
+                try {
                     val views = build2x2(app, playing, cover)
                     try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
+                } finally {
+                    if (!cover.isRecycled) cover.recycle()
                 }
-            } finally {
-                // updateAppWidget has already copied the bitmap into the outgoing parcel.
-                if (!cover.isRecycled) cover.recycle()
             }
         }
     }
@@ -199,16 +213,18 @@ object G6Widgets {
     // ---- building the views -----------------------------------------------------------------
 
     private fun build4x2(
-        context: Context, layout: Int, title: String, subtitle: String, hasTrack: Boolean,
+        context: Context, layout: Int, title: String, artist: String, album: String, hasTrack: Boolean,
         playing: Boolean, position: Int, duration: Int, cover: Bitmap
     ): RemoteViews {
         val total = duration.coerceAtLeast(1)
         return RemoteViews(context.packageName, layout).apply {
             setImageViewBitmap(R.id.w_art, cover)
             setTextViewText(R.id.w_title, title)
-            setTextViewText(R.id.w_artist, subtitle)
-            setViewVisibility(R.id.w_artist, if (hasTrack && subtitle.isNotEmpty()) View.VISIBLE else View.GONE)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setTextViewText(R.id.w_artist, artist)
+            setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
+            setTextViewText(R.id.w_album, album)
+            setViewVisibility(R.id.w_album, if (hasTrack && album.isNotEmpty()) View.VISIBLE else View.GONE)
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play)
             setProgressBar(R.id.w_progress, total, if (hasTrack) position.coerceIn(0, total) else 0, false)
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x2Provider::class.java, 4202, "toggle"))
@@ -220,17 +236,15 @@ object G6Widgets {
     private fun build2x2(context: Context, playing: Boolean, cover: Bitmap): RemoteViews =
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
             setImageViewBitmap(R.id.w_art, cover)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-            setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget2x2Provider::class.java, 2201, "previous"))
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play)
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
-            setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget2x2Provider::class.java, 2203, "next"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
 
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
-        val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
+        val icon = if (playing) R.drawable.g6_w_ic_pause else R.drawable.g6_w_ic_play
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val total = duration.coerceAtLeast(1)
@@ -254,39 +268,45 @@ object G6Widgets {
 
     // ---- cover ------------------------------------------------------------------------------
 
-    /** Rounded square cover of the playing track, or a dark placeholder when there is none. */
-    private fun coverBitmap(context: Context, hasTrack: Boolean): Bitmap {
+    /** Cover of the playing track with corner radius = [fraction] of its side (0.5 = circle), or a dark placeholder when there is none. */
+    private fun coverBitmap(context: Context, hasTrack: Boolean, fraction: Float, hires: Boolean): Bitmap {
         if (hasTrack) {
             val file = File(context.filesDir, ART_FILE)
             if (file.exists()) {
                 val raw = try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null }
                 if (raw != null) {
-                    val rounded = roundCorners(raw)
+                    val rounded = roundCorners(raw, fraction)
                     if (rounded !== raw) raw.recycle()
+                    if (hires) {
+                        // Build 2.17: Hi-Res badge on the finished crop, so a round cover never cuts it off.
+                        val badge = HiResBadgeDrawable(circle = fraction >= 0.5f)
+                        badge.setBounds(0, 0, rounded.width, rounded.height)
+                        badge.draw(Canvas(rounded))
+                    }
                     return rounded
                 }
             }
         }
-        return placeholder(context)
+        return placeholder(context, fraction)
     }
 
-    private fun roundCorners(src: Bitmap): Bitmap {
+    private fun roundCorners(src: Bitmap, fraction: Float): Bitmap {
         val w = src.width
         val h = src.height
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.shader = BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-        val radius = minOf(w, h) * CORNER_FRACTION
+        val radius = minOf(w, h) * fraction
         Canvas(out).drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radius, radius, paint)
         return out
     }
 
-    private fun placeholder(context: Context): Bitmap {
+    private fun placeholder(context: Context, fraction: Float): Bitmap {
         val size = PLACEHOLDER_PX
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A2A33.toInt() }
-        val radius = size * CORNER_FRACTION
+        val radius = size * fraction
         canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)
         context.getDrawable(R.drawable.ic_stat_music)?.mutate()?.let { icon ->
             icon.setTint(0xFF8E8E98.toInt())
