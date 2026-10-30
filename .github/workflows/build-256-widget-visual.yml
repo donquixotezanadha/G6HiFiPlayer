@@ -14,10 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Checkout Build 2.56 source
+      - name: Checkout exact triggering commit
         uses: actions/checkout@v4
         with:
-          ref: build-256-widget-visual-polish
           fetch-depth: 0
       - name: Set up Java 17
         uses: actions/setup-java@v4
