@@ -1,0 +1,98 @@
+name: G6HiFiPlayer Build 2.66 - restore Build 2.58 4x1 values on dedicated provider
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-266-widget-4x1-values-from-258"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify Build 2.58 4x1 values and Build 2.65 provider approach
+        run: |
+          set -euo pipefail
+          BASE=a67e06dc93e113353f57e752c0a1084086951c7e
+          git cat-file -e "$BASE^{commit}"
+          git diff --exit-code "$BASE" -- app/src/main/java/id/g6hifiplayer/G6Widgets.kt app/src/main/java/id/g6hifiplayer/MainActivity.kt app/src/main/cpp app/src/main/res/layout/g6_widget_2x2.xml app/src/main/res/xml/g6_widget_2x2_info.xml
+          grep -q 'versionCode = 266' app/build.gradle.kts
+          grep -q 'versionName = "2.66.0"' app/build.gradle.kts
+          grep -q 'android:resource="@xml/g6_widget_4x1_info"' app/src/main/AndroidManifest.xml
+          grep -q 'android:minWidth="250dp"' app/src/main/res/xml/g6_widget_4x1_info.xml
+          grep -q 'android:minHeight="70dp"' app/src/main/res/xml/g6_widget_4x1_info.xml
+          grep -q 'android:initialLayout="@layout/g6_widget_4x1"' app/src/main/res/xml/g6_widget_4x1_info.xml
+          grep -q 'android:resizeMode="horizontal"' app/src/main/res/xml/g6_widget_4x1_info.xml
+          test ! -e app/src/main/res/xml/g6_widget_4x2_info.xml
+          grep -A4 'android:id="@+id/w_card"' app/src/main/res/layout/g6_widget_4x1.xml | grep -q 'android:layout_height="match_parent"'
+          grep -q 'android:padding="4dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:layout_width="54dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:layout_height="54dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:textSize="13sp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:textSize="10sp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:layout_height="26dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          test "$(grep -c 'android:layout_width="36dp"' app/src/main/res/layout/g6_widget_4x1.xml)" -eq 3
+          echo "Verified: 4x1 provider uses 70dp minimum height and compact Build 2.58 layout values; player/cache and 2x2 files are unchanged."
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK identity and widget registration
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          APK_BYTES=$(stat -c%s "$APK")
+          echo "APK bytes: $APK_BYTES"
+          test "$APK_BYTES" -lt 20000000
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='266' versionName='2.66.0'"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q "G6Widget4x2Provider" /tmp/manifest.txt
+          grep -q "G6Widget2x2Provider" /tmp/manifest.txt
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/G6HiFiPlayer-2.66.0-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-2.66.0-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+          echo "Verified source commit: $GITHUB_SHA"
+      - name: Upload Build 2.66 artifact
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-2.66.0-${{ github.sha }}
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish build identity
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## G6HiFiPlayer Build 2.66 - restore Build 2.58 4x1 values on dedicated provider" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base: Build 2.65 branch; player/cache and 2x2 preserved" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: 2.66.0 (versionCode 266)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dedicated provider: g6_widget_4x1_info.xml, minWidth 250dp, minHeight 70dp" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Layout values restored from Build 2.58: artwork 54dp, title 13sp, artist 10sp, controls 36x26dp" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 2.66 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
