@@ -2178,6 +2178,46 @@ class MainActivity : Activity() {
     }
 
     /**
+     * Build 2.16: small "Hi-Res" badge in the bottom-right corner of a cover (used for 24-bit tracks).
+     * Drawn as a view foreground, or onto a bitmap for the notification / widgets. A plain badge of our own, not the official logo.
+     */
+    private class HiResBadgeDrawable(private val minWidthPx: Float = 0f) : android.graphics.drawable.Drawable() {
+        private val gold = 0xFFE8C468.toInt()
+        private val plate = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xD9101010.toInt() }
+        private val edge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; color = gold }
+        private val label = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = gold
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        private val box = android.graphics.RectF()
+
+        override fun draw(canvas: android.graphics.Canvas) {
+            val b = bounds
+            val w = b.width().toFloat()
+            if (w <= 0f || b.height() <= 0) return
+            val bw = maxOf(w * 0.30f, minWidthPx).coerceAtMost(w * 0.6f)
+            val bh = bw * 0.38f
+            val margin = maxOf(w * 0.04f, bw * 0.12f)
+            box.set(b.right - margin - bw, b.bottom - margin - bh, b.right - margin, b.bottom - margin)
+            val corner = bh * 0.28f
+            canvas.drawRoundRect(box, corner, corner, plate)
+            edge.strokeWidth = maxOf(1f, bh * 0.06f)
+            canvas.drawRoundRect(box, corner, corner, edge)
+            label.textSize = bh * 0.62f
+            val textWidth = label.measureText("Hi-Res")
+            if (textWidth > bw * 0.84f) label.textSize = label.textSize * (bw * 0.84f / textWidth)
+            val baseline = box.centerY() - (label.descent() + label.ascent()) / 2f
+            canvas.drawText("Hi-Res", box.centerX(), baseline, label)
+        }
+
+        override fun setAlpha(alpha: Int) { }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { }
+        @Suppress("DEPRECATION")
+        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+    }
+
+    /**
      * Build 2.9: soft light behind a button instead of the circular ripple. A radial white gradient that is brightest in
      * the centre and fades to fully transparent at the edge (so no ring or hard circle is ever visible). It fades in
      * quickly on touch and fades out slowly on release.
@@ -2205,7 +2245,7 @@ class MainActivity : Activity() {
         }
 
         /** Build 2.12: the light is as big as the button plus a little margin (extraPx), instead of fading out under the icon.
-         *  Build 2.15: the whole glow size (radius) is cut to 50% (GLOW_SIZE_SCALE); shape, opacity and animation unchanged. */
+         *  Build 2.15: glow radius cut to 50%; Build 2.16: raised to 75% (GLOW_SIZE_SCALE); shape, opacity and animation unchanged. */
         private fun radius(b: android.graphics.Rect): Float =
             ((minOf(b.width(), b.height()) / 2f + extraPx) * GLOW_SIZE_SCALE).coerceAtLeast(1f)
 
@@ -2617,12 +2657,25 @@ class MainActivity : Activity() {
     /** Small cover for the notification, lock screen and MediaSession; created off the UI thread when possible. */
     private fun notificationArtworkFor(track: Track, full: android.graphics.Bitmap?): android.graphics.Bitmap? {
         if (full == null || full.isRecycled) return null
-        val key = track.uri.toString()
+        // Build 2.16: a 24-bit track gets the Hi-Res badge on the cover used by the notification, lock screen and widgets.
+        val hires = isHiResNow() && tracks.getOrNull(currentIndex)?.uri == track.uri
+        val key = track.uri.toString() + if (hires) "|hires" else ""
         notificationArtworkCache.get(key)?.let { if (!it.isRecycled) return it }
         val longest = maxOf(full.width, full.height).coerceAtLeast(1)
-        val small = if (longest <= 512) full else {
+        var small = if (longest <= 512) full else {
             val ratio = 512f / longest
             android.graphics.Bitmap.createScaledBitmap(full, (full.width * ratio).toInt().coerceAtLeast(1), (full.height * ratio).toInt().coerceAtLeast(1), true)
+        }
+        if (hires) {
+            try {
+                val copy = small.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+                if (copy != null) {
+                    val badge = HiResBadgeDrawable()
+                    badge.setBounds(0, 0, copy.width, copy.height)
+                    badge.draw(android.graphics.Canvas(copy))
+                    small = copy
+                }
+            } catch (_: Throwable) { }
         }
         notificationArtworkCache.put(key, small)
         return small
@@ -2727,12 +2780,27 @@ class MainActivity : Activity() {
 
 
 
+    /** Build 2.16: the playing track is 24-bit (or more) = hi-res. */
+    private fun isHiResNow(): Boolean = (sourceBits ?: 0) >= 24
+    private var hiResBadgeShown = false
+
+    /** Build 2.16: shows / hides the Hi-Res badge on the covers in the player (Now Playing and the mini player) and refreshes the notification cover. */
+    private fun updateHiResBadges() {
+        val hires = isHiResNow() && prepared
+        if (hires == hiResBadgeShown) return
+        hiResBadgeShown = hires
+        if (::artImage.isInitialized) artImage.foreground = if (hires) HiResBadgeDrawable() else null
+        if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(dp(22).toFloat()) else null
+        if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
+    }
+
     /**
      * Build 1.61: the info line under the progress bar. It says what really reaches the native DIRECT output:
      * the source (rate / bit depth read from the file header) and the PCM that the decoder handed to the output.
      * BIT-PERFECT is only shown when the output is the DIRECT track, the rate is unchanged and the depth is not reduced.
      */
     private fun refreshAudioInfo() {
+        updateHiResBadges()
         if (!::audioInfoInline.isInitialized || !::audioStatusInline.isInitialized) return
         val srcRate = sourceRate
         val srcBits = sourceBits
@@ -3331,7 +3399,7 @@ class MainActivity : Activity() {
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
         private const val GLOW_EXTRA_DP = 5
         /** Build 2.15: glow size factor (1.0 = size of 2.14). */
-        private const val GLOW_SIZE_SCALE = 0.5f
+        private const val GLOW_SIZE_SCALE = 0.75f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
