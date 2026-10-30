@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.56: rounded black button matching the 4x2 widget's 80% black background. -->
+<!-- Build 2.67: rounded black button matching the 70% black widget background. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
@@ -10,7 +10,7 @@
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="18dp" />
-            <solid android:color="#CC000000" />
+            <solid android:color="#B3000000" />
         </shape>
     </item>
 </selector>
