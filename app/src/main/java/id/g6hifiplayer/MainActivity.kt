@@ -2017,8 +2017,8 @@ class MainActivity : Activity() {
                     albumView.text = activeTrack.album
                     sourceRate = null
                     sourceBits = null; sourceFormat = null
-        sourceBits = null; sourceFormat = null
                     sourceBitrate = null
+                    updateHiResBadges()
                     DirectOutputState.resetDepthCheck() // Build 1.66: a new track gets a new real-24-bit check
                     showMetadata(activeTrack.uri, activeTrack)
                     loadArtwork(activeTrack)
