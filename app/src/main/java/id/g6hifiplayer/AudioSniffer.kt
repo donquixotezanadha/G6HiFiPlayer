@@ -2,6 +2,9 @@ package id.g6hifiplayer
 
 import android.content.Context
 import android.net.Uri
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.InputStream
 
@@ -14,10 +17,83 @@ internal object AudioSniffer {
     data class SourceInfo(val codec: String, val bits: Int, val sampleRate: Int, val channels: Int)
 
     /** Reads the sample rate and bit depth from the FLAC or WAV header. Returns null for any other format. */
-    fun sniff(context: Context, uri: Uri): SourceInfo? = try {
-        val opened = context.contentResolver.openInputStream(uri)
-        if (opened == null) null else opened.use { sniffStream(it) }
-    } catch (_: Exception) { null }
+    fun sniff(context: Context, uri: Uri): SourceInfo? {
+        val ordinary = try {
+            val opened = context.contentResolver.openInputStream(uri)
+            if (opened == null) null else opened.use { sniffStream(it) }
+        } catch (_: Exception) { null }
+        if (ordinary != null) return ordinary
+        return sniffAlac(context, uri)
+    }
+
+    /**
+     * Build 2.41: ALAC-in-MP4/M4A stores its source depth in the ALACSpecificConfig atom,
+     * not in the FLAC/WAV headers handled above. Prefer MediaExtractor's reported bit depth,
+     * then inspect a bounded MP4 header region for the ALAC config. Do not guess from extension:
+     * an M4A/AAC file remains unbadged unless it is positively identified as ALAC 24-bit.
+     */
+    private fun sniffAlac(context: Context, uri: Uri): SourceInfo? {
+        var rate = 0
+        var channels = 0
+        try {
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(context, uri, null)
+                for (i in 0 until extractor.trackCount) {
+                    val format = extractor.getTrackFormat(i)
+                    val mime = if (format.containsKey(MediaFormat.KEY_MIME)) format.getString(MediaFormat.KEY_MIME).orEmpty() else ""
+                    if (!mime.contains("alac", ignoreCase = true)) continue
+                    rate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else 0
+                    channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 0
+                    val bits = listOf("bits-per-sample", "bit-depth").firstNotNullOfOrNull { key ->
+                        if (format.containsKey(key)) runCatching { format.getInteger(key) }.getOrNull() else null
+                    }
+                    if (bits != null && bits in listOf(16, 20, 24, 32)) return SourceInfo("ALAC", bits, rate, channels)
+                }
+            } finally { try { extractor.release() } catch (_: Exception) { } }
+        } catch (_: Exception) { }
+
+        val bytes = try {
+            val opened = context.contentResolver.openInputStream(uri) ?: return null
+            opened.use { stream ->
+                val out = ByteArrayOutputStream()
+                val chunk = ByteArray(8192)
+                var total = 0
+                while (total < 16 * 1024 * 1024) {
+                    val n = stream.read(chunk, 0, minOf(chunk.size, 16 * 1024 * 1024 - total))
+                    if (n <= 0) break
+                    out.write(chunk, 0, n)
+                    total += n
+                }
+                out.toByteArray()
+            }
+        } catch (_: Exception) { return null }
+
+        var from = 0
+        while (from + 20 < bytes.size) {
+            val type = indexOfAlac(bytes, from)
+            if (type < 0) break
+            from = type + 4
+            // Box: [size:4]["alac":4][full-box flags:4][ALACSpecificConfig...]
+            if (type < 4 || type + 17 >= bytes.size) continue
+            val boxSize = ((bytes[type - 4].toLong() and 0xFF) shl 24) or
+                ((bytes[type - 3].toLong() and 0xFF) shl 16) or
+                ((bytes[type - 2].toLong() and 0xFF) shl 8) or
+                (bytes[type - 1].toLong() and 0xFF)
+            if (boxSize < 28 || boxSize > bytes.size - (type - 4)) continue
+            val bits = bytes[type + 17].toInt() and 0xFF
+            if (bits in listOf(16, 20, 24, 32)) return SourceInfo("ALAC", bits, rate, channels)
+        }
+        return null
+    }
+
+    private fun indexOfAlac(data: ByteArray, start: Int): Int {
+        for (i in start..data.size - 4) {
+            if (data[i] == 'a'.code.toByte() && data[i + 1] == 'l'.code.toByte() &&
+                data[i + 2] == 'a'.code.toByte() && data[i + 3] == 'c'.code.toByte()) return i
+        }
+        return -1
+    }
 
     private fun sniffStream(raw: InputStream): SourceInfo? {
         val input = DataInputStream(raw.buffered(8192))
