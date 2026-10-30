@@ -116,8 +116,8 @@ open class G6MusicWidgetProvider : AppWidgetProvider() {
                         else views.setImageViewResource(R.id.widget_art, R.drawable.widget_empty_art)
                         views.setInt(R.id.widget_art, "setBackgroundResource", R.drawable.widget_card_accent)
                         views.setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-                        views.setInt(R.id.widget_play_circle, "setBackgroundColor", if (light) 0xCCFFFFFF.toInt() else 0xCC000000.toInt())
-                        views.setInt(R.id.widget_play, "setColorFilter", if (light) Color.BLACK else Color.WHITE)
+                        views.setInt(R.id.widget_play_circle, "setBackgroundColor", 0xCC000000.toInt())
+                        views.setInt(R.id.widget_play, "setColorFilter", Color.WHITE)
                     } else {
                         views.setTextViewText(R.id.widget_title, title)
                         views.setTextViewText(R.id.widget_artist, listOf(artist, album).filter { it.isNotBlank() }.joinToString(" • "))
