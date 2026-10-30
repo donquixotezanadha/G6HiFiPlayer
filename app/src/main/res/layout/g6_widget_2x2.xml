@@ -23,6 +23,6 @@
         android:padding="7dp"
         android:scaleType="fitCenter"
         android:background="@drawable/g6_widget_btn_square_2x2"
-        android:src="@drawable/g6_w_ic_play"
+        android:src="@drawable/g6_w_ic_play_2x2"
         android:contentDescription="Play or pause" />
 </FrameLayout>
