@@ -47,6 +47,10 @@ object G6Widgets {
     private const val CIRCLE_FRACTION = 0.5f
     /** A 4x2 widget at least this tall (dp) gets the large layout (bigger cover and buttons). */
     private const val LARGE_MIN_HEIGHT_DP = 170
+    private const val DEFAULT_HEIGHT_DP = 130
+    private const val ART_MAX_PX = 480
+    /** Corner radius of the widget card (g6_widget_bg_4x2.xml). */
+    private const val CARD_RADIUS_DP = 22f
     private const val TOGGLE_DEBOUNCE_MS = 180L
 
     private const val K_HAS = "has_track"
@@ -164,15 +168,16 @@ object G6Widgets {
             val duration = prefs.getInt(K_DUR, 0)
 
             if (ids4.isNotEmpty()) {
-                val large = ids4.filter { isLarge(manager, it) }.toIntArray()
-                val compact = ids4.filter { !isLarge(manager, it) }.toIntArray()
-                if (compact.isNotEmpty()) {
-                    val views = build4x2(app, R.layout.g6_widget_4x2_compact, title, artist, album, hasTrack, playing, position, duration)
-                    try { manager.updateAppWidget(compact, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
-                }
-                if (large.isNotEmpty()) {
-                    val views = build4x2(app, R.layout.g6_widget_4x2_large, title, artist, album, hasTrack, playing, position, duration)
-                    try { manager.updateAppWidget(large, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
+                // Build 2.19: the art is a square as tall as the widget, flush with the left, top and bottom edges. Its left corners
+                // follow the rounded card, so the whole widget reads as one round rectangle.
+                for (id in ids4) {
+                    val heightDp = heightDp(manager, id)
+                    val layout = if (heightDp >= LARGE_MIN_HEIGHT_DP) R.layout.g6_widget_4x2_large else R.layout.g6_widget_4x2_compact
+                    val art = bigArt(app, heightDp)
+                    val views = build4x2(app, layout, title, artist, album, hasTrack, playing, position, duration)
+                    if (art != null) views.setImageViewBitmap(R.id.w_art, art)
+                    try { manager.updateAppWidget(id, views) } catch (e: Exception) { Log.w(TAG, "4x2 update failed", e) }
+                    if (art != null && !art.isRecycled) art.recycle()
                 }
             }
             if (ids2.isNotEmpty()) {
@@ -231,10 +236,29 @@ object G6Widgets {
         }
     }
 
-    private fun isLarge(manager: AppWidgetManager, id: Int): Boolean {
+    private fun heightDp(manager: AppWidgetManager, id: Int): Int {
         val options: Bundle? = try { manager.getAppWidgetOptions(id) } catch (_: Exception) { null }
-        return (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0) >= LARGE_MIN_HEIGHT_DP
+        return (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0).takeIf { it > 0 } ?: DEFAULT_HEIGHT_DP
     }
+
+    /** Hi-Res picture as a square of the widget height (at most ART_MAX_PX), left corners rounded like the card, right corners square. */
+    private fun bigArt(context: Context, heightDp: Int): Bitmap? = try {
+        val density = context.resources.displayMetrics.density
+        val side = (heightDp * density).toInt().coerceIn(96, ART_MAX_PX)
+        val src = BitmapFactory.decodeResource(context.resources, R.drawable.hires_cover) ?: return null
+        val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val matrix = android.graphics.Matrix().apply { setScale(side.toFloat() / src.width, side.toFloat() / src.height) }
+        paint.shader = BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).also { it.setLocalMatrix(matrix) }
+        // Card radius 22dp on a widget of heightDp: the same share of the square.
+        val r = (CARD_RADIUS_DP / heightDp.toFloat()).coerceIn(0f, 0.5f) * side
+        val path = android.graphics.Path().apply {
+            addRoundRect(RectF(0f, 0f, side.toFloat(), side.toFloat()), floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r), android.graphics.Path.Direction.CW)
+        }
+        Canvas(out).drawPath(path, paint)
+        src.recycle()
+        out
+    } catch (e: Throwable) { Log.w(TAG, "could not draw widget art", e); null }
 
     // ---- intents ----------------------------------------------------------------------------
 

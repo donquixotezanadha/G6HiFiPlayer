@@ -1,19 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.18: no album art in the widget (2.19 brings the big art back); title, singer, album, thin progress bar and previous / play / next on the right. Background 80% black. -->
+<!-- Build 2.19: big Hi-Res art flush on the left (full height, rounded with the card); title, singer, album, thin progress bar and previous / play / next on the right. Background 80% black. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:padding="12dp"
     android:background="@drawable/g6_widget_bg_4x2">
+
+    <ImageView
+        android:id="@+id/w_art"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="true"
+        android:scaleType="fitXY"
+        android:contentDescription="Album artwork" />
 
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
         android:orientation="vertical">
 
         <TextView
