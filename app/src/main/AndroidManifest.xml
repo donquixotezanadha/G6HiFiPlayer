@@ -37,7 +37,7 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_4x2_info" />
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_4x1_info" />
         </receiver>
         <receiver android:name="id.g6hifiplayer.G6Widget2x2Provider" android:label="Music 2x2" android:exported="true">
             <intent-filter>
