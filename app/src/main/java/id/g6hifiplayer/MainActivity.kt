@@ -2114,6 +2114,7 @@ class MainActivity : Activity() {
         sourceRate = null
         sourceBits = null; sourceFormat = null
         sourceBitrate = null
+        updateHiResBadges()
         durationMs = 0
         titleView.text = track.title
         titleView.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
