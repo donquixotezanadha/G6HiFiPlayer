@@ -1622,7 +1622,9 @@ class MainActivity : Activity() {
                 wav.year?.let { year = it }
             }
         }
-        val bitDepth = AudioSniffer.sniff(this, uri)?.bits
+        // AudioSniffer currently identifies integer bit depth for FLAC/WAV; skip unrelated formats during a large library scan.
+        val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase(Locale.ROOT)
+        val bitDepth = if (extension == "flac" || extension == "wav" || extension == "wave") AudioSniffer.sniff(this, uri)?.bits else null
         return Track(uri, title, artist, album, coverUri, trackNumber, year, bitDepth)
     }
 
