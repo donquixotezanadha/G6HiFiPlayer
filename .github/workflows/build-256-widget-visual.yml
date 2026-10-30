@@ -1,4 +1,5 @@
 name: G6HiFiPlayer Build 2.56 - widget visual polish
+# Build verification workflow for the dedicated Build 2.56 branch.
 
 on:
   workflow_dispatch:
