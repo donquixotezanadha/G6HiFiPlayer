@@ -30,8 +30,8 @@ internal object AudioSniffer {
 
     /**
      * Build 2.42: ALAC-in-MP4/M4A stores its source depth in the ALACSpecificConfig atom,
-     * not in the FLAC/WAV headers handled above. Prefer MediaExtractor's reported bit depth,
-     * then inspect a bounded MP4 header region for the ALAC config. Do not guess from extension:
+     * not in the FLAC/WAV headers handled above. Parse that encoded configuration first,
+     * then use MediaExtractor only as a fallback if the configuration cannot be read. Do not guess from extension:
      * an M4A/AAC file remains unbadged unless it is positively identified as ALAC 24-bit.
      */
     private fun sniffAlac(context: Context, uri: Uri): SourceInfo? {
