@@ -312,6 +312,8 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         buildingUi = true
+        // Build 3.01: newly-created Now Playing artwork needs its Hi-Res foreground rebound after a theme rebuild.
+        hiResBadgeShown = false
         darkDrawables.clear()
         // Classic theme: the page is transparent and the softened cover is drawn behind it (see DarkBackdropDrawable).
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.TRANSPARENT) }
@@ -404,7 +406,7 @@ class MainActivity : Activity() {
         setContentView(stage)
         stage.requestApplyInsets()
         buildingUi = false
-        show("player"); renderLibrary(); restoreNowPlayingMetadata()
+        show("player"); renderLibrary(); restoreNowPlayingMetadata(); updateHiResBadges()
     }
 
 
@@ -595,7 +597,7 @@ class MainActivity : Activity() {
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
             // Build 2.9: slightly thinner track (4dp -> PROGRESS_THICKNESS_DP).
-            progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
+            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
             thumbTintList = ColorStateList.valueOf(WHITE)
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
@@ -855,16 +857,18 @@ class MainActivity : Activity() {
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
         if (::seek.isInitialized) {
-            // Build 2.7: grey track, accent for the played part, white thumb.
-            seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            seek.thumbTintList = ColorStateList.valueOf(ink)
+            // Build 3.01: Light uses a light-grey unplayed track and keeps the thumb white; Dark is unchanged.
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
+            seek.thumbTintList = ColorStateList.valueOf(WHITE)
             seek.invalidate()
         }
+        // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
+        if (::prevView.isInitialized) prevView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
         if (::playView.isInitialized) {
-            // Build 2.9: no filled box and no circular ripple; only the soft glow (see transportButton).
-            if (playView.background !is GlowDrawable) playView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
+            playView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
             syncPlaybackIcon()
         }
+        if (::nextView.isInitialized) nextView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
         if (buildingUi) return
         refreshNav()
@@ -3386,6 +3390,8 @@ class MainActivity : Activity() {
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
         private const val PROGRESS_TRACK_GREY = 0xFF5E5E66.toInt()
+        /** Build 3.01: unplayed progress track for the Light theme only. */
+        private const val LIGHT_PROGRESS_TRACK_GREY = 0xFFD6D6DC.toInt()
         /** Build 2.9: scale of the Now Playing cover while paused (was 88%; now a small step). */
         private const val ART_PAUSED_SCALE = 0.95f
         /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
