@@ -108,9 +108,9 @@ class MainActivity : Activity() {
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
     private var lightTheme = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
-    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xB8101014.toInt()
+    private val CARD get() = if (lightTheme) 0xB8FFFFFF.toInt() else 0xB8101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xCC292932.toInt()
+    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else 0xCC292932.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var pageRoot: LinearLayout? = null
