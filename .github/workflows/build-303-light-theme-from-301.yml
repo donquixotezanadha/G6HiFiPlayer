@@ -1,0 +1,89 @@
+name: G6HiFiPlayer Build 3.03 - based on final 3.01
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-303-light-theme-from-301"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify exact Build 3.01 baseline and Build 3.03 identity
+        run: |
+          set -euo pipefail
+          BASE=52ec8ed9b6e77ac822b140cc209a1c57c3d0be55
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor "$BASE" "$GITHUB_SHA"
+          grep -q 'versionCode = 303' app/build.gradle.kts
+          grep -q 'versionName = "3.03"' app/build.gradle.kts
+          grep -q 'LIGHT_PROGRESS_TRACK_GREY' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'hiResBadgeShown = false' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'private var lightTheme = false' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'g6_widget_bg_4x2_light' app/src/main/java/id/g6hifiplayer/G6Widgets.kt
+          test -s app/src/main/res/drawable/g6_widget_bg_4x2_light.xml
+          test -s app/src/main/res/drawable/g6_widget_btn_light.xml
+          test -s app/src/main/res/drawable/g6_widget_btn_square_2x2_light.xml
+          echo "Build 3.03 is descended from the exact final Build 3.01 commit."
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK identity, native library, and widgets
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          test "$(stat -c%s "$APK")" -lt 20000000
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='303' versionName='3.03'"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q "G6Widget4x2Provider" /tmp/manifest.txt
+          grep -q "G6Widget2x2Provider" /tmp/manifest.txt
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/G6HiFiPlayer-3.03-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-3.03-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+          echo "Verified source commit: $GITHUB_SHA"
+      - name: Upload exact Build 3.03 artifact
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-3.03-${{ github.sha }}
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish build identity
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## G6HiFiPlayer Build 3.03" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Exact base: final Build 3.01 (commit 52ec8ed9b6e77ac822b140cc209a1c57c3d0be55)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: 3.03 (versionCode 303)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build 3.01 UI fixes, assets, theme implementation, and widget resources are retained." >> "$GITHUB_STEP_SUMMARY"
+          echo "- This build only advances the application version identity; no playback/native audio or layout changes are introduced." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 3.03 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
