@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="top|start"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="3dp"
+    android:paddingBottom="2dp"
+    android:background="@android:color/transparent">
+
+    <LinearLayout
+        android:id="@+id/w_card"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="6dp"
+        android:background="@drawable/g6_widget_bg_4x2">
+
+        <ImageView
+            android:id="@+id/w_art"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="Album artwork" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="NO MUSIC PLAYING"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/w_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="10sp"
+                android:textColor="#FFE0E0E6" />
+
+            <ImageView
+                android:id="@+id/w_progress"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:layout_marginTop="3dp"
+                android:scaleType="fitXY"
+                android:contentDescription="Track progress" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="26dp"
+                android:layout_marginTop="1dp"
+                android:orientation="horizontal"
+                android:gravity="start|center_vertical">
+
+                <ImageButton
+                    android:id="@+id/w_prev"
+                    android:layout_width="36dp"
+                    android:layout_height="26dp"
+                    android:padding="5dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/g6_widget_btn"
+                    android:src="@drawable/ic_previous_24"
+                    android:contentDescription="Previous" />
+
+                <ImageButton
+                    android:id="@+id/w_play"
+                    android:layout_width="36dp"
+                    android:layout_height="26dp"
+                    android:padding="5dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/g6_widget_btn"
+                    android:src="@drawable/ic_play_24"
+                    android:contentDescription="Play or pause" />
+
+                <ImageButton
+                    android:id="@+id/w_next"
+                    android:layout_width="36dp"
+                    android:layout_height="26dp"
+                    android:padding="5dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/g6_widget_btn"
+                    android:src="@drawable/ic_next_24"
+                    android:contentDescription="Next" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextClock
+        android:id="@+id/w_clock_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:format12Hour="h:mm"
+        android:format24Hour="HH:mm"
+        android:fontFamily="sans"
+        android:gravity="start|center_vertical"
+        android:includeFontPadding="false"
+        android:textColor="#FFFFFFFF"
+        android:textSize="40sp"
+        android:textStyle="normal" />
+
+    <TextClock
+        android:id="@+id/w_clock_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:format12Hour="EEE, d MMM"
+        android:format24Hour="EEE, d MMM"
+        android:fontFamily="sans"
+        android:gravity="start|center_vertical"
+        android:includeFontPadding="false"
+        android:textColor="#FFE0E0E6"
+        android:textSize="12sp"
+        android:textStyle="normal" />
+</LinearLayout>
