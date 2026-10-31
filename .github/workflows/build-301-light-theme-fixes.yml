@@ -1,9 +1,9 @@
-name: G6HiFiPlayer Build 3.01 - Light player polish
+name: G6HiFiPlayer Build 3.02 - White PNG seekbar thumb
 
 on:
   workflow_dispatch:
   push:
-    branches: ["build-301-light-theme-fixes"]
+    branches: ["build-302-white-seekbar-thumb-png-from-301"]
 
 permissions:
   contents: read
@@ -32,18 +32,18 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Verify Build 3.01 identity
+      - name: Verify Build 3.02 identity
         run: |
           set -euo pipefail
-          BASE=584b83cc03a496977a0519fac40bd2d3f0ad49b6
+          BASE=52ec8ed9b6e77ac822b140cc209a1c57c3d0be55
           git cat-file -e "$BASE^{commit}"
-          grep -q 'versionCode = 301' app/build.gradle.kts
-          grep -q 'versionName = "3.01"' app/build.gradle.kts
+          grep -q 'versionCode = 302' app/build.gradle.kts
+          grep -q 'versionName = "3.02"' app/build.gradle.kts
           grep -q 'LIGHT_PROGRESS_TRACK_GREY' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'hiResBadgeShown = false' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'private var lightTheme = false' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'g6_widget_bg_4x2_light' app/src/main/java/id/g6hifiplayer/G6Widgets.kt
-          echo "Build 3.01 source verified as based on Build 3.00."
+          echo "Build 3.02 source verified as based on Build 3.01."
       - name: Build debug APK
         run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
       - name: Verify APK identity and widget registration
@@ -53,20 +53,20 @@ jobs:
           test -s "$APK"
           test "$(stat -c%s "$APK")" -lt 20000000
           AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
-          "$AAPT2" dump badging "$APK" | grep -F "versionCode='301' versionName='3.01'"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='302' versionName='3.02'"
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
           "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
           grep -q "G6Widget4x2Provider" /tmp/manifest.txt
           grep -q "G6Widget2x2Provider" /tmp/manifest.txt
           mkdir -p verified-artifact
-          cp "$APK" "verified-artifact/G6HiFiPlayer-3.01-${GITHUB_SHA::7}.apk"
-          sha256sum "verified-artifact/G6HiFiPlayer-3.01-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+          cp "$APK" "verified-artifact/G6HiFiPlayer-3.02-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-3.02-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
           echo "Verified source commit: $GITHUB_SHA"
-      - name: Upload Build 3.01 artifact
+      - name: Upload Build 3.02 artifact
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-3.01-${{ github.sha }}
+          name: G6HiFiPlayer-3.02-${{ github.sha }}
           path: verified-artifact/*
           if-no-files-found: error
           retention-days: 90
@@ -74,13 +74,13 @@ jobs:
         env:
           ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
         run: |
-          echo "## G6HiFiPlayer Build 3.01 - Light Theme polish" >> "$GITHUB_STEP_SUMMARY"
+          echo "## G6HiFiPlayer Build 3.02 - White PNG seekbar thumb" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Base: Build 3.00 (commit 584b83cc03a496977a0519fac40bd2d3f0ad49b6)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: 3.01 (versionCode 301)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Theme: Light player progress track light grey, white thumb, black control glow; glow alpha and geometry unchanged" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base: Build 3.01 (commit 52ec8ed9b6e77ac822b140cc209a1c57c3d0be55)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: 3.02 (versionCode 302)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Theme: Seekbar thumb uses a white PNG with subtle shadow in both themes; thumb size and track geometry unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Hi-Res Now Playing badge is rebound after theme changes; widgets and layout geometry unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Playback, native audio code, and Dark theme values unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
           echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download exact Build 3.01 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 3.02 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
