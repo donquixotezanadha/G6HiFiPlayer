@@ -522,7 +522,7 @@ class MainActivity : Activity() {
         val boxSide = ((displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt().coerceAtLeast(dp(160))
         artBox = FrameLayout(this).apply {
             visibility = View.VISIBLE
-            background = shape(0xFF181820.toInt(), 6)
+            background = shape(ART, 6)
             clipToOutline = true
             outlineProvider = object : android.view.ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: android.graphics.Outline) {
@@ -596,7 +596,7 @@ class MainActivity : Activity() {
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
             // Build 2.9: slightly thinner track (4dp -> PROGRESS_THICKNESS_DP).
             progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            thumbTintList = ColorStateList.valueOf(Color.WHITE)
+            thumbTintList = ColorStateList.valueOf(WHITE)
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -862,7 +862,7 @@ class MainActivity : Activity() {
         }
         if (::playView.isInitialized) {
             // Build 2.9: no filled box and no circular ripple; only the soft glow (see transportButton).
-            if (playView.background !is GlowDrawable) playView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat())
+            if (playView.background !is GlowDrawable) playView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
             syncPlaybackIcon()
         }
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
@@ -1683,7 +1683,7 @@ class MainActivity : Activity() {
                 val artSide = minOf((resources.displayMetrics.widthPixels * ALBUM_DETAIL_ART_FRACTION).toInt(), contentWidth)
                 val bigCover = ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(0xFF181820.toInt(), 10)
+                    background = shape(ART, 10)
                     roundCorners(10)
                     elevation = dp(6).toFloat()
                     contentDescription = "Artwork $album"
@@ -1750,7 +1750,7 @@ class MainActivity : Activity() {
                         }
                         val otherCover = ImageView(this).apply {
                             scaleType = ImageView.ScaleType.CENTER_CROP
-                            background = shape(0xFF181820.toInt(), 10)
+                            background = shape(ART, 10)
                             roundCorners(10)
                             contentDescription = "Artwork $other"
                         }
@@ -1810,7 +1810,7 @@ class MainActivity : Activity() {
                 override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
             }.apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                background = shape(0xFF181820.toInt(), 10)
+                background = shape(ART, 10)
                 roundCorners(10)
                 contentDescription = "Artwork $album"
             }
@@ -2197,7 +2197,7 @@ class MainActivity : Activity() {
         updateAlbumPlayingMarks(playing)
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
-        playView.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        playView.imageTintList = ColorStateList.valueOf(WHITE)
         animateArtForState(playing)
         if (::queueMiniPlayView.isInitialized) {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
@@ -2211,7 +2211,7 @@ class MainActivity : Activity() {
      * the centre and fades to fully transparent at the edge (so no ring or hard circle is ever visible). It fades in
      * quickly on touch and fades out slowly on release.
      */
-    private class GlowDrawable(private val extraPx: Float = 0f) : android.graphics.drawable.Drawable() {
+    private class GlowDrawable(private val extraPx: Float = 0f, private val light: Boolean = false) : android.graphics.drawable.Drawable() {
         private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         private var glow = 0f
         private var baseAlpha = 255
@@ -2242,7 +2242,8 @@ class MainActivity : Activity() {
             paint.shader = android.graphics.RadialGradient(
                 bounds.exactCenterX(), bounds.exactCenterY(), radius(bounds),
                 // Build 2.14: peak opacity 30% (was 50%: 0x80); the other stops scaled by the same factor (0.6).
-                intArrayOf(0x4DFFFFFF, 0x3DFFFFFF, 0x1DFFFFFF, 0x00FFFFFF),
+                if (light) intArrayOf(0x4D000000, 0x3D000000, 0x1D000000, 0x00000000)
+                else intArrayOf(0x4DFFFFFF, 0x3DFFFFFF, 0x1DFFFFFF, 0x00FFFFFF),
                 floatArrayOf(0f, 0.55f, 0.82f, 1f),
                 android.graphics.Shader.TileMode.CLAMP
             )
@@ -2265,7 +2266,7 @@ class MainActivity : Activity() {
     /** Build 2.9: white icon button with a soft glow on touch and a tiny press (scale down, smooth return). */
     private fun transportButton(iconRes: Int, description: String, paddingDp: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(iconRes)
-        imageTintList = ColorStateList.valueOf(Color.WHITE)
+        imageTintList = ColorStateList.valueOf(WHITE)
         contentDescription = description
         scaleType = ImageView.ScaleType.FIT_CENTER
         setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
