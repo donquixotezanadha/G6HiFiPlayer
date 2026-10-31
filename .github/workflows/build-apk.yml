@@ -3,7 +3,7 @@ name: Build G6 HiFi Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment", "build-270-icon-scale-from-269", "build-271-white-icon-background-from-270", "build-272-white-background-fix-from-271"]
+    branches: ["main", "build-58-audio-dependency-trim", "build-62-audio-buffer-semantics", "build-63-audio-path-evidence", "build-64-jack-unplug-notification-responsive", "build-65-widget-sync", "build-66-widget-performance-rounding", "build-67-widget-touch-debounce", "build-72-widget-touch-latency", "build-73-widget-layout-refine", "build-77-widget-4x1-responsive", "build-78-remove-songs-tab", "build-79-text-tabs-notification-responsive", "build-80-widget-composition", "build-81-widget-4x1-real-layout", "build-82-widget-minimal-controls", "build-83-widget-title-spacing", "build-84-widget-visible-spacing", "build-85-widget-contained-layout", "build-86-playback-service-stability", "build-87-playback-lifecycle-notification", "build-88-playback-stability", "build-89-service-owned-gapless", "build-90-service-owned-controls", "build-91-notification-artwork-stability", "build-39-smooth-queue-transition", "build-40-ui-scan-swipe-fixes", "build-41-album-queue-transition", "build-42-tabbar-swipe-player", "build-43-now-playing-ui", "build-44-ui-alignment", "build-45-statusbar-icon-centering", "build-46-header-nav-centering", "build-47-header-statusbar-all-tabs", "build-48-header-seekbar-theme-fix", "build-49-progress-thickness-header-consistency", "build-50-now-playing-metadata-header-align", "build-51-progress-thickness-header-consistency", "build-52-header-progress-polish", "build-53-now-playing-header-alignment", "build-270-icon-scale-from-269", "build-271-white-icon-background-from-270", "build-272-white-background-fix-from-271", "build-306-no-thumb-theme-fix"]
   pull_request:
     branches: ["main"]
 
@@ -34,7 +34,7 @@ jobs:
         id: upload-apk
         uses: actions/upload-artifact@v4
         with:
-          name: G6HiFiPlayer-Build272-v2.72.0-white-icon-background-fix-arm64-apk
+          name: G6HiFiPlayer-Build306-v3.06-no-progress-thumb-arm64-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish direct artifact link
         env:
@@ -42,6 +42,6 @@ jobs:
         run: |
           echo "## Download APK" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download G6HiFiPlayer Build 2.72 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download G6HiFiPlayer Build 3.06 APK (ZIP)]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build 2.72 fixes the Build 2.71 background resource: the adaptive launcher icon background is a solid pure white (#FFFFFF), not the old purple gradient. The reduced headphone artwork size, playback, widgets, notification behavior, and audio engine are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build 3.06 fixes the progress thumb reappearing after theme changes. The SeekBar thumb remains disabled in both Light and Dark themes; the rounded progress track, thickness, and all unrelated player behavior remain unchanged." >> "$GITHUB_STEP_SUMMARY"
