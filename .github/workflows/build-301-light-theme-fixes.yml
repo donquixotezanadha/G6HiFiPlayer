@@ -35,7 +35,7 @@ jobs:
       - name: Verify Build 3.01 identity
         run: |
           set -euo pipefail
-          BASE=4cede8658150ca789bc3300d98b10e06eb831c3e
+          BASE=584b83cc03a496977a0519fac40bd2d3f0ad49b6
           git cat-file -e "$BASE^{commit}"
           grep -q 'versionCode = 301' app/build.gradle.kts
           grep -q 'versionName = "3.01"' app/build.gradle.kts
