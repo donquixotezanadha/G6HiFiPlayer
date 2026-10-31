@@ -856,9 +856,9 @@ class MainActivity : Activity() {
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
         if (::seek.isInitialized) {
-            // Build 3.01: Light uses a light-grey unplayed track and keeps the thumb white; Dark is unchanged.
+            // Build 3.06: keep the SeekBar thumb disabled in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            seek.thumb = getDrawable(R.drawable.progress_thumb_white)
+            seek.thumb = null
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
