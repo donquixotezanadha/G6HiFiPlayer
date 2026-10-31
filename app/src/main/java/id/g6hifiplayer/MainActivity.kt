@@ -1001,7 +1001,7 @@ class MainActivity : Activity() {
             shadePaint.shader = android.graphics.LinearGradient(
                 0f, bounds.top + bounds.height() * 0.45f, 0f, bounds.bottom.toFloat(),
                 if (light) 0x00FFFFFF else 0x00000000,
-                if (light) 0xB0FFFFFF.toInt() else 0xB0000000.toInt(),
+                if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt(),
                 android.graphics.Shader.TileMode.CLAMP
             )
         }
@@ -1019,7 +1019,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xA6000000.toInt())
+            canvas.drawColor(if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt())
             canvas.drawRect(b, shadePaint)
         }
 
