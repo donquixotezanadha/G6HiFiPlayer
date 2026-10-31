@@ -598,7 +598,7 @@ class MainActivity : Activity() {
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
             // Build 2.9: slightly thinner track (4dp -> PROGRESS_THICKNESS_DP).
             progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            thumb = context.getDrawable(R.drawable.progress_thumb_white)
+            thumb = null
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -3395,7 +3395,7 @@ class MainActivity : Activity() {
         /** Build 2.9: scale of the Now Playing cover while paused (was 88%; now a small step). */
         private const val ART_PAUSED_SCALE = 0.95f
         /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
-        private const val PROGRESS_THICKNESS_DP = 3
+        private const val PROGRESS_THICKNESS_DP = 4
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
         private const val ACTION_GREY = 0xFF8E8E98.toInt()
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
