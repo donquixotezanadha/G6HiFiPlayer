@@ -106,13 +106,13 @@ class MainActivity : Activity() {
     private val darkDrawables = mutableListOf<DarkBackdropDrawable>()
     private lateinit var artBox: FrameLayout
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
-    private val lightTheme get() = false
-    private val BG get() = playerSurface
-    private val CARD get() = 0xB8101014.toInt()
-    private val ART get() = 0xFF181820.toInt()
-    private val LINE get() = 0xCC292932.toInt()
-    private val WHITE get() = playerInk
-    private val MUTED get() = 0xFFA4A4B2.toInt()
+    private var lightTheme = false
+    private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
+    private val CARD get() = if (lightTheme) 0xFFFFFFFF.toInt() else 0xB8101014.toInt()
+    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
+    private val LINE get() = if (lightTheme) 0xFFE1E1EC.toInt() else 0xCC292932.toInt()
+    private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
+    private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
     private var buildingUi = false
@@ -284,8 +284,10 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
-        playerSurface = DARK_SURFACE; playerInk = Color.WHITE // Build 2.0: Dark is the only theme (Light is a placeholder in Setting)
+        playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
+        playerInk = if (lightTheme) Color.BLACK else Color.WHITE
         // Fully transparent status bar; icon colour follows the page ink.
         applySystemBars()
         activeInstance?.let { previous ->
@@ -363,13 +365,13 @@ class MainActivity : Activity() {
         librarySummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
         scanCard.addView(librarySummary)
         settingsPanel.addView(scanCard)
-        // Build 2.0: theme option. Dark is the only theme for now; Light is a placeholder button.
+        // Build 3.00: Light mirrors Dark composition; only backdrop veil and ink/surface palette invert.
         val themeCard = card()
         themeCard.addView(text("THEME", 12f, MUTED, true))
         val themeButtons = buttonArea()
         fillThemeButtons(themeButtons)
         themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
-        themeCard.addView(text("Dark shows the cover, darkened, behind every page with a purple accent. Light is coming later.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        themeCard.addView(text("Dark uses a darkened album-art blur. Light keeps the same layout and purple accent with a light album-art blur.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         settingsPanel.addView(themeCard)
         // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
         val columnsCard = card()
@@ -389,7 +391,7 @@ class MainActivity : Activity() {
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
-        val stage = FrameLayout(this).apply { setBackgroundColor(DARK_SURFACE) }
+        val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
         stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
@@ -833,11 +835,12 @@ class MainActivity : Activity() {
     /** Dark theme palette: black page, white and grey text, purple accent. Only the backdrop follows the cover. */
     private fun applyPlayerPalette(@Suppress("UNUSED_PARAMETER") requestedSurface: Int) {
         if (!::playerBottomDock.isInitialized) return
-        if (appliedPlayerSurface == DARK_SURFACE) return
-        appliedPlayerSurface = DARK_SURFACE
-        playerSurface = DARK_SURFACE
-        playerInk = Color.WHITE
-        val ink = Color.WHITE
+        val targetSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
+        if (appliedPlayerSurface == targetSurface) return
+        appliedPlayerSurface = targetSurface
+        playerSurface = targetSurface
+        playerInk = if (lightTheme) Color.BLACK else Color.WHITE
+        val ink = playerInk
         val inkMuted = MUTED
         playerBottomDock.background = null
         pageRoot?.setBackgroundColor(Color.TRANSPARENT)
@@ -849,12 +852,12 @@ class MainActivity : Activity() {
         if (::duration.isInitialized) duration.setTextColor(inkMuted)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(inkMuted)
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
-        if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(Color.WHITE)
-        if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
+        if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
         if (::seek.isInitialized) {
             // Build 2.7: grey track, accent for the played part, white thumb.
             seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            seek.thumbTintList = ColorStateList.valueOf(Color.WHITE)
+            seek.thumbTintList = ColorStateList.valueOf(ink)
             seek.invalidate()
         }
         if (::playView.isInitialized) {
@@ -896,14 +899,24 @@ class MainActivity : Activity() {
 
 
 
-    /** The Dark / Light theme buttons shown in Setting. Light is only a placeholder for now. */
+    /** Dark and Light share identical geometry; switching rebuilds the UI, never the player. */
     private fun fillThemeButtons(container: LinearLayout) {
         container.removeAllViews()
-        container.addView(action("DARK", true) { }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        container.addView(action("DARK", !lightTheme) { setLightTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
         container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        container.addView(action("LIGHT", false) {
-            Toast.makeText(this, "Light theme is coming later.", Toast.LENGTH_SHORT).show()
-        }.apply { alpha = 0.5f }, LinearLayout.LayoutParams(0, dp(40), 1f))
+        container.addView(action("LIGHT", lightTheme) { setLightTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+    }
+
+    private fun setLightTheme(enabled: Boolean) {
+        if (lightTheme == enabled) return
+        lightTheme = enabled
+        getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", enabled).apply()
+        appliedPlayerSurface = null
+        playerSurface = if (enabled) LIGHT_SURFACE else DARK_SURFACE
+        playerInk = if (enabled) Color.BLACK else Color.WHITE
+        applySystemBars()
+        buildUi()
+        G6Widgets.renderAll(this)
     }
 
     /** Cover for the Classic backdrop: scaled to ~96 px and box-blurred, so it can be stretched over the screen cheaply. */
@@ -960,7 +973,7 @@ class MainActivity : Activity() {
     }
 
     private fun newDarkDrawable(): DarkBackdropDrawable =
-        DarkBackdropDrawable().also { it.bitmap = darkBackdropBitmap; darkDrawables.add(it) }
+        DarkBackdropDrawable(lightTheme).also { it.bitmap = darkBackdropBitmap; darkDrawables.add(it) }
 
     /** Called with the cover that is on screen (or null when the track has none); repaints every Classic backdrop. */
     private fun updateDarkBackdrop(source: android.graphics.Bitmap?) {
@@ -974,7 +987,7 @@ class MainActivity : Activity() {
      * Classic theme page background: the softened cover filling the screen (centre-crop), a black veil so the
      * page reads as "semi black", and a little extra black towards the bottom behind the controls.
      */
-    private class DarkBackdropDrawable : android.graphics.drawable.Drawable() {
+    private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
@@ -984,14 +997,16 @@ class MainActivity : Activity() {
         override fun onBoundsChange(bounds: android.graphics.Rect) {
             shadePaint.shader = android.graphics.LinearGradient(
                 0f, bounds.top + bounds.height() * 0.45f, 0f, bounds.bottom.toFloat(),
-                0x00000000, 0xB0000000.toInt(), android.graphics.Shader.TileMode.CLAMP
+                if (light) 0x00FFFFFF else 0x00000000,
+                if (light) 0xB0FFFFFF.toInt() else 0xB0000000.toInt(),
+                android.graphics.Shader.TileMode.CLAMP
             )
         }
 
         override fun draw(canvas: android.graphics.Canvas) {
             val b = bounds
             if (b.width() <= 0 || b.height() <= 0) return
-            canvas.drawColor(0xFF000000.toInt())
+            canvas.drawColor(if (light) LIGHT_SURFACE else DARK_SURFACE)
             bitmap?.takeIf { !it.isRecycled }?.let { bmp ->
                 val scale = maxOf(b.width() / bmp.width.toFloat(), b.height() / bmp.height.toFloat())
                 val sw = (b.width() / scale).toInt().coerceIn(1, bmp.width)
@@ -1001,7 +1016,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(0xA6000000.toInt())
+            canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xA6000000.toInt())
             canvas.drawRect(b, shadePaint)
         }
 
@@ -3391,6 +3406,7 @@ class MainActivity : Activity() {
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         /** Classic theme page colour (the original black). */
         private const val DARK_SURFACE = 0xFF000000.toInt()
+        private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }
 }

@@ -187,7 +187,8 @@ object G6Widgets {
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
-        val bitmap = progressBitmap(progress)
+        val light = app.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+        val bitmap = progressBitmap(progress, light)
         try {
             val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewBitmap(R.id.w_progress, bitmap)
@@ -243,12 +244,13 @@ object G6Widgets {
             val position = prefs.getInt(K_POS, 0)
             val duration = prefs.getInt(K_DUR, 0)
             val hires = hasTrack && prefs.getBoolean(K_HIRES, false)
+            val light = app.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
 
             if (ids4.isNotEmpty()) {
                 // Rounded-square cover for the 4x1. updateAppWidget has already copied the bitmap into the outgoing parcel.
                 val cover = coverBitmap(app, hasTrack, CORNER_FRACTION, hires)
                 try {
-                    val views = build4x1(app, R.layout.g6_widget_4x1, title, artist, album, hasTrack, playing, position, duration, cover)
+                    val views = build4x1(app, R.layout.g6_widget_4x1, title, artist, album, hasTrack, playing, position, duration, cover, light)
                     try { manager.updateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
@@ -258,7 +260,7 @@ object G6Widgets {
                 // Round cover for the 2x2.
                 val cover = coverBitmap(app, hasTrack, CIRCLE_FRACTION, hires)
                 try {
-                    val views = build2x2(app, playing, cover)
+                    val views = build2x2(app, playing, cover, light)
                     try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
@@ -271,16 +273,26 @@ object G6Widgets {
 
     private fun build4x1(
         context: Context, layout: Int, title: String, artist: String, album: String, hasTrack: Boolean,
-        playing: Boolean, position: Int, duration: Int, cover: Bitmap
+        playing: Boolean, position: Int, duration: Int, cover: Bitmap, light: Boolean
     ): RemoteViews {
-        val total = duration.coerceAtLeast(1)
         return RemoteViews(context.packageName, layout).apply {
             setImageViewBitmap(R.id.w_art, cover)
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
+            setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
+            setTextColor(R.id.w_artist, if (light) 0xFF686875.toInt() else 0xFFE0E0E6.toInt())
+            setInt(R.id.w_card, "setBackgroundResource", if (light) R.drawable.g6_widget_bg_4x2_light else R.drawable.g6_widget_bg_4x2)
+            val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+            val buttonBg = if (light) R.drawable.g6_widget_btn_light else R.drawable.g6_widget_btn
+            setInt(R.id.w_prev, "setBackgroundResource", buttonBg)
+            setInt(R.id.w_play, "setBackgroundResource", buttonBg)
+            setInt(R.id.w_next, "setBackgroundResource", buttonBg)
+            setInt(R.id.w_prev, "setColorFilter", iconTint)
+            setInt(R.id.w_play, "setColorFilter", iconTint)
+            setInt(R.id.w_next, "setColorFilter", iconTint)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
-            setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0))
+            setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x2Provider::class.java, 4202, "toggle"))
             setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget4x2Provider::class.java, 4203, "next"))
@@ -288,10 +300,12 @@ object G6Widgets {
         }
     }
 
-    private fun build2x2(context: Context, playing: Boolean, cover: Bitmap): RemoteViews =
+    private fun build2x2(context: Context, playing: Boolean, cover: Bitmap, light: Boolean): RemoteViews =
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
             setImageViewBitmap(R.id.w_art, cover)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2)
+            setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_widget_btn_square_2x2_light else R.drawable.g6_widget_btn_square_2x2)
+            setInt(R.id.w_play, "setColorFilter", if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
@@ -299,18 +313,31 @@ object G6Widgets {
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
+        val light = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
         val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
         val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
+        val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
+                val buttonBg = if (light) R.drawable.g6_widget_btn_light else R.drawable.g6_widget_btn
+                setInt(R.id.w_prev, "setBackgroundResource", buttonBg)
+                setInt(R.id.w_play, "setBackgroundResource", buttonBg)
+                setInt(R.id.w_next, "setBackgroundResource", buttonBg)
+                setInt(R.id.w_prev, "setColorFilter", iconTint)
+                setInt(R.id.w_play, "setColorFilter", iconTint)
+                setInt(R.id.w_next, "setColorFilter", iconTint)
             }
             try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 playback update failed", e) }
         }
         val ids2 = manager.getAppWidgetIds(ComponentName(context, G6Widget2x2Provider::class.java))
         if (ids2.isNotEmpty()) {
-            val views = RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply { setImageViewResource(R.id.w_play, widget2x2Icon) }
+            val views = RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
+                setImageViewResource(R.id.w_play, widget2x2Icon)
+                setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_widget_btn_square_2x2_light else R.drawable.g6_widget_btn_square_2x2)
+                setInt(R.id.w_play, "setColorFilter", iconTint)
+            }
             try { manager.partiallyUpdateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 playback update failed", e) }
         }
     }
@@ -321,14 +348,14 @@ object G6Widgets {
     }
 
     /** Draw a tiny accent progress line into a bitmap so the launcher only inflates an ordinary ImageView. */
-    private fun progressBitmap(progress: Int): Bitmap {
+    private fun progressBitmap(progress: Int, light: Boolean): Bitmap {
         val width = 400
         val height = 6
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val radius = height / 2f
-        paint.color = 0xFF303038.toInt()
+        paint.color = if (light) 0xFFD8D8E2.toInt() else 0xFF303038.toInt()
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
         if (filled > 0f) {
@@ -377,11 +404,12 @@ object G6Widgets {
         val size = PLACEHOLDER_PX
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A2A33.toInt() }
+        val light = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (light) 0xFFE9E9F0.toInt() else 0xFF2A2A33.toInt() }
         val radius = size * fraction
         canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)
         context.getDrawable(R.drawable.ic_stat_music)?.mutate()?.let { icon ->
-            icon.setTint(0xFF8E8E98.toInt())
+            icon.setTint(if (light) 0xFF686875.toInt() else 0xFF8E8E98.toInt())
             val pad = (size * 0.28f).toInt()
             icon.setBounds(pad, pad, size - pad, size - pad)
             icon.draw(canvas)
