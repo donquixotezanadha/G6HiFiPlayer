@@ -595,8 +595,7 @@ class MainActivity : Activity() {
             // The previous custom ClipDrawable made the Now Playing progress invisible.
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
-            // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
-            // Build 2.9: slightly thinner track (4dp -> PROGRESS_THICKNESS_DP).
+            // Build 3.05: no thumb; the track and played segment share the same rounded 4dp path.
             progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
             thumb = null
             minimumHeight = dp(28)
