@@ -183,7 +183,8 @@ object G6Widgets {
         }
         val manager = AppWidgetManager.getInstance(app)
         val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
-        if (ids.isEmpty()) return
+        val clockIds = manager.getAppWidgetIds(ComponentName(app, G6WidgetMusicClock4x2Provider::class.java))
+        if (ids.isEmpty() && clockIds.isEmpty()) return
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
@@ -195,9 +196,15 @@ object G6Widgets {
             manager.partiallyUpdateAppWidget(ids, views)
         } catch (e: Exception) {
             Log.w(TAG, "4x1 progress update failed", e)
-        } finally {
-            if (!bitmap.isRecycled) bitmap.recycle()
         }
+        if (clockIds.isNotEmpty()) {
+            val clockViews = RemoteViews(app.packageName, R.layout.g6_widget_music_clock_4x2).apply {
+                setImageViewBitmap(R.id.w_progress, bitmap)
+            }
+            try { manager.partiallyUpdateAppWidget(clockIds, clockViews) }
+            catch (e: Exception) { Log.w(TAG, "Music + Clock progress update failed", e) }
+        }
+        if (!bitmap.isRecycled) bitmap.recycle()
     }
 
     // ---- called by the providers ------------------------------------------------------------
@@ -231,8 +238,9 @@ object G6Widgets {
         synchronized(lock) {
             val manager = AppWidgetManager.getInstance(app)
             val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
+            val idsClock = manager.getAppWidgetIds(ComponentName(app, G6WidgetMusicClock4x2Provider::class.java))
             val ids2 = manager.getAppWidgetIds(ComponentName(app, G6Widget2x2Provider::class.java))
-            if (ids4.isEmpty() && ids2.isEmpty()) return
+            if (ids4.isEmpty() && idsClock.isEmpty() && ids2.isEmpty()) return
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean(K_HAS, false)
@@ -250,6 +258,16 @@ object G6Widgets {
                 try {
                     val views = build4x1(app, R.layout.g6_widget_4x1, title, artist, album, hasTrack, playing, position, duration, cover)
                     try { manager.updateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 update failed", e) }
+                } finally {
+                    if (!cover.isRecycled) cover.recycle()
+                }
+            }
+            if (idsClock.isNotEmpty()) {
+                val cover = coverBitmap(app, hasTrack, CORNER_FRACTION, hires)
+                try {
+                    val views = build4x1(app, R.layout.g6_widget_music_clock_4x2, title, artist, album, hasTrack, playing, position, duration, cover)
+                    try { manager.updateAppWidget(idsClock, views) }
+                    catch (e: Exception) { Log.w(TAG, "Music + Clock 4x2 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
                 }
@@ -307,6 +325,14 @@ object G6Widgets {
                 setImageViewResource(R.id.w_play, icon)
             }
             try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 playback update failed", e) }
+        }
+        val idsClock = manager.getAppWidgetIds(ComponentName(context, G6WidgetMusicClock4x2Provider::class.java))
+        if (idsClock.isNotEmpty()) {
+            val views = RemoteViews(context.packageName, R.layout.g6_widget_music_clock_4x2).apply {
+                setImageViewResource(R.id.w_play, icon)
+            }
+            try { manager.partiallyUpdateAppWidget(idsClock, views) }
+            catch (e: Exception) { Log.w(TAG, "Music + Clock playback update failed", e) }
         }
         val ids2 = manager.getAppWidgetIds(ComponentName(context, G6Widget2x2Provider::class.java))
         if (ids2.isNotEmpty()) {
@@ -466,5 +492,7 @@ open class G6WidgetProviderBase : AppWidgetProvider() {
 }
 
 class G6Widget4x2Provider : G6WidgetProviderBase()
+
+class G6WidgetMusicClock4x2Provider : G6WidgetProviderBase()
 
 class G6Widget2x2Provider : G6WidgetProviderBase()
