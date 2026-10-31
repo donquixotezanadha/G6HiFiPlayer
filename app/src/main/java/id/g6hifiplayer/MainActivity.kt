@@ -598,7 +598,7 @@ class MainActivity : Activity() {
             // A custom rounded drawable makes the played thickness visibly 5dp on Android 9.
             // Build 2.9: slightly thinner track (4dp -> PROGRESS_THICKNESS_DP).
             progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            thumbTintList = ColorStateList.valueOf(WHITE)
+            thumb = context.getDrawable(R.drawable.progress_thumb_white)
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -859,7 +859,7 @@ class MainActivity : Activity() {
         if (::seek.isInitialized) {
             // Build 3.01: Light uses a light-grey unplayed track and keeps the thumb white; Dark is unchanged.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            seek.thumbTintList = ColorStateList.valueOf(WHITE)
+            seek.thumb = context.getDrawable(R.drawable.progress_thumb_white)
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
