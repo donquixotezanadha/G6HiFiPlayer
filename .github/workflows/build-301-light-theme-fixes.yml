@@ -83,4 +83,4 @@ jobs:
           echo "- Playback, native audio code, and Dark theme values unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
           echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
-          echo "[Download exact Build 3.00 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 3.01 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
