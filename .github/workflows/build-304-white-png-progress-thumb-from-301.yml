@@ -41,7 +41,8 @@ jobs:
           grep -q 'versionCode = 304' app/build.gradle.kts
           grep -q 'versionName = "3.04"' app/build.gradle.kts
           test -s app/src/main/res/drawable-nodpi/progress_thumb_white.png
-          test "$(grep -c 'thumb = context.getDrawable(R.drawable.progress_thumb_white)' app/src/main/java/id/g6hifiplayer/MainActivity.kt)" -eq 2
+          grep -q 'thumb = context.getDrawable(R.drawable.progress_thumb_white)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'seek.thumb = getDrawable(R.drawable.progress_thumb_white)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'LIGHT_PROGRESS_TRACK_GREY' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'hiResBadgeShown = false' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'private var lightTheme = false' app/src/main/java/id/g6hifiplayer/MainActivity.kt
