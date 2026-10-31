@@ -57,7 +57,7 @@ jobs:
           AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
           "$AAPT2" dump badging "$APK" | grep -F "versionCode='304' versionName='3.04'"
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
-          unzip -l "$APK" | grep -q "res/drawable-nodpi/progress_thumb_white.png"
+          unzip -l "$APK" | grep -Eq "res/drawable-nodpi(-v[0-9]+)?/progress_thumb_white.png"
           "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
           grep -q "G6Widget4x2Provider" /tmp/manifest.txt
           grep -q "G6Widget2x2Provider" /tmp/manifest.txt
