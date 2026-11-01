@@ -1,0 +1,89 @@
+name: G6HiFiPlayer Build 3.14 - theme-aware splash
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-314-theme-aware-splash"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify Build 3.14 splash behavior and scope
+        run: |
+          set -euo pipefail
+          BASE=b84a7a3bb7c19a240aac63d43bea2fffee0ce4f5
+          git cat-file -e "$BASE^{commit}"
+          grep -q 'versionCode = 314' app/build.gradle.kts
+          grep -q 'versionName = "3.14"' app/build.gradle.kts
+          grep -q 'android:name="id.g6hifiplayer.MainActivityDark"' app/src/main/AndroidManifest.xml
+          grep -q 'android:name="id.g6hifiplayer.MainActivityLight"' app/src/main/AndroidManifest.xml
+          grep -q 'syncLauncherThemeAlias(savedLightTheme)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'syncLauncherThemeAlias(enabled)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'setImageResource(R.drawable.ic_launcher_foreground_original)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q '<item name="android:windowBackground">#FFFFFFFF</item>' app/src/main/res/values/styles.xml
+          grep -q '<item name="android:windowBackground">#FF101014</item>' app/src/main/res/values/styles.xml
+          grep -q 'setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          git diff --exit-code "$BASE"...HEAD -- app/src/main/cpp app/src/main/res/layout app/src/main/res/xml app/src/main/res/drawable-nodpi/ic_launcher_foreground_original.png
+          echo "Build 3.14 scope verified: theme-specific launcher aliases, Light/Dark starting-window colors, large foreground-only in-app splash."
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='314' versionName='3.14'"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q 'MainActivityDark' /tmp/manifest.txt
+          grep -q 'MainActivityLight' /tmp/manifest.txt
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/G6HiFiPlayer-3.14-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-3.14-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+      - name: Upload Build 3.14 artifact
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-3.14-${{ github.sha }}
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish build identity
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## G6HiFiPlayer Build 3.14 - Theme-aware splash" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Restored separate Light and Dark launcher aliases; only the alias matching the saved theme is enabled." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Android 9 starting-window background follows the active theme instead of being forced plain black." >> "$GITHUB_STEP_SUMMARY"
+          echo "- In-app splash keeps the large 112dp foreground-only app mark and theme-matched background." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Playback engine, native audio, widgets, and cache are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 3.14 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
