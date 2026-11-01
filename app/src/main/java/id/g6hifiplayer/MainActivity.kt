@@ -417,24 +417,14 @@ class MainActivity : Activity() {
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                // Build 3.20: new headphones logo (replaces the old launcher mark everywhere).
-                setImageResource(R.drawable.ic_splash_logo)
+                // Build 3.21: dark theme uses the colour-inverted logo (white) on the black splash; light theme uses the black logo.
+                setImageResource(if (lightTheme) R.drawable.ic_splash_logo else R.drawable.ic_splash_logo_inverted)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "G6HiFiPlayer"
             }
-            // Build 3.20: logo is 40% of the screen width (aspect ratio of the new image kept).
+            // Logo is 40% of the screen width (aspect ratio of the image kept).
             val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.40f).toInt()
             val splashLogoHeight = (splashLogoWidth * 1567f / 1442f).toInt()
-            if (!lightTheme) {
-                // The logo is black, so on the black dark-theme splash it sits on a white disc to stay visible.
-                val disc = (splashLogoWidth * 1.22f).toInt()
-                splash.addView(View(this).apply {
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        shape = android.graphics.drawable.GradientDrawable.OVAL
-                        setColor(0xFFFFFFFF.toInt())
-                    }
-                }, FrameLayout.LayoutParams(disc, disc, Gravity.CENTER))
-            }
             splash.addView(logo, FrameLayout.LayoutParams(splashLogoWidth, splashLogoHeight, Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
