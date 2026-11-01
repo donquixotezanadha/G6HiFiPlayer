@@ -417,14 +417,24 @@ class MainActivity : Activity() {
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                // Build 3.10: use only the launcher foreground mark, without the full adaptive-icon background.
-                setImageResource(R.drawable.ic_launcher_foreground_original)
+                // Build 3.20: new headphones logo (replaces the old launcher mark everywhere).
+                setImageResource(R.drawable.ic_splash_logo)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "G6HiFiPlayer"
             }
-            // Build 3.19: large, centered foreground logo; scale to ~42% of screen width while preserving its portrait aspect ratio.
-            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.42f).toInt()
-            val splashLogoHeight = (splashLogoWidth * 1.25f).toInt()
+            // Build 3.20: logo is 40% of the screen width (aspect ratio of the new image kept).
+            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.40f).toInt()
+            val splashLogoHeight = (splashLogoWidth * 1567f / 1442f).toInt()
+            if (!lightTheme) {
+                // The logo is black, so on the black dark-theme splash it sits on a white disc to stay visible.
+                val disc = (splashLogoWidth * 1.22f).toInt()
+                splash.addView(View(this).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(0xFFFFFFFF.toInt())
+                    }
+                }, FrameLayout.LayoutParams(disc, disc, Gravity.CENTER))
+            }
             splash.addView(logo, FrameLayout.LayoutParams(splashLogoWidth, splashLogoHeight, Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
