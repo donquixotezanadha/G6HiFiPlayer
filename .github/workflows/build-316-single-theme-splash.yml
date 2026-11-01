@@ -1,0 +1,94 @@
+name: G6HiFiPlayer Build 3.16 - single theme-aware splash
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-316-single-theme-splash"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify Build 3.16 splash scope
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode = 316' app/build.gradle.kts
+          grep -q 'versionName = "3.16"' app/build.gradle.kts
+          grep -q 'android:name="id.g6hifiplayer.MainActivityDark"' app/src/main/AndroidManifest.xml
+          grep -q 'android:name="id.g6hifiplayer.MainActivityLight"' app/src/main/AndroidManifest.xml
+          grep -q 'syncLauncherThemeAlias(savedLightTheme)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'android:windowBackground">@drawable/launch_splash_light' app/src/main/res/values/styles.xml
+          grep -q 'android:windowBackground">@drawable/launch_splash_dark' app/src/main/res/values/styles.xml
+          grep -q 'android:color="#FFF8F8FC"' app/src/main/res/drawable/launch_splash_light.xml
+          grep -q 'android:color="#FF000000"' app/src/main/res/drawable/launch_splash_dark.xml
+          grep -q 'android:width="112dp"' app/src/main/res/drawable/launch_splash_light.xml
+          grep -q 'android:width="112dp"' app/src/main/res/drawable/launch_splash_dark.xml
+          grep -q 'android:drawable="@drawable/ic_launcher_foreground_original"' app/src/main/res/drawable/launch_splash_light.xml
+          grep -q 'android:drawable="@drawable/ic_launcher_foreground_original"' app/src/main/res/drawable/launch_splash_dark.xml
+          ! grep -q 'startupSplashShown' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          ! grep -q 'var startupSplash:' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q 'no second in-app splash overlay' app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          git diff --exit-code origin/build-314-theme-aware-splash...HEAD -- app/src/main/cpp app/src/main/res/layout app/src/main/res/xml
+          echo "Build 3.16 scope verified: one launch-window splash, no in-app duplicate, theme-aware background and unchanged audio/widgets."
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='316' versionName='3.16'"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q 'MainActivityDark' /tmp/manifest.txt
+          grep -q 'MainActivityLight' /tmp/manifest.txt
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
+          unzip -l "$APK" | grep -q 'res/drawable/launch_splash_light.xml'
+          unzip -l "$APK" | grep -q 'res/drawable/launch_splash_dark.xml'
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/G6HiFiPlayer-3.16-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-3.16-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+      - name: Upload Build 3.16 artifact
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-3.16-${{ github.sha }}
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish build identity
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## G6HiFiPlayer Build 3.16 - Single theme-aware splash" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- The existing foreground logo is centered at 112dp in the launch window, which serves as the only visible splash." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dark theme: black background; Light theme: #F8F8FC background." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Removed the in-app splash overlay to prevent a second logo/splash phase." >> "$GITHUB_STEP_SUMMARY"
+          echo "- No logo asset redesign; audio engine, widgets, cache, and layout resources are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 3.16 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
