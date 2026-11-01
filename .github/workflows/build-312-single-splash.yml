@@ -1,0 +1,85 @@
+name: G6HiFiPlayer Build 3.12 - single in-app splash
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build-312-single-splash"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Verify Build 3.12 identity and scope
+        run: |
+          set -euo pipefail
+          BASE=507d65977994b34925de897acb05f9c47e353eea
+          git cat-file -e "$BASE^{commit}"
+          grep -q 'versionCode = 312' app/build.gradle.kts
+          grep -q 'versionName = "3.12"' app/build.gradle.kts
+          grep -q "syncLauncherTheme(savedLightTheme)" app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q "syncLauncherTheme(enabled)" app/src/main/java/id/g6hifiplayer/MainActivity.kt
+          grep -q '<item name="android:windowBackground">#FFFFFFFF</item>' app/src/main/res/values/styles.xml
+          grep -q '<item name="android:windowBackground">#FF101014</item>' app/src/main/res/values/styles.xml
+          ! grep -q 'splash_window_' app/src/main/res/values/styles.xml
+          git diff --exit-code "$BASE"...HEAD -- app/src/main/cpp app/src/main/res/layout app/src/main/res/xml app/src/main/res/drawable-nodpi/ic_launcher_foreground_original.png
+          echo "Build 3.12 scope verified: removed duplicate starting-window logo; in-app splash and theme preference preserved."
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" | grep -F "versionCode='312' versionName='3.12'"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q "MainActivityDark" /tmp/manifest.txt
+          grep -q "MainActivityLight" /tmp/manifest.txt
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libg6direct.so"
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/G6HiFiPlayer-3.12-${GITHUB_SHA::7}.apk"
+          sha256sum "verified-artifact/G6HiFiPlayer-3.12-${GITHUB_SHA::7}.apk" | tee verified-artifact/SHA256SUMS.txt
+      - name: Upload Build 3.12 artifact
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: G6HiFiPlayer-3.12-${{ github.sha }}
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish build identity
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+        run: |
+          echo "## G6HiFiPlayer Build 3.12 - Single in-app splash" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base: Build 3.11 (starting-window splash logo removed)." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Only the existing in-app startup splash displays the logo." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Theme-matched plain starting-window background and saved Light/Dark preference are preserved." >> "$GITHUB_STEP_SUMMARY"
+          echo "- App logo, in-app splash timing, widgets, playback engine, native audio, and cache are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: see SHA256SUMS.txt in the artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download exact Build 3.12 artifact ZIP]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
