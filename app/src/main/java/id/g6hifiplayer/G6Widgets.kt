@@ -182,20 +182,31 @@ object G6Widgets {
             }
         }
         val manager = AppWidgetManager.getInstance(app)
-        val ids = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
-        if (ids.isEmpty()) return
+        val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
+        val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
+        if (ids4.isEmpty() && idsText.isEmpty()) return
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
         val light = app.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
         val bitmap = progressBitmap(progress, light)
         try {
-            val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
-                setImageViewBitmap(R.id.w_progress, bitmap)
+            if (ids4.isNotEmpty()) {
+                val views = RemoteViews(app.packageName, R.layout.g6_widget_4x1).apply {
+                    setImageViewBitmap(R.id.w_progress, bitmap)
+                }
+                manager.partiallyUpdateAppWidget(ids4, views)
             }
-            manager.partiallyUpdateAppWidget(ids, views)
+            if (idsText.isNotEmpty()) {
+                val views = RemoteViews(app.packageName, R.layout.g6_widget_text_4x2).apply {
+                    setImageViewBitmap(R.id.w_progress, bitmap)
+                    setTextViewText(R.id.w_elapsed, timeLabel(position))
+                    setTextViewText(R.id.w_duration, timeLabel(duration))
+                }
+                manager.partiallyUpdateAppWidget(idsText, views)
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "4x1 progress update failed", e)
+            Log.w(TAG, "widget progress update failed", e)
         } finally {
             if (!bitmap.isRecycled) bitmap.recycle()
         }
@@ -233,7 +244,8 @@ object G6Widgets {
             val manager = AppWidgetManager.getInstance(app)
             val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
             val ids2 = manager.getAppWidgetIds(ComponentName(app, G6Widget2x2Provider::class.java))
-            if (ids4.isEmpty() && ids2.isEmpty()) return
+            val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
+            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty()) return
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean(K_HAS, false)
@@ -265,6 +277,10 @@ object G6Widgets {
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
                 }
+            }
+            if (idsText.isNotEmpty()) {
+                val views = buildText4x2(app, title, artist, hasTrack, playing, position, duration, light)
+                try { manager.updateAppWidget(idsText, views) } catch (e: Exception) { Log.w(TAG, "text 4x2 update failed", e) }
             }
         }
     }
@@ -311,6 +327,43 @@ object G6Widgets {
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
 
+    /** Build 3.08: transparent typography-only 4x2 widget; only its upper-right icon opens Now Playing. */
+    private fun buildText4x2(
+        context: Context, title: String, artist: String, hasTrack: Boolean,
+        playing: Boolean, position: Int, duration: Int, light: Boolean
+    ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_text_4x2).apply {
+        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF686875.toInt() else 0xFFE0E0E6.toInt()
+        setTextViewText(R.id.w_title, title)
+        setTextViewText(R.id.w_artist, artist)
+        setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
+        setTextColor(R.id.w_title, ink)
+        setTextColor(R.id.w_artist, muted)
+        setTextColor(R.id.w_elapsed, muted)
+        setTextColor(R.id.w_duration, muted)
+        setImageViewResource(R.id.w_open_player, R.drawable.ic_stat_music)
+        setInt(R.id.w_open_player, "setColorFilter", ink)
+        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+        setInt(R.id.w_play, "setColorFilter", ink)
+        setTextViewText(R.id.w_elapsed, timeLabel(position))
+        setTextViewText(R.id.w_duration, timeLabel(duration))
+        setImageViewBitmap(R.id.w_progress, progressBitmap(
+            if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
+            light
+        ))
+        setOnClickPendingIntent(R.id.w_open_player, openPlayerIntent(context, 4301))
+        setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetText4x2Provider::class.java, 4302, "toggle"))
+    }
+
+    private fun timeLabel(milliseconds: Int): String {
+        val seconds = milliseconds.coerceAtLeast(0) / 1000
+        return if (seconds >= 3600) {
+            String.format(java.util.Locale.ROOT, "%d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+        } else {
+            String.format(java.util.Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60)
+        }
+    }
+
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
@@ -340,6 +393,14 @@ object G6Widgets {
                 setInt(R.id.w_play, "setColorFilter", iconTint)
             }
             try { manager.partiallyUpdateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 playback update failed", e) }
+        }
+        val idsText = manager.getAppWidgetIds(ComponentName(context, G6WidgetText4x2Provider::class.java))
+        if (idsText.isNotEmpty()) {
+            val views = RemoteViews(context.packageName, R.layout.g6_widget_text_4x2).apply {
+                setImageViewResource(R.id.w_play, icon)
+                setInt(R.id.w_play, "setColorFilter", iconTint)
+            }
+            try { manager.partiallyUpdateAppWidget(idsText, views) } catch (e: Exception) { Log.w(TAG, "text 4x2 playback update failed", e) }
         }
     }
 
@@ -455,6 +516,15 @@ object G6Widgets {
             pendingFlags()
         )
 
+    private fun openPlayerIntent(context: Context, requestCode: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context, requestCode,
+            Intent(context, MainActivity::class.java)
+                .putExtra("g6_open_player", true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            pendingFlags()
+        )
+
     /** The pre-2.14 widgets kept their state under other names; remove it once. */
     private fun cleanupOldWidgetData(context: Context, prefs: android.content.SharedPreferences) {
         if (prefs.getBoolean(K_OLD_CLEANED, false)) return
@@ -497,3 +567,5 @@ open class G6WidgetProviderBase : AppWidgetProvider() {
 class G6Widget4x2Provider : G6WidgetProviderBase()
 
 class G6Widget2x2Provider : G6WidgetProviderBase()
+
+class G6WidgetText4x2Provider : G6WidgetProviderBase()
