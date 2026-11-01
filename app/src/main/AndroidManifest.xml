@@ -19,38 +19,14 @@
         <activity
             android:name="id.g6hifiplayer.MainActivity"
             android:launchMode="singleTop"
-            android:exported="true" />
-
-        <!-- Exactly one theme-specific launcher alias is enabled at a time. -->
-        <activity-alias
-            android:name="id.g6hifiplayer.MainActivityDark"
-            android:targetActivity="id.g6hifiplayer.MainActivity"
-            android:enabled="true"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
-            android:label="Music"
-            android:theme="@style/Theme.G6HiFiPlayer.Dark">
+            android:exported="true">
+            <!-- Build 3.17: the only launcher entry. No runtime-toggled aliases, so the system never sees two apps. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity-alias>
+        </activity>
 
-        <activity-alias
-            android:name="id.g6hifiplayer.MainActivityLight"
-            android:targetActivity="id.g6hifiplayer.MainActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
-            android:label="Music"
-            android:theme="@style/Theme.G6HiFiPlayer">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
         <service
             android:name="id.g6hifiplayer.PlaybackKeepAliveService"
             android:exported="false"

@@ -286,12 +286,11 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Android 9 may draw the pre-process starting window from the enabled theme-specific launcher alias.
+        // Build 3.17: one launcher entry only; the theme comes from the saved preference (starting window is disabled).
         val savedLightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         setTheme(if (savedLightTheme) R.style.Theme_G6HiFiPlayer else R.style.Theme_G6HiFiPlayer_Dark)
         super.onCreate(savedInstanceState)
         lightTheme = savedLightTheme
-        syncLauncherThemeAlias(savedLightTheme)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
@@ -955,30 +954,10 @@ class MainActivity : Activity() {
         container.addView(action("LIGHT", lightTheme) { setLightTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
     }
 
-    /**
-     * Android 9 creates its starting window from the launch component's manifest theme
-     * before MainActivity can read preferences or call setTheme(). Keep one matching alias enabled.
-     */
-    private fun syncLauncherThemeAlias(useLightTheme: Boolean) {
-        val darkAlias = android.content.ComponentName(this, "id.g6hifiplayer.MainActivityDark")
-        val lightAlias = android.content.ComponentName(this, "id.g6hifiplayer.MainActivityLight")
-        val darkState = if (useLightTheme) PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            else PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-        val lightState = if (useLightTheme) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-        try {
-            packageManager.setComponentEnabledSetting(darkAlias, darkState, PackageManager.DONT_KILL_APP)
-            packageManager.setComponentEnabledSetting(lightAlias, lightState, PackageManager.DONT_KILL_APP)
-        } catch (_: Exception) {
-            // The in-app theme still works if a launcher implementation rejects alias updates.
-        }
-    }
-
     private fun setLightTheme(enabled: Boolean) {
         if (lightTheme == enabled) return
         lightTheme = enabled
         getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", enabled).apply()
-        syncLauncherThemeAlias(enabled)
         appliedPlayerSurface = null
         playerSurface = if (enabled) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (enabled) Color.BLACK else Color.WHITE
