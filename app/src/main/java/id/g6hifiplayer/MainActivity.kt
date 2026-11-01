@@ -413,12 +413,13 @@ class MainActivity : Activity() {
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                setImageResource(R.drawable.ic_launcher_foreground)
+                // Build 3.09: use the actual full-colour launcher icon, not a tinted foreground silhouette.
+                setImageResource(R.mipmap.ic_launcher)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                setColorFilter(if (lightTheme) Color.BLACK else Color.WHITE)
                 contentDescription = "G6HiFiPlayer"
             }
-            splash.addView(logo, FrameLayout.LayoutParams(dp(68), dp(68), Gravity.CENTER))
+            // Large, centered app identity inspired by the generous logo scale used by ChatGPT.
+            splash.addView(logo, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
             startupSplash = splash
