@@ -107,6 +107,8 @@ class MainActivity : Activity() {
     private lateinit var artBox: FrameLayout
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
     private var lightTheme = false
+    // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
+    private var startupSplashShown = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     private val CARD get() = if (lightTheme) 0xB8FFFFFF.toInt() else 0xB8101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
@@ -403,7 +405,44 @@ class MainActivity : Activity() {
             if (root.paddingBottom != bottomInset) root.setPadding(0, 0, 0, bottomInset)
             insets
         }
+        var startupSplash: FrameLayout? = null
+        if (!startupSplashShown) {
+            val splash = FrameLayout(this).apply {
+                setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE)
+                isClickable = true
+                isFocusable = true
+            }
+            val logo = ImageView(this).apply {
+                setImageResource(R.drawable.ic_launcher_foreground)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setColorFilter(if (lightTheme) Color.BLACK else Color.WHITE)
+                contentDescription = "G6HiFiPlayer"
+            }
+            splash.addView(logo, FrameLayout.LayoutParams(dp(68), dp(68), Gravity.CENTER))
+            stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
+            startupSplashShown = true
+            startupSplash = splash
+        }
         setContentView(stage)
+        startupSplash?.let { splash ->
+            // Start the ~2-second minimum after the first frame is ready, then fade smoothly.
+            stage.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+                override fun onPreDraw(): Boolean {
+                    if (stage.viewTreeObserver.isAlive) stage.viewTreeObserver.removeOnPreDrawListener(this)
+                    handler.postDelayed({
+                        if (!isFinishing && !isDestroyed && splash.parent === stage) {
+                            splash.animate()
+                                .alpha(0f)
+                                .setDuration(320L)
+                                .setInterpolator(DecelerateInterpolator())
+                                .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
+                                .start()
+                        }
+                    }, 1680L)
+                    return true
+                }
+            })
+        }
         stage.requestApplyInsets()
         buildingUi = false
         show("player"); renderLibrary(); restoreNowPlayingMetadata(); updateHiResBadges()
@@ -3020,6 +3059,7 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra("g6_open_player", false)) show("player")
         intent.getStringExtra("notification_action")?.let { handleNotificationAction(it) }
     }
 
