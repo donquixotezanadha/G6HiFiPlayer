@@ -19,12 +19,34 @@
         <activity
             android:name="id.g6hifiplayer.MainActivity"
             android:launchMode="singleTop"
-            android:exported="true">
+            android:exported="true" />
+        <!-- The enabled alias selects the pre-process starting-window theme on Android 9. -->
+        <activity-alias
+            android:name="id.g6hifiplayer.MainActivityDark"
+            android:targetActivity="id.g6hifiplayer.MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Music"
+            android:theme="@style/Theme.G6HiFiPlayer.Dark">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name="id.g6hifiplayer.MainActivityLight"
+            android:targetActivity="id.g6hifiplayer.MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Music"
+            android:theme="@style/Theme.G6HiFiPlayer">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <service
             android:name="id.g6hifiplayer.PlaybackKeepAliveService"
             android:exported="false"
