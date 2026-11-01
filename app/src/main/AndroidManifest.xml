@@ -13,7 +13,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Music"
-        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:theme="@style/Theme.G6HiFiPlayer"
         android:supportsRtl="true">
 
         <activity
