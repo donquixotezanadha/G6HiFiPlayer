@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 9 starting window: show white immediately before the in-app splash is drawn. -->
+    <!-- Light is the default manifest theme; MainActivity selects the saved app theme before super.onCreate. -->
     <style name="Theme.G6HiFiPlayer" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#FFFFFFFF</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#7C4DFF</item>
+    </style>
+
+    <!-- Android 9 Activity window for users whose saved in-app theme is Dark. -->
+    <style name="Theme.G6HiFiPlayer.Dark" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF101014</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#7C4DFF</item>
