@@ -285,8 +285,12 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Choose the Activity window theme from the persisted app preference as early as possible.
+        // Android 9 may still draw its pre-process starting window from the manifest theme.
+        val savedLightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
+        setTheme(if (savedLightTheme) R.style.Theme_G6HiFiPlayer else R.style.Theme_G6HiFiPlayer_Dark)
         super.onCreate(savedInstanceState)
-        lightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
+        lightTheme = savedLightTheme
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
@@ -413,8 +417,8 @@ class MainActivity : Activity() {
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                // Build 3.09: use the actual full-colour launcher icon, not a tinted foreground silhouette.
-                setImageResource(R.mipmap.ic_launcher)
+                // Build 3.10: use only the launcher foreground mark, without the full adaptive-icon background.
+                setImageResource(R.drawable.ic_launcher_foreground_original)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "G6HiFiPlayer"
             }
