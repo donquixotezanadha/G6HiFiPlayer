@@ -108,8 +108,7 @@ class MainActivity : Activity() {
     private lateinit var artBox: FrameLayout
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
     private var lightTheme = false
-    // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
-    private var startupSplashShown = false
+    // Build 3.16: the single theme-aware launch splash is drawn by the Android 9 launch window.
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     private val CARD get() = if (lightTheme) 0xB8FFFFFF.toInt() else 0xB8101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
@@ -410,45 +409,8 @@ class MainActivity : Activity() {
             if (root.paddingBottom != bottomInset) root.setPadding(0, 0, 0, bottomInset)
             insets
         }
-        var startupSplash: FrameLayout? = null
-        if (!startupSplashShown) {
-            val splash = FrameLayout(this).apply {
-                setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE)
-                isClickable = true
-                isFocusable = true
-            }
-            val logo = ImageView(this).apply {
-                // Build 3.10: use only the launcher foreground mark, without the full adaptive-icon background.
-                setImageResource(R.drawable.ic_launcher_foreground_original)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                contentDescription = "G6HiFiPlayer"
-            }
-            // Large, centered app identity inspired by the generous logo scale used by ChatGPT.
-            splash.addView(logo, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER))
-            stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
-            startupSplashShown = true
-            startupSplash = splash
-        }
+        // Build 3.16: no second in-app splash overlay; the launch window is the one splash.
         setContentView(stage)
-        startupSplash?.let { splash ->
-            // Start the ~2-second minimum after the first frame is ready, then fade smoothly.
-            stage.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
-                override fun onPreDraw(): Boolean {
-                    if (stage.viewTreeObserver.isAlive) stage.viewTreeObserver.removeOnPreDrawListener(this)
-                    handler.postDelayed({
-                        if (!isFinishing && !isDestroyed && splash.parent === stage) {
-                            splash.animate()
-                                .alpha(0f)
-                                .setDuration(320L)
-                                .setInterpolator(DecelerateInterpolator())
-                                .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
-                                .start()
-                        }
-                    }, 1680L)
-                    return true
-                }
-            })
-        }
         stage.requestApplyInsets()
         buildingUi = false
         show("player"); renderLibrary(); restoreNowPlayingMetadata(); updateHiResBadges()
