@@ -412,7 +412,7 @@ class MainActivity : Activity() {
         var startupSplash: FrameLayout? = null
         if (!startupSplashShown) {
             val splash = FrameLayout(this).apply {
-                setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE)
+                setBackgroundColor(DARK_SURFACE)
                 isClickable = true
                 isFocusable = true
             }
