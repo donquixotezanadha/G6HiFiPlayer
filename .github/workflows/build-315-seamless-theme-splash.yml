@@ -47,8 +47,8 @@ jobs:
           grep -q 'FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER)' app/src/main/java/id/g6hifiplayer/MainActivity.kt
           grep -q 'android:windowBackground">@drawable/window_splash_light' app/src/main/res/values/styles.xml
           grep -q 'android:windowBackground">@drawable/window_splash_dark' app/src/main/res/values/styles.xml
-          grep -q 'android:drawable="#FFF8F8FC"' app/src/main/res/drawable/window_splash_light.xml
-          grep -q 'android:drawable="#FF000000"' app/src/main/res/drawable/window_splash_dark.xml
+          grep -q 'android:color="#FFF8F8FC"' app/src/main/res/drawable/window_splash_light.xml
+          grep -q 'android:color="#FF000000"' app/src/main/res/drawable/window_splash_dark.xml
           grep -q 'android:width="112dp"' app/src/main/res/drawable/window_splash_light.xml
           grep -q 'android:width="112dp"' app/src/main/res/drawable/window_splash_dark.xml
           grep -q 'android:drawable="@drawable/ic_launcher_foreground_original"' app/src/main/res/drawable/window_splash_light.xml
