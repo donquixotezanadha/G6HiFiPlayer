@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.66: restore the tested compact Build 2.58 values for the dedicated 4x1 provider. -->
+<!-- Build 2.66: restore the tested compact Build 2.58 values for the dedicated 4x1 provider.
+     Build 3.18: the card has a fixed height and is centred in whatever area the launcher gives, so LG and Nova look the same. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -11,7 +12,7 @@
     <LinearLayout
         android:id="@+id/w_card"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="78dp"
         android:layout_gravity="center"
         android:orientation="horizontal"
         android:gravity="center_vertical"
