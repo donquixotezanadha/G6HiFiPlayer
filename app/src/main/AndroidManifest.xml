@@ -45,5 +45,11 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_2x2_info" />
         </receiver>
+        <receiver android:name="id.g6hifiplayer.G6WidgetText4x2Provider" android:label="Music Text 4x2" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_text_4x2_info" />
+        </receiver>
     </application>
 </manifest>
