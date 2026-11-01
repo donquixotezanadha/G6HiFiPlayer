@@ -422,8 +422,10 @@ class MainActivity : Activity() {
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "G6HiFiPlayer"
             }
-            // Large, centered app identity inspired by the generous logo scale used by ChatGPT.
-            splash.addView(logo, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER))
+            // Build 3.19: large, centered foreground logo; scale to ~42% of screen width while preserving its portrait aspect ratio.
+            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.42f).toInt()
+            val splashLogoHeight = (splashLogoWidth * 1.25f).toInt()
+            splash.addView(logo, FrameLayout.LayoutParams(splashLogoWidth, splashLogoHeight, Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
             startupSplash = splash
