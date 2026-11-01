@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Both Android starting-window themes stay black; the in-app splash is the only logo splash. -->
+    <!-- Android 9's starting window follows the saved theme via the enabled launcher alias. -->
     <style name="Theme.G6HiFiPlayer" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:windowBackground">#FFFFFFFF</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#7C4DFF</item>
     </style>
 
     <style name="Theme.G6HiFiPlayer.Dark" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:windowBackground">#FF101014</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#7C4DFF</item>
