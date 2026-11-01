@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Build 2.66: restore the tested compact Build 2.58 values for the dedicated 4x1 provider.
-     Build 3.18: the card has a fixed height and is centred in whatever area the launcher gives, so LG and Nova look the same. -->
+     Build 3.18: the card has a fixed 70dp height and is centred in whatever area the launcher gives, so LG and Nova look the same.
+     Balanced padding: cover to left edge, cover to top/bottom edge and text column to right edge are all 8dp. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -12,18 +13,20 @@
     <LinearLayout
         android:id="@+id/w_card"
         android:layout_width="match_parent"
-        android:layout_height="78dp"
+        android:layout_height="70dp"
         android:layout_gravity="center"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="4dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
         android:background="@drawable/g6_widget_bg_4x2">
 
         <ImageView
             android:id="@+id/w_art"
             android:layout_width="54dp"
             android:layout_height="54dp"
-            android:layout_marginStart="1dp"
             android:scaleType="fitCenter"
             android:contentDescription="Album artwork" />
 

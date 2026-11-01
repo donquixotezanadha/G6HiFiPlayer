@@ -39,7 +39,8 @@ jobs:
           git cat-file -e "$BASE^{commit}"
           grep -q 'versionCode = 318' app/build.gradle.kts
           grep -q 'versionName = "3.18"' app/build.gradle.kts
-          grep -q 'android:layout_height="78dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          grep -q 'android:layout_height="70dp"' app/src/main/res/layout/g6_widget_4x1.xml
+          test "$(grep -c 'android:paddingStart="8dp"\|android:paddingEnd="8dp"' app/src/main/res/layout/g6_widget_4x1.xml)" -eq 2
           test "$(grep -c 'android:windowDisablePreview">true' app/src/main/res/values/styles.xml)" -eq 2
           if grep -q 'activity-alias' app/src/main/AndroidManifest.xml; then echo "Unexpected: activity-alias in app/src/main/AndroidManifest.xml"; exit 1; fi
           test "$(grep -c 'android.intent.category.LAUNCHER' app/src/main/AndroidManifest.xml)" -eq 1
@@ -52,7 +53,7 @@ jobs:
           test ! -e app/src/main/res/drawable/window_splash_light.xml
           test ! -e app/src/main/res/drawable/window_splash_dark.xml
           git diff --exit-code "$BASE"...HEAD -- app/src/main/cpp app/src/main/res/xml app/src/main/res/drawable-nodpi/ic_launcher_foreground_original.png
-          echo "Build 3.18 scope verified: single launcher entry kept, 4x2 widget card has a fixed 78dp height, engine/xml/logo untouched."
+          echo "Build 3.18 scope verified: single launcher entry kept, 4x2 widget card has a fixed 70dp height, engine/xml/logo untouched."
       - name: Build debug APK
         run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
       - name: Verify APK
@@ -83,7 +84,7 @@ jobs:
         run: |
           echo "## G6HiFiPlayer Build 3.18 - Fixed-height 4x2 widget card" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- The 4x2 widget card now has a fixed 78dp height, centred in the area the launcher gives (same look on LG and Nova)." >> "$GITHUB_STEP_SUMMARY"
+          echo "- The 4x2 widget card now has a fixed 70dp height, centred in the area the launcher gives, with equal 8dp padding around the cover and text (same look on LG and Nova)." >> "$GITHUB_STEP_SUMMARY"
           echo "- Android's separate launch preview stays disabled; the app keeps one in-app splash (112dp foreground logo)." >> "$GITHUB_STEP_SUMMARY"
           echo "- Splash background follows the saved theme: light #F8F8FC, dark black." >> "$GITHUB_STEP_SUMMARY"
           echo "- Playback engine, native audio, widgets, cache, and logo assets are unchanged." >> "$GITHUB_STEP_SUMMARY"
