@@ -286,11 +286,8 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Choose the Activity window theme from the persisted app preference as early as possible.
-        // Android 9 may still draw its pre-process starting window from the manifest theme.
+        // The manifest owns one fixed black starting window. Only the in-app splash shows the logo.
         val savedLightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
-        // Keep Android 9 starting-window theme aligned with the saved preference.
-        syncLauncherTheme(savedLightTheme)
         setTheme(if (savedLightTheme) R.style.Theme_G6HiFiPlayer else R.style.Theme_G6HiFiPlayer_Dark)
         super.onCreate(savedInstanceState)
         lightTheme = savedLightTheme
@@ -402,7 +399,7 @@ class MainActivity : Activity() {
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
-        val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
+        val stage = FrameLayout(this).apply { setBackgroundColor(DARK_SURFACE) }
         stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
@@ -957,24 +954,10 @@ class MainActivity : Activity() {
         container.addView(action("LIGHT", lightTheme) { setLightTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
     }
 
-    private fun syncLauncherTheme(useLightTheme: Boolean) {
-        val lightAlias = android.content.ComponentName(this, "id.g6hifiplayer.MainActivityLight")
-        val darkAlias = android.content.ComponentName(this, "id.g6hifiplayer.MainActivityDark")
-        val lightState = if (useLightTheme) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-        val darkState = if (useLightTheme) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-        if (packageManager.getComponentEnabledSetting(lightAlias) != lightState) {
-            packageManager.setComponentEnabledSetting(lightAlias, lightState, PackageManager.DONT_KILL_APP)
-        }
-        if (packageManager.getComponentEnabledSetting(darkAlias) != darkState) {
-            packageManager.setComponentEnabledSetting(darkAlias, darkState, PackageManager.DONT_KILL_APP)
-        }
-    }
-
     private fun setLightTheme(enabled: Boolean) {
         if (lightTheme == enabled) return
         lightTheme = enabled
         getPreferences(MODE_PRIVATE).edit().putBoolean("light_theme", enabled).apply()
-        syncLauncherTheme(enabled)
         appliedPlayerSurface = null
         playerSurface = if (enabled) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (enabled) Color.BLACK else Color.WHITE
