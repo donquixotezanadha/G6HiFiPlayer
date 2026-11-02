@@ -410,6 +410,7 @@ class MainActivity : Activity() {
             insets
         }
         var startupSplash: FrameLayout? = null
+        var splashLogo: ImageView? = null
         if (!startupSplashShown) {
             val splash = FrameLayout(this).apply {
                 setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE)
@@ -417,15 +418,15 @@ class MainActivity : Activity() {
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                // Build 3.24: dark theme keeps the original black logo and adds a thin white stroke (no colour inversion); light theme uses the plain logo.
-                setImageResource(if (lightTheme) R.drawable.ic_splash_logo else R.drawable.ic_splash_logo_outlined)
+                // Build 3.25: splash is the text "PLAY / PURE / DIRECT" (Thin sans). Dark theme = white text on black, light theme = dark text on white.
+                setImageResource(if (lightTheme) R.drawable.splash_text_light else R.drawable.splash_text_dark)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                contentDescription = "G6HiFiPlayer"
+                contentDescription = "Play Pure Direct"
             }
-            // Logo is 40% of the screen width (aspect ratio of the image kept).
-            // The outlined dark version has 12px of transparent padding per side (744x806 vs 720x782), so the headphones keep the same 40% size.
-            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.40f * (if (lightTheme) 1f else 744f / 720f)).toInt()
-            val splashLogoHeight = (splashLogoWidth * (if (lightTheme) 1567f / 1442f else 806f / 744f)).toInt()
+            splashLogo = logo
+            // The word DIRECT spans 48% of the screen width; the image (715x900) has 20px transparent padding per side around the 675px-wide word.
+            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.48f * (715f / 675f)).toInt()
+            val splashLogoHeight = (splashLogoWidth * (900f / 715f)).toInt()
             splash.addView(logo, FrameLayout.LayoutParams(splashLogoWidth, splashLogoHeight, Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
@@ -439,14 +440,22 @@ class MainActivity : Activity() {
                     if (stage.viewTreeObserver.isAlive) stage.viewTreeObserver.removeOnPreDrawListener(this)
                     handler.postDelayed({
                         if (!isFinishing && !isDestroyed && splash.parent === stage) {
+                            // Build 3.25: soft Claude-style exit. The text drifts out first (fades + grows 4%), then the background dissolves into the app.
+                            val ease = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+                            splashLogo?.animate()
+                                ?.alpha(0f)?.scaleX(1.04f)?.scaleY(1.04f)
+                                ?.setDuration(520L)
+                                ?.setInterpolator(ease)
+                                ?.start()
                             splash.animate()
                                 .alpha(0f)
-                                .setDuration(320L)
-                                .setInterpolator(DecelerateInterpolator())
+                                .setStartDelay(120L)
+                                .setDuration(780L)
+                                .setInterpolator(ease)
                                 .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
                                 .start()
                         }
-                    }, 1680L)
+                    }, 1500L)
                     return true
                 }
             })
