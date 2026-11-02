@@ -8,12 +8,21 @@ android {
     compileSdk = 36
     ndkVersion = "26.1.10909125"
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("hifi-debug.keystore")
+            storePassword = "hifi-debug"
+            keyAlias = "hifi"
+            keyPassword = "hifi-debug"
+        }
+    }
+
     defaultConfig {
-        applicationId = "id.g6hifiplayer"
+        applicationId = "id.hifi.player"
         minSdk = 28
         targetSdk = 35
-        versionCode = 325
-        versionName = "3.25"
+        versionCode = 1
+        versionName = "1.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
