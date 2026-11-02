@@ -15,3 +15,9 @@
 - Outline icons thinner: stroke about 2dp on screen, same as the progress bar.
 - Icons larger: glyphs fill more of the 24 viewport and the padding shrank (play pad 11->8dp, side pad 10->6dp). Hit areas unchanged (60dp / 52dp).
 - Previous/next moved toward the centre: transport spacer weights outer 0.6->1.3, inner 1->0.5.
+
+## v1.3 (branch hifi-v1-3, from hifi-v1-2) - visual only
+- Transport icons slightly smaller: play pad 8->9dp, side pad 6->7dp.
+- Backdrop veil 35% -> 40% (0x59 -> 0x66), flat veil and bottom gradient, both themes.
+- Unplayed progress track alpha 70% (0xB3) in Dark and Light.
+- Button boxes at 80% (0xCC): Setting buttons (primary accent box too), mini-player card (was 72%), album-options dialog buttons. Others (search field, selected row) were already 80%.

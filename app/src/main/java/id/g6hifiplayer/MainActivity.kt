@@ -111,7 +111,7 @@ class MainActivity : Activity() {
     // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
     private var startupSplashShown = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
-    private val CARD get() = if (lightTheme) 0xB8FFFFFF.toInt() else 0xB8101014.toInt()
+    private val CARD get() = if (lightTheme) 0xCCFFFFFF.toInt() else 0xCC101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
     private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else 0xCC292932.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
@@ -1065,7 +1065,7 @@ class MainActivity : Activity() {
             shadePaint.shader = android.graphics.LinearGradient(
                 0f, bounds.top + bounds.height() * 0.45f, 0f, bounds.bottom.toFloat(),
                 if (light) 0x00FFFFFF else 0x00000000,
-                if (light) 0x59FFFFFF.toInt() else 0x59000000.toInt(),
+                if (light) 0x66FFFFFF.toInt() else 0x66000000.toInt(),
                 android.graphics.Shader.TileMode.CLAMP
             )
         }
@@ -1083,7 +1083,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0x59FFFFFF.toInt() else 0x59000000.toInt())
+            canvas.drawColor(if (light) 0x66FFFFFF.toInt() else 0x66000000.toInt())
             canvas.drawRect(b, shadePaint)
         }
 
@@ -3303,7 +3303,7 @@ class MainActivity : Activity() {
             val item = text(label, 14f, WHITE, true).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(mixColors(playerSurface, playerInk, 0.22f), 14), null)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(withAlpha(mixColors(playerSurface, playerInk, 0.22f), 0xCC), 14), null)
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
             }
@@ -3345,7 +3345,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         themed {
             setTextColor(if (primary) BG else WHITE)
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) accentColor else LINE, 14), null)
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 14), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3517,9 +3517,9 @@ class MainActivity : Activity() {
         /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
-        private const val PROGRESS_TRACK_GREY = 0xFF5E5E66.toInt()
+        private const val PROGRESS_TRACK_GREY = 0xB35E5E66.toInt()
         /** Build 3.01: unplayed progress track for the Light theme only. */
-        private const val LIGHT_PROGRESS_TRACK_GREY = 0xFFD6D6DC.toInt()
+        private const val LIGHT_PROGRESS_TRACK_GREY = 0xB3D6D6DC.toInt()
         /** Build 2.9: scale of the Now Playing cover while paused (was 88%; now a small step). */
         private const val ART_PAUSED_SCALE = 0.95f
         /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
@@ -3530,9 +3530,9 @@ class MainActivity : Activity() {
         private const val TRANSPORT_SIDE_DP = 52
         private const val TRANSPORT_PLAY_DP = 60
         /** Build 2.13: padding around the play/pause icon inside its 60dp area -> icon 38dp (2.12: 9dp -> 42dp; 2.11: 0 -> 60dp). */
-        private const val PLAY_ICON_PAD_DP = 8
+        private const val PLAY_ICON_PAD_DP = 9
         /** Build 2.13: padding around the previous/next icons inside their 52dp area -> icon 32dp (2.12 and 2.11: 0 -> 52dp). */
-        private const val SIDE_ICON_PAD_DP = 6
+        private const val SIDE_ICON_PAD_DP = 7
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
         private const val GLOW_EXTRA_DP = 5
         /** Build 2.15: glow size factor (1.0 = size of 2.14). */
