@@ -417,14 +417,15 @@ class MainActivity : Activity() {
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                // Build 3.21: dark theme uses the colour-inverted logo (white) on the black splash; light theme uses the black logo.
-                setImageResource(if (lightTheme) R.drawable.ic_splash_logo else R.drawable.ic_splash_logo_inverted)
+                // Build 3.24: dark theme keeps the original black logo and adds a thin white stroke (no colour inversion); light theme uses the plain logo.
+                setImageResource(if (lightTheme) R.drawable.ic_splash_logo else R.drawable.ic_splash_logo_outlined)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "G6HiFiPlayer"
             }
             // Logo is 40% of the screen width (aspect ratio of the image kept).
-            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.40f).toInt()
-            val splashLogoHeight = (splashLogoWidth * 1567f / 1442f).toInt()
+            // The outlined dark version has 12px of transparent padding per side (744x806 vs 720x782), so the headphones keep the same 40% size.
+            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.40f * (if (lightTheme) 1f else 744f / 720f)).toInt()
+            val splashLogoHeight = (splashLogoWidth * (if (lightTheme) 1567f / 1442f else 806f / 744f)).toInt()
             splash.addView(logo, FrameLayout.LayoutParams(splashLogoWidth, splashLogoHeight, Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
