@@ -514,6 +514,13 @@ class MainActivity : Activity() {
         setPadding(dp(leftInsetDp), 0, dp(8), 0)
     }
 
+    /** Hifi 1.1: small round thumb on the progress bar (white in Dark, ink in Light). */
+    private fun seekThumb(): android.graphics.drawable.Drawable = android.graphics.drawable.GradientDrawable().apply {
+        shape = android.graphics.drawable.GradientDrawable.OVAL
+        setColor(WHITE)
+        setSize(dp(12), dp(12))
+    }
+
     /**
      * Explicit rounded progress track. The native SeekBar's minimumHeight does not change
      * its thin drawable on Android 9, and a custom ClipDrawable previously failed to render.
@@ -653,7 +660,8 @@ class MainActivity : Activity() {
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // Build 3.05: no thumb; the track and played segment share the same rounded 4dp path.
             progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            thumb = null
+            thumb = seekThumb()
+            splitTrack = false
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -679,9 +687,9 @@ class MainActivity : Activity() {
         // Build 2.13: all three icons shrink together. Play/pause: 60dp area - 2*11dp = 38dp icon (was 42dp in 2.12). Previous/Next:
         // 52dp area - 2*10dp = 32dp icon (were 52dp in 2.12, so only Play had changed). The hit areas stay 60dp / 52dp, so the
         // centres (positions) do not move; the difference is only padding around the icons.
-        prevView = transportButton(R.drawable.ic_previous_24, "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_24, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_24, "Next", SIDE_ICON_PAD_DP) { playNext() }
+        prevView = transportButton(R.drawable.ic_previous_outline, "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
+        playView = transportButton(R.drawable.ic_play_outline, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
+        nextView = transportButton(R.drawable.ic_next_outline, "Next", SIDE_ICON_PAD_DP) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
@@ -914,7 +922,7 @@ class MainActivity : Activity() {
         if (::seek.isInitialized) {
             // Build 3.06: keep the SeekBar thumb disabled in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            seek.thumb = null
+            seek.thumb = seekThumb()
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
@@ -1057,7 +1065,7 @@ class MainActivity : Activity() {
             shadePaint.shader = android.graphics.LinearGradient(
                 0f, bounds.top + bounds.height() * 0.45f, 0f, bounds.bottom.toFloat(),
                 if (light) 0x00FFFFFF else 0x00000000,
-                if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt(),
+                if (light) 0x59FFFFFF.toInt() else 0x59000000.toInt(),
                 android.graphics.Shader.TileMode.CLAMP
             )
         }
@@ -1075,7 +1083,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt())
+            canvas.drawColor(if (light) 0x59FFFFFF.toInt() else 0x59000000.toInt())
             canvas.drawRect(b, shadePaint)
         }
 
@@ -1212,7 +1220,7 @@ class MainActivity : Activity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             themed { imageTintList = ColorStateList.valueOf(accentColor) }
-            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_outline else R.drawable.ic_play_outline)
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
@@ -2318,12 +2326,12 @@ class MainActivity : Activity() {
         if (!::playView.isInitialized) return
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
         updateAlbumPlayingMarks(playing)
-        playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+        playView.setImageResource(if (playing) R.drawable.ic_pause_outline else R.drawable.ic_play_outline)
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(WHITE)
         animateArtForState(playing)
         if (::queueMiniPlayView.isInitialized) {
-            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_outline else R.drawable.ic_play_outline)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
         }
@@ -3515,7 +3523,7 @@ class MainActivity : Activity() {
         /** Build 2.9: scale of the Now Playing cover while paused (was 88%; now a small step). */
         private const val ART_PAUSED_SCALE = 0.95f
         /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
-        private const val PROGRESS_THICKNESS_DP = 4
+        private const val PROGRESS_THICKNESS_DP = 2
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
         private const val ACTION_GREY = 0xFF8E8E98.toInt()
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
