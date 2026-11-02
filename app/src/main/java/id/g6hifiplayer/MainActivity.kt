@@ -2064,6 +2064,61 @@ class MainActivity : Activity() {
 
 
 
+    /**
+     * Build 3.23: when the last track of the playlist is the one playing, the next album (alphabetical, same order as the
+     * Albums list) is appended to the live Media3 playlist so playback continues gapless into it. Albums the user queued but
+     * that are not in the live playlist yet are appended first. Returns the index of the first appended item, or -1.
+     */
+    private fun ensureNextAlbumQueued(exo: ExoPlayer): Int {
+        try {
+            val count = exo.mediaItemCount
+            if (count == 0 || tracks.isEmpty() || exo.currentMediaItemIndex != count - 1) return -1
+            val byUri = HashMap<String, Int>(tracks.size * 2)
+            tracks.forEachIndexed { i, t -> byUri[t.uri.toString()] = i }
+            val inPlayer = (0 until count).mapNotNull { i -> byUri[exo.getMediaItemAt(i).mediaId] }
+            val inPlayerSet = inPlayer.toHashSet()
+            val pending = playbackOrder.filter { it in tracks.indices && it !in inPlayerSet }
+            val toAdd: List<Int>
+            val queuedByUser = pending.isNotEmpty()
+            if (queuedByUser) {
+                toAdd = pending
+            } else {
+                val lastAlbum = tracks.getOrNull(inPlayer.lastOrNull() ?: return -1)?.album ?: return -1
+                val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
+                val position = albums.indexOf(lastAlbum)
+                if (position < 0 || position + 1 >= albums.size) return -1
+                val nextAlbum = albums[position + 1]
+                toAdd = tracks.withIndex()
+                    .filter { it.value.album == nextAlbum && it.index !in inPlayerSet }
+                    .sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
+                    .map { it.index }
+            }
+            if (toAdd.isEmpty()) return -1
+            val items = toAdd.map { trackIndex ->
+                val itemTrack = tracks[trackIndex]
+                MediaItem.Builder()
+                    .setMediaId(itemTrack.uri.toString())
+                    .setUri(itemTrack.uri)
+                    .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(itemTrack.title)
+                        .setArtist(itemTrack.artist)
+                        .setAlbumTitle(itemTrack.album)
+                        .build())
+                    .build()
+            }
+            exo.addMediaItems(items)
+            playbackOrder = inPlayer + toAdd
+            if (!queuedByUser) playbackQueue = playbackOrder.toList()
+            persistQueueState()
+            if (::queueRows.isInitialized) renderQueueRows()
+            recordDiagnostic("AUTO_NEXT_ALBUM_QUEUED album=" + tracks[toAdd.first()].album + " tracks=" + toAdd.size + " userQueued=" + queuedByUser + " playlist=" + playbackOrder.size)
+            return count
+        } catch (e: Exception) {
+            recordDiagnostic("AUTO_NEXT_ALBUM_FAILED", e)
+            return -1
+        }
+    }
+
     private fun attachPlaybackListener(exo: ExoPlayer, initialTrack: Track) {
         playerListener?.let { try { exo.removeListener(it) } catch (_: Exception) { } }
         val listener = object : Player.Listener {
@@ -2090,6 +2145,7 @@ class MainActivity : Activity() {
                     loadArtwork(activeTrack)
                     if (::queueRows.isInitialized) renderQueueRows()
                     recordDiagnostic("GAPLESS_MEDIA_ITEM_TRANSITION index=" + currentIndex + " playlistIndex=" + itemPosition + " reason=" + reason)
+                    ensureNextAlbumQueued(exo) // Build 3.23: last track of the playlist -> line up the next album
                     if (exo.playbackState == Player.STATE_READY) {
                         prepared = true
                         durationMs = exo.duration.takeIf { it > 0L && it <= Int.MAX_VALUE }?.toInt() ?: 0
@@ -2120,9 +2176,17 @@ class MainActivity : Activity() {
                         pendingAutoplay = false
                         mediaSession?.isActive = true
                         refreshAudioInfo()
+                        ensureNextAlbumQueued(exo) // Build 3.23: also covers a one-album queue or a restored last track
                         updatePlaybackNotification(exo.isPlaying)
                     }
                     Player.STATE_ENDED -> {
+                        // Build 3.23: if the playlist finished without the next album lined up, start it now.
+                        val firstNew = ensureNextAlbumQueued(exo)
+                        if (firstNew >= 0) {
+                            exo.seekTo(firstNew, 0L)
+                            exo.play()
+                            return
+                        }
                         syncPlaybackIcon(false)
                         statusView.text = "Album/queue finished."
                         refreshAudioInfo()
