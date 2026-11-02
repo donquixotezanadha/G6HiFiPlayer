@@ -10,3 +10,8 @@
 - Player buttons (previous/play/pause/next, also the mini-player play) are outline icons: ic_*_outline.xml. Notification and widgets keep their filled icons.
 - Progress bar 4dp -> 2dp, with a small round 12dp thumb (white in Dark, ink in Light).
 - Audio code unchanged.
+
+## v1.2 (branch hifi-v1-2, from hifi-v1-1) - visual only
+- Outline icons thinner: stroke about 2dp on screen, same as the progress bar.
+- Icons larger: glyphs fill more of the 24 viewport and the padding shrank (play pad 11->8dp, side pad 10->6dp). Hit areas unchanged (60dp / 52dp).
+- Previous/next moved toward the centre: transport spacer weights outer 0.6->1.3, inner 1->0.5.

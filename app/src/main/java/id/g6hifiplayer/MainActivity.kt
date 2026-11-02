@@ -692,13 +692,13 @@ class MainActivity : Activity() {
         nextView = transportButton(R.drawable.ic_next_outline, "Next", SIDE_ICON_PAD_DP) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
-        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1.3f))
         transport.addView(prevView, LinearLayout.LayoutParams(dp(TRANSPORT_SIDE_DP), dp(TRANSPORT_SIDE_DP)))
-        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1f))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.5f))
         transport.addView(playView, LinearLayout.LayoutParams(dp(TRANSPORT_PLAY_DP), dp(TRANSPORT_PLAY_DP)))
-        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1f))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.5f))
         transport.addView(nextView, LinearLayout.LayoutParams(dp(TRANSPORT_SIDE_DP), dp(TRANSPORT_SIDE_DP)))
-        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.6f))
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1.3f))
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -3530,9 +3530,9 @@ class MainActivity : Activity() {
         private const val TRANSPORT_SIDE_DP = 52
         private const val TRANSPORT_PLAY_DP = 60
         /** Build 2.13: padding around the play/pause icon inside its 60dp area -> icon 38dp (2.12: 9dp -> 42dp; 2.11: 0 -> 60dp). */
-        private const val PLAY_ICON_PAD_DP = 11
+        private const val PLAY_ICON_PAD_DP = 8
         /** Build 2.13: padding around the previous/next icons inside their 52dp area -> icon 32dp (2.12 and 2.11: 0 -> 52dp). */
-        private const val SIDE_ICON_PAD_DP = 10
+        private const val SIDE_ICON_PAD_DP = 6
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
         private const val GLOW_EXTRA_DP = 5
         /** Build 2.15: glow size factor (1.0 = size of 2.14). */
