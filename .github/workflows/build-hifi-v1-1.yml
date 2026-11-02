@@ -1,4 +1,4 @@
-name: Hifi v1.1 (visual: outline buttons, thin progress with thumb, lighter backdrop)
+name: Hifi v1.1 - outline buttons, thin progress with thumb, lighter backdrop
 
 on:
   workflow_dispatch:
