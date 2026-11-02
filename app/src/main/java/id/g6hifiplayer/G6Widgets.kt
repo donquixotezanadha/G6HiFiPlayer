@@ -182,7 +182,7 @@ object G6Widgets {
             }
         }
         val manager = AppWidgetManager.getInstance(app)
-        val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
+        val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x1Provider::class.java))
         val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
         if (ids4.isEmpty() && idsText.isEmpty()) return
         val progress = if (duration > 0) {
@@ -242,7 +242,7 @@ object G6Widgets {
         val app = context.applicationContext
         synchronized(lock) {
             val manager = AppWidgetManager.getInstance(app)
-            val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x2Provider::class.java))
+            val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x1Provider::class.java))
             val ids2 = manager.getAppWidgetIds(ComponentName(app, G6Widget2x2Provider::class.java))
             val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
             if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty()) return
@@ -297,7 +297,7 @@ object G6Widgets {
             setTextViewText(R.id.w_artist, artist)
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF686875.toInt() else 0xFFE0E0E6.toInt())
-            setInt(R.id.w_card, "setBackgroundResource", if (light) R.drawable.g6_widget_bg_4x2_light else R.drawable.g6_widget_bg_4x2)
+            setInt(R.id.w_card, "setBackgroundResource", if (light) R.drawable.g6_widget_bg_4x1_light else R.drawable.g6_widget_bg_4x1)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             val buttonBg = if (light) R.drawable.g6_widget_btn_light else R.drawable.g6_widget_btn
             setInt(R.id.w_prev, "setBackgroundResource", buttonBg)
@@ -310,9 +310,9 @@ object G6Widgets {
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             setInt(R.id.w_play, "setColorFilter", iconTint)
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
-            setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x2Provider::class.java, 4201, "previous"))
-            setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x2Provider::class.java, 4202, "toggle"))
-            setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget4x2Provider::class.java, 4203, "next"))
+            setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x1Provider::class.java, 4201, "previous"))
+            setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x1Provider::class.java, 4202, "toggle"))
+            setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget4x1Provider::class.java, 4203, "next"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4204))
         }
     }
@@ -371,7 +371,7 @@ object G6Widgets {
         val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
         val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
         val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x2Provider::class.java))
+        val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x1Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
@@ -564,7 +564,7 @@ open class G6WidgetProviderBase : AppWidgetProvider() {
     }
 }
 
-class G6Widget4x2Provider : G6WidgetProviderBase()
+class G6Widget4x1Provider : G6WidgetProviderBase()
 
 class G6Widget2x2Provider : G6WidgetProviderBase()
 

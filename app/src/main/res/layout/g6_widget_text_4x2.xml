@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Build 3.24: side gap = 20dp (same distance from the widget edge as the 4x1 content: 12dp margin + 8dp card padding).
+     Larger title; flexible spacers spread title / progress / play evenly from top to bottom. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_text_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="top"
-    android:paddingStart="10dp"
-    android:paddingEnd="10dp"
-    android:paddingTop="5dp"
-    android:paddingBottom="5dp"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp"
     android:background="@android:color/transparent">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="top">
 
         <LinearLayout
             android:layout_width="0dp"
@@ -30,7 +31,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="NO MUSIC PLAYING"
-                android:textSize="18sp"
+                android:textSize="26sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFFFF" />
 
@@ -40,24 +41,29 @@
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="12sp"
+                android:textSize="15sp"
                 android:textColor="#FFE0E0E6" />
         </LinearLayout>
 
         <ImageView
             android:id="@+id/w_open_player"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
             android:padding="3dp"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_stat_music"
             android:contentDescription="Open Now Playing" />
     </LinearLayout>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
         android:orientation="vertical">
 
         <LinearLayout
@@ -72,7 +78,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="0:00"
-                android:textSize="10sp"
+                android:textSize="12sp"
                 android:textColor="#FFE0E0E6" />
 
             <TextView
@@ -80,7 +86,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0:00"
-                android:textSize="10sp"
+                android:textSize="12sp"
                 android:textColor="#FFE0E0E6" />
         </LinearLayout>
 
@@ -88,16 +94,20 @@
             android:id="@+id/w_progress"
             android:layout_width="match_parent"
             android:layout_height="2dp"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:scaleType="fitXY"
             android:contentDescription="Track progress" />
     </LinearLayout>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
     <ImageView
         android:id="@+id/w_play"
-        android:layout_width="42dp"
-        android:layout_height="42dp"
-        android:layout_marginTop="2dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:background="@android:color/transparent"
         android:padding="0dp"
         android:scaleType="fitCenter"
