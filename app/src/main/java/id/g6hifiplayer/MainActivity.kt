@@ -199,6 +199,12 @@ class MainActivity : Activity() {
     private lateinit var nextView: ImageView
     private lateinit var artPlaceholder: TextView
     private lateinit var librarySummary: TextView
+    // Hifi 1.4: page header (title left, gear right), swipe between the two pages, floating settings window.
+    private lateinit var headerTitle: TextView
+    private var pageContentView: View? = null
+    private var swipeDownX = 0f
+    private var swipeDownY = 0f
+    private var swipeBlocked = false
     private lateinit var albumRows: LinearLayout
     private lateinit var trackRows: LinearLayout
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
@@ -339,9 +345,7 @@ class MainActivity : Activity() {
         navFile = navButton("Setting", "Setting") { show("settings") }
         // Three-tab navigation: removing Songs reduces page-switch rebuild work.
         // Equal weights keep the existing icon size and center each remaining hit target.
-        listOf(navPlayer, navLibrary, navFile).forEach {
-            nav.addView(it, LinearLayout.LayoutParams(0, -1, 1f))
-        }
+        // Hifi 1.4: no bottom bar. Pages are switched by swiping; the nav views stay created (unattached) so existing state code is untouched.
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -390,15 +394,17 @@ class MainActivity : Activity() {
         settingsPanel.addView(columnsCard)
         // Build 1.44: Setting shows only the folder scan and the column option. The audio/file info panels
         // are still created (other code updates their text) but are no longer attached to the screen.
-        content.addView(playerPanel); content.addView(libraryPanel); content.addView(settingsPanel)
+        content.addView(playerPanel); content.addView(libraryPanel)
         scroll.addView(content)
+        pageContentView = content
         // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
         // This gives its internal ScrollView independent gesture ownership and stable height.
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
+        root.addView(makeHeaderBar(statusBarInset), LinearLayout.LayoutParams(-1, statusBarInset + dp(HEADER_H_DP)))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(64)))
+        root.addView(View(this), LinearLayout.LayoutParams(-1, dp(20)))
         val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
         stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
@@ -580,7 +586,8 @@ class MainActivity : Activity() {
 
         // Build 1.45: Classic theme shows the cover as a square box above the track details.
         val displayMetrics = resources.displayMetrics
-        val topInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
+        // Hifi 1.4: the header bar sits above the page, so the page itself needs no status-bar inset.
+        val topInset = dp(4)
         // Build 2.3: the cover is exactly as wide as the progress bar (screen width minus the 18dp side padding of the bar).
         // sizeDarkArt() shrinks it only if the screen is too short for it.
         // Build 2.5: a little smaller than the progress bar (ART_WIDTH_FRACTION) so the page feels less full.
@@ -942,7 +949,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), inset + dp(6), dp(16), dp(8))
+        libraryPanel.setPadding(dp(16), dp(6), dp(16), dp(8))
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1143,7 +1150,7 @@ class MainActivity : Activity() {
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        surface.setPadding(dp(16), statusInset + dp(6), dp(16), dp(8))
+        surface.setPadding(dp(16), dp(6), dp(16), dp(8))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -3161,6 +3168,7 @@ class MainActivity : Activity() {
             return
         }
         currentPage = which
+        if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
         if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
             queuePanel.animate().cancel()
             queuePanel.visibility = View.GONE
@@ -3378,6 +3386,131 @@ class MainActivity : Activity() {
         return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60)
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+
+    /** Hifi 1.4: header row above the page: page title on the left, settings gear on the right. */
+    private fun makeHeaderBar(statusInset: Int): FrameLayout {
+        val bar = FrameLayout(this).apply { setPadding(0, statusInset, 0, 0); setBackgroundColor(Color.TRANSPARENT) }
+        headerTitle = pageHeader("Now Playing", 20).apply { textSize = 20f }
+        bar.addView(headerTitle, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.START or Gravity.TOP).apply { topMargin = statusInset })
+        val gear = ImageView(this).apply {
+            setImageResource(R.drawable.ic_settings_outline)
+            contentDescription = "Settings"
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            themed {
+                imageTintList = ColorStateList.valueOf(WHITE)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))
+            }
+            isClickable = true; isFocusable = true
+            setOnClickListener { openSettingsWindow() }
+        }
+        bar.addView(gear, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { topMargin = statusInset; rightMargin = dp(8) })
+        return bar
+    }
+
+    /** Hifi 1.4: floating settings window. Album page: folder scan and columns. Now Playing page: dark / light icons. */
+    private fun openSettingsWindow() {
+        val dialog = AlertDialog.Builder(this).create()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(18))
+            minimumWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
+            background = shape(mixColors(playerSurface, playerInk, 0.12f), 24)
+        }
+        if (currentPage == "library") {
+            panel.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
+            panel.addView(action("CHOOSE MUSIC FOLDER", true) { dialog.dismiss(); pickFolder() },
+                LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(10) })
+            val previous = if (::librarySummary.isInitialized) librarySummary.text else "No folder has been scanned yet."
+            librarySummary = text(previous.toString(), 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
+            panel.addView(librarySummary)
+            panel.addView(text("ALBUM COLUMNS", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
+            val columnButtons = buttonArea()
+            fillColumnButtons(columnButtons)
+            panel.addView(columnButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        } else {
+            panel.addView(text("THEME", 12f, MUTED, true))
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+            fun themeIcon(res: Int, description: String, light: Boolean) {
+                val selected = lightTheme == light
+                val icon = ImageView(this).apply {
+                    setImageResource(res)
+                    contentDescription = description
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    setPadding(dp(14), dp(14), dp(14), dp(14))
+                    imageTintList = ColorStateList.valueOf(if (selected) accentColor else WHITE)
+                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)),
+                        shape(if (selected) withAlpha(accentColor, 0x33) else Color.TRANSPARENT, 18), null)
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { dialog.dismiss(); setLightTheme(light) }
+                }
+                row.addView(icon, LinearLayout.LayoutParams(dp(60), dp(60)).apply { leftMargin = dp(10); rightMargin = dp(10) })
+            }
+            themeIcon(R.drawable.ic_moon_outline, "Dark theme", false)
+            themeIcon(R.drawable.ic_sun_outline, "Light theme", true)
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        }
+        dialog.setView(panel)
+        dialog.show()
+        dialog.window?.let { w ->
+            w.setBackgroundDrawableResource(android.R.color.transparent)
+            w.setDimAmount(0.45f)
+            w.setGravity(Gravity.TOP or Gravity.END)
+            val lp = w.attributes
+            val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
+            lp.y = statusInset + dp(HEADER_H_DP); lp.x = dp(12)
+            w.attributes = lp
+        }
+    }
+
+    /** Hifi 1.4: swipe left on Now Playing opens Album, swipe right on Album returns. Seek bar and horizontal lists keep their own drags. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                swipeDownX = ev.rawX; swipeDownY = ev.rawY
+                swipeBlocked = (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) ||
+                    touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
+                    touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
+            }
+            MotionEvent.ACTION_CANCEL -> swipeBlocked = true
+        }
+        val handled = super.dispatchTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_UP && !swipeBlocked) {
+            val dx = ev.rawX - swipeDownX
+            val dy = ev.rawY - swipeDownY
+            if (kotlin.math.abs(dx) > dp(90) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.8f) switchPageBySwipe(dx < 0)
+        }
+        return handled
+    }
+
+    private fun switchPageBySwipe(toLibrary: Boolean) {
+        val target = if (toLibrary) "library" else "player"
+        if (currentPage == target || (currentPage != "player" && currentPage != "library")) return
+        show(target)
+        pageContentView?.let { v ->
+            v.animate().cancel()
+            v.translationX = (if (toLibrary) 1 else -1) * dp(56).toFloat()
+            v.alpha = 0.2f
+            v.animate().translationX(0f).alpha(1f).setDuration(220L).setInterpolator(DecelerateInterpolator(1.6f)).start()
+        }
+    }
+
+    private fun touchesSeekBar(x: Int, y: Int): Boolean {
+        if (!::seek.isInitialized || seek.visibility != View.VISIBLE) return false
+        val loc = IntArray(2); seek.getLocationOnScreen(loc)
+        val pad = dp(14)
+        return x >= loc[0] && x <= loc[0] + seek.width && y >= loc[1] - pad && y <= loc[1] + seek.height + pad
+    }
+
+    private fun touchesHorizontalScroller(v: View, x: Int, y: Int): Boolean {
+        if (v.visibility != View.VISIBLE) return false
+        val loc = IntArray(2); v.getLocationOnScreen(loc)
+        if (x < loc[0] || x > loc[0] + v.width || y < loc[1] || y > loc[1] + v.height) return false
+        if (v is HorizontalScrollView) return true
+        if (v is ViewGroup) for (i in 0 until v.childCount) if (touchesHorizontalScroller(v.getChildAt(i), x, y)) return true
+        return false
+    }
+
     override fun onBackPressed() {
         if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
             closeQueueOverlay()
@@ -3511,6 +3644,7 @@ class MainActivity : Activity() {
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
         private const val SEEK_SIDE_PAD_DP = 30
+        private const val HEADER_H_DP = 48
         private const val STACK_BOTTOM_PAD_DP = 8
         private const val ART_MIN_GAP_DP = 12
         private const val ART_WIDTH_FRACTION = 1.0f

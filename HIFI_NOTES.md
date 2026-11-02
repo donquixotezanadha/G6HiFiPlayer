@@ -21,3 +21,11 @@
 - Backdrop veil 35% -> 40% (0x59 -> 0x66), flat veil and bottom gradient, both themes.
 - Unplayed progress track alpha 70% (0xB3) in Dark and Light.
 - Button boxes at 80% (0xCC): Setting buttons (primary accent box too), mini-player card (was 72%), album-options dialog buttons. Others (search field, selected row) were already 80%.
+
+## v1.4 (branch hifi-v1-4, from hifi-v1-3) - navigation redesign
+- Bottom tab bar removed. Two pages only: Now Playing and Album, switched by a horizontal swipe (left = Album, right = Now Playing). Back still returns to Now Playing.
+- Swipe is ignored when it starts on the seek bar, on a horizontal list (More albums), or while the queue overlay is open.
+- Header row above the page: title on the left (Now Playing / Album), settings gear on the right (ic_settings_outline). It owns the status-bar inset, so page paddings no longer add it.
+- Setting is a floating dialog from the gear. On Album: music folder scan + album columns. On Now Playing: two clickable icons, moon (Dark) and sun (Light), the active one in the accent colour.
+- The old Setting page is no longer attached; Songs/Setting nav views are created but unattached.
+- 20dp spacer replaces the 64dp bar at the bottom, so the controls dock sits lower than in v1.3.
