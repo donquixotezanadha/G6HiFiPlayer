@@ -1127,23 +1127,13 @@ class MainActivity : Activity() {
 
     /**
      * Classic theme page background: the softened cover filling the screen (centre-crop), a black veil so the
-     * page reads as "semi black", and a little extra black towards the bottom behind the controls.
+     * page reads as "semi black",.
      */
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-        private val shadePaint = android.graphics.Paint()
         private val srcRect = android.graphics.Rect()
-
-        override fun onBoundsChange(bounds: android.graphics.Rect) {
-            shadePaint.shader = android.graphics.LinearGradient(
-                0f, bounds.top + bounds.height() * 0.45f, 0f, bounds.bottom.toFloat(),
-                if (light) 0x00FFFFFF else 0x00000000,
-                if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt(),
-                android.graphics.Shader.TileMode.CLAMP
-            )
-        }
 
         override fun draw(canvas: android.graphics.Canvas) {
             val b = bounds
@@ -1158,8 +1148,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt())
-            canvas.drawRect(b, shadePaint)
+            canvas.drawColor(if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt())   // Hifi 1.21: one flat veil only, no extra bottom gradient
         }
 
         override fun setAlpha(alpha: Int) { }
@@ -1236,6 +1225,7 @@ class MainActivity : Activity() {
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             themed { background = shape(ART, 8) }
+            roundCorners(8)   // Hifi 1.21: the picture itself is clipped, the background alone did not round it
             contentDescription = "Currently playing artwork"
         }
         mini.addView(queueMiniArt, LinearLayout.LayoutParams(dp(52), dp(52)))

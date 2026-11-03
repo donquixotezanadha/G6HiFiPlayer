@@ -114,3 +114,7 @@
 - The mini player is a floating rounded card again (same size and margins as 1.17), with a fully solid background for now (card colour at 100%, was 92%). The docked bar of 1.18 is gone. All animations of 1.17 and 1.19 are unchanged.
 - New BottomFadeLayout around the page scroller: on Album the list fades toward the page backdrop (it is a transparency mask, not a solid colour band). Full strength 24dp above the top of the card, gone at the vertical middle of the card, and fully transparent from there down over the navigation-bar area, so scrolling covers never show through the transparent bar. Only that bottom band uses an offscreen layer. Off on Now Playing.
 - The list's bottom spacing grew 92 -> 112dp (plus the nav inset) so the last row rests about 12dp above the fade start when scrolled to the end.
+
+## v1.21 (branch hifi-v1-21, from hifi-v1-20) - rounded mini art, single backdrop layer
+- Mini player cover: the ImageView only had a rounded background, the picture was drawn square over it. Now the view itself is clipped to rounded corners (roundCorners(8)), like the other covers.
+- Backdrop: yes, there was a second layer. DarkBackdropDrawable drew a flat veil (black 50% in Dark, white 50% in Light) AND a gradient from 45% of the height down to the bottom (black / white up to 50% more). The gradient is removed in both themes; only the flat veil is left, so the page looks the same from top to bottom.
