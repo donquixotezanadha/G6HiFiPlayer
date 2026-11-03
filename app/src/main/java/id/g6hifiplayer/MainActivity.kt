@@ -205,6 +205,11 @@ class MainActivity : Activity() {
     private var swipeDownX = 0f
     private var swipeDownY = 0f
     private var swipeBlocked = false
+    private var swipeDragging = false
+    private var swipeAnimating = false
+    private var swipeVelocity: android.view.VelocityTracker? = null
+    private var headerGear: View? = null
+    private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
     private lateinit var trackRows: LinearLayout
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
@@ -350,7 +355,7 @@ class MainActivity : Activity() {
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
         scroll.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
-            val viewport = bottom - top
+            val viewport = bottom - top - scroll.paddingBottom
             if (viewport > 0 && ::playerPanel.isInitialized && playerPanel.minimumHeight != viewport) {
                 playerPanel.minimumHeight = viewport
                 playerPanel.requestLayout()
@@ -404,7 +409,6 @@ class MainActivity : Activity() {
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(makeHeaderBar(statusBarInset), LinearLayout.LayoutParams(-1, statusBarInset + dp(HEADER_H_DP)))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(View(this), LinearLayout.LayoutParams(-1, dp(20)))
         val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
         stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
@@ -412,7 +416,9 @@ class MainActivity : Activity() {
         // is lifted by the real bar height so its buttons stay tappable.
         stage.setOnApplyWindowInsetsListener { _, insets ->
             val bottomInset = insets.systemWindowInsetBottom
-            if (root.paddingBottom != bottomInset) root.setPadding(0, 0, 0, bottomInset)
+            // Hifi 1.5: the page runs down to the real navigation bar; the inset is only padding inside the scroller and queue.
+            if (scroll.paddingBottom != bottomInset) scroll.setPadding(0, 0, 0, bottomInset)
+            if (::queuePanel.isInitialized && queuePanel.paddingBottom != bottomInset) queuePanel.setPadding(0, 0, 0, bottomInset)
             insets
         }
         var startupSplash: FrameLayout? = null
@@ -709,7 +715,7 @@ class MainActivity : Activity() {
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(4))
+            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(24))
         }
         playerBottomDock = bottomDock
         // Build 1.66: measured positions of the control dock, so Classic and Adaptive can be compared from the diagnostics.
@@ -3169,6 +3175,8 @@ class MainActivity : Activity() {
         }
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
+        headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
+        headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
         if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
             queuePanel.animate().cancel()
             queuePanel.visibility = View.GONE
@@ -3387,11 +3395,12 @@ class MainActivity : Activity() {
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
-    /** Hifi 1.4: header row above the page: page title on the left, settings gear on the right. */
+    /** Hifi 1.5: header row above the page: title on the left; Now Playing shows the dark/light icons, Album shows the gear. */
     private fun makeHeaderBar(statusInset: Int): FrameLayout {
+        // The bar's own top padding is the status-bar inset; children are NOT offset again (that clipped them in 1.4).
         val bar = FrameLayout(this).apply { setPadding(0, statusInset, 0, 0); setBackgroundColor(Color.TRANSPARENT) }
         headerTitle = pageHeader("Now Playing", 20).apply { textSize = 20f }
-        bar.addView(headerTitle, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.START or Gravity.TOP).apply { topMargin = statusInset })
+        bar.addView(headerTitle, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.START or Gravity.TOP))
         val gear = ImageView(this).apply {
             setImageResource(R.drawable.ic_settings_outline)
             contentDescription = "Settings"
@@ -3403,8 +3412,30 @@ class MainActivity : Activity() {
             }
             isClickable = true; isFocusable = true
             setOnClickListener { openSettingsWindow() }
+            visibility = View.GONE
         }
-        bar.addView(gear, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { topMargin = statusInset; rightMargin = dp(8) })
+        headerGear = gear
+        bar.addView(gear, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) })
+        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        fun themeIcon(res: Int, description: String, light: Boolean) {
+            val selected = lightTheme == light
+            val icon = ImageView(this).apply {
+                setImageResource(res)
+                contentDescription = description
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                imageTintList = ColorStateList.valueOf(if (selected) accentColor else WHITE)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)),
+                    shape(if (selected) withAlpha(accentColor, 0x33) else Color.TRANSPARENT, 20), null)
+                isClickable = true; isFocusable = true
+                setOnClickListener { setLightTheme(light) }
+            }
+            themeRow.addView(icon, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(2); rightMargin = dp(2) })
+        }
+        themeIcon(R.drawable.ic_moon_outline, "Dark theme", false)
+        themeIcon(R.drawable.ic_sun_outline, "Light theme", true)
+        headerThemeRow = themeRow
+        bar.addView(themeRow, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(12) })
         return bar
     }
 
@@ -3463,36 +3494,90 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Hifi 1.4: swipe left on Now Playing opens Album, swipe right on Album returns. Seek bar and horizontal lists keep their own drags. */
+    /**
+     * Hifi 1.5: the page follows the finger while dragging horizontally. On release it either slides out and the other page
+     * slides in (distance or fling past the threshold) or springs back. Seek bar, horizontal lists, the queue overlay and a
+     * running animation never start a drag.
+     */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (swipeDragging) {
+            swipeVelocity?.addMovement(ev)
+            val dx = ev.rawX - swipeDownX
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> dragPage(dx)
+                MotionEvent.ACTION_UP -> {
+                    swipeVelocity?.computeCurrentVelocity(1000)
+                    finishPageDrag(dx, swipeVelocity?.xVelocity ?: 0f)
+                }
+                MotionEvent.ACTION_CANCEL -> finishPageDrag(0f, 0f)
+            }
+            return true
+        }
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 swipeDownX = ev.rawX; swipeDownY = ev.rawY
-                swipeBlocked = (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) ||
+                swipeBlocked = swipeAnimating || (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) ||
                     touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
                     touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
+                swipeVelocity?.recycle()
+                swipeVelocity = if (swipeBlocked) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
             }
-            MotionEvent.ACTION_CANCEL -> swipeBlocked = true
+            MotionEvent.ACTION_MOVE -> if (!swipeBlocked) {
+                swipeVelocity?.addMovement(ev)
+                val dx = ev.rawX - swipeDownX
+                val dy = ev.rawY - swipeDownY
+                if (kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
+                    (currentPage == "player" || currentPage == "library")) {
+                    swipeDragging = true
+                    // Tell the children the touch is over (no stray click or list scroll), then drive the page ourselves.
+                    val cancel = MotionEvent.obtain(ev)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    super.dispatchTouchEvent(cancel)
+                    cancel.recycle()
+                    dragPage(dx)
+                    return true
+                }
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null }
         }
-        val handled = super.dispatchTouchEvent(ev)
-        if (ev.actionMasked == MotionEvent.ACTION_UP && !swipeBlocked) {
-            val dx = ev.rawX - swipeDownX
-            val dy = ev.rawY - swipeDownY
-            if (kotlin.math.abs(dx) > dp(90) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.8f) switchPageBySwipe(dx < 0)
-        }
-        return handled
+        return super.dispatchTouchEvent(ev)
     }
 
-    private fun switchPageBySwipe(toLibrary: Boolean) {
-        val target = if (toLibrary) "library" else "player"
-        if (currentPage == target || (currentPage != "player" && currentPage != "library")) return
-        show(target)
-        pageContentView?.let { v ->
-            v.animate().cancel()
-            v.translationX = (if (toLibrary) 1 else -1) * dp(56).toFloat()
-            v.alpha = 0.2f
-            v.animate().translationX(0f).alpha(1f).setDuration(220L).setInterpolator(DecelerateInterpolator(1.6f)).start()
+    private fun canSwipeTo(toLibrary: Boolean) = (toLibrary && currentPage == "player") || (!toLibrary && currentPage == "library")
+
+    private fun dragPage(dx: Float) {
+        val v = pageContentView ?: return
+        val width = resources.displayMetrics.widthPixels.toFloat()
+        val shown = if (canSwipeTo(dx < 0)) dx else dx * 0.18f   // nothing on that side: only a small rubber-band
+        v.translationX = shown
+        v.alpha = 1f - (kotlin.math.abs(shown) / width).coerceIn(0f, 1f) * 0.55f
+    }
+
+    private fun finishPageDrag(dx: Float, velocityX: Float) {
+        swipeDragging = false
+        swipeVelocity?.recycle(); swipeVelocity = null
+        val v = pageContentView ?: return
+        val width = resources.displayMetrics.widthPixels.toFloat()
+        val toLibrary = dx < 0
+        val flung = kotlin.math.abs(velocityX) > dp(600) && (velocityX < 0) == toLibrary
+        val commit = canSwipeTo(toLibrary) && (kotlin.math.abs(dx) > width * 0.28f || (flung && kotlin.math.abs(dx) > dp(30)))
+        swipeAnimating = true
+        v.animate().cancel()
+        if (!commit) {
+            v.animate().translationX(0f).alpha(1f).setDuration(180L).setInterpolator(DecelerateInterpolator(1.6f))
+                .withEndAction { swipeAnimating = false }.start()
+            return
         }
+        val sign = if (toLibrary) -1f else 1f
+        v.animate().translationX(sign * width * 0.6f).alpha(0f).setDuration(110L)
+            .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f))
+            .withEndAction {
+                show(if (toLibrary) "library" else "player")
+                v.translationX = -sign * width * 0.25f
+                v.alpha = 0f
+                v.animate().translationX(0f).alpha(1f).setDuration(240L).setInterpolator(DecelerateInterpolator(1.8f))
+                    .withEndAction { swipeAnimating = false }.start()
+            }.start()
     }
 
     private fun touchesSeekBar(x: Int, y: Int): Boolean {
