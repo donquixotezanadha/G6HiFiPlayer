@@ -715,7 +715,7 @@ class MainActivity : Activity() {
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(24))
+            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(12))
         }
         playerBottomDock = bottomDock
         // Build 1.66: measured positions of the control dock, so Classic and Adaptive can be compared from the diagnostics.
@@ -785,10 +785,13 @@ class MainActivity : Activity() {
         val side = minOf(wide, free - 2 * dp(ART_MIN_GAP_DP)).coerceAtLeast(dp(120))
         val gap = ((free - side) / 2).coerceAtLeast(dp(ART_MIN_GAP_DP))
         val lp = artBox.layoutParams as? LinearLayout.LayoutParams ?: return
-        val bottom = (free - side - gap).coerceAtLeast(dp(ART_MIN_GAP_DP))
-        if (lp.width != side || lp.height != side || lp.topMargin != gap || lp.bottomMargin != bottom) {
+        // Hifi 1.6: the whole Now Playing content sits 6dp lower (the dock is lowered by its bottom padding).
+        val lower = dp(6)
+        val bottom = ((free - side - gap) - lower).coerceAtLeast(dp(ART_MIN_GAP_DP) - lower).coerceAtLeast(0)
+        val topGap = gap + lower
+        if (lp.width != side || lp.height != side || lp.topMargin != topGap || lp.bottomMargin != bottom) {
             lp.width = side; lp.height = side
-            lp.topMargin = gap; lp.bottomMargin = bottom
+            lp.topMargin = topGap; lp.bottomMargin = bottom
             artBox.layoutParams = lp
         }
     }
@@ -955,7 +958,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), dp(6), dp(16), dp(8))
+        libraryPanel.setPadding(dp(16), 0, dp(16), dp(8))
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1156,7 +1159,7 @@ class MainActivity : Activity() {
         val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
             if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
         }
-        surface.setPadding(dp(16), dp(6), dp(16), dp(8))
+        surface.setPadding(dp(16), 0, dp(16), dp(8))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -3405,7 +3408,7 @@ class MainActivity : Activity() {
             setImageResource(R.drawable.ic_settings_outline)
             contentDescription = "Settings"
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(11), dp(11), dp(11), dp(11))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
             themed {
                 imageTintList = ColorStateList.valueOf(WHITE)
                 background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))
@@ -3729,7 +3732,7 @@ class MainActivity : Activity() {
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
         private const val SEEK_SIDE_PAD_DP = 30
-        private const val HEADER_H_DP = 48
+        private const val HEADER_H_DP = 42
         private const val STACK_BOTTOM_PAD_DP = 8
         private const val ART_MIN_GAP_DP = 12
         private const val ART_WIDTH_FRACTION = 1.0f
