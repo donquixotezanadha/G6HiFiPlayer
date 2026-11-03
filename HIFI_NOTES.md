@@ -118,3 +118,7 @@
 ## v1.21 (branch hifi-v1-21, from hifi-v1-20) - rounded mini art, single backdrop layer
 - Mini player cover: the ImageView only had a rounded background, the picture was drawn square over it. Now the view itself is clipped to rounded corners (roundCorners(8)), like the other covers.
 - Backdrop: yes, there was a second layer. DarkBackdropDrawable drew a flat veil (black 50% in Dark, white 50% in Light) AND a gradient from 45% of the height down to the bottom (black / white up to 50% more). The gradient is removed in both themes; only the flat veil is left, so the page looks the same from top to bottom.
+
+## v1.22 (branch hifi-v1-22, from hifi-v1-21) - darker grey text in Light
+- Measured: the grey (secondary) text is the same strength in both themes. Dark 0xFFA4A4B2 on black with white main text = 64% of the way from background to main text. Light 0xFF686875 on 0xFFF8F8FC with 0xFF171720 main text = 64% as well.
+- Light grey text is now 0xFF484855 (about 78% of the way from background to main text, so clearly darker). Dark is unchanged. Only the MUTED colour changed; it is used by all grey text (artist, times, labels, album info).

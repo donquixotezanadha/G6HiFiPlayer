@@ -115,7 +115,8 @@ class MainActivity : Activity() {
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
     private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else 0xCC292932.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
-    private val MUTED get() = if (lightTheme) 0xFF686875.toInt() else 0xFFA4A4B2.toInt()
+    // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
+    private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
     private var buildingUi = false
@@ -1127,7 +1128,7 @@ class MainActivity : Activity() {
 
     /**
      * Classic theme page background: the softened cover filling the screen (centre-crop), a black veil so the
-     * page reads as "semi black",.
+     * page reads as "semi black".
      */
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
