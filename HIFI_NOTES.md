@@ -109,3 +109,8 @@
 - Swipe up on the mini player now follows the finger like the swipe down on Now Playing: the bar lifts up to 28dp and fades (full fade at about 2/3 of the 160dp drag). Release past 25% or with an upward fling (300dp/s) goes to Now Playing, otherwise it springs back.
 - Tapping the mini player or Back uses the same exit: the bar lifts a little and fades (it used to sink), the Album page fades out, then Now Playing rises in. A drag that is committed continues from where the finger left it.
 - The old swipe detector on the bar (decided only on release) is removed; the drag is handled in dispatchTouchEvent (startMiniDrag, applyMiniLift, finishMiniDrag).
+
+## v1.20 (branch hifi-v1-20, from hifi-v1-19) - floating mini player again, soft fade behind it
+- The mini player is a floating rounded card again (same size and margins as 1.17), with a fully solid background for now (card colour at 100%, was 92%). The docked bar of 1.18 is gone. All animations of 1.17 and 1.19 are unchanged.
+- New BottomFadeLayout around the page scroller: on Album the list fades toward the page backdrop (it is a transparency mask, not a solid colour band). Full strength 24dp above the top of the card, gone at the vertical middle of the card, and fully transparent from there down over the navigation-bar area, so scrolling covers never show through the transparent bar. Only that bottom band uses an offscreen layer. Off on Now Playing.
+- The list's bottom spacing grew 92 -> 112dp (plus the nav inset) so the last row rests about 12dp above the fade start when scrolled to the end.

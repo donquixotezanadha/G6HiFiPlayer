@@ -248,6 +248,7 @@ class MainActivity : Activity() {
     private var listScrollY = 0
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
+    private var scrollFadeHost: BottomFadeLayout? = null
     private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
     private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
@@ -451,7 +452,10 @@ class MainActivity : Activity() {
         // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
         // This gives its internal ScrollView independent gesture ownership and stable height.
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
-        contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        val fadeHost = BottomFadeLayout(this)
+        fadeHost.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        scrollFadeHost = fadeHost
+        contentStage.addView(fadeHost, FrameLayout.LayoutParams(-1, -1))
         queueMiniHost?.let { contentStage.addView(it, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)) }
         // Hifi 1.10: the queue sits over the album-art area only (top of the page down to the track title); sizeQueueRegion sets its height.
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, dp(300), Gravity.TOP))
@@ -466,8 +470,9 @@ class MainActivity : Activity() {
             val bottomInset = insets.systemWindowInsetBottom
             // Hifi 1.5: the page runs down to the real navigation bar; the inset is only padding inside the scroller and queue.
             bottomInsetPx = bottomInset
-            queueMiniHost?.let { if (it.paddingBottom != bottomInset) it.setPadding(0, 0, 0, bottomInset) }
-            applyMiniDock()
+            if (scroll.paddingBottom != bottomInset) scroll.setPadding(0, 0, 0, bottomInset)
+            queueMiniHost?.let { if (it.paddingBottom != bottomInset + dp(8)) it.setPadding(dp(16), 0, dp(16), bottomInset + dp(8)) }
+            updateBottomFade()
             insets
         }
         var startupSplash: FrameLayout? = null
@@ -1012,7 +1017,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(8))   // the docked mini player cuts the list (see applyMiniDock)
+        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(112))   // room for the floating mini player: the last row rests above the fade zone
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1220,8 +1225,9 @@ class MainActivity : Activity() {
         val mini = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, android.graphics.drawable.ColorDrawable(Color.BLACK)) }
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            // Hifi 1.20: floating card again, fully solid for now (the soft fade of the list behind it is drawn by BottomFadeLayout).
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(withAlpha(CARD, 0xFF), 14), null) }
             isClickable = true
             isFocusable = true
             setOnClickListener { showPlayerAnimated() }
@@ -1298,13 +1304,11 @@ class MainActivity : Activity() {
         queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
         // Hifi 1.7: the mini player lives on the Album page, docked at the bottom (see show()).
         queueMiniHost = FrameLayout(this).apply {
-            // Hifi 1.18: a docked bar, no longer a floating card. Same content; the background is full width and runs down to the nav bar.
-            setPadding(0, 0, 0, bottomInsetPx)
+            setPadding(dp(16), 0, dp(16), bottomInsetPx + dp(8))
             visibility = View.GONE
-            themed { background = android.graphics.drawable.ColorDrawable(withAlpha(CARD, 0xEB)) }
             addView(mini, FrameLayout.LayoutParams(-1, -2))
             addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
-                if (bottom - top != oldBottom - oldTop) post { applyMiniDock() }
+                if (bottom - top != oldBottom - oldTop) post { updateBottomFade() }
             }
         }
         updateQueueMiniPlayer()
@@ -3380,21 +3384,19 @@ class MainActivity : Activity() {
         navState(navPlayer, which == "player")
         navState(navLibrary, which == "library")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
-        applyMiniDock()
+        updateBottomFade()
     }
 
     /**
-     * Hifi 1.18: on Album the mini player is a stuck bar like the header: the scroller ends where the bar starts, so the list is cut
-     * there instead of running underneath. On Now Playing the scroller is full height again (the bar is hidden).
+     * Hifi 1.20: on Album the list fades out softly behind the floating mini player and is fully gone over the navigation-bar area,
+     * so scrolling covers never show through the transparent bar. Distances are measured from the bottom of the screen.
+     * The list's own bottom spacing (92dp + nav inset) keeps the last row above the fade when scrolled to the end.
      */
-    private fun applyMiniDock() {
-        val scroll = pageScroll ?: return
-        val lp = scroll.layoutParams as? FrameLayout.LayoutParams ?: return
-        val docked = currentPage == "library"
-        val barHeight = if (docked) (queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(68) + bottomInsetPx)) else 0
-        if (lp.bottomMargin != barHeight) { lp.bottomMargin = barHeight; scroll.layoutParams = lp }
-        val pad = if (docked) 0 else bottomInsetPx
-        if (scroll.paddingBottom != pad) scroll.setPadding(0, 0, 0, pad)
+    private fun updateBottomFade() {
+        val fadeHost = scrollFadeHost ?: return
+        val hostH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
+        val cardH = (hostH - bottomInsetPx - dp(8)).coerceAtLeast(dp(40))
+        fadeHost.configure(currentPage == "library", hostH + dp(24), hostH - cardH / 2)
     }
     private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
         contentDescription = description
@@ -4129,6 +4131,46 @@ class MainActivity : Activity() {
                 android.graphics.Shader.TileMode.CLAMP
             )
             canvas.drawRect(0f, 0f, w, band, maskPaint)
+            canvas.restoreToCount(save)
+        }
+    }
+
+    /**
+     * Hifi 1.20: soft fade of its content at the bottom, toward the page backdrop (not toward a solid colour): full strength at
+     * [fullFromBottom] px above the bottom edge, gone at [goneFromBottom] px. Only that band goes through an offscreen layer.
+     */
+    private inner class BottomFadeLayout(context: Context) : FrameLayout(context) {
+        private var on = false
+        private var fullFromBottom = 0
+        private var goneFromBottom = 0
+        private val maskPaint = android.graphics.Paint().apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+        }
+
+        fun configure(enabled: Boolean, full: Int, gone: Int) {
+            if (on == enabled && fullFromBottom == full && goneFromBottom == gone) return
+            on = enabled; fullFromBottom = full; goneFromBottom = gone.coerceAtMost(full - dp(8))
+            invalidate()
+        }
+
+        override fun dispatchDraw(canvas: android.graphics.Canvas) {
+            val w = width.toFloat(); val h = height.toFloat()
+            val bandTop = h - fullFromBottom
+            if (!on || bandTop <= 0f || bandTop >= h) { super.dispatchDraw(canvas); return }
+            val bandEnd = h - goneFromBottom
+            canvas.save()
+            canvas.clipRect(0f, 0f, w, bandTop)
+            super.dispatchDraw(canvas)
+            canvas.restore()
+            val save = canvas.saveLayer(0f, bandTop, w, h, null)
+            canvas.clipRect(0f, bandTop, w, h)
+            super.dispatchDraw(canvas)
+            maskPaint.shader = android.graphics.LinearGradient(
+                0f, bandTop, 0f, bandEnd,
+                intArrayOf(0x00000000, 0x80000000.toInt(), -0x1000000), floatArrayOf(0f, 0.4f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, bandTop, w, h, maskPaint)
             canvas.restoreToCount(save)
         }
     }
