@@ -45,3 +45,6 @@
 - Queue list is a floating rounded card (same text sizes, 56% of the screen height at most, scrolls inside, last row may be cut off). The rest of the screen is a dim area; tapping it closes the queue. Open/close animation: card drops in and the dim area fades.
 - The mini player moved out of the queue and is docked at the bottom of the Album page (above the nav bar). Tapping it or swiping it up goes to Now Playing. The Album list has 92dp bottom padding so the last row stays clear of it.
 - Swipe between pages: unchanged (the user likes the animation; behaviour tweaks later).
+
+## v1.8 (branch hifi-v1-8, from hifi-v1-7)
+- Album page (list, opened album): 5dp gap between the header bar and the first content (was 0 in 1.6/1.7, 6 in 1.5). Header bar unchanged at 42dp.
