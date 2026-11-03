@@ -93,3 +93,9 @@
 - Cover top fade: only the 22dp top strip uses an offscreen layer now; the rest of the cover is drawn directly (was a full-size saveLayer every frame).
 - Drag feels shorter: the finger travels 70% of the distance for full progress (queueTravelFactor). Commit at 30% progress in the direction of travel (was 50%); fling threshold 300dp/s (was 500). Start slop 9dp (was 14), dominance 1.15 (was 1.4), start area begins 24dp above the dock (was 6dp).
 - Audio, library, thumbnails untouched.
+
+## v1.17 (branch hifi-v1-17, from hifi-v1-16) - swipe down to Album, mini player bounce
+- Now Playing: swipe UP (from the info dock) still opens the queue; swipe DOWN (anywhere except the seek bar) goes to Album. The sideways page swipe is switched off (sidewaysPageSwipe = false), so there are only these vertical moves.
+- Now Playing -> Album: the drag follows the finger. Now Playing fades and sinks a little (28dp) while the mini player rises from the bottom. Commit at 25% of 220dp or a downward fling (300dp/s), otherwise it springs back. On commit the Album page only fades in where it is (no slide, so its remembered scroll position is untouched) and the mini player settles with a soft overshoot (OvershootInterpolator 1.15, 440ms).
+- Album -> Now Playing: tap the mini player, swipe it up, Back, or any play action (showPlayerAnimated). The mini player sinks and fades, the Album page fades out, then Now Playing rises 28dp into place with a fade (380ms). The old sideways slide is gone.
+- Hardware layers on the page content and the mini player only while the transition runs. Version 1.17 (code 18), own workflow build-hifi-v1-17.yml.

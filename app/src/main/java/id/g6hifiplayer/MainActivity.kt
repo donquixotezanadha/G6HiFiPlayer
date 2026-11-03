@@ -218,6 +218,13 @@ class MainActivity : Activity() {
     private var swipeDragging = false
     private var swipeAnimating = false
     private var swipeVelocity: android.view.VelocityTracker? = null
+    // Hifi 1.17: swipe DOWN on Now Playing goes to Album. The Album area never moves: only Now Playing fades and the mini player
+    // rises with a soft bounce. Back to Now Playing: tap or swipe up the mini player (or Back). Sideways page swipe is off.
+    private val sidewaysPageSwipe = false
+    private var albumDragging = false
+    private var albumEligible = false
+    private var albumProgress = 0f
+    private var albumAnimator: android.animation.ValueAnimator? = null
     private var headerGear: View? = null
     private var queueCard: View? = null
     private var queueScrollView: ScrollView? = null
@@ -3697,6 +3704,18 @@ class MainActivity : Activity() {
      * running animation never start a drag.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (albumDragging) {
+            swipeVelocity?.addMovement(ev)
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> applyAlbumProgress((ev.rawY - swipeDownY - dp(10)) / albumDragDistance())
+                MotionEvent.ACTION_UP -> {
+                    swipeVelocity?.computeCurrentVelocity(1000)
+                    finishAlbumDrag(swipeVelocity?.yVelocity ?: 0f)
+                }
+                MotionEvent.ACTION_CANCEL -> finishAlbumDrag(0f)
+            }
+            return true
+        }
         if (queueDragging) {
             swipeVelocity?.addMovement(ev)
             when (ev.actionMasked) {
@@ -3734,6 +3753,9 @@ class MainActivity : Activity() {
                     touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
                     touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
                 queueEligible = !busy && currentPage == "player" && queueStartAllowed(ev.rawY)
+                albumEligible = !busy && currentPage == "player" && queueProgress <= 0.01f &&
+                    !touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) &&
+                    !touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
                 if (queueEligible && queueProgress < 0.01f) prewarmQueue()
                 swipeVelocity?.recycle()
                 swipeVelocity = if (busy) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
@@ -3742,7 +3764,12 @@ class MainActivity : Activity() {
                 swipeVelocity?.addMovement(ev)
                 val dx = ev.rawX - swipeDownX
                 val dy = ev.rawY - swipeDownY
-                if (!swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
+                if (albumEligible && dy > dp(12) && dy > kotlin.math.abs(dx) * 1.4f) {
+                    startAlbumDrag(ev)
+                    applyAlbumProgress((dy - dp(10)) / albumDragDistance())
+                    return true
+                }
+                if (sidewaysPageSwipe && !swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
                     (currentPage == "player" || currentPage == "library")) {
                     swipeDragging = true
                     cancelQueuePrewarm()
@@ -3767,22 +3794,169 @@ class MainActivity : Activity() {
         return super.dispatchTouchEvent(ev)
     }
 
-    /** Hifi 1.14: leaving Album for Now Playing slides like the page swipe, for Back, the mini player and the play actions too. */
-    private fun showPlayerAnimated() {
-        val v = pageContentView
-        if (currentPage != "library" || v == null || swipeAnimating || swipeDragging) { show("player"); return }
-        val width = resources.displayMetrics.widthPixels.toFloat()
+    private fun albumDragDistance() = dp(220).toFloat()
+    private fun miniTravel(): Float = (queueMiniHost?.height?.takeIf { it > 0 } ?: dp(90)).toFloat()
+
+    private fun albumLayers(on: Boolean) {
+        val type = if (on) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
+        pageContentView?.let { if (it.layerType != type) it.setLayerType(type, null) }
+        queueMiniHost?.let { if (it.layerType != type) it.setLayerType(type, null) }
+    }
+
+    /** Drives the finger-following part of Now Playing -> Album: Now Playing fades and sinks a little, the mini player rises. */
+    private fun applyAlbumProgress(d0: Float) {
+        val d = d0.coerceIn(0f, 1f)
+        albumProgress = d
+        val v = pageContentView ?: return
+        v.alpha = (1f - d * 1.5f).coerceAtLeast(0f)
+        v.translationY = d * dp(28)
+        queueMiniHost?.let { m ->
+            if (d > 0.01f) {
+                if (m.visibility != View.VISIBLE) m.visibility = View.VISIBLE
+                m.translationY = (1f - d) * miniTravel()
+                m.alpha = (d * 1.5f).coerceAtMost(1f)
+            } else if (m.visibility != View.GONE) m.visibility = View.GONE
+        }
+    }
+
+    private fun startAlbumDrag(ev: MotionEvent) {
+        val cancel = MotionEvent.obtain(ev)
+        cancel.action = MotionEvent.ACTION_CANCEL
+        super.dispatchTouchEvent(cancel)
+        cancel.recycle()
+        cancelQueuePrewarm()
+        albumAnimator?.cancel()
+        albumLayers(true)
+        albumDragging = true
+    }
+
+    private fun finishAlbumDrag(velocityY: Float) {
+        albumDragging = false
+        swipeVelocity?.recycle(); swipeVelocity = null
+        val fast = dp(300).toFloat()
+        val commit = velocityY > fast || (velocityY > -fast && albumProgress > 0.25f)
+        if (commit) commitToAlbum() else cancelAlbumDrag()
+    }
+
+    private fun cancelAlbumDrag() {
         swipeAnimating = true
-        v.animate().cancel()
-        v.animate().translationX(width * 0.6f).alpha(0f).setDuration(110L)
-            .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f))
-            .withEndAction {
-                show("player")
-                v.translationX = -width * 0.25f
-                v.alpha = 0f
-                v.animate().translationX(0f).alpha(1f).setDuration(240L).setInterpolator(DecelerateInterpolator(1.8f))
-                    .withEndAction { swipeAnimating = false }.start()
-            }.start()
+        albumAnimator?.cancel()
+        albumAnimator = android.animation.ValueAnimator.ofFloat(albumProgress, 0f).apply {
+            duration = 200L
+            interpolator = DecelerateInterpolator(1.6f)
+            addUpdateListener { applyAlbumProgress(it.animatedValue as Float) }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    applyAlbumProgress(0f)
+                    albumLayers(false)
+                    swipeAnimating = false
+                }
+            })
+            start()
+        }
+    }
+
+    /**
+     * Hifi 1.17: the Album area stays where it is (it remembers its scroll position). Now Playing fades out, the Album page
+     * appears in place with a short fade, and the mini player rises into the dock with a soft overshoot (the bounce).
+     */
+    private fun commitToAlbum() {
+        val v = pageContentView
+        if (v == null) { show("library"); return }
+        val mini = queueMiniHost
+        swipeAnimating = true
+        val startAlpha = v.alpha
+        val startMiniY = mini?.translationY ?: miniTravel()
+        val startMiniAlpha = mini?.alpha ?: 0f
+        var switched = false
+        val bounce = android.view.animation.OvershootInterpolator(1.15f)
+        albumAnimator?.cancel()
+        albumAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 440L
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { a ->
+                val t = a.animatedValue as Float
+                if (!switched) {
+                    v.alpha = startAlpha * (1f - (t / 0.34f).coerceIn(0f, 1f))
+                    if (t >= 0.34f) { switched = true; v.translationY = 0f; v.alpha = 0f; show("library") }
+                } else {
+                    v.alpha = ((t - 0.34f) / 0.66f).coerceIn(0f, 1f)   // the Album page only fades in; nothing moves
+                }
+                mini?.let { m ->
+                    if (m.visibility != View.VISIBLE) m.visibility = View.VISIBLE
+                    m.translationY = startMiniY * (1f - bounce.getInterpolation(t))
+                    m.alpha = startMiniAlpha + (1f - startMiniAlpha) * (t / 0.3f).coerceIn(0f, 1f)
+                }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    settleAlbumTransition()
+                }
+            })
+            start()
+        }
+    }
+
+    /** Puts every animated view of the Now Playing <-> Album transition back to its resting state. */
+    private fun settleAlbumTransition() {
+        albumAnimator?.cancel()
+        albumDragging = false
+        pageContentView?.let { it.alpha = 1f; it.translationY = 0f; it.translationX = 0f }
+        queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
+        albumLayers(false)
+        swipeAnimating = false
+    }
+
+    /** Hifi 1.17: Album -> Now Playing (Back, tapping or swiping up the mini player, play actions). The mini player sinks, Now Playing rises in and fades. */
+    private fun showPlayerAnimated() {
+        if (swipeAnimating || albumDragging) settleAlbumTransition()
+        val v = pageContentView
+        if (currentPage != "library" || v == null) { show("player"); return }
+        val mini = queueMiniHost
+        val travel = miniTravel()
+        val lift = dp(28).toFloat()
+        var switched = false
+        swipeAnimating = true
+        albumLayers(true)
+        albumAnimator?.cancel()
+        albumAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 380L
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { a ->
+                val t = a.animatedValue as Float
+                if (!switched) {
+                    val f = (t / 0.34f).coerceIn(0f, 1f)
+                    v.alpha = 1f - f
+                    mini?.let { it.translationY = travel * f * f; it.alpha = 1f - f }
+                    if (t >= 0.34f) {
+                        switched = true
+                        show("player")
+                        v.alpha = 0f; v.translationY = lift
+                        mini?.let { it.translationY = 0f; it.alpha = 1f }
+                    }
+                } else {
+                    val f = ((t - 0.34f) / 0.66f).coerceIn(0f, 1f)
+                    val e = 1f - (1f - f) * (1f - f) * (1f - f)
+                    v.alpha = e
+                    v.translationY = lift * (1f - e)
+                }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    settleAlbumTransition()
+                }
+            })
+            start()
+        }
     }
 
     private fun canSwipeTo(toLibrary: Boolean) = (toLibrary && currentPage == "player") || (!toLibrary && currentPage == "library")
