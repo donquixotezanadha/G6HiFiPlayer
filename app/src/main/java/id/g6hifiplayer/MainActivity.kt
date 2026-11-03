@@ -245,6 +245,7 @@ class MainActivity : Activity() {
     private var listScrollY = 0
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
+    private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
     private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
     private lateinit var trackRows: LinearLayout
@@ -461,8 +462,9 @@ class MainActivity : Activity() {
         stage.setOnApplyWindowInsetsListener { _, insets ->
             val bottomInset = insets.systemWindowInsetBottom
             // Hifi 1.5: the page runs down to the real navigation bar; the inset is only padding inside the scroller and queue.
-            if (scroll.paddingBottom != bottomInset) scroll.setPadding(0, 0, 0, bottomInset)
-            queueMiniHost?.let { if (it.paddingBottom != bottomInset + dp(8)) it.setPadding(dp(16), 0, dp(16), bottomInset + dp(8)) }
+            bottomInsetPx = bottomInset
+            queueMiniHost?.let { if (it.paddingBottom != bottomInset) it.setPadding(0, 0, 0, bottomInset) }
+            applyMiniDock()
             insets
         }
         var startupSplash: FrameLayout? = null
@@ -1007,7 +1009,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(92))   // room for the docked mini player
+        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(8))   // the docked mini player cuts the list (see applyMiniDock)
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1215,8 +1217,8 @@ class MainActivity : Activity() {
         val mini = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(8), dp(10), dp(8))
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(withAlpha(CARD, 0xEB), 14), null) }
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, android.graphics.drawable.ColorDrawable(Color.BLACK)) }
             isClickable = true
             isFocusable = true
             setOnClickListener { showPlayerAnimated() }
@@ -1319,9 +1321,14 @@ class MainActivity : Activity() {
         queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
         // Hifi 1.7: the mini player lives on the Album page, docked at the bottom (see show()).
         queueMiniHost = FrameLayout(this).apply {
-            setPadding(dp(16), 0, dp(16), dp(8))
+            // Hifi 1.18: a docked bar, no longer a floating card. Same content; the background is full width and runs down to the nav bar.
+            setPadding(0, 0, 0, bottomInsetPx)
             visibility = View.GONE
+            themed { background = android.graphics.drawable.ColorDrawable(withAlpha(CARD, 0xEB)) }
             addView(mini, FrameLayout.LayoutParams(-1, -2))
+            addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                if (bottom - top != oldBottom - oldTop) post { applyMiniDock() }
+            }
         }
         updateQueueMiniPlayer()
     }
@@ -3396,6 +3403,21 @@ class MainActivity : Activity() {
         navState(navPlayer, which == "player")
         navState(navLibrary, which == "library")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
+        applyMiniDock()
+    }
+
+    /**
+     * Hifi 1.18: on Album the mini player is a stuck bar like the header: the scroller ends where the bar starts, so the list is cut
+     * there instead of running underneath. On Now Playing the scroller is full height again (the bar is hidden).
+     */
+    private fun applyMiniDock() {
+        val scroll = pageScroll ?: return
+        val lp = scroll.layoutParams as? FrameLayout.LayoutParams ?: return
+        val docked = currentPage == "library"
+        val barHeight = if (docked) (queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(68) + bottomInsetPx)) else 0
+        if (lp.bottomMargin != barHeight) { lp.bottomMargin = barHeight; scroll.layoutParams = lp }
+        val pad = if (docked) 0 else bottomInsetPx
+        if (scroll.paddingBottom != pad) scroll.setPadding(0, 0, 0, pad)
     }
     private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
         contentDescription = description

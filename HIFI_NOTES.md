@@ -99,3 +99,8 @@
 - Now Playing -> Album: the drag follows the finger. Now Playing fades and sinks a little (28dp) while the mini player rises from the bottom. Commit at 25% of 220dp or a downward fling (300dp/s), otherwise it springs back. On commit the Album page only fades in where it is (no slide, so its remembered scroll position is untouched) and the mini player settles with a soft overshoot (OvershootInterpolator 1.15, 440ms).
 - Album -> Now Playing: tap the mini player, swipe it up, Back, or any play action (showPlayerAnimated). The mini player sinks and fades, the Album page fades out, then Now Playing rises 28dp into place with a fade (380ms). The old sideways slide is gone.
 - Hardware layers on the page content and the mini player only while the transition runs. Version 1.17 (code 18), own workflow build-hifi-v1-17.yml.
+
+## v1.18 (branch hifi-v1-18, from hifi-v1-17) - docked mini player
+- The mini player is no longer a floating rounded card. It is a stuck bar at the bottom of the Album page, like the header at the top: same content (cover, title, artist, progress, play), full width, square, solid background (card colour 92%) that runs down to the navigation bar.
+- The Album list is cut where the bar starts instead of scrolling under it (applyMiniDock: scroller bottom margin = bar height while on Album; the old 92dp bottom padding is now 8dp and the nav-bar inset padding is not used there). On Now Playing the scroller is full height again.
+- The transition from 1.17 is unchanged (the bar still rises with the soft bounce and sinks on the way back).
