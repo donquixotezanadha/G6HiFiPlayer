@@ -1,4 +1,4 @@
-name: Hifi v1.12 - queue as a drag: info dock rises, art sinks, list below
+name: Hifi v1.12 - queue as a drag, info dock rises, art sinks, list below
 
 on:
   workflow_dispatch:
