@@ -69,3 +69,8 @@
 - It is a finger-following drag like the page swipe: progress p (0 = Now Playing, 1 = queue) is applied in one place (applyQueueProgress): dock.translationY = -shift*p, art alpha = 1-p, list translationY = shift*(1-p) with fade-in. On release it commits with distance (>50%) or a fling (>500dp/s) and animates the rest (340ms open, 280ms close), otherwise springs back.
 - Drag start area: closed = on the dock (title..info) or anything below its top edge; open = on the dock, or on the list while it is scrolled to the top. Page swipe and the seek bar are unchanged; page swipe is blocked while the queue is up.
 - Replaces the v1.10/v1.11 mechanics (list sliding inside a fixed area; SwipeFrameLayout callbacks are now no-ops).
+
+## v1.13 (branch hifi-v1-13, from hifi-v1-12)
+- The album art is now part of the rising unit: it moves up by the same distance as the info dock (artBox.translationY = -shift*p) instead of fading in place. It leaves through the top edge of its host and is cut there, with a thin 22dp fade (DST_OUT gradient, only while the queue transition is active, so the resting look and shadow are untouched).
+- Cover host: new TopFadeLayout wraps artBox inside the Now Playing stack; sizeDarkArt now reads MarginLayoutParams.
+- Still fading (alpha) only the "NO MUSIC PLAYING" placeholder. Everything else from 1.12 unchanged.

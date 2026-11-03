@@ -219,6 +219,7 @@ class MainActivity : Activity() {
     private var queueDragBase = 0f
     private var queueAnimating = false
     private var queueEligible = false
+    private var artHost: TopFadeLayout? = null
     private var queueAnimator: android.animation.ValueAnimator? = null
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
@@ -779,7 +780,12 @@ class MainActivity : Activity() {
         // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
         // Build 2.3: lower again (bottom padding 20dp -> 8dp). The cover gets equal gaps above and below (see sizeDarkArt).
         stack.setPadding(0, topInset, 0, dp(STACK_BOTTOM_PAD_DP))
-        stack.addView(artBox, LinearLayout.LayoutParams(boxSide, boxSide).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(ART_MIN_GAP_DP); bottomMargin = dp(ART_MIN_GAP_DP) })
+        // Hifi 1.13: the cover lives in a host that clips it at the top edge with a thin fade, so it can ride up with the info dock
+        // and be cut off as it reaches the header (see applyQueueProgress).
+        val host = TopFadeLayout(this)
+        host.addView(artBox, FrameLayout.LayoutParams(boxSide, boxSide, Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(ART_MIN_GAP_DP); bottomMargin = dp(ART_MIN_GAP_DP) })
+        artHost = host
+        stack.addView(host, LinearLayout.LayoutParams(-1, -2))
         stack.addView(bottomDock, LinearLayout.LayoutParams(-1, -2))
         playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         // Build 1.55: Classic cover box = the largest square between the status bar and the controls, centred in that gap.
@@ -807,7 +813,7 @@ class MainActivity : Activity() {
         val wide = ((resources.displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt()
         val side = minOf(wide, free - 2 * dp(ART_MIN_GAP_DP)).coerceAtLeast(dp(120))
         val gap = ((free - side) / 2).coerceAtLeast(dp(ART_MIN_GAP_DP))
-        val lp = artBox.layoutParams as? LinearLayout.LayoutParams ?: return
+        val lp = artBox.layoutParams as? ViewGroup.MarginLayoutParams ?: return
         // Hifi 1.6: the whole Now Playing content sits 6dp lower (the dock is lowered by its bottom padding).
         val lower = dp(6)
         val bottom = ((free - side - gap) - lower).coerceAtLeast(dp(ART_MIN_GAP_DP) - lower).coerceAtLeast(0)
@@ -1334,7 +1340,9 @@ class MainActivity : Activity() {
         val p = p0.coerceIn(0f, 1f)
         queueProgress = p
         if (::playerBottomDock.isInitialized) playerBottomDock.translationY = -queueShift * p
-        if (::artBox.isInitialized) artBox.alpha = 1f - p
+        // The cover is part of the unit: it rises with the dock (same distance) and leaves through the top edge of its host.
+        if (::artBox.isInitialized) artBox.translationY = -queueShift * p
+        artHost?.fade = (p * 8f).coerceIn(0f, 1f)
         if (::artPlaceholder.isInitialized) artPlaceholder.alpha = 1f - p
         if (!::queuePanel.isInitialized) return
         queuePanel.visibility = if (p > 0.001f) View.VISIBLE else View.GONE
@@ -3753,6 +3761,29 @@ class MainActivity : Activity() {
         // It used to run the "close" action, which stopped the music and removed the task. The real
         // close stays on the "Close player" button of the notification.
         try { moveTaskToBack(true) } catch (_: Exception) { }
+    }
+
+    /** Clips its content at its own top edge (default) and, while [fade] > 0, softens the last 22dp there so the cover dissolves as it is cut. */
+    private inner class TopFadeLayout(context: Context) : FrameLayout(context) {
+        var fade = 0f
+            set(value) { if (field != value) { field = value; invalidate() } }
+        private val maskPaint = android.graphics.Paint().apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+        }
+
+        override fun dispatchDraw(canvas: android.graphics.Canvas) {
+            if (fade <= 0.01f) { super.dispatchDraw(canvas); return }
+            val band = dp(22).toFloat()
+            val save = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+            super.dispatchDraw(canvas)
+            maskPaint.shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, band,
+                Color.argb((255 * fade).toInt().coerceIn(0, 255), 0, 0, 0), 0x00000000,
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, width.toFloat(), band, maskPaint)
+            canvas.restoreToCount(save)
+        }
     }
 
     private inner class SwipeFrameLayout(
