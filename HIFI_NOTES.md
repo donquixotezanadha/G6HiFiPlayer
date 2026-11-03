@@ -79,3 +79,10 @@
 - Returning from Album to Now Playing uses the page-swipe slide for Back, tapping or swiping up the mini player, and the play actions (play album, tap a track, album options): showPlayerAnimated() (old page slides out 110ms, Now Playing slides in 240ms).
 - Mini player box background 80% -> 92% (0xEB).
 - Buttons are filled again, as in the original: previous/play/pause/next and the mini-player play use ic_*_24 (pads back to 11dp play / 10dp side, spacer weights unchanged); header gear, moon and sun are new filled icons (ic_settings_fill, ic_moon_fill, ic_sun_fill). The *_outline drawables are left in res but unused.
+
+## v1.15 (branch hifi-v1-15, from hifi-v1-14) - sharper album thumbnails
+- Cause of the blurry Album grid: thumbnails were decoded with power-of-two halving toward 320 px, so a 1400 px cover became about 175 px (160-320 px range), stored as JPEG q88, reloaded in RGB_565, then stretched to about 630 px (2 columns) or 420 px (3 columns).
+- Now: decodeArtworkExact (largest power-of-two sample that stays >= target, then smooth scale to exactly 512 px, never upscaled), full colour (ARGB_8888), JPEG q92 on disk, THUMB_PX = 512.
+- Memory cache for thumbnails and album-detail covers 20 -> 64 MB (a 512 px thumbnail is about 1 MB). Start-up preload now covers only the first 48 albums of the alphabetical grid (the old preload loaded every album, which would evict itself with bigger bitmaps).
+- One-time purge: the old 320 px thumbs and "no cover" markers are deleted on first start (pref thumb_px) and rebuilt on demand, so the first opening after the update shows covers appearing progressively.
+- Unchanged on purpose: Now Playing (1200 px, still power-of-two sampled), album-detail cover (800 px RGB_565), notification and widgets, the library scan.

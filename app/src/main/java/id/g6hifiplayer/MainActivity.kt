@@ -121,8 +121,8 @@ class MainActivity : Activity() {
     private var buildingUi = false
     private val themers = java.util.WeakHashMap<View, MutableList<(View) -> Unit>>()
     private var albumGridColumns = 2
-    // Library thumbnails (320 px, RGB_565).
-    private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(20 * 1024 * 1024) {
+    // Library thumbnails (Hifi 1.15: 512 px, full colour; ~1 MB each, so the cache holds about 60) and the album-detail covers.
+    private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(64 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
     }
     // Now Playing covers (1200 px, ARGB_8888 = ~5.7 MB each). Kept apart from the thumbnails so the
@@ -138,7 +138,17 @@ class MainActivity : Activity() {
     private val artworkDecodeLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
     private val artworkDiskDir by lazy { File(cacheDir, "player_art").apply { mkdirs() } }
     // Build 2.2: small (320 px) JPEG copies of the album-grid covers, so the grid paints from disk at start-up.
-    private val thumbDiskDir by lazy { File(cacheDir, "thumbs").apply { mkdirs() } }
+    private val thumbDiskDir by lazy {
+        File(cacheDir, "thumbs").apply {
+            mkdirs()
+            // Hifi 1.15: grid thumbnails are 512 px now; the old 320 px files (and "no cover" markers) are dropped once and rebuilt sharp.
+            val prefs = getPreferences(MODE_PRIVATE)
+            if (prefs.getInt("thumb_px", 0) != THUMB_PX) {
+                listFiles()?.forEach { it.delete() }
+                prefs.edit().putInt("thumb_px", THUMB_PX).apply()
+            }
+        }
+    }
     // Build 2.2: every library scan gets a number; a result from an older scan is dropped.
     private var scanGeneration = 0
     @Volatile private var backgroundScanRunning = false
@@ -2694,6 +2704,37 @@ class MainActivity : Activity() {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
+    /**
+     * Hifi 1.15: decodes so that the longest side is exactly [targetMax] (never upscaled). [decodeArtwork] only halves by powers of two,
+     * so a 1400 px cover became 175 px for a 320 px target. Here the largest power-of-two sample that stays >= target is used,
+     * then the result is scaled down smoothly to the exact size.
+     */
+    private fun decodeArtworkExact(
+        bytes: ByteArray,
+        targetMax: Int,
+        config: android.graphics.Bitmap.Config = android.graphics.Bitmap.Config.ARGB_8888
+    ): android.graphics.Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        var sample = 1
+        while (longest / (sample * 2) >= targetMax) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = config }
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        val decodedLongest = maxOf(decoded.width, decoded.height)
+        if (decodedLongest <= targetMax) return decoded
+        val ratio = targetMax.toFloat() / decodedLongest
+        val scaled = android.graphics.Bitmap.createScaledBitmap(
+            decoded,
+            (decoded.width * ratio).toInt().coerceAtLeast(1),
+            (decoded.height * ratio).toInt().coerceAtLeast(1),
+            true
+        )
+        if (scaled !== decoded) decoded.recycle()
+        return scaled
+    }
+
     /** Cheap check (bounds only, no pixels) that the bytes really are a decodable picture. */
     private fun looksLikeImage(bytes: ByteArray): Boolean = try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -2760,7 +2801,7 @@ class MainActivity : Activity() {
         }
         artworkExecutor.execute {
             val bitmap = bitmapArtworkCache.get(key) ?: loadThumbFromDisk(track) ?: (readArtworkBytes(track)
-                ?.let { decodeArtwork(it, 320, android.graphics.Bitmap.Config.RGB_565) }
+                ?.let { decodeArtworkExact(it, THUMB_PX, android.graphics.Bitmap.Config.ARGB_8888) }
                 ?.also { bitmapArtworkCache.put(key, it); saveThumbToDisk(track, it) }
                 ?: run { try { thumbNoneMarker(track).createNewFile() } catch (_: Exception) { }; null })
             handler.post {
@@ -2783,12 +2824,12 @@ class MainActivity : Activity() {
     }
     private fun thumbNoneMarker(t: Track): File = File(thumbDiskFile(t).path + ".none")
 
-    /** Reads the saved 320 px cover of a track from disk (a few ms) and puts it in the memory cache. */
+    /** Reads the saved 512 px cover of a track from disk (a few ms) and puts it in the memory cache. */
     private fun loadThumbFromDisk(t: Track): android.graphics.Bitmap? {
         return try {
             val file = thumbDiskFile(t)
             if (file.length() <= 0L) return null
-            val options = BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }
+            val options = BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }
             BitmapFactory.decodeFile(file.path, options)?.also { bitmapArtworkCache.put("thumb:" + t.uri.toString(), it) }
         } catch (_: Throwable) { null }
     }
@@ -2797,16 +2838,18 @@ class MainActivity : Activity() {
         try {
             val file = thumbDiskFile(t)
             val temporary = File(file.path + ".tmp")
-            java.io.FileOutputStream(temporary).use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            java.io.FileOutputStream(temporary).use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
             if (!temporary.renameTo(file)) temporary.delete()
         } catch (_: Throwable) { }
     }
 
     /** Loads the grid cover of every album from disk into memory, so the grid paints at once with no loading. Call off the UI thread. */
     private fun prewarmAlbumThumbs(library: List<Track>) {
-        val seen = HashSet<String>()
-        for (t in library) {
-            if (!seen.add(t.album)) continue
+        // Hifi 1.15: thumbnails are bigger now, so only the first albums of the (alphabetical) grid are loaded up front.
+        val firstTrackOfAlbum = LinkedHashMap<String, Track>()
+        for (t in library) if (!firstTrackOfAlbum.containsKey(t.album)) firstTrackOfAlbum[t.album] = t
+        val firstAlbums = firstTrackOfAlbum.entries.sortedBy { it.key.lowercase(Locale.ROOT) }.take(PREWARM_ALBUMS)
+        for ((_, t) in firstAlbums) {
             if (bitmapArtworkCache.get("thumb:" + t.uri.toString()) == null) loadThumbFromDisk(t)
         }
     }
@@ -3950,6 +3993,8 @@ class MainActivity : Activity() {
         private const val GLOW_SIZE_SCALE = 0.75f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
         private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
+        private const val THUMB_PX = 512
+        private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
         private const val DARK_SURFACE = 0xFF000000.toInt()
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
