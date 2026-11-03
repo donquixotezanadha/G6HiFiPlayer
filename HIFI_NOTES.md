@@ -86,3 +86,10 @@
 - Memory cache for thumbnails and album-detail covers 20 -> 64 MB (a 512 px thumbnail is about 1 MB). Start-up preload now covers only the first 48 albums of the alphabetical grid (the old preload loaded every album, which would evict itself with bigger bitmaps).
 - One-time purge: the old 320 px thumbs and "no cover" markers are deleted on first start (pref thumb_px) and rebuilt on demand, so the first opening after the update shows covers appearing progressively.
 - Unchanged on purpose: Now Playing (1200 px, still power-of-two sampled), album-detail cover (800 px RGB_565), notification and widgets, the library scan.
+
+## v1.16 (branch hifi-v1-16, from hifi-v1-15) - smoother queue slide
+- Heavy work moved off the first drag frame: finger-down on the dock/info area now pre-builds the queue rows (only if the queue changed, via a signature), sets the list geometry (layout params only when they differ) and lays the list out invisibly. A plain tap or a page swipe puts it back to GONE.
+- Hardware layers on dock, cover and list while the queue moves (drag or animation), removed afterwards.
+- Cover top fade: only the 22dp top strip uses an offscreen layer now; the rest of the cover is drawn directly (was a full-size saveLayer every frame).
+- Drag feels shorter: the finger travels 70% of the distance for full progress (queueTravelFactor). Commit at 30% progress in the direction of travel (was 50%); fling threshold 300dp/s (was 500). Start slop 9dp (was 14), dominance 1.15 (was 1.4), start area begins 24dp above the dock (was 6dp).
+- Audio, library, thumbnails untouched.

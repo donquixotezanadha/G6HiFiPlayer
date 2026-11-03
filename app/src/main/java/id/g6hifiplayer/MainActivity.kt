@@ -229,6 +229,9 @@ class MainActivity : Activity() {
     private var queueDragBase = 0f
     private var queueAnimating = false
     private var queueEligible = false
+    private var queueRowsSig = Int.MIN_VALUE
+    private var queuePrewarmed = false
+    private val queueTravelFactor = 0.7f
     private var artHost: TopFadeLayout? = null
     private var queueAnimator: android.animation.ValueAnimator? = null
     private var pageScroll: ScrollView? = null
@@ -1294,6 +1297,7 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(dp(82), dp(36)))
         surface.addView(queueActions)
 
+        queueRowsSig = Int.MIN_VALUE
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val queueScroll = ScrollView(this).apply {
             clipToPadding = false
@@ -1320,7 +1324,7 @@ class MainActivity : Activity() {
         if (!::playerBottomDock.isInitialized || !::queuePanel.isInitialized) return false
         val loc = IntArray(2)
         playerBottomDock.getLocationOnScreen(loc)
-        val dockTop = loc[1] - dp(6)
+        val dockTop = loc[1] - dp(24)
         val dockBottom = loc[1] + playerBottomDock.height
         return if (queueProgress < 0.5f) rawY >= dockTop
         else (rawY >= dockTop && rawY <= dockBottom) || (rawY > dockBottom && (queueScrollView?.scrollY ?: 0) == 0)
@@ -1338,11 +1342,33 @@ class MainActivity : Activity() {
         queueShift = (baseTop - finalTop).coerceAtLeast(dp(120).toFloat())
         val listTop = finalTop + playerBottomDock.height
         val lp = queuePanel.layoutParams as? FrameLayout.LayoutParams ?: return
-        lp.gravity = Gravity.TOP
-        lp.topMargin = listTop
-        lp.height = (host.height - listTop).coerceAtLeast(dp(120))
-        queuePanel.layoutParams = lp
-        renderQueueRows()
+        val newHeight = (host.height - listTop).coerceAtLeast(dp(120))
+        if (lp.topMargin != listTop || lp.height != newHeight || lp.gravity != Gravity.TOP) { lp.gravity = Gravity.TOP; lp.topMargin = listTop; lp.height = newHeight; queuePanel.layoutParams = lp }
+        val sig = playbackQueue.hashCode() * 31 + tracks.size * 7 + currentIndex
+        if (sig != queueRowsSig) renderQueueRows()
+    }
+
+    /** Hifi 1.16: finger-down on the dock builds rows and geometry and lays the (invisible) list out, so the first drag frame does no heavy work. */
+    private fun prewarmQueue() {
+        if (!::queuePanel.isInitialized || queueProgress > 0.01f || queuePrewarmed) return
+        prepareQueueGeometry()
+        queuePanel.alpha = 0f
+        queuePanel.translationY = queueShift
+        queuePanel.visibility = View.INVISIBLE
+        queuePrewarmed = true
+    }
+
+    private fun cancelQueuePrewarm() {
+        if (!queuePrewarmed) return
+        queuePrewarmed = false
+        if (queueProgress <= 0.001f && !queueDragging && !queueAnimating && ::queuePanel.isInitialized) queuePanel.visibility = View.GONE
+    }
+
+    private fun queueLayers(on: Boolean) {
+        val type = if (on) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
+        if (::playerBottomDock.isInitialized && playerBottomDock.layerType != type) playerBottomDock.setLayerType(type, null)
+        if (::artBox.isInitialized && artBox.layerType != type) artBox.setLayerType(type, null)
+        if (::queuePanel.isInitialized && queuePanel.layerType != type) queuePanel.setLayerType(type, null)
     }
 
     /** One place that draws every stage of the transition from p (0..1). */
@@ -1355,7 +1381,7 @@ class MainActivity : Activity() {
         artHost?.fade = (p * 8f).coerceIn(0f, 1f)
         if (::artPlaceholder.isInitialized) artPlaceholder.alpha = 1f - p
         if (!::queuePanel.isInitialized) return
-        queuePanel.visibility = if (p > 0.001f) View.VISIBLE else View.GONE
+        queuePanel.visibility = if (p > 0.001f) View.VISIBLE else if (queuePrewarmed) View.INVISIBLE else View.GONE
         queuePanel.translationY = queueShift * (1f - p)
         queuePanel.alpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)
     }
@@ -1365,6 +1391,7 @@ class MainActivity : Activity() {
         val from = queueProgress
         if (from == target) { applyQueueProgress(target); return }
         queueAnimating = true
+        queueLayers(true)
         val opening = target > from
         queueAnimator = android.animation.ValueAnimator.ofFloat(from, target).apply {
             duration = if (opening) 340L else 280L
@@ -1377,6 +1404,7 @@ class MainActivity : Activity() {
                     if (cancelled) return
                     queueAnimating = false
                     applyQueueProgress(target)
+                    queueLayers(false)
                     if (target == 0f) queueScrollView?.scrollTo(0, 0)
                 }
             })
@@ -1392,6 +1420,8 @@ class MainActivity : Activity() {
         cancel.recycle()
         queueAnimator?.cancel(); queueAnimating = false
         if (queueProgress < 0.01f) prepareQueueGeometry()
+        queueLayers(true)
+        queuePrewarmed = false
         queueDragBase = queueProgress
         queueDragging = true
     }
@@ -1399,12 +1429,14 @@ class MainActivity : Activity() {
     private fun finishQueueDrag(velocityY: Float) {
         queueDragging = false
         swipeVelocity?.recycle(); swipeVelocity = null
-        val fast = dp(500).toFloat()
+        val fast = dp(300).toFloat()
+        // Hifi 1.16: 30% is enough to commit in the direction of travel (it was 50%).
+        val opening = queueDragBase < 0.5f
         val target = when {
             velocityY < -fast -> 1f
             velocityY > fast -> 0f
-            queueProgress > 0.5f -> 1f
-            else -> 0f
+            opening -> if (queueProgress > 0.3f) 1f else 0f
+            else -> if (queueProgress < 0.7f) 0f else 1f
         }
         animateQueueTo(target)
     }
@@ -3424,6 +3456,7 @@ class MainActivity : Activity() {
     private fun renderQueueRows() {
         if (!::queueRows.isInitialized) return
         updateQueueMiniPlayer()
+        queueRowsSig = playbackQueue.hashCode() * 31 + tracks.size * 7 + currentIndex
         queueRows.removeAllViews()
         queuePlayingMarks.clear()
         val queue = playbackQueue.filter { it in tracks.indices }
@@ -3669,7 +3702,7 @@ class MainActivity : Activity() {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_MOVE -> {
                     val dy = ev.rawY - swipeDownY
-                    applyQueueProgress(queueDragBase - dy / queueShift.coerceAtLeast(1f))
+                    applyQueueProgress(queueDragBase - dy / (queueShift * queueTravelFactor).coerceAtLeast(1f))
                 }
                 MotionEvent.ACTION_UP -> {
                     swipeVelocity?.computeCurrentVelocity(1000)
@@ -3701,6 +3734,7 @@ class MainActivity : Activity() {
                     touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
                     touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
                 queueEligible = !busy && currentPage == "player" && queueStartAllowed(ev.rawY)
+                if (queueEligible && queueProgress < 0.01f) prewarmQueue()
                 swipeVelocity?.recycle()
                 swipeVelocity = if (busy) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
             }
@@ -3711,6 +3745,7 @@ class MainActivity : Activity() {
                 if (!swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
                     (currentPage == "player" || currentPage == "library")) {
                     swipeDragging = true
+                    cancelQueuePrewarm()
                     val cancel = MotionEvent.obtain(ev)
                     cancel.action = MotionEvent.ACTION_CANCEL
                     super.dispatchTouchEvent(cancel)
@@ -3718,16 +3753,16 @@ class MainActivity : Activity() {
                     dragPage(dx)
                     return true
                 }
-                if (queueEligible && kotlin.math.abs(dy) > dp(14) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.4f) {
+                if (queueEligible && kotlin.math.abs(dy) > dp(9) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.15f) {
                     val opening = queueProgress < 0.5f
                     if ((opening && dy < 0) || (!opening && dy > 0)) {
                         startQueueDrag(ev)
-                        applyQueueProgress(queueDragBase - dy / queueShift.coerceAtLeast(1f))
+                        applyQueueProgress(queueDragBase - dy / (queueShift * queueTravelFactor).coerceAtLeast(1f))
                         return true
                     }
                 }
             }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null; cancelQueuePrewarm() }
         }
         return super.dispatchTouchEvent(ev)
     }
@@ -3834,15 +3869,22 @@ class MainActivity : Activity() {
 
         override fun dispatchDraw(canvas: android.graphics.Canvas) {
             if (fade <= 0.01f) { super.dispatchDraw(canvas); return }
-            val band = dp(22).toFloat()
-            val save = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+            // Hifi 1.16: only the 22dp top strip goes through an offscreen layer; the rest is drawn directly.
+            val band = dp(22).toFloat().coerceAtMost(height.toFloat())
+            val w = width.toFloat()
+            canvas.save()
+            canvas.clipRect(0f, band, w, height.toFloat())
+            super.dispatchDraw(canvas)
+            canvas.restore()
+            val save = canvas.saveLayer(0f, 0f, w, band, null)
+            canvas.clipRect(0f, 0f, w, band)
             super.dispatchDraw(canvas)
             maskPaint.shader = android.graphics.LinearGradient(
                 0f, 0f, 0f, band,
                 Color.argb((255 * fade).toInt().coerceIn(0, 255), 0, 0, 0), 0x00000000,
                 android.graphics.Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, 0f, width.toFloat(), band, maskPaint)
+            canvas.drawRect(0f, 0f, w, band, maskPaint)
             canvas.restoreToCount(save)
         }
     }
