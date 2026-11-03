@@ -210,6 +210,9 @@ class MainActivity : Activity() {
     private var swipeVelocity: android.view.VelocityTracker? = null
     private var headerGear: View? = null
     private var queueCard: View? = null
+    private var pageScroll: ScrollView? = null
+    private var listScrollY = 0
+    private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
     private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
@@ -354,6 +357,11 @@ class MainActivity : Activity() {
         // Equal weights keep the existing icon size and center each remaining hit target.
         // Hifi 1.4: no bottom bar. Pages are switched by swiping; the nav views stay created (unattached) so existing state code is untouched.
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
+        pageScroll = scroll
+        // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
+        scroll.setOnScrollChangeListener { _, _, y, _, _ ->
+            if (currentPage == "library" && selectedAlbum == null && !restoringScroll) listScrollY = y
+        }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
         scroll.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
@@ -409,12 +417,13 @@ class MainActivity : Activity() {
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         queueMiniHost?.let { contentStage.addView(it, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)) }
-        contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(makeHeaderBar(statusBarInset), LinearLayout.LayoutParams(-1, statusBarInset + dp(HEADER_H_DP)))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
         stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
+        // Hifi 1.9: the queue layer sits on the whole screen (header included) so the dim area is uniform, with no lighter top strip.
+        stage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
         // is lifted by the real bar height so its buttons stay tappable.
         stage.setOnApplyWindowInsetsListener { _, insets ->
@@ -1085,7 +1094,7 @@ class MainActivity : Activity() {
             shadePaint.shader = android.graphics.LinearGradient(
                 0f, bounds.top + bounds.height() * 0.45f, 0f, bounds.bottom.toFloat(),
                 if (light) 0x00FFFFFF else 0x00000000,
-                if (light) 0x66FFFFFF.toInt() else 0x66000000.toInt(),
+                if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt(),
                 android.graphics.Shader.TileMode.CLAMP
             )
         }
@@ -1103,7 +1112,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0x66FFFFFF.toInt() else 0x66000000.toInt())
+            canvas.drawColor(if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt())
             canvas.drawRect(b, shadePaint)
         }
 
@@ -1158,9 +1167,19 @@ class MainActivity : Activity() {
         // Hifi 1.7: the queue is a compact floating card. The rest of the page is a dim area; tapping it goes back.
         queuePanel.setBackgroundColor(0x66000000)
         queuePanel.setOnClickListener { closeQueueOverlay() }
+        val queueStatusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
+        val queueTop = queueStatusInset + dp(HEADER_H_DP) + dp(6)
         val surface = object : LinearLayout(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val cap = (resources.displayMetrics.heightPixels * 0.56f).toInt()
+                // Hifi 1.9: the card ends just above the elapsed/duration row, i.e. at the start of the progress area.
+                val screenH = resources.displayMetrics.heightPixels
+                var limit = (screenH * 0.72f).toInt()
+                if (::elapsed.isInitialized && elapsed.isShown) {
+                    val loc = IntArray(2)
+                    elapsed.getLocationOnScreen(loc)
+                    if (loc[1] > 0) limit = loc[1] - dp(6)
+                }
+                val cap = (limit - queueTop).coerceIn(dp(220), (screenH * 0.85f).toInt())
                 super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(cap, View.MeasureSpec.AT_MOST))
             }
         }.apply {
@@ -1278,7 +1297,7 @@ class MainActivity : Activity() {
         }
         // The card is capped to 56% of the screen height; longer queues scroll inside it.
         surface.addView(queueScroll, LinearLayout.LayoutParams(-1, -2))
-        queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply { setMargins(dp(14), dp(6), dp(14), 0) })
+        queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply { setMargins(dp(14), queueTop, dp(14), 0) })
         // Hifi 1.7: the mini player lives on the Album page, docked at the bottom (see show()).
         queueMiniHost = FrameLayout(this).apply {
             setPadding(dp(16), 0, dp(16), dp(8))
@@ -1761,7 +1780,7 @@ class MainActivity : Activity() {
                 backRow.addView(action("‹ ALBUMS", false) {
                     selectedAlbum = null
                     renderLibrary()
-                    scrollLibraryToTop()
+                    restoreListScroll()
                 }, LinearLayout.LayoutParams(dp(112), dp(42)))
                 albumRows.addView(backRow, LinearLayout.LayoutParams(-1, -2))
 
@@ -2085,6 +2104,22 @@ class MainActivity : Activity() {
     }
 
     /** The album pages live inside the page ScrollView; after opening another album it must start at the top. */
+    /** Puts the Album list back where it was (after layout, so the saved offset is not clamped by the old content height). */
+    private fun restoreListScroll() {
+        val sv = pageScroll ?: return
+        val y = listScrollY
+        restoringScroll = true
+        sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (sv.viewTreeObserver.isAlive) sv.viewTreeObserver.removeOnPreDrawListener(this)
+                sv.scrollTo(0, y)
+                restoringScroll = false
+                return true
+            }
+        })
+        sv.invalidate()
+    }
+
     private fun scrollLibraryToTop() {
         libraryPanel.post {
             var v: View? = libraryPanel
@@ -3180,10 +3215,12 @@ class MainActivity : Activity() {
             openQueueOverlay()
             return
         }
+        val previousPage = currentPage
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE
+        if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
         if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
             queuePanel.animate().cancel()
@@ -3612,6 +3649,7 @@ class MainActivity : Activity() {
         if (currentPage == "library" && selectedAlbum != null) {
             selectedAlbum = null
             renderLibrary()
+            restoreListScroll()
             return
         }
         if (currentPage != "player") {

@@ -48,3 +48,9 @@
 
 ## v1.8 (branch hifi-v1-8, from hifi-v1-7)
 - Album page (list, opened album): 5dp gap between the header bar and the first content (was 0 in 1.6/1.7, 6 in 1.5). Header bar unchanged at 42dp.
+
+## v1.9 (branch hifi-v1-9, from hifi-v1-8)
+- Album list remembers its scroll position: Back from an opened album (button, system Back) and coming back from Now Playing return to the same spot instead of the top. Opening an album still starts at its top.
+- Queue card is taller: it ends just above the elapsed/duration row (start of the progress area), still scrollable inside.
+- Queue layer moved from the page area to the whole screen, so the dim covers the header too (v1.7/1.8 left a lighter top strip, visible in Light theme).
+- Backdrop veil 40% -> 50% (0x66 -> 0x80), flat veil and bottom gradient, both themes.
