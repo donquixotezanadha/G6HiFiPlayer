@@ -209,6 +209,8 @@ class MainActivity : Activity() {
     private var swipeAnimating = false
     private var swipeVelocity: android.view.VelocityTracker? = null
     private var headerGear: View? = null
+    private var queueCard: View? = null
+    private var queueMiniHost: FrameLayout? = null
     private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
     private lateinit var trackRows: LinearLayout
@@ -406,6 +408,7 @@ class MainActivity : Activity() {
         // This gives its internal ScrollView independent gesture ownership and stable height.
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         contentStage.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        queueMiniHost?.let { contentStage.addView(it, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)) }
         contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(makeHeaderBar(statusBarInset), LinearLayout.LayoutParams(-1, statusBarInset + dp(HEADER_H_DP)))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -419,6 +422,7 @@ class MainActivity : Activity() {
             // Hifi 1.5: the page runs down to the real navigation bar; the inset is only padding inside the scroller and queue.
             if (scroll.paddingBottom != bottomInset) scroll.setPadding(0, 0, 0, bottomInset)
             if (::queuePanel.isInitialized && queuePanel.paddingBottom != bottomInset) queuePanel.setPadding(0, 0, 0, bottomInset)
+            queueMiniHost?.let { if (it.paddingBottom != bottomInset + dp(8)) it.setPadding(dp(16), 0, dp(16), bottomInset + dp(8)) }
             insets
         }
         var startupSplash: FrameLayout? = null
@@ -958,7 +962,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), 0, dp(16), dp(8))
+        libraryPanel.setPadding(dp(16), 0, dp(16), dp(92))   // room for the docked mini player
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1151,20 +1155,26 @@ class MainActivity : Activity() {
 
     private fun makeQueuePanel() {
         queuePanel.visibility = View.GONE
-        val surface = LinearLayout(this).apply {
+        // Hifi 1.7: the queue is a compact floating card. The rest of the page is a dim area; tapping it goes back.
+        queuePanel.setBackgroundColor(0x66000000)
+        queuePanel.setOnClickListener { closeQueueOverlay() }
+        val surface = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val cap = (resources.displayMetrics.heightPixels * 0.56f).toInt()
+                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(cap, View.MeasureSpec.AT_MOST))
+            }
+        }.apply {
             orientation = LinearLayout.VERTICAL
-            // Classic theme: the queue overlay shows the same darkened cover as the pages behind it.
-            background = newDarkDrawable()
+            background = shape(withAlpha(mixColors(playerSurface, playerInk, 0.10f), 0xF2), 24)
+            elevation = dp(10).toFloat()
+            isClickable = true
         }
-        val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id ->
-            if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
-        }
-        surface.setPadding(dp(16), 0, dp(16), dp(8))
+        queueCard = surface
+        surface.setPadding(dp(16), dp(10), dp(16), dp(10))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-         surface.addView(header)
 
         val mini = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1173,7 +1183,7 @@ class MainActivity : Activity() {
             themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(CARD, 14), null) }
             isClickable = true
             isFocusable = true
-            setOnClickListener { closeQueueOverlay() }
+            setOnClickListener { show("player") }
             // Swipe up on the mini-player dock to return to Now Playing.
             var downX = 0f
             var downY = 0f
@@ -1190,7 +1200,7 @@ class MainActivity : Activity() {
                         val dy = event.rawY - downY
                         view.parent?.requestDisallowInterceptTouchEvent(false)
                         if (dy < -dp(32) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.2f) {
-                            closeQueueOverlay()
+                            show("player")
                             true
                         } else false
                     }
@@ -1261,16 +1271,20 @@ class MainActivity : Activity() {
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val queueScroll = ScrollView(this).apply {
             clipToPadding = false
-            isFillViewport = true
+            isFillViewport = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             isVerticalScrollBarEnabled = true
             addView(queueRows, ViewGroup.LayoutParams(-1, -2))
         }
-        // The list owns the flexible middle area; the mini-player stays docked directly
-        // above the app's bottom navigation instead of scrolling away with queue rows.
-        surface.addView(queueScroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        surface.addView(mini, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
+        // The card is capped to 56% of the screen height; longer queues scroll inside it.
+        surface.addView(queueScroll, LinearLayout.LayoutParams(-1, -2))
+        queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply { setMargins(dp(14), dp(6), dp(14), 0) })
+        // Hifi 1.7: the mini player lives on the Album page, docked at the bottom (see show()).
+        queueMiniHost = FrameLayout(this).apply {
+            setPadding(dp(16), 0, dp(16), dp(8))
+            visibility = View.GONE
+            addView(mini, FrameLayout.LayoutParams(-1, -2))
+        }
         updateQueueMiniPlayer()
     }
 
@@ -1278,39 +1292,29 @@ class MainActivity : Activity() {
         if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
         if (queuePanel.visibility == View.VISIBLE) return
         queuePanel.animate().cancel()
+        queueCard?.animate()?.cancel()
         renderQueueRows()
-        val travel = (queuePanel.height.takeIf { it > 0 } ?: (resources.displayMetrics.heightPixels - dp(64))).toFloat()
-            .coerceAtLeast(dp(160).toFloat())
-        queuePanel.translationY = -travel
-        queuePanel.alpha = 1f
+        queuePanel.alpha = 0f
+        queueCard?.translationY = -dp(40).toFloat()
         queuePanel.visibility = View.VISIBLE
         queuePanel.bringToFront()
-        queuePanel.postOnAnimation {
-            if (queuePanel.visibility != View.VISIBLE) return@postOnAnimation
-            queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            queuePanel.animate().cancel()
-            queuePanel.animate().translationY(0f).setDuration(300L)
-                .setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f))
-                .withEndAction { queuePanel.setLayerType(View.LAYER_TYPE_NONE, null) }.start()
-        }
-        recordDiagnostic("QUEUE_OVERLAY opened=true animation=300ms-cubic")
+        queuePanel.animate().alpha(1f).setDuration(200L).setInterpolator(DecelerateInterpolator(1.4f)).start()
+        queueCard?.animate()?.translationY(0f)?.setDuration(260L)
+            ?.setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f))?.start()
+        recordDiagnostic("QUEUE_OVERLAY opened=true floating=true")
     }
 
     private fun closeQueueOverlay() {
         if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
         queuePanel.animate().cancel()
-        val travel = (queuePanel.height.takeIf { it > 0 } ?: (resources.displayMetrics.heightPixels - dp(64))).toFloat()
-            .coerceAtLeast(dp(160).toFloat())
-        queuePanel.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        queuePanel.animate().translationY(-travel).setDuration(240L)
-            .setInterpolator(android.view.animation.PathInterpolator(0.4f, 0f, 1f, 1f))
-            .withEndAction {
-                queuePanel.visibility = View.GONE
-                queuePanel.translationY = 0f
-                queuePanel.alpha = 1f
-                queuePanel.setLayerType(View.LAYER_TYPE_NONE, null)
-            }.start()
-        recordDiagnostic("QUEUE_OVERLAY opened=false animation=240ms-cubic")
+        queueCard?.animate()?.cancel()
+        queueCard?.animate()?.translationY(-dp(40).toFloat())?.setDuration(170L)?.start()
+        queuePanel.animate().alpha(0f).setDuration(170L).withEndAction {
+            queuePanel.visibility = View.GONE
+            queuePanel.alpha = 1f
+            queueCard?.translationY = 0f
+        }.start()
+        recordDiagnostic("QUEUE_OVERLAY opened=false floating=true")
     }
 
     private fun updateQueueMiniPlayer() {
@@ -3179,6 +3183,7 @@ class MainActivity : Activity() {
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
+        queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE
         headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
         if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
             queuePanel.animate().cancel()
