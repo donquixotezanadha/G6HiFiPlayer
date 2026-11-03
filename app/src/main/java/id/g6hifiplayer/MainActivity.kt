@@ -724,9 +724,9 @@ class MainActivity : Activity() {
         // Build 2.13: all three icons shrink together. Play/pause: 60dp area - 2*11dp = 38dp icon (was 42dp in 2.12). Previous/Next:
         // 52dp area - 2*10dp = 32dp icon (were 52dp in 2.12, so only Play had changed). The hit areas stay 60dp / 52dp, so the
         // centres (positions) do not move; the difference is only padding around the icons.
-        prevView = transportButton(R.drawable.ic_previous_outline, "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_outline, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_outline, "Next", SIDE_ICON_PAD_DP) { playNext() }
+        prevView = transportButton(R.drawable.ic_previous_24, "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
+        playView = transportButton(R.drawable.ic_play_24, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
+        nextView = transportButton(R.drawable.ic_next_24, "Next", SIDE_ICON_PAD_DP) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1.3f))
@@ -1196,10 +1196,10 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(CARD, 14), null) }
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(withAlpha(CARD, 0xEB), 14), null) }
             isClickable = true
             isFocusable = true
-            setOnClickListener { show("player") }
+            setOnClickListener { showPlayerAnimated() }
             // Swipe up on the mini-player dock to return to Now Playing.
             var downX = 0f
             var downY = 0f
@@ -1216,7 +1216,7 @@ class MainActivity : Activity() {
                         val dy = event.rawY - downY
                         view.parent?.requestDisallowInterceptTouchEvent(false)
                         if (dy < -dp(32) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.2f) {
-                            show("player")
+                            showPlayerAnimated()
                             true
                         } else false
                     }
@@ -1262,7 +1262,7 @@ class MainActivity : Activity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             themed { imageTintList = ColorStateList.valueOf(accentColor) }
-            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_outline else R.drawable.ic_play_outline)
+            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
@@ -1890,7 +1890,7 @@ class MainActivity : Activity() {
                     setPadding(dp(4), dp(2), dp(4), dp(10))
                 }
                 albumActions.addView(action("PLAY ALBUM", true) {
-                    if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); show("player") }
+                    if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
                 }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
                 albumActions.addView(action("ADD TO QUEUE", false) {
@@ -2094,7 +2094,7 @@ class MainActivity : Activity() {
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
             playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
-            show("player")
+            showPlayerAnimated()
         }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
         loadArtworkInto(cover, t)
@@ -2154,7 +2154,7 @@ class MainActivity : Activity() {
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
             playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
-            show("player")
+            showPlayerAnimated()
         }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2))
         albumPlayingMarks.add(AlbumRowMark(entry.index, row, numberView, titleView, bars))
@@ -2459,12 +2459,12 @@ class MainActivity : Activity() {
         if (!::playView.isInitialized) return
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
         updateAlbumPlayingMarks(playing)
-        playView.setImageResource(if (playing) R.drawable.ic_pause_outline else R.drawable.ic_play_outline)
+        playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(WHITE)
         animateArtForState(playing)
         if (::queueMiniPlayView.isInitialized) {
-            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_outline else R.drawable.ic_play_outline)
+            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
         }
@@ -3394,7 +3394,7 @@ class MainActivity : Activity() {
                 setPadding(dp(4), dp(5), dp(4), dp(5))
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); show("player") }
+                setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); showPlayerAnimated() }
             }
             val numberView = text((position + 1).toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
             row.addView(numberView, LinearLayout.LayoutParams(dp(34), -2))
@@ -3447,7 +3447,7 @@ class MainActivity : Activity() {
             panel.addView(item, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(8) })
         }
         option("▶  Play entire album") {
-            if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); show("player") }
+            if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); showPlayerAnimated() }
         }
         option("＋  Add album to queue") { addAlbumToQueue(indices, album) }
         dialog.setView(panel)
@@ -3523,7 +3523,7 @@ class MainActivity : Activity() {
         headerTitle = pageHeader("Now Playing", 20).apply { textSize = 20f }
         bar.addView(headerTitle, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.START or Gravity.TOP))
         val gear = ImageView(this).apply {
-            setImageResource(R.drawable.ic_settings_outline)
+            setImageResource(R.drawable.ic_settings_fill)
             contentDescription = "Settings"
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -3553,8 +3553,8 @@ class MainActivity : Activity() {
             }
             themeRow.addView(icon, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(2); rightMargin = dp(2) })
         }
-        themeIcon(R.drawable.ic_moon_outline, "Dark theme", false)
-        themeIcon(R.drawable.ic_sun_outline, "Light theme", true)
+        themeIcon(R.drawable.ic_moon_fill, "Dark theme", false)
+        themeIcon(R.drawable.ic_sun_fill, "Light theme", true)
         headerThemeRow = themeRow
         bar.addView(themeRow, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(12) })
         return bar
@@ -3598,8 +3598,8 @@ class MainActivity : Activity() {
                 }
                 row.addView(icon, LinearLayout.LayoutParams(dp(60), dp(60)).apply { leftMargin = dp(10); rightMargin = dp(10) })
             }
-            themeIcon(R.drawable.ic_moon_outline, "Dark theme", false)
-            themeIcon(R.drawable.ic_sun_outline, "Light theme", true)
+            themeIcon(R.drawable.ic_moon_fill, "Dark theme", false)
+            themeIcon(R.drawable.ic_sun_fill, "Light theme", true)
             panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         }
         dialog.setView(panel)
@@ -3689,6 +3689,24 @@ class MainActivity : Activity() {
         return super.dispatchTouchEvent(ev)
     }
 
+    /** Hifi 1.14: leaving Album for Now Playing slides like the page swipe, for Back, the mini player and the play actions too. */
+    private fun showPlayerAnimated() {
+        val v = pageContentView
+        if (currentPage != "library" || v == null || swipeAnimating || swipeDragging) { show("player"); return }
+        val width = resources.displayMetrics.widthPixels.toFloat()
+        swipeAnimating = true
+        v.animate().cancel()
+        v.animate().translationX(width * 0.6f).alpha(0f).setDuration(110L)
+            .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f))
+            .withEndAction {
+                show("player")
+                v.translationX = -width * 0.25f
+                v.alpha = 0f
+                v.animate().translationX(0f).alpha(1f).setDuration(240L).setInterpolator(DecelerateInterpolator(1.8f))
+                    .withEndAction { swipeAnimating = false }.start()
+            }.start()
+    }
+
     private fun canSwipeTo(toLibrary: Boolean) = (toLibrary && currentPage == "player") || (!toLibrary && currentPage == "library")
 
     private fun dragPage(dx: Float) {
@@ -3754,7 +3772,7 @@ class MainActivity : Activity() {
             return
         }
         if (currentPage != "player") {
-            show("player")
+            showPlayerAnimated()
             return
         }
         // Build 2.8: Back on the Now Playing page only sends the app to the background (like Home).
@@ -3923,9 +3941,9 @@ class MainActivity : Activity() {
         private const val TRANSPORT_SIDE_DP = 52
         private const val TRANSPORT_PLAY_DP = 60
         /** Build 2.13: padding around the play/pause icon inside its 60dp area -> icon 38dp (2.12: 9dp -> 42dp; 2.11: 0 -> 60dp). */
-        private const val PLAY_ICON_PAD_DP = 9
+        private const val PLAY_ICON_PAD_DP = 11
         /** Build 2.13: padding around the previous/next icons inside their 52dp area -> icon 32dp (2.12 and 2.11: 0 -> 52dp). */
-        private const val SIDE_ICON_PAD_DP = 7
+        private const val SIDE_ICON_PAD_DP = 10
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
         private const val GLOW_EXTRA_DP = 5
         /** Build 2.15: glow size factor (1.0 = size of 2.14). */

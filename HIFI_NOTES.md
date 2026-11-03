@@ -74,3 +74,8 @@
 - The album art is now part of the rising unit: it moves up by the same distance as the info dock (artBox.translationY = -shift*p) instead of fading in place. It leaves through the top edge of its host and is cut there, with a thin 22dp fade (DST_OUT gradient, only while the queue transition is active, so the resting look and shadow are untouched).
 - Cover host: new TopFadeLayout wraps artBox inside the Now Playing stack; sizeDarkArt now reads MarginLayoutParams.
 - Still fading (alpha) only the "NO MUSIC PLAYING" placeholder. Everything else from 1.12 unchanged.
+
+## v1.14 (branch hifi-v1-14, from hifi-v1-13)
+- Returning from Album to Now Playing uses the page-swipe slide for Back, tapping or swiping up the mini player, and the play actions (play album, tap a track, album options): showPlayerAnimated() (old page slides out 110ms, Now Playing slides in 240ms).
+- Mini player box background 80% -> 92% (0xEB).
+- Buttons are filled again, as in the original: previous/play/pause/next and the mini-player play use ic_*_24 (pads back to 11dp play / 10dp side, spacer weights unchanged); header gear, moon and sun are new filled icons (ic_settings_fill, ic_moon_fill, ic_sun_fill). The *_outline drawables are left in res but unused.
