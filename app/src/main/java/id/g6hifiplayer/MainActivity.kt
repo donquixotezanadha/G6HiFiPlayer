@@ -375,13 +375,15 @@ class MainActivity : Activity() {
         }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
-        playerPanel = SwipeFrameLayout(this, onSwipeUp = { openQueueOverlay() }, onSwipeDown = { closeQueueOverlay() }).apply {
+        playerPanel = SwipeFrameLayout(this, onSwipeUp = { openQueueOverlay() }, onSwipeDown = { closeQueueOverlay() },
+            // Hifi 1.11: the queue is opened by swiping up from the track title and everything below it (title, progress, controls, info).
+            startGuard = { _, rawY -> (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) || touchStartsInDock(rawY) }).apply {
             // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { closeQueueOverlay() }, startGuard = { (queueScrollView?.scrollY ?: 0) == 0 })
+        queuePanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { closeQueueOverlay() }, startGuard = { _, _ -> (queueScrollView?.scrollY ?: 0) == 0 })
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
@@ -1290,6 +1292,13 @@ class MainActivity : Activity() {
         updateQueueMiniPlayer()
     }
 
+    private fun touchStartsInDock(rawY: Float): Boolean {
+        if (!::playerBottomDock.isInitialized) return false
+        val loc = IntArray(2)
+        playerBottomDock.getLocationOnScreen(loc)
+        return rawY >= loc[1] - dp(6)
+    }
+
     /** The queue covers the album-art area: from the top of the page down to the track title (top of the info dock). */
     private fun sizeQueueRegion() {
         if (!::playerBottomDock.isInitialized) return
@@ -1315,32 +1324,35 @@ class MainActivity : Activity() {
     private fun openQueueOverlay() {
         if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
         if (queuePanel.visibility == View.VISIBLE) return
-        queuePanel.animate().cancel()
+        queueCard?.animate()?.cancel()
         sizeQueueRegion()
         renderQueueRows()
-        queuePanel.alpha = 0f
-        queuePanel.translationY = dp(56).toFloat()
+        // The area (queuePanel) stays put and clips its content; the list starts below the area and rises into it.
+        val travel = ((queuePanel.layoutParams as? FrameLayout.LayoutParams)?.height ?: dp(400)).toFloat().coerceAtLeast(dp(200).toFloat())
+        queueCard?.translationY = travel
+        queueCard?.alpha = 0f
+        queuePanel.alpha = 1f
         queuePanel.visibility = View.VISIBLE
         queuePanel.bringToFront()
-        // Smooth slide up with fade; the album art fades out underneath.
-        queuePanel.animate().alpha(1f).translationY(0f).setDuration(300L)
-            .setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)).start()
-        fadeArt(0f, 240L)
-        recordDiagnostic("QUEUE_OVERLAY opened=true slideUp=true")
+        queueCard?.animate()?.translationY(0f)?.alpha(1f)?.setDuration(340L)
+            ?.setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f))?.start()
+        fadeArt(0f, 280L)
+        recordDiagnostic("QUEUE_OVERLAY opened=true slideUpFromBottom=true")
     }
 
     private fun closeQueueOverlay() {
         if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
-        queuePanel.animate().cancel()
-        fadeArt(1f, 260L)
-        queuePanel.animate().alpha(0f).translationY(dp(56).toFloat()).setDuration(220L)
-            .setInterpolator(android.view.animation.PathInterpolator(0.4f, 0f, 1f, 1f))
-            .withEndAction {
+        queueCard?.animate()?.cancel()
+        val travel = queuePanel.height.toFloat().coerceAtLeast(dp(200).toFloat())
+        fadeArt(1f, 300L)
+        queueCard?.animate()?.translationY(travel)?.alpha(0f)?.setDuration(260L)
+            ?.setInterpolator(android.view.animation.PathInterpolator(0.4f, 0f, 1f, 1f))
+            ?.withEndAction {
                 queuePanel.visibility = View.GONE
-                queuePanel.alpha = 1f
-                queuePanel.translationY = 0f
-            }.start()
-        recordDiagnostic("QUEUE_OVERLAY opened=false slideUp=true")
+                queueCard?.translationY = 0f
+                queueCard?.alpha = 1f
+            }?.start()
+        recordDiagnostic("QUEUE_OVERLAY opened=false slideDown=true")
     }
 
     private fun updateQueueMiniPlayer() {
@@ -3235,6 +3247,7 @@ class MainActivity : Activity() {
             queuePanel.translationY = 0f
             queuePanel.alpha = 1f
             artFade?.cancel(); if (::artBox.isInitialized) artBox.alpha = 1f
+            queueCard?.animate()?.cancel(); queueCard?.translationY = 0f; queueCard?.alpha = 1f
         }
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
@@ -3674,7 +3687,7 @@ class MainActivity : Activity() {
         context: Context,
         private val onSwipeUp: () -> Unit,
         private val onSwipeDown: () -> Unit,
-        private val startGuard: () -> Boolean = { true }
+        private val startGuard: (Float, Float) -> Boolean = { _, _ -> true }
     ) : FrameLayout(context) {
         private var downX = 0f
         private var downY = 0f
@@ -3686,7 +3699,7 @@ class MainActivity : Activity() {
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 downX = event.x
                 downY = event.y
-                armed = startGuard()
+                armed = startGuard(event.rawX, event.rawY)
                 parent?.requestDisallowInterceptTouchEvent(true)
             }
             val handled = super.dispatchTouchEvent(event)

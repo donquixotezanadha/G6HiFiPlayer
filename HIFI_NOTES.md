@@ -59,3 +59,7 @@
 - Queue is no longer a floating card. It is a slide-up list that takes the place of the album art: it covers the page from just under the header down to the top of the track title block. No card, no dim; same width (16dp page padding) and text as the Album track list. Open: list slides up 56dp and fades in over 300ms while the album art fades out; close is the reverse. Back also closes.
 - Gesture: swipe UP on Now Playing opens the queue, swipe DOWN closes it (inside the list it only closes once the list is scrolled back to the top). In 1.9 and earlier it was swipe down to open.
 - Page swipe (Now Playing <-> Album) stays blocked while the queue is open.
+
+## v1.11 (branch hifi-v1-11, from hifi-v1-10)
+- The queue area (art area) stays fixed and clips; the list itself starts below that area and slides UP into it (340ms, fading in), while the album art fades out. Closing slides it back DOWN out of the area (260ms) and the art fades back in. v1.10 only moved it 56dp.
+- Opening gesture: swipe up that STARTS on the track title or anything below it (title/artist, progress, controls, info). Starting on the cover no longer opens it. Closing: swipe down (list at its top, or from the dock), Back.
