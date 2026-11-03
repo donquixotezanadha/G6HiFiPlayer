@@ -54,3 +54,8 @@
 - Queue card is taller: it ends just above the elapsed/duration row (start of the progress area), still scrollable inside.
 - Queue layer moved from the page area to the whole screen, so the dim covers the header too (v1.7/1.8 left a lighter top strip, visible in Light theme).
 - Backdrop veil 40% -> 50% (0x66 -> 0x80), flat veil and bottom gradient, both themes.
+
+## v1.10 (branch hifi-v1-10, from hifi-v1-9)
+- Queue is no longer a floating card. It is a slide-up list that takes the place of the album art: it covers the page from just under the header down to the top of the track title block. No card, no dim; same width (16dp page padding) and text as the Album track list. Open: list slides up 56dp and fades in over 300ms while the album art fades out; close is the reverse. Back also closes.
+- Gesture: swipe UP on Now Playing opens the queue, swipe DOWN closes it (inside the list it only closes once the list is scrolled back to the top). In 1.9 and earlier it was swipe down to open.
+- Page swipe (Now Playing <-> Album) stays blocked while the queue is open.
