@@ -211,7 +211,15 @@ class MainActivity : Activity() {
     private var headerGear: View? = null
     private var queueCard: View? = null
     private var queueScrollView: ScrollView? = null
-    private var artFade: android.animation.ObjectAnimator? = null
+    // Hifi 1.12: the queue is one drag-driven progress (0 = Now Playing, 1 = queue). The info dock (title..info) rises and
+    // sticks under the header, the album art sinks, the list appears below the dock.
+    private var queueProgress = 0f
+    private var queueShift = 0f
+    private var queueDragging = false
+    private var queueDragBase = 0f
+    private var queueAnimating = false
+    private var queueEligible = false
+    private var queueAnimator: android.animation.ValueAnimator? = null
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
     private var restoringScroll = false
@@ -336,6 +344,7 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         buildingUi = true
+        queueAnimator?.cancel(); queueProgress = 0f; queueDragging = false; queueAnimating = false
         // Build 3.01: newly-created Now Playing artwork needs its Hi-Res foreground rebound after a theme rebuild.
         hiResBadgeShown = false
         darkDrawables.clear()
@@ -375,15 +384,13 @@ class MainActivity : Activity() {
         }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
-        playerPanel = SwipeFrameLayout(this, onSwipeUp = { openQueueOverlay() }, onSwipeDown = { closeQueueOverlay() },
-            // Hifi 1.11: the queue is opened by swiping up from the track title and everything below it (title, progress, controls, info).
-            startGuard = { _, rawY -> (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) || touchStartsInDock(rawY) }).apply {
+        playerPanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { }).apply {
             // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { closeQueueOverlay() }, startGuard = { _, _ -> (queueScrollView?.scrollY ?: 0) == 0 })
+        queuePanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { })
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
@@ -742,7 +749,7 @@ class MainActivity : Activity() {
                 val loc = IntArray(2); v.getLocationOnScreen(loc)
                 val seekLoc = IntArray(2); seek.getLocationOnScreen(seekLoc)
                 // Build 2.3: the dock height decides how much room the cover has; re-centre the cover when it changes.
-                playerPanel.post { sizeDarkArt(playerPanel.height, topInset); if (queuePanel.visibility == View.VISIBLE) sizeQueueRegion() }
+                playerPanel.post { sizeDarkArt(playerPanel.height, topInset) }
                 recordDiagnostic("DOCK_LAYOUT theme=dark" +
                     " dockTopOnScreen=" + loc[1] + " dockHeight=" + (bottom - top) + " seekTopOnScreen=" + seekLoc[1] +
                     " panelMinHeight=" + playerPanel.minimumHeight + " rootPaddingBottom=" + (pageRoot?.paddingBottom ?: -1) +
@@ -1292,67 +1299,111 @@ class MainActivity : Activity() {
         updateQueueMiniPlayer()
     }
 
-    private fun touchStartsInDock(rawY: Float): Boolean {
-        if (!::playerBottomDock.isInitialized) return false
+    /** Where a vertical drag may start: closed = on the info dock (title, progress, controls, info); open = on the dock, or on the list while it is at its top. */
+    private fun queueStartAllowed(rawY: Float): Boolean {
+        if (!::playerBottomDock.isInitialized || !::queuePanel.isInitialized) return false
         val loc = IntArray(2)
         playerBottomDock.getLocationOnScreen(loc)
-        return rawY >= loc[1] - dp(6)
+        val dockTop = loc[1] - dp(6)
+        val dockBottom = loc[1] + playerBottomDock.height
+        return if (queueProgress < 0.5f) rawY >= dockTop
+        else (rawY >= dockTop && rawY <= dockBottom) || (rawY > dockBottom && (queueScrollView?.scrollY ?: 0) == 0)
     }
 
-    /** The queue covers the album-art area: from the top of the page down to the track title (top of the info dock). */
-    private fun sizeQueueRegion() {
+    /** Measures how far the dock must rise and places the list right under its final position. Call while progress is 0. */
+    private fun prepareQueueGeometry() {
         if (!::playerBottomDock.isInitialized) return
         val host = queuePanel.parent as? View ?: return
-        val dock = IntArray(2); val base = IntArray(2)
-        playerBottomDock.getLocationOnScreen(dock)
-        host.getLocationOnScreen(base)
-        val h = (dock[1] - base[1]).coerceAtLeast(dp(160))
+        val d = IntArray(2); val h = IntArray(2)
+        playerBottomDock.getLocationOnScreen(d)
+        host.getLocationOnScreen(h)
+        val baseTop = d[1] - h[1] - playerBottomDock.translationY
+        val finalTop = dp(2)
+        queueShift = (baseTop - finalTop).coerceAtLeast(dp(120).toFloat())
+        val listTop = finalTop + playerBottomDock.height
         val lp = queuePanel.layoutParams as? FrameLayout.LayoutParams ?: return
-        if (lp.height != h) { lp.height = h; queuePanel.layoutParams = lp }
+        lp.gravity = Gravity.TOP
+        lp.topMargin = listTop
+        lp.height = (host.height - listTop).coerceAtLeast(dp(120))
+        queuePanel.layoutParams = lp
+        renderQueueRows()
     }
 
-    private fun fadeArt(to: Float, duration: Long) {
-        if (!::artBox.isInitialized) return
-        artFade?.cancel()
-        artFade = android.animation.ObjectAnimator.ofFloat(artBox, View.ALPHA, artBox.alpha, to).apply {
-            this.duration = duration
-            interpolator = DecelerateInterpolator(1.4f)
+    /** One place that draws every stage of the transition from p (0..1). */
+    private fun applyQueueProgress(p0: Float) {
+        val p = p0.coerceIn(0f, 1f)
+        queueProgress = p
+        if (::playerBottomDock.isInitialized) playerBottomDock.translationY = -queueShift * p
+        if (::artBox.isInitialized) artBox.alpha = 1f - p
+        if (::artPlaceholder.isInitialized) artPlaceholder.alpha = 1f - p
+        if (!::queuePanel.isInitialized) return
+        queuePanel.visibility = if (p > 0.001f) View.VISIBLE else View.GONE
+        queuePanel.translationY = queueShift * (1f - p)
+        queuePanel.alpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)
+    }
+
+    private fun animateQueueTo(target: Float, velocityPxPerSec: Float = 0f) {
+        queueAnimator?.cancel()
+        val from = queueProgress
+        if (from == target) { applyQueueProgress(target); return }
+        queueAnimating = true
+        val opening = target > from
+        queueAnimator = android.animation.ValueAnimator.ofFloat(from, target).apply {
+            duration = if (opening) 340L else 280L
+            interpolator = if (opening) android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f) else android.view.animation.PathInterpolator(0.3f, 0f, 0.2f, 1f)
+            addUpdateListener { applyQueueProgress(it.animatedValue as Float) }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    queueAnimating = false
+                    applyQueueProgress(target)
+                    if (target == 0f) queueScrollView?.scrollTo(0, 0)
+                }
+            })
             start()
         }
     }
 
+    private fun startQueueDrag(ev: MotionEvent) {
+        // The children get a cancel, then the drag is driven from dispatchTouchEvent.
+        val cancel = MotionEvent.obtain(ev)
+        cancel.action = MotionEvent.ACTION_CANCEL
+        super.dispatchTouchEvent(cancel)
+        cancel.recycle()
+        queueAnimator?.cancel(); queueAnimating = false
+        if (queueProgress < 0.01f) prepareQueueGeometry()
+        queueDragBase = queueProgress
+        queueDragging = true
+    }
+
+    private fun finishQueueDrag(velocityY: Float) {
+        queueDragging = false
+        swipeVelocity?.recycle(); swipeVelocity = null
+        val fast = dp(500).toFloat()
+        val target = when {
+            velocityY < -fast -> 1f
+            velocityY > fast -> 0f
+            queueProgress > 0.5f -> 1f
+            else -> 0f
+        }
+        animateQueueTo(target)
+    }
+
     private fun openQueueOverlay() {
         if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
-        if (queuePanel.visibility == View.VISIBLE) return
-        queueCard?.animate()?.cancel()
-        sizeQueueRegion()
-        renderQueueRows()
-        // The area (queuePanel) stays put and clips its content; the list starts below the area and rises into it.
-        val travel = ((queuePanel.layoutParams as? FrameLayout.LayoutParams)?.height ?: dp(400)).toFloat().coerceAtLeast(dp(200).toFloat())
-        queueCard?.translationY = travel
-        queueCard?.alpha = 0f
-        queuePanel.alpha = 1f
-        queuePanel.visibility = View.VISIBLE
-        queuePanel.bringToFront()
-        queueCard?.animate()?.translationY(0f)?.alpha(1f)?.setDuration(340L)
-            ?.setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f))?.start()
-        fadeArt(0f, 280L)
-        recordDiagnostic("QUEUE_OVERLAY opened=true slideUpFromBottom=true")
+        if (queueProgress >= 0.99f) return
+        queueAnimator?.cancel()
+        if (queueProgress < 0.01f) prepareQueueGeometry()
+        animateQueueTo(1f)
+        recordDiagnostic("QUEUE_OVERLAY opened=true mode=dock-rises")
     }
 
     private fun closeQueueOverlay() {
-        if (!::queuePanel.isInitialized || queuePanel.visibility != View.VISIBLE) return
-        queueCard?.animate()?.cancel()
-        val travel = queuePanel.height.toFloat().coerceAtLeast(dp(200).toFloat())
-        fadeArt(1f, 300L)
-        queueCard?.animate()?.translationY(travel)?.alpha(0f)?.setDuration(260L)
-            ?.setInterpolator(android.view.animation.PathInterpolator(0.4f, 0f, 1f, 1f))
-            ?.withEndAction {
-                queuePanel.visibility = View.GONE
-                queueCard?.translationY = 0f
-                queueCard?.alpha = 1f
-            }?.start()
-        recordDiagnostic("QUEUE_OVERLAY opened=false slideDown=true")
+        if (!::queuePanel.isInitialized || queueProgress <= 0.001f) return
+        animateQueueTo(0f)
+        recordDiagnostic("QUEUE_OVERLAY opened=false mode=dock-rises")
     }
 
     private fun updateQueueMiniPlayer() {
@@ -3242,12 +3293,8 @@ class MainActivity : Activity() {
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
         if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
-            queuePanel.animate().cancel()
-            queuePanel.visibility = View.GONE
-            queuePanel.translationY = 0f
-            queuePanel.alpha = 1f
-            artFade?.cancel(); if (::artBox.isInitialized) artBox.alpha = 1f
-            queueCard?.animate()?.cancel(); queueCard?.translationY = 0f; queueCard?.alpha = 1f
+            queueAnimator?.cancel(); queueAnimating = false; queueDragging = false
+            applyQueueProgress(0f)
         }
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
@@ -3566,6 +3613,21 @@ class MainActivity : Activity() {
      * running animation never start a drag.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (queueDragging) {
+            swipeVelocity?.addMovement(ev)
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = ev.rawY - swipeDownY
+                    applyQueueProgress(queueDragBase - dy / queueShift.coerceAtLeast(1f))
+                }
+                MotionEvent.ACTION_UP -> {
+                    swipeVelocity?.computeCurrentVelocity(1000)
+                    finishQueueDrag(swipeVelocity?.yVelocity ?: 0f)
+                }
+                MotionEvent.ACTION_CANCEL -> finishQueueDrag(0f)
+            }
+            return true
+        }
         if (swipeDragging) {
             swipeVelocity?.addMovement(ev)
             val dx = ev.rawX - swipeDownX
@@ -3582,26 +3644,36 @@ class MainActivity : Activity() {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 swipeDownX = ev.rawX; swipeDownY = ev.rawY
-                swipeBlocked = swipeAnimating || (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) ||
+                val busy = swipeAnimating || queueAnimating
+                // Pages cannot be swiped while the queue is up, on the seek bar, on a horizontal list, or mid-animation.
+                swipeBlocked = busy || queueProgress > 0.01f ||
                     touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
                     touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
+                queueEligible = !busy && currentPage == "player" && queueStartAllowed(ev.rawY)
                 swipeVelocity?.recycle()
-                swipeVelocity = if (swipeBlocked) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
+                swipeVelocity = if (busy) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
             }
-            MotionEvent.ACTION_MOVE -> if (!swipeBlocked) {
+            MotionEvent.ACTION_MOVE -> {
                 swipeVelocity?.addMovement(ev)
                 val dx = ev.rawX - swipeDownX
                 val dy = ev.rawY - swipeDownY
-                if (kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
+                if (!swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
                     (currentPage == "player" || currentPage == "library")) {
                     swipeDragging = true
-                    // Tell the children the touch is over (no stray click or list scroll), then drive the page ourselves.
                     val cancel = MotionEvent.obtain(ev)
                     cancel.action = MotionEvent.ACTION_CANCEL
                     super.dispatchTouchEvent(cancel)
                     cancel.recycle()
                     dragPage(dx)
                     return true
+                }
+                if (queueEligible && kotlin.math.abs(dy) > dp(14) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.4f) {
+                    val opening = queueProgress < 0.5f
+                    if ((opening && dy < 0) || (!opening && dy > 0)) {
+                        startQueueDrag(ev)
+                        applyQueueProgress(queueDragBase - dy / queueShift.coerceAtLeast(1f))
+                        return true
+                    }
                 }
             }
             MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null }

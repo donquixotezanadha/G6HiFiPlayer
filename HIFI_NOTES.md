@@ -63,3 +63,9 @@
 ## v1.11 (branch hifi-v1-11, from hifi-v1-10)
 - The queue area (art area) stays fixed and clips; the list itself starts below that area and slides UP into it (340ms, fading in), while the album art fades out. Closing slides it back DOWN out of the area (260ms) and the art fades back in. v1.10 only moved it 56dp.
 - Opening gesture: swipe up that STARTS on the track title or anything below it (title/artist, progress, controls, info). Starting on the cover no longer opens it. Closing: swipe down (list at its top, or from the dock), Back.
+
+## v1.12 (branch hifi-v1-12, from hifi-v1-11) - queue transition redesigned
+- Title, artist, album, progress, controls and info line are one unit (the "dock"). One swipe UP that starts on that unit moves it up until it sticks just under the "Now Playing" header; the album art fades away ("sinks") and the queue list appears directly below the dock, rising with it. Swipe DOWN reverses everything (also closes with Back).
+- It is a finger-following drag like the page swipe: progress p (0 = Now Playing, 1 = queue) is applied in one place (applyQueueProgress): dock.translationY = -shift*p, art alpha = 1-p, list translationY = shift*(1-p) with fade-in. On release it commits with distance (>50%) or a fling (>500dp/s) and animates the rest (340ms open, 280ms close), otherwise springs back.
+- Drag start area: closed = on the dock (title..info) or anything below its top edge; open = on the dock, or on the list while it is scrolled to the top. Page swipe and the seek bar are unchanged; page swipe is blocked while the queue is up.
+- Replaces the v1.10/v1.11 mechanics (list sliding inside a fixed area; SwipeFrameLayout callbacks are now no-ops).
