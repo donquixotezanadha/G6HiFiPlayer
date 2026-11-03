@@ -104,3 +104,8 @@
 - The mini player is no longer a floating rounded card. It is a stuck bar at the bottom of the Album page, like the header at the top: same content (cover, title, artist, progress, play), full width, square, solid background (card colour 92%) that runs down to the navigation bar.
 - The Album list is cut where the bar starts instead of scrolling under it (applyMiniDock: scroller bottom margin = bar height while on Album; the old 92dp bottom padding is now 8dp and the nav-bar inset padding is not used there). On Now Playing the scroller is full height again.
 - The transition from 1.17 is unchanged (the bar still rises with the soft bounce and sinks on the way back).
+
+## v1.19 (branch hifi-v1-19, from hifi-v1-18) - mini player lift
+- Swipe up on the mini player now follows the finger like the swipe down on Now Playing: the bar lifts up to 28dp and fades (full fade at about 2/3 of the 160dp drag). Release past 25% or with an upward fling (300dp/s) goes to Now Playing, otherwise it springs back.
+- Tapping the mini player or Back uses the same exit: the bar lifts a little and fades (it used to sink), the Album page fades out, then Now Playing rises in. A drag that is committed continues from where the finger left it.
+- The old swipe detector on the bar (decided only on release) is removed; the drag is handled in dispatchTouchEvent (startMiniDrag, applyMiniLift, finishMiniDrag).

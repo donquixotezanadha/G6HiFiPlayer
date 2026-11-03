@@ -225,6 +225,9 @@ class MainActivity : Activity() {
     private var albumEligible = false
     private var albumProgress = 0f
     private var albumAnimator: android.animation.ValueAnimator? = null
+    private var miniDragging = false
+    private var miniEligible = false
+    private var miniProgress = 0f
     private var headerGear: View? = null
     private var queueCard: View? = null
     private var queueScrollView: ScrollView? = null
@@ -1222,33 +1225,7 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
             setOnClickListener { showPlayerAnimated() }
-            // Swipe up on the mini-player dock to return to Now Playing.
-            var downX = 0f
-            var downY = 0f
-            setOnTouchListener { view, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        downX = event.rawX
-                        downY = event.rawY
-                        view.parent?.requestDisallowInterceptTouchEvent(true)
-                        false
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        val dx = event.rawX - downX
-                        val dy = event.rawY - downY
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
-                        if (dy < -dp(32) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.2f) {
-                            showPlayerAnimated()
-                            true
-                        } else false
-                    }
-                    MotionEvent.ACTION_CANCEL -> {
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
-                        false
-                    }
-                    else -> false
-                }
-            }
+            // Hifi 1.19: swipe up on the mini player is a finger-following drag handled in dispatchTouchEvent (startMiniDrag).
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -3726,6 +3703,18 @@ class MainActivity : Activity() {
      * running animation never start a drag.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (miniDragging) {
+            swipeVelocity?.addMovement(ev)
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> applyMiniLift((swipeDownY - ev.rawY - dp(10)) / miniDragDistance())
+                MotionEvent.ACTION_UP -> {
+                    swipeVelocity?.computeCurrentVelocity(1000)
+                    finishMiniDrag(swipeVelocity?.yVelocity ?: 0f)
+                }
+                MotionEvent.ACTION_CANCEL -> finishMiniDrag(0f)
+            }
+            return true
+        }
         if (albumDragging) {
             swipeVelocity?.addMovement(ev)
             when (ev.actionMasked) {
@@ -3778,6 +3767,7 @@ class MainActivity : Activity() {
                 albumEligible = !busy && currentPage == "player" && queueProgress <= 0.01f &&
                     !touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) &&
                     !touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
+                miniEligible = !busy && currentPage == "library" && touchesMini(ev.rawX.toInt(), ev.rawY.toInt())
                 if (queueEligible && queueProgress < 0.01f) prewarmQueue()
                 swipeVelocity?.recycle()
                 swipeVelocity = if (busy) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
@@ -3786,6 +3776,11 @@ class MainActivity : Activity() {
                 swipeVelocity?.addMovement(ev)
                 val dx = ev.rawX - swipeDownX
                 val dy = ev.rawY - swipeDownY
+                if (miniEligible && -dy > dp(12) && -dy > kotlin.math.abs(dx) * 1.4f) {
+                    startMiniDrag(ev)
+                    applyMiniLift((-dy - dp(10)) / miniDragDistance())
+                    return true
+                }
                 if (albumEligible && dy > dp(12) && dy > kotlin.math.abs(dx) * 1.4f) {
                     startAlbumDrag(ev)
                     applyAlbumProgress((dy - dp(10)) / albumDragDistance())
@@ -3925,10 +3920,62 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun miniDragDistance() = dp(160).toFloat()
+    private fun miniLift() = dp(28).toFloat()
+
+    private fun touchesMini(x: Int, y: Int): Boolean {
+        val m = queueMiniHost ?: return false
+        if (m.visibility != View.VISIBLE) return false
+        val loc = IntArray(2); m.getLocationOnScreen(loc)
+        return x >= loc[0] && x <= loc[0] + m.width && y >= loc[1] && y <= loc[1] + m.height
+    }
+
+    /** Hifi 1.19: swipe up on the mini player lifts it a little and fades it, following the finger (mirror of the sink on Now Playing). */
+    private fun applyMiniLift(u0: Float) {
+        val u = u0.coerceIn(0f, 1f)
+        miniProgress = u
+        queueMiniHost?.let { it.translationY = -u * miniLift(); it.alpha = (1f - u * 1.5f).coerceAtLeast(0f) }
+    }
+
+    private fun startMiniDrag(ev: MotionEvent) {
+        val cancel = MotionEvent.obtain(ev)
+        cancel.action = MotionEvent.ACTION_CANCEL
+        super.dispatchTouchEvent(cancel)
+        cancel.recycle()
+        albumAnimator?.cancel()
+        albumLayers(true)
+        miniDragging = true
+    }
+
+    private fun finishMiniDrag(velocityY: Float) {
+        miniDragging = false
+        swipeVelocity?.recycle(); swipeVelocity = null
+        val fast = dp(300).toFloat()
+        val commit = velocityY < -fast || (velocityY < fast && miniProgress > 0.25f)
+        if (commit) { showPlayerAnimated(); return }
+        swipeAnimating = true
+        albumAnimator?.cancel()
+        albumAnimator = android.animation.ValueAnimator.ofFloat(miniProgress, 0f).apply {
+            duration = 200L
+            interpolator = DecelerateInterpolator(1.6f)
+            addUpdateListener { applyMiniLift(it.animatedValue as Float) }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    settleAlbumTransition()
+                }
+            })
+            start()
+        }
+    }
+
     /** Puts every animated view of the Now Playing <-> Album transition back to its resting state. */
     private fun settleAlbumTransition() {
         albumAnimator?.cancel()
         albumDragging = false
+        miniDragging = false
         pageContentView?.let { it.alpha = 1f; it.translationY = 0f; it.translationX = 0f }
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
         albumLayers(false)
@@ -3941,8 +3988,9 @@ class MainActivity : Activity() {
         val v = pageContentView
         if (currentPage != "library" || v == null) { show("player"); return }
         val mini = queueMiniHost
-        val travel = miniTravel()
         val lift = dp(28).toFloat()
+        val miniStartY = mini?.translationY ?: 0f
+        val miniStartAlpha = mini?.alpha ?: 1f
         var switched = false
         swipeAnimating = true
         albumLayers(true)
@@ -3955,7 +4003,7 @@ class MainActivity : Activity() {
                 if (!switched) {
                     val f = (t / 0.34f).coerceIn(0f, 1f)
                     v.alpha = 1f - f
-                    mini?.let { it.translationY = travel * f * f; it.alpha = 1f - f }
+                    mini?.let { it.translationY = miniStartY + (-miniLift() - miniStartY) * f; it.alpha = miniStartAlpha * (1f - f) }
                     if (t >= 0.34f) {
                         switched = true
                         show("player")
