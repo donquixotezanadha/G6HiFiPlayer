@@ -174,7 +174,7 @@ internal object AudioSniffer {
                 } else {
                     // No MD5 in the header: decode the file with our own independent decoder to get a reference.
                     val ref = flacReference(context, uri, info) ?: return DirectOutputState.Expected(label, "FLAC", headerMd5, info.totalSamples, info.bits, info.channels, info.sampleRate)
-                    DirectOutputState.Expected(label, "FLAC (own decoder)", ref.md5, ref.totalSamples, ref.bits, info.channels, ref.sampleRate)
+                    DirectOutputState.Expected(label, "FLAC (own decoder)", ref.md5, ref.totalSamples, ref.bits, info.channels, ref.sampleRate, ref.chunks, ref.lowZero, ref.head)
                 }
             }
             "WAV" -> {

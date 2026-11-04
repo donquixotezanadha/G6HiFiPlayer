@@ -140,3 +140,6 @@
 ## v1.25
 - Branch from v1.24 (checksum test build). For FLAC files whose header MD5 is all zeros (many hi-res files), the app now decodes the file with an independent in-app decoder (FlacReference.java, never used for playback) and compares its MD5 with what is sent to the DAC. Verdict labelled "FLAC (own decoder)".
 - Decoder validated locally against ffmpeg: 16/24-bit, 44.1/96 kHz, compression levels 0/5/8 – all MD5 identical.
+
+## v1.26
+- 96 kHz / 24-bit FLAC without header MD5 gave "MD5 DIFFERENT" in v1.25 (own decoder vs sent samples). To tell a decoder bug from a real difference, the check now also compares per-second digests, reports the first second that differs, the share of samples with an empty low byte (sent vs file) and logs the first 48 bytes of both sides.

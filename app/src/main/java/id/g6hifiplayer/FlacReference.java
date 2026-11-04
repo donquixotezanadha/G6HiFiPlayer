@@ -19,8 +19,15 @@ public final class FlacReference {
         public final long totalSamples;
         public final int bits;
         public final int sampleRate;
-        Result(byte[] md5, long totalSamples, int bits, int sampleRate) {
+        /** MD5 of every [sampleRate] frames (one second each; the last one may be shorter), for locating a difference. */
+        public final java.util.List<byte[]> chunks;
+        /** Samples (both channels) whose lowest byte is zero, 24-bit files only. */
+        public final long lowZero;
+        /** The first 48 bytes of decoded audio. */
+        public final byte[] head;
+        Result(byte[] md5, long totalSamples, int bits, int sampleRate, java.util.List<byte[]> chunks, long lowZero, byte[] head) {
             this.md5 = md5; this.totalSamples = totalSamples; this.bits = bits; this.sampleRate = sampleRate;
+            this.chunks = chunks; this.lowZero = lowZero; this.head = head;
         }
     }
 
@@ -45,6 +52,12 @@ public final class FlacReference {
     private int[] a = new int[0], b = new int[0];
     private byte[] pcm = new byte[0];
     private int[] coefs = new int[32];
+    private final java.util.ArrayList<byte[]> chunkList = new java.util.ArrayList<>();
+    private MessageDigest chunkMd;
+    private long chunkFill = 0;      // frames in the current chunk
+    private long lowZero = 0;
+    private final byte[] head = new byte[48];
+    private int headLen = 0;
 
     private FlacReference(InputStream in, BooleanSupplier cancelled) { this.in = in; this.cancelled = cancelled; }
 
@@ -144,14 +157,15 @@ public final class FlacReference {
         if (!gotInfo || streamChannels != 2 || streamBits < 8 || streamBits > 24) return null;
         alignToByte();
         MessageDigest md;
-        try { md = MessageDigest.getInstance("MD5"); } catch (Exception e) { return null; }
+        try { md = MessageDigest.getInstance("MD5"); chunkMd = MessageDigest.getInstance("MD5"); } catch (Exception e) { return null; }
         long total = 0;
         while (hasMore()) {
             if (cancelled != null && cancelled.getAsBoolean()) return null;
             total += decodeFrame(md);
         }
         if (streamTotal > 0 && total != streamTotal) return null;
-        return new Result(md.digest(), total, streamBits, streamRate);
+        if (chunkFill > 0) chunkList.add(chunkMd.digest());
+        return new Result(md.digest(), total, streamBits, streamRate, chunkList, lowZero, head);
     }
 
     private int decodeFrame(MessageDigest md) throws IOException {
@@ -210,6 +224,16 @@ public final class FlacReference {
             for (int k = 0; k < bytes; k++) pcm[o++] = (byte) (r >> (8 * k));
         }
         md.update(pcm, 0, o);
+        if (headLen < head.length) { int c = Math.min(head.length - headLen, o); System.arraycopy(pcm, 0, head, headLen, c); headLen += c; }
+        int frameBytes = 2 * bytes;
+        if (bytes == 3) for (int i = 0; i < o; i += 3) if (pcm[i] == 0) lowZero++;
+        int done = 0;
+        while (done < blockSize) {
+            int take = (int) Math.min(blockSize - done, streamRate - chunkFill);
+            chunkMd.update(pcm, done * frameBytes, take * frameBytes);
+            chunkFill += take; done += take;
+            if (chunkFill == streamRate) { chunkList.add(chunkMd.digest()); chunkFill = 0; }
+        }
         return blockSize;
     }
 

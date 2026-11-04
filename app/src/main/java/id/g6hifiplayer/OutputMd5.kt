@@ -17,13 +17,21 @@ internal class OutputMd5(private val sampleRate: Int) {
     private val md16 = MessageDigest.getInstance("MD5")
     private val pack16 = ByteArray(CHUNK_FRAMES * 4)
     private var total = 0L
+    private val chunkMd = MessageDigest.getInstance("MD5")
+    private val sentChunks = ArrayList<ByteArray>()
+    private var chunkFill = 0L
+    private var lowZero = 0L
+    private val sentHead = ByteArray(48)
+    private var headLen = 0
     private var armed = true      // a new output starts at the start of a stream
     private var pending = false   // after flush(): the next accepted data decides whether this is a track start or a seek
 
     fun onFlush() {
         armed = false; pending = true; total = 0L
-        md24.reset(); md16.reset()
+        md24.reset(); md16.reset(); resetDiag()
     }
+
+    private fun resetDiag() { chunkMd.reset(); sentChunks.clear(); chunkFill = 0L; lowZero = 0L; headLen = 0 }
 
     /** [out] holds [frames] stereo frames of 24-bit packed little-endian samples that the track accepted. */
     fun feed(out: ByteArray, frames: Int, presentationTimeUs: Long) {
@@ -31,7 +39,7 @@ internal class OutputMd5(private val sampleRate: Int) {
             pending = false
             armed = presentationTimeUs in 0..START_WINDOW_US
             total = 0L
-            md24.reset(); md16.reset()
+            md24.reset(); md16.reset(); resetDiag()
         }
         if (!armed || frames <= 0) return
         var offset = 0
@@ -44,13 +52,25 @@ internal class OutputMd5(private val sampleRate: Int) {
             total += take; offset += take; remaining -= take
             if (exp != null && exp.rate == sampleRate && total >= exp.totalSamples) {
                 finish(exp)
-                total = 0L   // whatever follows in this chunk is the start of the next track
+                total = 0L; resetDiag()   // whatever follows in this chunk is the start of the next track
             }
         }
     }
 
     private fun update(out: ByteArray, frameOffset: Int, frames: Int) {
         md24.update(out, frameOffset * 6, frames * 6)
+        // diagnostics: per-second digests, empty low bytes, first bytes
+        if (headLen < sentHead.size) { val c = minOf(sentHead.size - headLen, frames * 6); System.arraycopy(out, frameOffset * 6, sentHead, headLen, c); headLen += c }
+        var z = frameOffset * 6
+        val zEnd = z + frames * 6
+        while (z < zEnd) { if (out[z].toInt() == 0) lowZero++; z += 3 }
+        var done = 0
+        while (done < frames) {
+            val take = minOf((frames - done).toLong(), sampleRate - chunkFill).toInt()
+            chunkMd.update(out, (frameOffset + done) * 6, take * 6)
+            chunkFill += take; done += take
+            if (chunkFill == sampleRate.toLong()) { sentChunks.add(chunkMd.digest()); chunkFill = 0L }
+        }
         var i = 0
         var o = frameOffset * 6
         while (i < frames * 4) {   // keep the top two bytes of each 3-byte sample
@@ -67,7 +87,8 @@ internal class OutputMd5(private val sampleRate: Int) {
         val got = if (exp.bits == 24) got24 else got16
         val name = exp.label.take(48)
         val detail = "${exp.source} ${exp.bits}-bit ${String.format(Locale.US, "%.1f", exp.rate / 1000f)} kHz"
-        val short: String
+        if (chunkFill > 0) { sentChunks.add(chunkMd.digest()); chunkFill = 0L }
+        var short: String
         val text: String
         when {
             !exp.supported || exp.md5 == null -> return
@@ -78,10 +99,22 @@ internal class OutputMd5(private val sampleRate: Int) {
             got.contentEquals(exp.md5) -> { short = "MD5 MATCH"; text = short }
             else -> { short = "MD5 DIFFERENT"; text = short }
         }
+        var extra = ""
+        if (exp.bits == 24 && exp.refChunks != null && !short.startsWith("MD5 MATCH") && exp.supported) {
+            var first = -1
+            var bad = 0
+            val n = minOf(sentChunks.size, exp.refChunks.size)
+            for (i in 0 until n) if (!sentChunks[i].contentEquals(exp.refChunks[i])) { bad++; if (first < 0) first = i }
+            val samples = total * 2
+            val sentZ = if (samples > 0) lowZero * 100 / samples else 0
+            val refZ = if (exp.refLowZero >= 0 && samples > 0) exp.refLowZero * 100 / samples else -1
+            extra = "seconds differing: $bad of $n, first at ${if (first < 0) "-" else first}s | empty low byte sent $sentZ% file $refZ%"
+            DirectOutputState.log("MD5 diag: $extra | headSent=${hex(sentHead)} headFile=${exp.refHead?.let { hex(it) }}")
+        }
         DirectOutputState.log("MD5 check: $short | $name | $detail | frames=$total of ${exp.totalSamples} | file=${hex(exp.md5)} sent=${hex(got)}" +
             if (exp.bits == 24) " | top16=${hex(got16)}" else "")
         DirectOutputState.checksumText = "$text: $name"
-        DirectOutputState.checksumToast = "$short\n$name\n$detail"
+        DirectOutputState.checksumToast = "$short\n$name\n$detail" + (if (extra.isNotEmpty()) "\n$extra" else "")
         DirectOutputState.checksumSerial++
     }
 

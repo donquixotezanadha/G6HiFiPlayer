@@ -63,7 +63,8 @@ internal object DirectOutputState {
      * [checksumText]; [checksumSerial] counts the verdicts so the UI can show each one once.
      */
     class Expected(val label: String, val source: String, val md5: ByteArray?, val totalSamples: Long,
-                   val bits: Int, val channels: Int, val rate: Int) {
+                   val bits: Int, val channels: Int, val rate: Int,
+                   val refChunks: List<ByteArray>? = null, val refLowZero: Long = -1L, val refHead: ByteArray? = null) {
         val supported: Boolean get() = md5 != null && totalSamples > 0 && channels == 2 && (bits == 16 || bits == 24)
     }
     @Volatile var expected: Expected? = null
