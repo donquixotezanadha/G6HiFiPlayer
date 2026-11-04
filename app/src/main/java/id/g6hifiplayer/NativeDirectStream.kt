@@ -58,6 +58,20 @@ internal object DirectOutputState {
     fun resetDepthCheck() { activeSamples = 0L; lowByteSamples = 0L }
 
     /**
+     * Hifi 1.24: MD5 check. [expected] describes the track that is playing now (set by MainActivity once its header was read).
+     * OutputMd5 hashes the samples that reach the DIRECT track and, when a whole track has gone through, writes its verdict to
+     * [checksumText]; [checksumSerial] counts the verdicts so the UI can show each one once.
+     */
+    class Expected(val label: String, val source: String, val md5: ByteArray?, val totalSamples: Long,
+                   val bits: Int, val channels: Int, val rate: Int) {
+        val supported: Boolean get() = md5 != null && totalSamples > 0 && channels == 2 && (bits == 16 || bits == 24)
+    }
+    @Volatile var expected: Expected? = null
+    @Volatile var checksumText: String = ""
+    @Volatile var checksumToast: String = ""
+    @Volatile var checksumSerial: Int = 0
+
+    /**
      * 0 = not enough audio yet, 1 = the low 8 bits carry data (real 24-bit), 2 = low 8 bits empty so far.
      * Build 1.66: "empty" is only claimed after about 15 s of audio (3 million non-zero samples), not from a quiet intro,
      * and the counting goes on after that, so a later passage with real low bits corrects the answer.

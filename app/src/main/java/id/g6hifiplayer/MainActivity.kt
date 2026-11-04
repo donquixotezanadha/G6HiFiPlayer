@@ -264,6 +264,7 @@ class MainActivity : Activity() {
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val handler = Handler(Looper.getMainLooper())
     private var lastDepthVerdict = 0
+    private var lastChecksumSerial = 0
     private val ticker = object : Runnable {
         override fun run() {
             // Keep frame-time work low on older devices: update playback position only.
@@ -271,6 +272,13 @@ class MainActivity : Activity() {
             // Build 1.65: the real-24-bit check needs a few seconds of audio; refresh the info line when its answer changes.
             val depthNow = DirectOutputState.depthVerdict()
             if (depthNow != lastDepthVerdict) { lastDepthVerdict = depthNow; refreshAudioInfo() }
+            // Hifi 1.24: a whole track went through the MD5 check -> show the verdict once and keep it in the status line.
+            val sumNow = DirectOutputState.checksumSerial
+            if (sumNow != lastChecksumSerial) {
+                lastChecksumSerial = sumNow
+                refreshAudioInfo()
+                try { Toast.makeText(this@MainActivity, DirectOutputState.checksumToast, Toast.LENGTH_LONG).show() } catch (_: Exception) { }
+            }
             if (prepared) player?.let { p ->
                 persistPlaybackState(force = false)
                 if (!seeking) {
@@ -2408,6 +2416,7 @@ class MainActivity : Activity() {
                     sourceBitrate = null
                     updateHiResBadges()
                     DirectOutputState.resetDepthCheck() // Build 1.66: a new track gets a new real-24-bit check
+                    DirectOutputState.expected = null    // Hifi 1.24: the MD5 of this track is set again once its header was read
                     showMetadata(activeTrack.uri, activeTrack)
                     loadArtwork(activeTrack)
                     if (::queueRows.isInitialized) renderQueueRows()
@@ -2793,6 +2802,11 @@ class MainActivity : Activity() {
                 sourceBits = sniffed?.bits
                 sourceFormat = typeName
                 refreshAudioInfo()
+            }
+            // Hifi 1.24: what the MD5 check has to reproduce for this track (FLAC: MD5 in the header; WAV: MD5 of the data chunk).
+            val expected = try { AudioSniffer.expectedFor(this@MainActivity, uri, sniffed, uri.lastPathSegment?.substringAfterLast('/') ?: t.title) } catch (_: Throwable) { null }
+            handler.post {
+                if (!isFinishing && tracks.getOrNull(currentIndex)?.uri == uri) DirectOutputState.expected = expected
             }
         }
     }
@@ -3263,7 +3277,9 @@ class MainActivity : Activity() {
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed"; color = green }
             }
         }
-        val tail = " • $device$note"
+        // Hifi 1.24: the last MD5 verdict stays here until the next track has been checked.
+        val sumNote = if (DirectOutputState.checksumText.isNotEmpty()) " • " + DirectOutputState.checksumText else ""
+        val tail = " • $device$note$sumNote"
         val status = android.text.SpannableString(verdict + tail)
         status.setSpan(android.text.style.ForegroundColorSpan(color), 0, verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         status.setSpan(android.text.style.ForegroundColorSpan(grey), verdict.length, status.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

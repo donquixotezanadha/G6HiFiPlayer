@@ -43,6 +43,7 @@ internal class DirectAudioOutput private constructor(
     private var playingSinceMs = 0L
 
     private var stopAtMs = 0L
+    private val md5Check = OutputMd5(sampleRateHz)   // Hifi 1.24: read-only MD5 of what the track accepts
 
     override fun play() {
         if (released) return
@@ -83,6 +84,7 @@ internal class DirectAudioOutput private constructor(
             }
             val accepted = n / 6
             if (accepted <= 0) return false
+            try { md5Check.feed(outBuf, accepted, presentationTimeUs) } catch (_: Throwable) { }
             buffer.position(buffer.position() + accepted * frameBytes)
             writtenFrames += accepted
             if (accepted < frames) return false
@@ -96,6 +98,7 @@ internal class DirectAudioOutput private constructor(
         if (released) return
         NativeDirectStream.pause(handle)
         NativeDirectStream.flush(handle)
+        md5Check.onFlush()
         writtenFrames = 0
         started = false
         playing = false

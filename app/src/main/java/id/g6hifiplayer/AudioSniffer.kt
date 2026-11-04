@@ -14,7 +14,9 @@ import java.io.InputStream
  * 24-bit samples, see BUILD165_NOTES.md.)
  */
 internal object AudioSniffer {
-    data class SourceInfo(val codec: String, val bits: Int, val sampleRate: Int, val channels: Int)
+    /** Hifi 1.24: [md5] and [totalSamples] come from the FLAC STREAMINFO block (the MD5 of the unencoded audio); null / 0 for other formats. */
+    data class SourceInfo(val codec: String, val bits: Int, val sampleRate: Int, val channels: Int,
+                          val md5: ByteArray? = null, val totalSamples: Long = 0L)
 
     /** Reads the sample rate and bit depth from the FLAC or WAV header. Returns null for any other format. */
     fun sniff(context: Context, uri: Uri): SourceInfo? {
@@ -147,13 +149,71 @@ internal object AudioSniffer {
         if (buf[0] != 'f'.code.toByte() || buf[1] != 'L'.code.toByte() || buf[2] != 'a'.code.toByte() || buf[3] != 'C'.code.toByte()) return null
         // First metadata block must be STREAMINFO (type 0). Its payload starts 4 bytes after the "fLaC" marker + 4-byte block header.
         if ((buf[4].toInt() and 0x7F) != 0) return null
-        val rest = ByteArray(10)
+        val rest = ByteArray(30)   // Hifi 1.24: the whole STREAMINFO payload (34 bytes, from offset 8 to 41), not only the first 14
         input.readFully(rest)
         val all = buf + rest // offset 0 = "fLaC"
         val rate = ((all[18].toInt() and 0xFF) shl 12) or ((all[19].toInt() and 0xFF) shl 4) or ((all[20].toInt() and 0xFF) shr 4)
         val channels = ((all[20].toInt() shr 1) and 0x7) + 1
         val bits = (((all[20].toInt() and 0x1) shl 4) or ((all[21].toInt() and 0xFF) shr 4)) + 1
-        return SourceInfo("FLAC", bits, rate, channels)
+        val total = ((all[21].toLong() and 0xF) shl 32) or ((all[22].toLong() and 0xFF) shl 24) or
+            ((all[23].toLong() and 0xFF) shl 16) or ((all[24].toLong() and 0xFF) shl 8) or (all[25].toLong() and 0xFF)
+        return SourceInfo("FLAC", bits, rate, channels, all.copyOfRange(26, 42), total)
+    }
+
+    /**
+     * Hifi 1.24: what the player has to reproduce for the MD5 check. FLAC: the MD5 stored in the header. WAV (16 / 24-bit stereo):
+     * the MD5 of the data chunk, read here (slow, call it off the UI thread). Anything else: null.
+     */
+    fun expectedFor(context: Context, uri: Uri, info: SourceInfo?, label: String): DirectOutputState.Expected? {
+        if (info == null || info.channels != 2) return null
+        return when (info.codec) {
+            "FLAC" -> DirectOutputState.Expected(label, "FLAC", info.md5, info.totalSamples, info.bits, info.channels, info.sampleRate)
+            "WAV" -> {
+                val digest = wavDigest(context, uri, info) ?: return null
+                DirectOutputState.Expected(label, "WAV", digest.first, digest.second, info.bits, info.channels, info.sampleRate)
+            }
+            else -> null
+        }
+    }
+
+    private fun wavDigest(context: Context, uri: Uri, info: SourceInfo): Pair<ByteArray, Long>? {
+        if (info.bits != 16 && info.bits != 24) return null
+        try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Throwable) { }
+        return try {
+            val opened = context.contentResolver.openInputStream(uri) ?: return null
+            opened.use { raw ->
+                val input = DataInputStream(raw.buffered(64 * 1024))
+                input.readFully(ByteArray(12))
+                var guard = 0
+                while (guard++ < 64) {
+                    val id = ByteArray(4)
+                    input.readFully(id)
+                    val size = readLe32(input)
+                    if (id[0] == 'd'.code.toByte() && id[1] == 'a'.code.toByte() && id[2] == 't'.code.toByte() && id[3] == 'a'.code.toByte()) {
+                        val md = java.security.MessageDigest.getInstance("MD5")
+                        val chunk = ByteArray(64 * 1024)
+                        var left = if (size == 0L || size == 0xFFFFFFFFL) Long.MAX_VALUE else size
+                        var total = 0L
+                        while (left > 0) {
+                            val n = input.read(chunk, 0, minOf(chunk.size.toLong(), left).toInt())
+                            if (n <= 0) break
+                            md.update(chunk, 0, n)
+                            total += n
+                            left -= n
+                        }
+                        val frameBytes = 2L * (info.bits / 8)
+                        if (total == 0L || total % frameBytes != 0L) return null
+                        return Pair(md.digest(), total / frameBytes)
+                    }
+                    var toSkip = size + (size and 1L)
+                    while (toSkip > 0) {
+                        val n = input.skip(toSkip)
+                        if (n <= 0) { if (input.read() < 0) return null else toSkip-- } else toSkip -= n
+                    }
+                }
+                null
+            }
+        } catch (_: Throwable) { null }
     }
 
     private fun sniffWav(input: DataInputStream): SourceInfo? {
