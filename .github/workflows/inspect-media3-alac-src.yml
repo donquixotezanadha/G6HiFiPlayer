@@ -1,0 +1,38 @@
+name: Inspect Media3 ALAC and raw PCM sources (Hifi 1.28 prep)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["hifi-v1-28"]
+    paths: [".github/workflows/inspect-media3-alac-src.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Media3 1.10.1 source jars
+        run: |
+          mkdir -p work/src && cd work
+          for m in exoplayer extractor common decoder; do
+            curl -fsSL -o $m.jar https://dl.google.com/dl/android/maven2/androidx/media3/media3-$m/1.10.1/media3-$m-1.10.1-sources.jar || echo "missing $m"
+            [ -s $m.jar ] && unzip -q -o $m.jar -d src/$m || true
+          done
+          mkdir -p ../out
+          find src -name 'AtomParsers.java' -o -name 'MediaCodecAudioRenderer.java' -o -name 'MediaCodecRenderer.java' \
+            -o -name 'WavExtractor.java' -o -name 'MediaCodecUtil.java' -o -name 'Mp4Extractor.java' | xargs -I{} cp {} ../out/ || true
+          ls -l ../out
+      - name: Publish to branch ci-logs
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p /tmp/out && cp out/* /tmp/out/
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          mkdir -p media3src && cp /tmp/out/* media3src/
+          git add media3src
+          git commit -m "media3 1.10.1 alac sources"
+          git push -f origin ci-logs
