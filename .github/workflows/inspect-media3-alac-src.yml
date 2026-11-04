@@ -22,8 +22,8 @@ jobs:
             [ -s $m.jar ] && unzip -q -o $m.jar -d src/$m || true
           done
           mkdir -p ../out
-          find src -name 'AtomParsers.java' -o -name 'MediaCodecAudioRenderer.java' -o -name 'MediaCodecRenderer.java' \
-            -o -name 'WavExtractor.java' -o -name 'MediaCodecUtil.java' -o -name 'Mp4Extractor.java' | xargs -I{} cp {} ../out/ || true
+          find src -name 'BoxParser.java' -o -name 'AtomParsers.java' -o -name 'AlacUtil*.java' -o -name 'Box.java' -o -name 'Atom.java' -o -name 'MediaCodecAudioRenderer.java' -o -name 'MediaCodecRenderer.java' \
+            -o -name 'WavExtractor.java' -o -name 'MimeTypes.java' -o -name 'MediaCodecUtil.java' -o -name 'Mp4Extractor.java' | xargs -I{} cp {} ../out/ || true
           ls -l ../out
       - name: Publish to branch ci-logs
         run: |
