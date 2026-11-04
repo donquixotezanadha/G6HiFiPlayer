@@ -3264,14 +3264,16 @@ class MainActivity : Activity() {
                 routeDirect == false -> { verdict = "● NOT ON THE DIRECT THREAD (MIXER)"; color = orange }
                 !jack -> { verdict = "● NOT BIT-PERFECT"; color = orange }
                 srcBits != null -> {
-                    verdict = "● BIT-PERFECT"
-                    color = green
-                    note = when {
-                        srcBits <= 16 -> ""
-                        // Build 2.9: no "real 24-bit" text; BIT-PERFECT already says it.
-                        DirectOutputState.depthVerdict() == 1 -> ""
-                        DirectOutputState.depthVerdict() == 2 -> " • low 8 bits empty"
-                        else -> ""
+                    // Hifi 1.27: the label now follows the DATA as well as the route. The MD5 verdict of THIS track is
+                    // authoritative: DIFFERENT -> orange, MATCH -> green (also for a genuine 16-bit recording in a 24-bit
+                    // file, whose low byte is legitimately empty). Without a verdict yet (or for formats that cannot be
+                    // checked) a 24-bit file whose low 8 bits stay empty is NOT shown as bit-perfect.
+                    val checkResult = DirectOutputState.checksumResult
+                    when {
+                        checkResult == DirectOutputState.CHECK_DIFFERENT -> { verdict = "● DATA DIFFERS FROM FILE"; color = orange }
+                        checkResult == DirectOutputState.CHECK_MATCH -> { verdict = "● BIT-PERFECT"; color = green }
+                        srcBits > 16 && DirectOutputState.depthVerdict() == 2 -> { verdict = "● LOW 8 BITS EMPTY"; color = orange }
+                        else -> { verdict = "● BIT-PERFECT"; color = green }
                     }
                 }
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed"; color = green }

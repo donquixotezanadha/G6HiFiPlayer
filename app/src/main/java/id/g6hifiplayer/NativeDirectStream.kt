@@ -54,6 +54,9 @@ internal object DirectOutputState {
     // a 16-bit signal padded to 24 bits (or a decoder that only gives 16 bits) always has an empty low byte.
     @Volatile var activeSamples = 0L     // samples that are not exactly 0
     @Volatile var lowByteSamples = 0L    // samples whose low 8 bits are not 0
+    // Hifi 1.27: samples (per channel) decoded by the player's own FLAC decoder since the app started. The decoder thread is
+    // the only writer. OutputMd5 compares it before and after a track to tell which decoder produced that track.
+    @Volatile var ownDecodedSamples = 0L
 
     fun resetDepthCheck() { activeSamples = 0L; lowByteSamples = 0L }
 
@@ -68,6 +71,13 @@ internal object DirectOutputState {
         val supported: Boolean get() = md5 != null && totalSamples > 0 && channels == 2 && (bits == 16 || bits == 24)
     }
     @Volatile var expected: Expected? = null
+        set(value) { field = value; checksumResult = CHECK_NONE; checksumText = "" }
+    /** Hifi 1.27: result of the MD5 check for the CURRENT track (reset when the track's expectation is set). */
+    const val CHECK_NONE = 0        // not finished yet, or the track cannot be checked
+    const val CHECK_MATCH = 1
+    const val CHECK_DIFFERENT = 2
+    @Volatile var checksumResult: Int = CHECK_NONE
+    @Volatile var checksumOwnDecoder: Boolean = false   // the track just checked was decoded by the own FLAC decoder
     @Volatile var checksumText: String = ""
     @Volatile var checksumToast: String = ""
     @Volatile var checksumSerial: Int = 0

@@ -21,6 +21,7 @@ internal class OutputMd5(private val sampleRate: Int) {
     private val sentChunks = ArrayList<ByteArray>()
     private var chunkFill = 0L
     private var lowZero = 0L
+    private var ownAtStart = DirectOutputState.ownDecodedSamples
     private val sentHead = ByteArray(48)
     private var headLen = 0
     private var armed = true      // a new output starts at the start of a stream
@@ -31,7 +32,10 @@ internal class OutputMd5(private val sampleRate: Int) {
         md24.reset(); md16.reset(); resetDiag()
     }
 
-    private fun resetDiag() { chunkMd.reset(); sentChunks.clear(); chunkFill = 0L; lowZero = 0L; headLen = 0 }
+    private fun resetDiag() {
+        chunkMd.reset(); sentChunks.clear(); chunkFill = 0L; lowZero = 0L; headLen = 0
+        ownAtStart = DirectOutputState.ownDecodedSamples
+    }
 
     /** [out] holds [frames] stereo frames of 24-bit packed little-endian samples that the track accepted. */
     fun feed(out: ByteArray, frames: Int, presentationTimeUs: Long) {
@@ -99,6 +103,15 @@ internal class OutputMd5(private val sampleRate: Int) {
             got.contentEquals(exp.md5) -> { short = "MD5 MATCH"; text = short }
             else -> { short = "MD5 DIFFERENT"; text = short }
         }
+        // Hifi 1.27: which decoder made this track? The own decoder runs a little ahead of the output (a second or so), so allow
+        // 3 seconds of slack; MediaCodec tracks never move the counter.
+        val ownDecoder = DirectOutputState.ownDecodedSamples - ownAtStart + 3L * exp.rate >= exp.totalSamples
+        DirectOutputState.checksumOwnDecoder = ownDecoder
+        DirectOutputState.checksumResult = when {
+            short.startsWith("MD5 MATCH") -> DirectOutputState.CHECK_MATCH
+            short == "MD5 DIFFERENT" -> DirectOutputState.CHECK_DIFFERENT
+            else -> DirectOutputState.CHECK_NONE
+        }
         var extra = ""
         if (exp.bits == 24 && exp.refChunks != null && !short.startsWith("MD5 MATCH") && exp.supported) {
             var first = -1
@@ -111,10 +124,11 @@ internal class OutputMd5(private val sampleRate: Int) {
             extra = "seconds differing: $bad of $n, first at ${if (first < 0) "-" else first}s | empty low byte sent $sentZ% file $refZ%"
             DirectOutputState.log("MD5 diag: $extra | headSent=${hex(sentHead)} headFile=${exp.refHead?.let { hex(it) }}")
         }
-        DirectOutputState.log("MD5 check: $short | $name | $detail | frames=$total of ${exp.totalSamples} | file=${hex(exp.md5)} sent=${hex(got)}" +
+        DirectOutputState.log("MD5 check: $short | decoder=${if (ownDecoder) "own" else "mediacodec"} | $name | $detail | frames=$total of ${exp.totalSamples} | file=${hex(exp.md5)} sent=${hex(got)}" +
             if (exp.bits == 24) " | top16=${hex(got16)}" else "")
         DirectOutputState.checksumText = "$text: $name"
-        DirectOutputState.checksumToast = "$short\n$name\n$detail" + (if (extra.isNotEmpty()) "\n$extra" else "")
+        DirectOutputState.checksumToast = "$short\n$name\n$detail" + (if (extra.isNotEmpty()) "\n$extra" else "") +
+            "\ndecoder: " + (if (ownDecoder) "own FLAC decoder" else "Android MediaCodec")
         DirectOutputState.checksumSerial++
     }
 

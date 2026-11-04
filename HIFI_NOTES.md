@@ -143,3 +143,12 @@
 
 ## v1.26
 - 96 kHz / 24-bit FLAC without header MD5 gave "MD5 DIFFERENT" in v1.25 (own decoder vs sent samples). To tell a decoder bug from a real difference, the check now also compares per-second digests, reports the first second that differs, the share of samples with an empty low byte (sent vs file) and logs the first 48 bytes of both sides.
+
+## v1.27 (branch hifi-v1-27, from hifi-v1-26) - own FLAC decoder for hi-res files
+- Cause found in 1.26 diagnostics: "MD5 DIFFERENT ... empty low byte sent 99% file 0%" on every 24-bit FLAC. The phone's MediaCodec FLAC decoder (Android 9) cuts hi-res FLAC to 16 bits before the player sees it; DirectAudioOutput only pads it back to 24 bits. The DIRECT route, rate and packing were fine; the data was not.
+- New: FlacFrameDecoder.java (pure Java, one FLAC frame -> exact integers), FlacPcmDecoder.java (Media3 SimpleDecoder), FlacPcmRenderer.java (DecoderAudioRenderer). Added BEFORE MediaCodecAudioRenderer in PlaybackKeepAliveService, so it wins FLAC files of 17-24 bits (mono/stereo, 8-192 kHz). 16-bit FLAC, MP3, AAC, ALAC, WAV stay on the normal renderer as before.
+- No gain, dither or rounding: 24-bit goes to the sink as PCM_24BIT, travels as float (exact) and DirectAudioOutput converts it back to the same integers, unchanged.
+- Checksum: OutputMd5 still hashes what the DIRECT track accepts. The toast and log now also say which decoder made the track ("own FLAC decoder" or "Android MediaCodec").
+- Label: BIT-PERFECT is now green only after MD5 MATCH for that track (or when no check is possible and the low byte carries data). MD5 DIFFERENT shows orange "DATA DIFFERS FROM FILE"; a 24-bit file with the low 8 bits empty and no MD5 verdict shows orange "LOW 8 BITS EMPTY". The MD5 note in the status line is cleared at each new track.
+- CI: tools/flac-selftest/run.sh runs before the Gradle build: it makes 24-bit test files with ffmpeg (96/44.1/192 kHz, compression 0/5/12, mid/left/right side, mono, 16-bit-in-24 wasted bits), decodes them with FlacFrameDecoder and compares the PCM MD5 with ffmpeg's. All 9 matched when written; a difference fails the build.
+- Expected on the phone: the same two tracks (Mattel, Apocalypse Please) now say "MD5 MATCH" and "decoder: own FLAC decoder".
