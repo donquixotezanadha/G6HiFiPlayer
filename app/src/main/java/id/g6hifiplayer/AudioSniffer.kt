@@ -167,13 +167,30 @@ internal object AudioSniffer {
     fun expectedFor(context: Context, uri: Uri, info: SourceInfo?, label: String): DirectOutputState.Expected? {
         if (info == null || info.channels != 2) return null
         return when (info.codec) {
-            "FLAC" -> DirectOutputState.Expected(label, "FLAC", info.md5, info.totalSamples, info.bits, info.channels, info.sampleRate)
+            "FLAC" -> {
+                val headerMd5 = info.md5
+                if (headerMd5 != null && headerMd5.any { it.toInt() != 0 }) {
+                    DirectOutputState.Expected(label, "FLAC", headerMd5, info.totalSamples, info.bits, info.channels, info.sampleRate)
+                } else {
+                    // No MD5 in the header: decode the file with our own independent decoder to get a reference.
+                    val ref = flacReference(context, uri, info) ?: return DirectOutputState.Expected(label, "FLAC", headerMd5, info.totalSamples, info.bits, info.channels, info.sampleRate)
+                    DirectOutputState.Expected(label, "FLAC (own decoder)", ref.md5, ref.totalSamples, ref.bits, info.channels, ref.sampleRate)
+                }
+            }
             "WAV" -> {
                 val digest = wavDigest(context, uri, info) ?: return null
                 DirectOutputState.Expected(label, "WAV", digest.first, digest.second, info.bits, info.channels, info.sampleRate)
             }
             else -> null
         }
+    }
+
+    private fun flacReference(context: Context, uri: Uri, info: SourceInfo): FlacReference.Result? {
+        if (info.bits != 16 && info.bits != 24) return null
+        try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Throwable) { }
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { FlacReference.decode(it) { false } }
+        } catch (_: Throwable) { null }
     }
 
     private fun wavDigest(context: Context, uri: Uri, info: SourceInfo): Pair<ByteArray, Long>? {

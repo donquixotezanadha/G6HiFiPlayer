@@ -136,3 +136,7 @@
 - Valid only when the track starts at its very beginning: a new output, or a flush whose first data has a presentation time within 150 ms. A seek (or a restored mid-track position) switches the check off for that track. Tracks that follow in the same output (gapless) are checked too; after a sample-rate change the next track opens a new output and is checked only when it begins right after a flush at position 0, otherwise it is skipped. Stereo 16/24-bit FLAC and WAV only; other formats show nothing.
 - How to use: play a 16-bit and a 24-bit FLAC from the start to the end without seeking, read the toast at the end.
 - Plan: this is a test build. Later work (queue, mini player) continues from v1.23 unless the check is asked to stay.
+
+## v1.25
+- Branch from v1.24 (checksum test build). For FLAC files whose header MD5 is all zeros (many hi-res files), the app now decodes the file with an independent in-app decoder (FlacReference.java, never used for playback) and compares its MD5 with what is sent to the DAC. Verdict labelled "FLAC (own decoder)".
+- Decoder validated locally against ffmpeg: 16/24-bit, 44.1/96 kHz, compression levels 0/5/8 – all MD5 identical.
