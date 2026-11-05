@@ -326,7 +326,8 @@ class MainActivity : Activity() {
                     recordDiagnostic("WIRED_UNPLUG_PAUSE_FAILED", e)
                 }
                 syncPlaybackIcon(false)
-                statusView.text = "Playback paused • headphone jack disconnected"
+                statusView.text = "Headset removed • playback stopped"
+                try { Toast.makeText(this@MainActivity, "Headset removed: playback stopped", Toast.LENGTH_SHORT).show() } catch (_: Exception) { }
                 recordDiagnostic("WIRED_UNPLUG_PLAYBACK_STOPPED action=pause preventSpeakerFallback=true")
                 // Player.Listener publishes the paused state; do not rebuild the notification twice.
             }
@@ -344,6 +345,7 @@ class MainActivity : Activity() {
             }
             // A speaker-added event can accompany jack removal; it must not cancel the stop check.
             if (wiredAdded) handler.removeCallbacks(wiredDisconnectCheck)
+            handler.postDelayed({ if (!isFinishing) refreshAudioInfo() }, 250L)   // Hifi 1.32: status line + play button follow the jack
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
             val details = removedDevices.joinToString { describe(it) }
@@ -357,6 +359,7 @@ class MainActivity : Activity() {
                 handler.removeCallbacks(wiredDisconnectCheck)
                 handler.postDelayed(wiredDisconnectCheck, 120L)
             }
+            handler.postDelayed({ if (!isFinishing) refreshAudioInfo() }, 250L)   // Hifi 1.32
         }
     }
 
@@ -3056,6 +3059,7 @@ class MainActivity : Activity() {
         super.onStart()
         // Build 2.4: the takeover notification is gone after Close; opening the player again arms it again.
         if (!isFinishing) PlaybackKeepAliveService.armExclusive(this)
+        refreshAudioInfo()   // Hifi 1.32: the headset may have been (un)plugged while the app was in the background
         // Coming back to the app later also checks the folder again (at most once per minute).
         if (tracks.isNotEmpty() && System.currentTimeMillis() - lastBackgroundScanAt > 60_000L) {
             getPreferences(MODE_PRIVATE).getString("music_tree_uri", null)?.let { backgroundRefreshLibrary(Uri.parse(it)) }
@@ -3272,7 +3276,6 @@ class MainActivity : Activity() {
         val bitsLabel = srcBits?.let { " / $it-bit" } ?: ""
         val direct = prepared && player != null && DirectOutputState.active
         val jack = wiredJackConnected()
-        val device = if (jack) "headset" else "speaker"
         val green = 0xFF5BD98C.toInt()
         val orange = 0xFFFFA43A.toInt()
         val grey = 0xFFA4A4B2.toInt()
@@ -3283,7 +3286,12 @@ class MainActivity : Activity() {
         var verdict: String
         var note = ""
         val color: Int
-        if (!direct) {
+        if (!jack) {
+            // Hifi 1.32: headset-only mode. Without the jack nothing can play, so this is the one thing to tell.
+            formatLine = "$typeLabel$sourceKhz kHz$bitsLabel"
+            verdict = "● PLUG IN THE HEADSET"
+            color = orange
+        } else if (!direct) {
             formatLine = "$typeLabel$sourceKhz kHz$bitsLabel"
             verdict = "● DIRECT OUTPUT NOT ACTIVE"
             color = orange
@@ -3298,7 +3306,6 @@ class MainActivity : Activity() {
                 srcRate != null && srcRate != outRate -> { verdict = "● SAMPLE RATE CHANGED"; color = orange }
                 srcBits != null && DirectOutputState.inputBits < srcBits -> { verdict = "● DEPTH REDUCED TO ${DirectOutputState.inputBits}-BIT"; color = orange }
                 routeDirect == false -> { verdict = "● NOT ON THE DIRECT THREAD (MIXER)"; color = orange }
-                !jack -> { verdict = "● NOT BIT-PERFECT"; color = orange }
                 srcBits != null -> {
                     // Hifi 1.27: the label now follows the DATA as well as the route. The MD5 verdict of THIS track is
                     // authoritative: DIFFERENT -> orange, MATCH -> green (also for a genuine 16-bit recording in a 24-bit
@@ -3317,7 +3324,7 @@ class MainActivity : Activity() {
         }
         // Hifi 1.24: the last MD5 verdict stays here until the next track has been checked.
         val sumNote = if (DirectOutputState.checksumText.isNotEmpty()) " • " + DirectOutputState.checksumText else ""
-        val tail = " • $device$note$sumNote"
+        val tail = if (jack) " • headset$note$sumNote" else " • this player works with the headset jack only"
         val status = android.text.SpannableString(verdict + tail)
         status.setSpan(android.text.style.ForegroundColorSpan(color), 0, verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         status.setSpan(android.text.style.ForegroundColorSpan(grey), verdict.length, status.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -3325,6 +3332,7 @@ class MainActivity : Activity() {
         audioStatusInline.text = status
         audioInfoInline.isSelected = true
         audioStatusInline.isSelected = true
+        if (::playView.isInitialized) playView.alpha = if (jack) 1f else 0.4f   // Hifi 1.32: dimmed until the headset is in
     }
 
     /** Build 1.66: is a wired headphone / jack output connected right now? */
