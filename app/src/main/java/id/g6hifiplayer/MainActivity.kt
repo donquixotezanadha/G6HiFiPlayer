@@ -1041,7 +1041,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(112))   // room for the floating mini player: the last row rests above the cut spacer
+        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(88))   // Hifi 1.36: 112 -> 88dp, the last row rests just above the mini player card (inside the soft fade)
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1172,7 +1172,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0x80FFFFFF.toInt() else 0x80000000.toInt())   // Hifi 1.21: one flat veil only, no extra bottom gradient
+            canvas.drawColor(if (light) 0x99FFFFFF.toInt() else 0x99000000.toInt())   // Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
         }
 
         override fun setAlpha(alpha: Int) { }
@@ -1239,7 +1239,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            // Hifi 1.35: the same background as the floating windows (Setting, album options); the list behind it is cut above the card, not faded.
+            // Hifi 1.36: same background as the floating windows (Setting, album options), 12dp corners; the Album list fades softly behind it (as in 1.20).
             themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), floatingBackground(), null) }
             isClickable = true
             isFocusable = true
@@ -1305,8 +1305,8 @@ class MainActivity : Activity() {
         queueActionsView = queueActions
 
         queueRowsSig = Int.MIN_VALUE
-        // Hifi 1.35: the last row rests above the cut spacer of the mini player (same spacing as the Album list).
-        queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(112)) }
+        // Hifi 1.36: no mini player in the queue view, so no extra room at the bottom: the last row rests 12dp above the cut at the navigation bar.
+        queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(12)) }
         val queueScroll = ScrollView(this).apply {
             clipToPadding = false
             isFillViewport = false
@@ -1409,14 +1409,11 @@ class MainActivity : Activity() {
 
     /** While the finger drags the queue the mini player follows it (rises / sinks); its own animations take over on release. */
     private fun followQueueWithMini(p: Float) {
+        // Hifi 1.36: the mini player no longer belongs to the queue view; it stays hidden while the queue moves (it only lives on Album).
         val m = queueMiniHost ?: return
-        if (miniQueueLocked) return
-        if (p > 0.001f) {
-            if (m.visibility != View.VISIBLE) m.visibility = View.VISIBLE
-            m.translationY = (1f - p) * miniTravel()
-            m.alpha = (p * 1.5f).coerceAtMost(1f)
-        } else if (currentPage != "library") {
-            m.visibility = View.GONE; m.translationY = 0f; m.alpha = 1f
+        if (currentPage != "library") {
+            if (m.visibility != View.GONE) m.visibility = View.GONE
+            m.translationY = 0f; m.alpha = 1f
         }
     }
 
@@ -1425,42 +1422,9 @@ class MainActivity : Activity() {
         miniQueueLocked = false; miniClosingQueue = false
     }
 
-    /** Opening: the mini player rises from the bottom with the same soft overshoot as on Album. Closing by the mini player: it lifts a little and fades. */
-    private fun startMiniQueueAnim(opening: Boolean) {
-        val m = queueMiniHost ?: return
-        miniQueueAnimator?.cancel()
-        val wasVisible = m.visibility == View.VISIBLE
-        val y0 = if (wasVisible) m.translationY else miniTravel()
-        val a0 = if (wasVisible) m.alpha else 0f
-        m.visibility = View.VISIBLE
-        miniQueueLocked = true
-        val bounce = android.view.animation.OvershootInterpolator(1.15f)
-        val lift = miniLift()
-        miniQueueAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = if (opening) 440L else 280L
-            interpolator = if (opening) android.view.animation.LinearInterpolator() else DecelerateInterpolator(1.4f)
-            addUpdateListener { a ->
-                val t = a.animatedValue as Float
-                if (opening) {
-                    m.translationY = y0 * (1f - bounce.getInterpolation(t))
-                    m.alpha = a0 + (1f - a0) * (t / 0.3f).coerceIn(0f, 1f)
-                } else {
-                    m.translationY = y0 + (-lift - y0) * t
-                    m.alpha = a0 * (1f - t)
-                }
-            }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                private var cancelled = false
-                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (cancelled) return
-                    if (opening) { m.translationY = 0f; m.alpha = 1f; miniQueueLocked = false }
-                    // closing: the lock is released when the queue animation ends (see animateQueueTo), so the bar cannot flash back
-                }
-            })
-            start()
-        }
-    }
+    /** Hifi 1.36: the mini player is not part of the queue view any more, so the queue has no animation for it (kept as an empty hook). */
+    @Suppress("UNUSED_PARAMETER")
+    private fun startMiniQueueAnim(opening: Boolean) { }
 
     /** Hifi 1.23: tap or swipe up on the mini player while the queue is open goes back to Now Playing. */
     private fun closeQueueViaMini() {
@@ -3487,7 +3451,7 @@ class MainActivity : Activity() {
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
-        queueMiniHost?.visibility = if (which == "library" || (which == "player" && queueProgress > 0.01f)) View.VISIBLE else View.GONE
+        queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // Hifi 1.36: no mini player in the queue view
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
         if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
@@ -3509,15 +3473,15 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.35: ONE plain cut (no fade) for the bottom of the Album list and of the queue list: the content ends at a spacer of 8dp
-     * above the mini player card, so nothing shows through or behind the card or the navigation bar. The top is cut at the top edge of
-     * the page under the header. Distances are measured from the bottom of the screen; the list's own bottom spacing keeps the last row clear.
+     * Hifi 1.36: Album: the list fades softly (as in 1.20) only behind the mini player card, toward the page backdrop: full strength 24dp above
+     * the card, gone at the middle of the card and over the navigation-bar area. Queue: no mini player, the list is cut plainly at the top of
+     * the navigation bar. The top of both is a plain cut under the header. Distances are measured from the bottom of the screen.
      */
     private fun updateBottomFade() {
         val hostH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
-        val cut = hostH + dp(8)
-        scrollFadeHost?.configure(currentPage == "library", cut)
-        queueFadeHost?.configure(true, cut)
+        val cardH = (hostH - bottomInsetPx - dp(8)).coerceAtLeast(dp(40))
+        scrollFadeHost?.configureFade(currentPage == "library", hostH + dp(24), hostH - cardH / 2)
+        queueFadeHost?.configure(true, bottomInsetPx)
     }
 
     private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
@@ -3728,7 +3692,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(mixColors(playerSurface, playerInk, 0.12f), 24)
+    private fun floatingBackground() = shape(mixColors(playerSurface, playerInk, 0.12f), 12)   // Hifi 1.36: corners 24 -> 12dp for all of them
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4241,25 +4205,60 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.35: a plain cut, no fade anywhere. The content is clipped at the top edge of this view (the spacer under the header) and, when
-     * enabled, [cutFromBottom] px above its bottom edge (the spacer above the mini player). Nothing is drawn through a mask or a gradient.
+     * Hifi 1.36: clips its content at the top edge (the spacer under the header). At the bottom it either cuts plainly, [cutFromBottom] px above
+     * its bottom edge ([configure], used by the queue), or fades softly toward the page backdrop ([configureFade], used by the Album list behind
+     * the mini player, as in 1.20): full strength [fadeFull] px above the bottom edge, gone at [fadeGone] px. Only that band uses an offscreen layer.
      */
     private inner class EdgeCutLayout(context: Context) : FrameLayout(context) {
         private var bottomOn = false
         private var cutFromBottom = 0
+        private var fadeOn = false
+        private var fadeFull = 0
+        private var fadeGone = 0
+        private val maskPaint = android.graphics.Paint().apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+        }
 
         fun configure(enabled: Boolean, cut: Int) {
-            if (bottomOn == enabled && cutFromBottom == cut) return
-            bottomOn = enabled; cutFromBottom = cut
+            if (bottomOn == enabled && cutFromBottom == cut && !fadeOn) return
+            bottomOn = enabled; cutFromBottom = cut; fadeOn = false
+            invalidate()
+        }
+
+        fun configureFade(enabled: Boolean, full: Int, gone: Int) {
+            val g = gone.coerceAtMost(full - dp(8))
+            if (fadeOn == enabled && fadeFull == full && fadeGone == g && !bottomOn) return
+            fadeOn = enabled; fadeFull = full; fadeGone = g; bottomOn = false
             invalidate()
         }
 
         override fun dispatchDraw(canvas: android.graphics.Canvas) {
-            val h = height.toFloat()
+            val w = width.toFloat(); val h = height.toFloat()
+            if (fadeOn) {
+                val bandTop = h - fadeFull
+                if (bandTop > 0f && bandTop < h) {
+                    val bandEnd = h - fadeGone
+                    canvas.save()
+                    canvas.clipRect(0f, 0f, w, bandTop)
+                    super.dispatchDraw(canvas)
+                    canvas.restore()
+                    val save = canvas.saveLayer(0f, bandTop, w, h, null)
+                    canvas.clipRect(0f, bandTop, w, h)
+                    super.dispatchDraw(canvas)
+                    maskPaint.shader = android.graphics.LinearGradient(
+                        0f, bandTop, 0f, bandEnd,
+                        intArrayOf(0x00000000, 0x80000000.toInt(), -0x1000000), floatArrayOf(0f, 0.4f, 1f),
+                        android.graphics.Shader.TileMode.CLAMP
+                    )
+                    canvas.drawRect(0f, bandTop, w, h, maskPaint)
+                    canvas.restoreToCount(save)
+                    return
+                }
+            }
             val cutY = if (bottomOn) (h - cutFromBottom).coerceIn(0f, h) else h
             if (cutY >= h) { super.dispatchDraw(canvas); return }
             canvas.save()
-            canvas.clipRect(0f, 0f, width.toFloat(), cutY)
+            canvas.clipRect(0f, 0f, w, cutY)
             super.dispatchDraw(canvas)
             canvas.restore()
         }

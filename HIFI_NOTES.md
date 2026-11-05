@@ -177,3 +177,11 @@
 - Every fade is gone (Album list top and bottom, queue list top and bottom, the cover and info dock leaving Now Playing). EdgeCutLayout (was EdgeFadeLayout) now clips the content hard: at its top edge (under the header) and 8dp above the mini player card at the bottom; no mask, no gradient, no offscreen layer. The cover host is a plain FrameLayout (its fade was never switched on).
 - The Setting window and the album long-press window used a solid background (page surface mixed 12% toward the ink colour, 24dp corners; the only transparency is the dim behind the window, 45% and 55%). That is now floatingBackground() and the mini player card (Album and queue) uses it too, so the three always match.
 - Audio, check, volume guard and audio focus are unchanged from 1.34.
+
+## v1.36 (branch hifi-v1-36, from hifi-v1-35) - smaller window corners, no mini player in the queue, Album bottom fade as in 1.20
+- The plan to bring back the slide-left-to-Album is cancelled (nothing changed there).
+- Corners: floatingBackground() 24dp -> 12dp, so the Setting window, the album long-press window and the mini player card are all less round (still one shared background).
+- Mini player: removed from the queue view. It only exists on Album now (shown only when the page is Album); the queue no longer raises, lowers or animates it. The queue list has no extra bottom room (12dp) and is cut plainly at the top of the navigation bar.
+- Bottom of Album: extra bottom space reduced (list bottom padding 112 -> 88dp), and the 8dp cut spacer is replaced by the 1.20 soft fade (transparency mask toward the backdrop, full 24dp above the card, gone at the middle of the card and over the navigation-bar area). The fade is automatic and only on the Album list, behind the mini player; no fade anywhere else (top of the lists, queue, cover and dock stay plain cuts).
+- Background: the flat theme veil over the cover backdrop 50% -> 60% (Dark black, Light white); still one layer.
+- Audio, check, volume guard and audio focus unchanged from 1.35. Version 1.36 (code 37), installs over 1.35.
