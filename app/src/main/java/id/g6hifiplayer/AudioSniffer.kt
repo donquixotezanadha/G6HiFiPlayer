@@ -161,7 +161,7 @@ internal object AudioSniffer {
     }
 
     /**
-     * Hifi 1.24: what the player has to reproduce for the MD5 check. FLAC: the MD5 stored in the header. WAV (16 / 24-bit stereo):
+     * Hifi 1.24: what the player has to reproduce for the MD5 check. FLAC: the MD5 stored in the header. ALAC (16 / 20 / 24-bit stereo): a full decode with the own ALAC decoder. WAV (16 / 24-bit stereo):
      * the MD5 of the data chunk, read here (slow, call it off the UI thread). Anything else: null.
      */
     fun expectedFor(context: Context, uri: Uri, info: SourceInfo?, label: String): DirectOutputState.Expected? {
@@ -181,8 +181,39 @@ internal object AudioSniffer {
                 val digest = wavDigest(context, uri, info) ?: return null
                 DirectOutputState.Expected(label, "WAV", digest.first, digest.second, info.bits, info.channels, info.sampleRate)
             }
+            "ALAC" -> {
+                // Hifi 1.28: ALAC files carry no MD5. For the files our own ALAC decoder plays, decode the whole file
+                // once (background) with the same decoder: the check then proves that what reaches the DIRECT track is exactly
+                // what the decoder produced. The decoder itself is proven against ffmpeg by tools/alac-selftest in CI.
+                if (info.bits !in 16..24) return null
+                val ref = alacReference(context, uri) ?: return null
+                DirectOutputState.Expected(label, "ALAC (own decoder)", ref.md5, ref.totalSamples, ref.bits, info.channels, ref.sampleRate, ref.chunks, ref.lowZero, ref.head)
+            }
             else -> null
         }
+    }
+
+    private fun alacReference(context: Context, uri: Uri): FlacReference.Result? {
+        try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Throwable) { }
+        return try {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                java.io.FileInputStream(pfd.fileDescriptor).use { fis ->
+                    val channel = fis.channel
+                    AlacReference.decode(object : AlacMp4Reader.Source {
+                        override fun length(): Long = channel.size()
+                        override fun read(pos: Long, dst: ByteArray, off: Int, len: Int) {
+                            val buffer = java.nio.ByteBuffer.wrap(dst, off, len)
+                            var at = pos
+                            while (buffer.hasRemaining()) {
+                                val n = channel.read(buffer, at)
+                                if (n < 0) throw java.io.IOException("end of file")
+                                at += n
+                            }
+                        }
+                    }) { false }
+                }
+            }
+        } catch (_: Throwable) { null }
     }
 
     private fun flacReference(context: Context, uri: Uri, info: SourceInfo): FlacReference.Result? {

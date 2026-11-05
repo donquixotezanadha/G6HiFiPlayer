@@ -24,6 +24,7 @@ internal class OutputMd5(private val sampleRate: Int) {
     private var ownAtStart = DirectOutputState.ownDecodedSamples
     private val sentHead = ByteArray(48)
     private var headLen = 0
+    private var padLeft = DirectOutputState.padFrames(sampleRate)   // silent frames the own decoders put in front of each track
     private var armed = true      // a new output starts at the start of a stream
     private var pending = false   // after flush(): the next accepted data decides whether this is a track start or a seek
 
@@ -35,6 +36,7 @@ internal class OutputMd5(private val sampleRate: Int) {
     private fun resetDiag() {
         chunkMd.reset(); sentChunks.clear(); chunkFill = 0L; lowZero = 0L; headLen = 0
         ownAtStart = DirectOutputState.ownDecodedSamples
+        padLeft = DirectOutputState.padFrames(sampleRate)
     }
 
     /** [out] holds [frames] stereo frames of 24-bit packed little-endian samples that the track accepted. */
@@ -49,6 +51,11 @@ internal class OutputMd5(private val sampleRate: Int) {
         var offset = 0
         var remaining = frames
         while (remaining > 0) {
+            if (padLeft > 0) {      // Hifi 1.28: not music, only the pad that keeps the sink's 20 ms fade-in off the data
+                val skip = minOf(remaining, padLeft)
+                offset += skip; remaining -= skip; padLeft -= skip
+                continue
+            }
             val exp = DirectOutputState.expected
             val room = if (exp != null && exp.rate == sampleRate) exp.totalSamples - total else Long.MAX_VALUE
             val take = if (room <= 0L) remaining else minOf(remaining.toLong(), room).toInt()
@@ -128,7 +135,7 @@ internal class OutputMd5(private val sampleRate: Int) {
             if (exp.bits == 24) " | top16=${hex(got16)}" else "")
         DirectOutputState.checksumText = "$text: $name"
         DirectOutputState.checksumToast = "$short\n$name\n$detail" + (if (extra.isNotEmpty()) "\n$extra" else "") +
-            "\ndecoder: " + (if (ownDecoder) "own FLAC decoder" else "Android MediaCodec")
+            "\ndecoder: " + (if (ownDecoder) "own (FLAC / ALAC / WAV)" else "Android MediaCodec")
         DirectOutputState.checksumSerial++
     }
 

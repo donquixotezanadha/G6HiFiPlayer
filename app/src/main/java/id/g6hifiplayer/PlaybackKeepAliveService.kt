@@ -560,6 +560,10 @@ class PlaybackKeepAliveService : Service() {
                             audioSink, eventHandler, eventListener, out
                         )
                         out.add(index, FlacPcmRenderer(eventHandler, eventListener, audioSink))
+                        // Hifi 1.28: same idea for 20 / 24-bit ALAC (the phone's decoder cannot play it)
+                        out.add(index + 1, AlacPcmRenderer(eventHandler, eventListener, audioSink))
+                        // Hifi 1.28: WAV is passed straight through (no decoding), with the same silent pad
+                        out.add(index + 2, PcmCopyRenderer(eventHandler, eventListener, audioSink))
                     }
 
                     override fun buildAudioSink(

@@ -58,6 +58,13 @@ internal object DirectOutputState {
     // the only writer. OutputMd5 compares it before and after a track to tell which decoder produced that track.
     @Volatile var ownDecodedSamples = 0L
 
+    /**
+     * Hifi 1.28: Media3's DefaultAudioSink fades the first 20 ms of every start / seek in (a volume ramp applied to the samples
+     * themselves), which changes the music data. Every own decoder therefore puts this many silent frames in front of the first
+     * block after a start or flush, so the ramp only ever touches silence; OutputMd5 skips exactly these frames. 20 ms plus one.
+     */
+    fun padFrames(rate: Int): Int = rate / 50 + 1
+
     fun resetDepthCheck() { activeSamples = 0L; lowByteSamples = 0L }
 
     /**

@@ -66,8 +66,8 @@ final class FlacPcmRenderer extends DecoderAudioRenderer<FlacPcmDecoder> {
         if (!MimeTypes.AUDIO_FLAC.equalsIgnoreCase(format.sampleMimeType)) return C.FORMAT_UNSUPPORTED_TYPE;
         Info info = info(format);
         if (info == null) return C.FORMAT_UNSUPPORTED_SUBTYPE;
-        // 16-bit and below stay with the normal decoder (it is exact there); 32-bit is not handled.
-        if (info.bits < 17 || info.bits > 24 || info.channels < 1 || info.channels > 2) return C.FORMAT_UNSUPPORTED_SUBTYPE;
+        // 8..24 bits (16-bit included; shifted up inside 24 bits, same value). 32-bit is not handled.
+        if (info.bits < 8 || info.bits > 24 || info.channels < 1 || info.channels > 2) return C.FORMAT_UNSUPPORTED_SUBTYPE;
         if (info.rate < 8000 || info.rate > 192000) return C.FORMAT_UNSUPPORTED_SUBTYPE;
         if (!sinkSupportsFormat(pcmFormat(info))) return C.FORMAT_UNSUPPORTED_SUBTYPE;
         if (format.cryptoType != C.CRYPTO_TYPE_NONE) return C.FORMAT_UNSUPPORTED_DRM;
@@ -80,7 +80,7 @@ final class FlacPcmRenderer extends DecoderAudioRenderer<FlacPcmDecoder> {
         if (info == null) throw new DecoderException("FLAC STREAMINFO missing");
         lastInfo = info;
         DirectOutputState.INSTANCE.log("own FLAC decoder: " + info.rate + " Hz " + info.channels + " ch " + info.bits + "-bit");
-        return new FlacPcmDecoder(info.channels, info.bits, format.maxInputSize);
+        return new FlacPcmDecoder(info.channels, info.bits, info.rate, format.maxInputSize);
     }
 
     @Override

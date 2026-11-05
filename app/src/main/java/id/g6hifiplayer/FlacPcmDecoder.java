@@ -21,13 +21,16 @@ final class FlacPcmDecoder
 
     private final FlacFrameDecoder frames;
     private final int channels;
+    private final int padFrames;
+    private boolean needsPad = true;   // true at the start and after every flush (seek)
     private byte[] frameBytes = new byte[1 << 14];
     private byte[] pcm = new byte[1 << 14];
 
-    FlacPcmDecoder(int channels, int streamBits, int maxInputSize) {
+    FlacPcmDecoder(int channels, int streamBits, int sampleRate, int maxInputSize) {
         super(new DecoderInputBuffer[NUM_BUFFERS], new SimpleDecoderOutputBuffer[NUM_BUFFERS]);
         this.channels = channels;
         this.frames = new FlacFrameDecoder(channels, streamBits);
+        this.padFrames = DirectOutputState.INSTANCE.padFrames(sampleRate);
         if (maxInputSize > 0) setInitialInputBufferSize(maxInputSize);
     }
 
@@ -63,12 +66,16 @@ final class FlacPcmDecoder
         } catch (IOException | RuntimeException e) {
             return new DecoderException("FLAC frame could not be decoded: " + e.getMessage(), e);
         }
+        if (reset) needsPad = true;
+        int padBytes = needsPad ? padFrames * channels * 3 : 0;
         int size = frames.blockSize() * channels * 3;
-        if (pcm.length < size) pcm = new byte[size];
-        frames.writePcm24(pcm, 0);
-        ByteBuffer dst = out.init(in.timeUs, size);
-        dst.put(pcm, 0, size);
+        if (pcm.length < padBytes + size) pcm = new byte[padBytes + size];
+        if (padBytes > 0) java.util.Arrays.fill(pcm, 0, padBytes, (byte) 0);
+        frames.writePcm24(pcm, padBytes);
+        ByteBuffer dst = out.init(in.timeUs, padBytes + size);
+        dst.put(pcm, 0, padBytes + size);
         dst.flip();
+        needsPad = false;
         DirectOutputState.INSTANCE.setOwnDecodedSamples(DirectOutputState.INSTANCE.getOwnDecodedSamples() + frames.blockSize());
         return null;
     }
