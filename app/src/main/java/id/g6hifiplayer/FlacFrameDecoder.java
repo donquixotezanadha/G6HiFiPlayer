@@ -11,7 +11,8 @@ import java.io.IOException;
  * is the integer that the FLAC stream stores.
  *
  * Supports mono and stereo, 8..24 bits per sample, all subframe types (constant, verbatim, fixed, LPC), wasted bits and the
- * three stereo decorrelation modes. 32-bit streams are refused.
+ * three stereo decorrelation modes. 32-bit streams are refused. Hifi 1.29: the header CRC-8 and the frame CRC-16 are verified;
+ * a frame that fails either is an error (playback stops), never silently played.
  */
 public final class FlacFrameDecoder {
     private final int channels;
@@ -25,6 +26,33 @@ public final class FlacFrameDecoder {
     private final int[] coefs = new int[32];
     private int blockSize;
     private int bps;
+
+    private static final int[] CRC8 = new int[256];
+    private static final int[] CRC16 = new int[256];
+    static {
+        for (int i = 0; i < 256; i++) {
+            int c8 = i;
+            int c16 = i << 8;
+            for (int b = 0; b < 8; b++) {
+                c8 = (c8 & 0x80) != 0 ? ((c8 << 1) ^ 0x07) & 0xFF : (c8 << 1) & 0xFF;
+                c16 = (c16 & 0x8000) != 0 ? ((c16 << 1) ^ 0x8005) & 0xFFFF : (c16 << 1) & 0xFFFF;
+            }
+            CRC8[i] = c8;
+            CRC16[i] = c16;
+        }
+    }
+
+    private int crc8(int from, int to) {
+        int c = 0;
+        for (int i = from; i < to; i++) c = CRC8[c ^ (data[i] & 0xFF)];
+        return c;
+    }
+
+    private int crc16(int from, int to) {
+        int c = 0;
+        for (int i = from; i < to; i++) c = ((c << 8) & 0xFFFF) ^ CRC16[((c >>> 8) ^ (data[i] & 0xFF)) & 0xFF];
+        return c;
+    }
 
     public FlacFrameDecoder(int channels, int streamBits) {
         if (channels < 1 || channels > 2) throw new IllegalArgumentException("channels " + channels);
@@ -122,7 +150,8 @@ public final class FlacFrameDecoder {
         else if (bsCode >= 8) bs = 256 << (bsCode - 8);
         else throw new IOException("block size");
         if (srCode == 12) readBits(8); else if (srCode == 13 || srCode == 14) readBits(16);
-        readBits(8);                            // CRC-8
+        int headerEnd = bitPos >>> 3;           // the header is byte aligned here
+        if (readBits(8) != crc8(0, headerEnd)) throw new IOException("header CRC");   // Hifi 1.29: strict, a damaged frame stops playback
         int frameBps;
         switch (bpsCode) {
             case 0: frameBps = streamBits; break;
@@ -150,7 +179,8 @@ public final class FlacFrameDecoder {
             subframe(ch[c], bs, sbps);
         }
         bitPos = (bitPos + 7) & ~7;             // align to byte
-        readBits(16);                           // CRC-16 (not verified)
+        int frameEnd = bitPos >>> 3;
+        if (readBits(16) != crc16(0, frameEnd)) throw new IOException("frame CRC");   // Hifi 1.29
 
         if (channels == 2) {
             int[] a = ch[0], b = ch[1];

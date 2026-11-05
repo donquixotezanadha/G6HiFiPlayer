@@ -39,5 +39,10 @@ for f in "$WORK"/*.flac; do
   ref=$(ffmpeg -v error -i "$f" -c:a pcm_s24le -f s24le - | md5sum | cut -d' ' -f1)
   if [ "$mine" = "$ref" ]; then echo "MATCH     $(basename "$f")  $mine"; else echo "DIFFERENT $(basename "$f")  mine=$mine ffmpeg=$ref"; fail=1; fi
 done
+# a damaged frame must be rejected by the CRC check
+for f in "$WORK"/c5_96.flac "$WORK"/ms_44.flac; do
+  res=$(java -cp "$WORK/out" FlacTest "$f" corrupt | tail -1) || true
+  case "$res" in REJECTED*) echo "REJECTED  $(basename "$f") damaged frame ($res)";; *) echo "NOT-REJECTED $(basename "$f") ($res)"; fail=1;; esac
+done
 rm -rf "$WORK"
 exit $fail

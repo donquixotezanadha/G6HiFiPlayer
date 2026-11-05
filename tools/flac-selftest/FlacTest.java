@@ -19,6 +19,16 @@ public class FlacTest {
             p += 4 + len;
         }
         FlacFrameDecoder d = new FlacFrameDecoder(channels, bits);
+        if (a.length > 1 && a[1].equals("corrupt")) {
+            // Hifi 1.29: a damaged frame must be rejected (CRC), never decoded. Flip one bit inside the 3rd frame.
+            int q = p;
+            for (int fr = 0; fr < 2; fr++) q += d.decode(java.util.Arrays.copyOfRange(f, q, Math.min(f.length, q + (1 << 18))), 0, Math.min(f.length - q, 1 << 18));
+            byte[] rest = java.util.Arrays.copyOfRange(f, q, Math.min(f.length, q + (1 << 18)));
+            int len = d.decode(rest, 0, rest.length);   // the intact frame is accepted ...
+            rest[Math.min(len - 5, 40)] ^= 0x10;        // ... and the same frame with one bit flipped is not
+            try { d.decode(rest, 0, len); System.out.println("ACCEPTED-CORRUPT"); System.exit(3); }
+            catch (java.io.IOException e) { System.out.println("REJECTED " + e.getMessage()); return; }
+        }
         MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] pcm = new byte[65536 * 2 * 3];
         long frames = 0, lowZero = 0, samples = 0;

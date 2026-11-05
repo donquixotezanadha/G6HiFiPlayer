@@ -136,6 +136,14 @@ internal class OutputMd5(private val sampleRate: Int) {
         DirectOutputState.checksumText = "$text: $name"
         DirectOutputState.checksumToast = "$short\n$name\n$detail" + (if (extra.isNotEmpty()) "\n$extra" else "") +
             "\ndecoder: " + (if (ownDecoder) "own (FLAC / ALAC / WAV)" else "Android MediaCodec")
+        // Hifi 1.29 strict mode: a track whose samples do not match the file stops playback by itself.
+        val strictStop = short == "MD5 DIFFERENT" || short.startsWith("MD5 not comparable")
+        if (strictStop) {
+            val message = "Stopped (strict mode): $short • $name"
+            DirectOutputState.strictStopText = message
+            DirectOutputState.checksumToast = DirectOutputState.checksumToast + "\nSTOPPED: strict mode"
+            try { DirectOutputState.strictStopHandler?.invoke(message) } catch (_: Throwable) { }
+        }
         DirectOutputState.checksumSerial++
     }
 

@@ -551,20 +551,32 @@ class PlaybackKeepAliveService : Service() {
                         eventListener: AudioRendererEventListener,
                         out: java.util.ArrayList<Renderer>
                     ) {
-                        // Hifi 1.27: the player's own FLAC decoder goes BEFORE the MediaCodec renderer, so it wins the tie for
-                        // FLAC files of more than 16 bits (the phone's MediaCodec cuts those to 16 bits). It reports every other
-                        // format as unsupported, so MP3 / AAC / ALAC / WAV / 16-bit FLAC are handled as before.
-                        val index = out.size
-                        super.buildAudioRenderers(
-                            context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback,
-                            audioSink, eventHandler, eventListener, out
-                        )
-                        out.add(index, FlacPcmRenderer(eventHandler, eventListener, audioSink))
-                        // Hifi 1.28: same idea for 20 / 24-bit ALAC (the phone's decoder cannot play it)
-                        out.add(index + 1, AlacPcmRenderer(eventHandler, eventListener, audioSink))
-                        // Hifi 1.28: WAV is passed straight through (no decoding), with the same silent pad
-                        out.add(index + 2, PcmCopyRenderer(eventHandler, eventListener, audioSink))
+                        // Hifi 1.29 strict mode: the audio renderers are ONLY the player's own: FLAC (8-24 bit), ALAC (16-24 bit,
+                        // in .m4a) and WAV (16 / 24-bit PCM, passed straight through). No MediaCodec renderer is added, so any
+                        // other format (MP3, AAC, OGG, DSD, 32-bit ...) has no way to play at all, and there is no second path
+                        // to the Android mixer.
+                        out.add(FlacPcmRenderer(eventHandler, eventListener, audioSink))
+                        out.add(AlacPcmRenderer(eventHandler, eventListener, audioSink))
+                        out.add(PcmCopyRenderer(eventHandler, eventListener, audioSink))
                     }
+
+                    // Hifi 1.29: no video, image or camera-motion renderers either (audio only).
+                    override fun buildVideoRenderers(
+                        context: Context,
+                        extensionRendererMode: Int,
+                        mediaCodecSelector: MediaCodecSelector,
+                        enableDecoderFallback: Boolean,
+                        eventHandler: Handler,
+                        eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+                        allowedVideoJoiningTimeMs: Long,
+                        out: java.util.ArrayList<Renderer>
+                    ) { }
+
+                    override fun buildCameraMotionRenderers(
+                        context: Context,
+                        extensionRendererMode: Int,
+                        out: java.util.ArrayList<Renderer>
+                    ) { }
 
                     override fun buildAudioSink(
                         context: Context,
@@ -588,6 +600,13 @@ class PlaybackKeepAliveService : Service() {
                         volume = 1.0f
                     }
                 ExclusiveAudioFocus.attach(appContext, player)
+                // Hifi 1.29 strict mode: a track that does not match its check stops playback (on the player's own thread).
+                DirectOutputState.strictStopHandler = { message ->
+                    Handler(Looper.getMainLooper()).post {
+                        try { player.pause() } catch (e: Exception) { android.util.Log.w(TAG, "strict stop failed", e) }
+                        android.util.Log.w(TAG, message)
+                    }
+                }
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player

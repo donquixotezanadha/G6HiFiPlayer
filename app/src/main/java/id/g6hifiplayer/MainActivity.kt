@@ -69,6 +69,7 @@ class MainActivity : Activity() {
                                   val bitDepth: Int? = null)
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
+    private var strictBlocked = false   // Hifi 1.29: the current file has no renderer (not FLAC / ALAC / WAV)
     private var mediaSession: MediaSession? = null
     private val notificationWidgetExecutor = Executors.newSingleThreadExecutor()
     private var sourceRate: Int? = null
@@ -277,6 +278,11 @@ class MainActivity : Activity() {
             if (sumNow != lastChecksumSerial) {
                 lastChecksumSerial = sumNow
                 refreshAudioInfo()
+                if (DirectOutputState.strictStopText.isNotEmpty()) {   // Hifi 1.29
+                    statusView.text = DirectOutputState.strictStopText
+                    DirectOutputState.strictStopText = ""
+                    syncPlaybackIcon(false)
+                }
                 try { Toast.makeText(this@MainActivity, DirectOutputState.checksumToast, Toast.LENGTH_LONG).show() } catch (_: Exception) { }
             }
             if (prepared) player?.let { p ->
@@ -2411,6 +2417,7 @@ class MainActivity : Activity() {
                     titleView.text = activeTrack.title
                     artistView.text = activeTrack.artist
                     albumView.text = activeTrack.album
+                    strictBlocked = false
                     sourceRate = null
                     sourceBits = null; sourceFormat = null
                     sourceBitrate = null
@@ -2446,9 +2453,11 @@ class MainActivity : Activity() {
                             recordDiagnostic("LAST_PLAYBACK_RESTORE_POSITION_APPLIED positionMs=" + bounded + " durationMs=" + durationMs)
                         }
                         playView.isEnabled = true
-                        statusView.text = if (exo.isPlaying || (pendingAutoplay && exo.playWhenReady)) "Playing • " + activeTrack.title
-                            else "Ready • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "source sample rate unknown")
-                        if (pendingAutoplay) exo.play()
+                        if (!strictBlocked) {
+                            statusView.text = if (exo.isPlaying || (pendingAutoplay && exo.playWhenReady)) "Playing • " + activeTrack.title
+                                else "Ready • Media3/ExoPlayer • " + (sourceRate?.let { "%.1f kHz".format(Locale.US, it / 1000f) } ?: "source sample rate unknown")
+                        }
+                        if (pendingAutoplay && !strictBlocked) exo.play()
                         pendingAutoplay = false
                         mediaSession?.isActive = true
                         refreshAudioInfo()
@@ -2471,11 +2480,27 @@ class MainActivity : Activity() {
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying && strictBlocked) { try { exo.pause() } catch (_: Exception) { }; return }   // Hifi 1.29
                 if (prepared) {
                     if (isPlaying) notificationDismissed = false
                     syncPlaybackIcon(isPlaying)
                     refreshAudioInfo()
                     updatePlaybackNotification(isPlaying)
+                }
+            }
+            // Hifi 1.29 strict mode: only FLAC, ALAC and WAV have a renderer. If the file's audio track has none, nothing may play.
+            override fun onTracksChanged(trackInfo: androidx.media3.common.Tracks) {
+                if (trackInfo.groups.isNotEmpty() && !trackInfo.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_AUDIO)) {
+                    strictBlocked = true
+                    try { exo.pause() } catch (_: Exception) { }
+                    val mime = trackInfo.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+                        ?.let { g -> try { g.getTrackFormat(0).sampleMimeType } catch (_: Exception) { null } }
+                    val title = this@MainActivity.tracks.getOrNull(currentIndex)?.title ?: ""
+                    statusView.text = "Not supported (strict mode: FLAC, ALAC, WAV only)" + (mime?.let { " • $it" } ?: "") + (if (title.isNotEmpty()) "\n$title" else "")
+                    try { Toast.makeText(this@MainActivity, "Not played: only FLAC, ALAC and WAV are supported" + (mime?.let { "\n($it)" } ?: ""), Toast.LENGTH_LONG).show() } catch (_: Exception) { }
+                    recordDiagnostic("STRICT_UNSUPPORTED mime=" + mime)
+                    syncPlaybackIcon(false)
+                    refreshAudioInfo()
                 }
             }
             override fun onPlayerError(error: PlaybackException) {

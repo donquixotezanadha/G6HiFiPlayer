@@ -88,6 +88,10 @@ internal object DirectOutputState {
     @Volatile var checksumText: String = ""
     @Volatile var checksumToast: String = ""
     @Volatile var checksumSerial: Int = 0
+    /** Hifi 1.29 strict mode: called (on the audio thread) when a track did not match its check; the service pauses the player. */
+    @Volatile var strictStopHandler: ((String) -> Unit)? = null
+    /** Hifi 1.29: set when strict mode stopped playback; the UI shows it once and clears it. */
+    @Volatile var strictStopText: String = ""
 
     /**
      * 0 = not enough audio yet, 1 = the low 8 bits carry data (real 24-bit), 2 = low 8 bits empty so far.
