@@ -245,14 +245,14 @@ class MainActivity : Activity() {
     private var queueRowsSig = Int.MIN_VALUE
     private var queuePrewarmed = false
     private val queueTravelFactor = 0.7f
-    private var artHost: TopFadeLayout? = null
+    private var artHost: FrameLayout? = null
     private var queueAnimator: android.animation.ValueAnimator? = null
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
-    private var scrollFadeHost: EdgeFadeLayout? = null
-    private var queueFadeHost: EdgeFadeLayout? = null
+    private var scrollFadeHost: EdgeCutLayout? = null
+    private var queueFadeHost: EdgeCutLayout? = null
     private var queueActionsView: View? = null
     // Hifi 1.23: the mini player also belongs to the queue. While it runs its own animation (bounce in / lift out) it ignores the drag progress.
     private var miniQueueLocked = false
@@ -421,7 +421,6 @@ class MainActivity : Activity() {
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
             if (currentPage == "library" && selectedAlbum == null && !restoringScroll) listScrollY = y
-            updateTopFade()
         }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -476,7 +475,7 @@ class MainActivity : Activity() {
         // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
         // This gives its internal ScrollView independent gesture ownership and stable height.
         val contentStage = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
-        val fadeHost = EdgeFadeLayout(this)
+        val fadeHost = EdgeCutLayout(this)
         fadeHost.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         scrollFadeHost = fadeHost
         contentStage.addView(fadeHost, FrameLayout.LayoutParams(-1, -1))
@@ -835,9 +834,9 @@ class MainActivity : Activity() {
         // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
         // Build 2.3: lower again (bottom padding 20dp -> 8dp). The cover gets equal gaps above and below (see sizeDarkArt).
         stack.setPadding(0, topInset, 0, dp(STACK_BOTTOM_PAD_DP))
-        // Hifi 1.13: the cover lives in a host that clips it at the top edge with a thin fade, so it can ride up with the info dock
-        // and be cut off as it reaches the header (see applyQueueProgress).
-        val host = TopFadeLayout(this)
+        // Hifi 1.13 / 1.35: the cover lives in a host that clips it at the top edge (a plain cut, no fade), so it can ride up with the
+        // info dock and be cut off as it reaches the header (see applyQueueProgress).
+        val host = FrameLayout(this)
         host.addView(artBox, FrameLayout.LayoutParams(boxSide, boxSide, Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(ART_MIN_GAP_DP); bottomMargin = dp(ART_MIN_GAP_DP) })
         artHost = host
         stack.addView(host, LinearLayout.LayoutParams(-1, -2))
@@ -1042,7 +1041,7 @@ class MainActivity : Activity() {
     private fun makeLibraryPanel() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
-        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(112))   // room for the floating mini player: the last row rests above the fade zone
+        libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(112))   // room for the floating mini player: the last row rests above the cut spacer
         albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
             setPadding(dp(4), dp(2), dp(4), dp(6))
         }
@@ -1240,8 +1239,8 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            // Hifi 1.23: no background at all (opacity 0): the faded list behind it reads as a soft blur (fade drawn by EdgeFadeLayout).
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 14), null) }
+            // Hifi 1.35: the same background as the floating windows (Setting, album options); the list behind it is cut above the card, not faded.
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), floatingBackground(), null) }
             isClickable = true
             isFocusable = true
             setOnClickListener { if (currentPage == "library") showPlayerAnimated() else closeQueueViaMini() }
@@ -1306,7 +1305,7 @@ class MainActivity : Activity() {
         queueActionsView = queueActions
 
         queueRowsSig = Int.MIN_VALUE
-        // Hifi 1.23: the last row rests above the fade zone of the mini player (same spacing as the Album list).
+        // Hifi 1.35: the last row rests above the cut spacer of the mini player (same spacing as the Album list).
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(112)) }
         val queueScroll = ScrollView(this).apply {
             clipToPadding = false
@@ -1317,10 +1316,9 @@ class MainActivity : Activity() {
         }
         // The list fills the queue area (see sizeQueueRegion); longer queues scroll inside it.
         queueScrollView = queueScroll
-        val qFade = EdgeFadeLayout(this)
+        val qFade = EdgeCutLayout(this)
         qFade.addView(queueScroll, FrameLayout.LayoutParams(-1, -1))
         queueFadeHost = qFade
-        queueScroll.setOnScrollChangeListener { _, _, y, _, _ -> qFade.topStrength = (y / dp(24).toFloat()).coerceIn(0f, 1f) }
         surface.addView(qFade, LinearLayout.LayoutParams(-1, 0, 1f))
         queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
         // Hifi 1.7: the mini player lives on the Album page, docked at the bottom (see show()).
@@ -1364,7 +1362,7 @@ class MainActivity : Activity() {
         if (sig != queueRowsSig) renderQueueRows()
     }
 
-    /** The list rises inside a fixed panel (so its fade zones stay where the mini player is): only the content is offset. */
+    /** The list rises inside a fixed panel (so its cut spacers stay where the mini player is): only the content is offset. */
     private fun setQueueListOffset(ty: Float) {
         queueActionsView?.translationY = ty
         queueScrollView?.translationY = ty
@@ -1400,8 +1398,7 @@ class MainActivity : Activity() {
         if (::playerBottomDock.isInitialized) playerBottomDock.translationY = -queueShift * p
         // The cover is part of the unit: it rises with the dock (same distance) and leaves through the top edge of its host.
         if (::artBox.isInitialized) artBox.translationY = -queueShift * p
-        // Hifi 1.23: the cover and the dock are cut by the common top fade of the page (EdgeFadeLayout), not by their own strip.
-        updateTopFade()
+        // Hifi 1.35: the cover and the dock are cut at the top edge of the page (EdgeCutLayout); no fade.
         if (::artPlaceholder.isInitialized) artPlaceholder.alpha = 1f - p
         if (!::queuePanel.isInitialized) return
         queuePanel.visibility = if (p > 0.001f) View.VISIBLE else if (queuePrewarmed) View.INVISIBLE else View.GONE
@@ -3509,30 +3506,20 @@ class MainActivity : Activity() {
         navState(navLibrary, which == "library")
         navState(navFile, which == "settings" || which == "audio" || which == "file")
         updateBottomFade()
-        updateTopFade()
     }
 
     /**
-     * Hifi 1.23: ONE fade style for every cut of the screen. Bottom (Album list, queue list): full strength 24dp above the mini player
-     * card, gone at the middle of the card, so nothing shows through the transparent card or the navigation bar. Top (Album list under
-     * the header, queue list, the cover and dock leaving Now Playing): the same profile mirrored, [FADE_TOP_DP] long.
-     * Distances are measured from the bottom of the screen; the list's own bottom spacing (112dp + nav inset) keeps the last row clear.
+     * Hifi 1.35: ONE plain cut (no fade) for the bottom of the Album list and of the queue list: the content ends at a spacer of 8dp
+     * above the mini player card, so nothing shows through or behind the card or the navigation bar. The top is cut at the top edge of
+     * the page under the header. Distances are measured from the bottom of the screen; the list's own bottom spacing keeps the last row clear.
      */
     private fun updateBottomFade() {
         val hostH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
-        val cardH = (hostH - bottomInsetPx - dp(8)).coerceAtLeast(dp(40))
-        val full = hostH + dp(24)
-        val gone = hostH - cardH / 2
-        scrollFadeHost?.configure(currentPage == "library", full, gone)
-        queueFadeHost?.configure(true, full, gone)
+        val cut = hostH + dp(8)
+        scrollFadeHost?.configure(currentPage == "library", cut)
+        queueFadeHost?.configure(true, cut)
     }
 
-    /** Top fade strength: Album = how far the list is scrolled (none at rest), Now Playing = how far the queue has risen. */
-    private fun updateTopFade() {
-        val host = scrollFadeHost ?: return
-        host.topStrength = if (currentPage == "library") ((pageScroll?.scrollY ?: 0) / dp(24).toFloat()).coerceIn(0f, 1f)
-        else (queueProgress * 8f).coerceIn(0f, 1f)
-    }
     private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
         contentDescription = description
         // Preserve Build 78 equal-width hit targets and the centered selection pill;
@@ -3650,7 +3637,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(14))
             minimumWidth = floatingWindowWidth()
-            background = shape(mixColors(playerSurface, playerInk, 0.12f), 24)
+            background = floatingBackground()
         }
         panel.addView(text(album, 18f, WHITE, true).apply {
             setPadding(dp(2), dp(2), dp(2), dp(14)); maxLines = 2
@@ -3737,6 +3724,12 @@ class MainActivity : Activity() {
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
+    /**
+     * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
+     * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
+     */
+    private fun floatingBackground() = shape(mixColors(playerSurface, playerInk, 0.12f), 24)
+
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
 
@@ -3791,7 +3784,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(18))
             minimumWidth = floatingWindowWidth()
-            background = shape(mixColors(playerSurface, playerInk, 0.12f), 24)
+            background = floatingBackground()
         }
         if (currentPage == "library") {
             panel.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
@@ -4247,94 +4240,28 @@ class MainActivity : Activity() {
         try { moveTaskToBack(true) } catch (_: Exception) { }
     }
 
-    /** Clips its content at its own top edge (default) and, while [fade] > 0, softens the last 22dp there so the cover dissolves as it is cut. */
-    private inner class TopFadeLayout(context: Context) : FrameLayout(context) {
-        var fade = 0f
-            set(value) { if (field != value) { field = value; invalidate() } }
-        private val maskPaint = android.graphics.Paint().apply {
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-        }
-
-        override fun dispatchDraw(canvas: android.graphics.Canvas) {
-            if (fade <= 0.01f) { super.dispatchDraw(canvas); return }
-            // Hifi 1.16: only the 22dp top strip goes through an offscreen layer; the rest is drawn directly.
-            val band = dp(22).toFloat().coerceAtMost(height.toFloat())
-            val w = width.toFloat()
-            canvas.save()
-            canvas.clipRect(0f, band, w, height.toFloat())
-            super.dispatchDraw(canvas)
-            canvas.restore()
-            val save = canvas.saveLayer(0f, 0f, w, band, null)
-            canvas.clipRect(0f, 0f, w, band)
-            super.dispatchDraw(canvas)
-            maskPaint.shader = android.graphics.LinearGradient(
-                0f, 0f, 0f, band,
-                Color.argb((255 * fade).toInt().coerceIn(0, 255), 0, 0, 0), 0x00000000,
-                android.graphics.Shader.TileMode.CLAMP
-            )
-            canvas.drawRect(0f, 0f, w, band, maskPaint)
-            canvas.restoreToCount(save)
-        }
-    }
-
     /**
-     * Hifi 1.23: soft fade of its content at the bottom and at the top, toward the page backdrop (a transparency mask, never a colour).
-     * Bottom: full strength [fullFromBottom] px above the bottom edge, gone at [goneFromBottom] px. Top: [topStrength] (0..1) times a
-     * band of FADE_TOP_DP with the mirrored profile. Only the faded bands go through an offscreen layer.
+     * Hifi 1.35: a plain cut, no fade anywhere. The content is clipped at the top edge of this view (the spacer under the header) and, when
+     * enabled, [cutFromBottom] px above its bottom edge (the spacer above the mini player). Nothing is drawn through a mask or a gradient.
      */
-    private inner class EdgeFadeLayout(context: Context) : FrameLayout(context) {
+    private inner class EdgeCutLayout(context: Context) : FrameLayout(context) {
         private var bottomOn = false
-        private var fullFromBottom = 0
-        private var goneFromBottom = 0
-        var topStrength = 0f
-            set(value) { if (kotlin.math.abs(field - value) > 0.004f) { field = value; invalidate() } }
-        private val maskPaint = android.graphics.Paint().apply {
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-        }
+        private var cutFromBottom = 0
 
-        fun configure(enabled: Boolean, full: Int, gone: Int) {
-            val g = gone.coerceAtMost(full - dp(8))
-            if (bottomOn == enabled && fullFromBottom == full && goneFromBottom == g) return
-            bottomOn = enabled; fullFromBottom = full; goneFromBottom = g
+        fun configure(enabled: Boolean, cut: Int) {
+            if (bottomOn == enabled && cutFromBottom == cut) return
+            bottomOn = enabled; cutFromBottom = cut
             invalidate()
         }
 
         override fun dispatchDraw(canvas: android.graphics.Canvas) {
-            val w = width.toFloat(); val h = height.toFloat()
-            val topH = if (topStrength > 0.01f) dp(FADE_TOP_DP).toFloat().coerceAtMost(h / 2f) else 0f
-            val bandTop = h - fullFromBottom
-            val botTop = if (bottomOn && bandTop > topH && bandTop < h) bandTop else h
-            if (topH <= 0f && botTop >= h) { super.dispatchDraw(canvas); return }
+            val h = height.toFloat()
+            val cutY = if (bottomOn) (h - cutFromBottom).coerceIn(0f, h) else h
+            if (cutY >= h) { super.dispatchDraw(canvas); return }
             canvas.save()
-            canvas.clipRect(0f, topH, w, botTop)
+            canvas.clipRect(0f, 0f, width.toFloat(), cutY)
             super.dispatchDraw(canvas)
             canvas.restore()
-            if (topH > 0f) {
-                val save = canvas.saveLayer(0f, 0f, w, topH, null)
-                canvas.clipRect(0f, 0f, w, topH)
-                super.dispatchDraw(canvas)
-                val a = topStrength.coerceIn(0f, 1f)
-                maskPaint.shader = android.graphics.LinearGradient(
-                    0f, 0f, 0f, topH,
-                    intArrayOf(Color.argb((255 * a).toInt(), 0, 0, 0), Color.argb((128 * a).toInt(), 0, 0, 0), 0x00000000),
-                    floatArrayOf(0f, 0.6f, 1f), android.graphics.Shader.TileMode.CLAMP
-                )
-                canvas.drawRect(0f, 0f, w, topH, maskPaint)
-                canvas.restoreToCount(save)
-            }
-            if (botTop < h) {
-                val bandEnd = h - goneFromBottom
-                val save = canvas.saveLayer(0f, botTop, w, h, null)
-                canvas.clipRect(0f, botTop, w, h)
-                super.dispatchDraw(canvas)
-                maskPaint.shader = android.graphics.LinearGradient(
-                    0f, botTop, 0f, bandEnd,
-                    intArrayOf(0x00000000, 0x80000000.toInt(), -0x1000000), floatArrayOf(0f, 0.4f, 1f),
-                    android.graphics.Shader.TileMode.CLAMP
-                )
-                canvas.drawRect(0f, botTop, w, h, maskPaint)
-                canvas.restoreToCount(save)
-            }
         }
     }
 
@@ -4487,7 +4414,6 @@ class MainActivity : Activity() {
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
-        private const val FADE_TOP_DP = 56
         private const val DARK_SURFACE = 0xFF000000.toInt()
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
