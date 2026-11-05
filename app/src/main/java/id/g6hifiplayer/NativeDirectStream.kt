@@ -92,6 +92,15 @@ internal object DirectOutputState {
     @Volatile var strictStopHandler: ((String) -> Unit)? = null
     /** Hifi 1.29: set when strict mode stopped playback; the UI shows it once and clears it. */
     @Volatile var strictStopText: String = ""
+    /** Hifi 1.30 headset-only mode: true only while a wired headset is connected (set by HeadsetGuard; missing = refuse). */
+    @Volatile var headsetCheck: (() -> Boolean)? = null
+    fun headsetPresent(): Boolean = try { headsetCheck?.invoke() ?: false } catch (_: Throwable) { false }
+    /** Hifi 1.30: stop playback now with a message (safe to call from any thread). */
+    fun strictStop(message: String) {
+        strictStopText = message
+        log(message)
+        try { strictStopHandler?.invoke(message) } catch (_: Throwable) { }
+    }
 
     /**
      * 0 = not enough audio yet, 1 = the low 8 bits carry data (real 24-bit), 2 = low 8 bits empty so far.

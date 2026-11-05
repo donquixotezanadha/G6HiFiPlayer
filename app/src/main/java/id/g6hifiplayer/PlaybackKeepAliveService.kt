@@ -607,6 +607,7 @@ class PlaybackKeepAliveService : Service() {
                         android.util.Log.w(TAG, message)
                     }
                 }
+                HeadsetGuard.install(appContext, player)   // Hifi 1.30: headset-only mode + music volume guard
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player
@@ -618,6 +619,7 @@ class PlaybackKeepAliveService : Service() {
             synchronized(playerLock) {
                 try { sharedPlayer?.release() } catch (e: Exception) { android.util.Log.w(TAG, "Player release failed", e) }
                 ExclusiveAudioFocus.release()
+                HeadsetGuard.release()
                 sharedPlayer = null
             }
         }

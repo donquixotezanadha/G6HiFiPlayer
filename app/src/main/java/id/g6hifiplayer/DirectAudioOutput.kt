@@ -35,6 +35,8 @@ internal class DirectAudioOutput private constructor(
     private var started = false          // native start() has been called since the last flush
     private var playing = false
     private var positionAnnounced = false
+    @Volatile private var blocked = false   // Hifi 1.30: nothing is written while the headset is missing or the route is not DIRECT
+    private var routeBad = false
 
     // Fallback clock used when AudioTrack::getPosition is unavailable or stays at 0 while playing.
     private var clockMode = false
@@ -47,6 +49,13 @@ internal class DirectAudioOutput private constructor(
 
     override fun play() {
         if (released) return
+        // Hifi 1.30 headset-only mode: nothing is started without the wired headset.
+        if (!DirectOutputState.headsetPresent()) {
+            blocked = true
+            DirectOutputState.strictStop("Headset-only mode: no headset connected, playback refused")
+            return
+        }
+        blocked = routeBad
         if (!playing) {
             playing = true
             clockStartNs = System.nanoTime()
@@ -58,6 +67,13 @@ internal class DirectAudioOutput private constructor(
             val route = NativeDirectStream.routeInfo(handle)
             DirectOutputState.route = route
             DirectOutputState.log("start=$st route: $route")
+            // Hifi 1.30: a track that the system put on the mixer instead of the DIRECT thread is not bit-perfect: stop it.
+            if (DirectOutputState.routeIsDirect() == false) {
+                routeBad = true
+                blocked = true
+                NativeDirectStream.pause(handle)
+                DirectOutputState.strictStop("Stopped: the output is not on the DIRECT thread ($route)")
+            }
         }
     }
 
@@ -72,7 +88,7 @@ internal class DirectAudioOutput private constructor(
 
     @Throws(AudioOutput.WriteException::class)
     override fun write(buffer: ByteBuffer, encodedAccessUnitCount: Int, presentationTimeUs: Long): Boolean {
-        if (released) return false
+        if (released || blocked) return false
         val frameBytes = channels * inBytes
         while (buffer.remaining() >= frameBytes) {
             val frames = minOf(buffer.remaining() / frameBytes, CHUNK_FRAMES)
@@ -101,6 +117,8 @@ internal class DirectAudioOutput private constructor(
         md5Check.onFlush()
         writtenFrames = 0
         started = false
+        routeBad = false
+        blocked = false
         playing = false
         clockMode = false
         clockAccumNs = 0
@@ -294,6 +312,11 @@ internal class DirectAudioOutput private constructor(
             val channels = if (config.channelMask == android.media.AudioFormat.CHANNEL_OUT_MONO) 1 else 2
             if (config.isTunneling || config.isOffload) return null
             if (!isEligible(config.encoding, config.sampleRate, channels)) return null
+            if (!DirectOutputState.headsetPresent()) {   // Hifi 1.30 headset-only mode
+                DirectOutputState.strictStopText = "Headset-only mode: no headset connected, output not opened"
+                DirectOutputState.log("headset-only mode: no wired headset, the DIRECT output is not opened")
+                return null
+            }
             if (!NativeDirectStream.ensureLoaded()) {
                 DirectOutputState.log("native DIRECT unavailable: ${NativeDirectStream.loadError}")
                 return null
