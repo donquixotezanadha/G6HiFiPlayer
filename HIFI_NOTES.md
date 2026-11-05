@@ -180,3 +180,8 @@
 ## v1.32 (branch hifi-v1-32, from hifi-v1-31) - headset prompt instead of "NOT BIT-PERFECT"
 - Row 2 under the progress bar shows orange "PLUG IN THE HEADSET" (with "this player works with the headset jack only") while no wired headset is connected; it turns to the normal verdict (green BIT-PERFECT / DIRECT) by itself when the headset is plugged in. The play button is dimmed (alpha 40%) in that state; tapping it still shows the guard's message.
 - The old "NOT BIT-PERFECT" (speaker) label and the "speaker" word are gone: that case can no longer play. Unplugging while playing shows one short toast "Headset removed: playback stopped". The status line follows plug / unplug events and refreshes when the app comes to the front.
+
+## v1.33 (branch hifi-v1-33, from hifi-v1-32) - no rebuttal for the audio focus, quieter UI
+- Another app taking the audio focus for good (YouTube, video or music players, games): the player pauses at once, status line "Stopped: another app took the audio"; no more asking for the focus back (the old 4-in-20-s fight let both sounds play at the same time and then stopped). Pressing play asks for the focus again. Calls, alarms and other transient losses still pause and resume by themselves; "may duck" requests are still ignored (no software volume).
+- The MD5 toast is removed (the verdict stays in the status line as before; a mismatch still stops playback with its message).
+- The grey "this player works with the headset jack only" note is removed; "PLUG IN THE HEADSET" alone is shown.

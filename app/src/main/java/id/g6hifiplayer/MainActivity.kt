@@ -278,7 +278,6 @@ class MainActivity : Activity() {
             if (sumNow != lastChecksumSerial) {
                 lastChecksumSerial = sumNow
                 refreshAudioInfo()
-                try { Toast.makeText(this@MainActivity, DirectOutputState.checksumToast, Toast.LENGTH_LONG).show() } catch (_: Exception) { }
             }
             if (DirectOutputState.strictStopText.isNotEmpty()) {   // Hifi 1.29 / 1.30: a strict stop (check, headset, route)
                 statusView.text = DirectOutputState.strictStopText
@@ -3324,7 +3323,7 @@ class MainActivity : Activity() {
         }
         // Hifi 1.24: the last MD5 verdict stays here until the next track has been checked.
         val sumNote = if (DirectOutputState.checksumText.isNotEmpty()) " • " + DirectOutputState.checksumText else ""
-        val tail = if (jack) " • headset$note$sumNote" else " • this player works with the headset jack only"
+        val tail = if (jack) " • headset$note$sumNote" else ""
         val status = android.text.SpannableString(verdict + tail)
         status.setSpan(android.text.style.ForegroundColorSpan(color), 0, verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         status.setSpan(android.text.style.ForegroundColorSpan(grey), verdict.length, status.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

@@ -49,17 +49,13 @@ internal object ExclusiveAudioFocus {
         val audioManager = manager ?: return@OnAudioFocusChangeListener
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS -> {
-                if (takeover && reclaimAllowed()) {
-                    // Another app took the focus for good: exclusive mode asks for it back (the music keeps playing).
-                    holding = false
-                    DirectOutputState.log("exclusive mode: another app took the audio focus, asking for it back")
-                    handler.postDelayed({ if (takeover) ensureFocus() }, 1200L)
-                } else {
-                    pausedByFocus = false
-                    player.pause()
-                    abandon(audioManager)
-                    DirectOutputState.log("audio focus lost for good: paused")
-                }
+                // Hifi 1.33: another app (YouTube, a video or music player ...) took the audio for good. No fight for it and
+                // no two sounds at once: the player stops at once. Pressing play asks for the focus again.
+                pausedByFocus = false
+                player.pause()
+                abandon(audioManager)
+                DirectOutputState.strictStopText = "Stopped: another app took the audio"
+                DirectOutputState.log("audio focus lost for good: paused (another app took the audio)")
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 if (player.playWhenReady) {
