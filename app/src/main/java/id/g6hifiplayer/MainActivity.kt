@@ -277,13 +277,13 @@ class MainActivity : Activity() {
             val sumNow = DirectOutputState.checksumSerial
             if (sumNow != lastChecksumSerial) {
                 lastChecksumSerial = sumNow
-                refreshAudioInfo()
-                if (DirectOutputState.strictStopText.isNotEmpty()) {   // Hifi 1.29
-                    statusView.text = DirectOutputState.strictStopText
-                    DirectOutputState.strictStopText = ""
-                    syncPlaybackIcon(false)
-                }
-                try { Toast.makeText(this@MainActivity, DirectOutputState.checksumToast, Toast.LENGTH_LONG).show() } catch (_: Exception) { }
+                refreshAudioInfo()   // Hifi 1.34: no MD5 toast; the verdict stays in the status line
+            }
+            if (DirectOutputState.strictStopText.isNotEmpty()) {   // Hifi 1.29 / 1.34: a strict stop (check mismatch, another app took the audio)
+                statusView.text = DirectOutputState.strictStopText
+                DirectOutputState.strictStopText = ""
+                pendingAutoplay = false
+                syncPlaybackIcon(false)
             }
             if (prepared) player?.let { p ->
                 persistPlaybackState(force = false)
@@ -379,6 +379,7 @@ class MainActivity : Activity() {
         PlaybackKeepAliveService.setPlaybackStoppedCallback { MainActivity.onServicePlaybackStopped() }
         player = PlaybackKeepAliveService.existingPlayer()
         getPreferences(MODE_PRIVATE).getString("diagnostic_events", "")?.split("\n\n")?.filter { it.isNotBlank() }?.takeLast(300)?.let { synchronized(diagnosticEvents) { diagnosticEvents.addAll(it) } }
+        volumeControlStream = AudioManager.STREAM_MUSIC   // Hifi 1.34: the volume keys always move the music volume, never the ringer
         buildUi(); audioManager.registerAudioDeviceCallback(deviceCallback, handler)
         PlaybackKeepAliveService.armExclusive(this) // Build 1.67: exclusive mode is always on; it follows the headphone jack
         createNotificationChannel()

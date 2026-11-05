@@ -607,6 +607,7 @@ class PlaybackKeepAliveService : Service() {
                         android.util.Log.w(TAG, message)
                     }
                 }
+                VolumeGuard.install(appContext, player)   // Hifi 1.34: music volume guard (any output)
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player
@@ -618,6 +619,7 @@ class PlaybackKeepAliveService : Service() {
             synchronized(playerLock) {
                 try { sharedPlayer?.release() } catch (e: Exception) { android.util.Log.w(TAG, "Player release failed", e) }
                 ExclusiveAudioFocus.release()
+                VolumeGuard.release()
                 sharedPlayer = null
             }
         }
