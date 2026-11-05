@@ -2506,8 +2506,17 @@ class MainActivity : Activity() {
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
-                // Build 1.61: there is no second decoder and no second output. A failure is reported as it is.
                 playView.isEnabled = true
+                // Hifi 1.30: refused only because the headset is missing; HeadsetGuard prepares the track again when it is plugged in.
+                if (DirectOutputState.needsPrepare && !DirectOutputState.headsetPresent()) {
+                    statusView.text = "Headset-only mode: plug in the headset, the track loads by itself"
+                    DirectOutputState.strictStopText = ""
+                    pendingAutoplay = false
+                    syncPlaybackIcon(false)
+                    refreshAudioInfo()
+                    return
+                }
+                // Build 1.61: there is no second decoder and no second output. A failure is reported as it is.
                 val chain = generateSequence<Throwable>(error) { it.cause }.mapNotNull { it.message?.takeIf { m -> m.isNotBlank() } }.distinct().take(3).toList()
                 val detail = chain.joinToString(" ← ").ifEmpty { "unsupported format" }
                 val recent = DirectOutputState.historyText().lines().takeLast(3).joinToString("\n") { it.substringAfter(" | ") }

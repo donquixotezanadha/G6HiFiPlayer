@@ -94,6 +94,8 @@ internal object DirectOutputState {
     @Volatile var strictStopText: String = ""
     /** Hifi 1.30 headset-only mode: true only while a wired headset is connected (set by HeadsetGuard; missing = refuse). */
     @Volatile var headsetCheck: (() -> Boolean)? = null
+    /** Hifi 1.30: the player was refused / stopped for lack of the headset and must be prepared again once it is plugged in. */
+    @Volatile var needsPrepare: Boolean = false
     fun headsetPresent(): Boolean = try { headsetCheck?.invoke() ?: false } catch (_: Throwable) { false }
     /** Hifi 1.30: stop playback now with a message (safe to call from any thread). */
     fun strictStop(message: String) {

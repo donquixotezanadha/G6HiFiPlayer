@@ -67,10 +67,31 @@ internal object HeadsetGuard {
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                 if (removedDevices.none { isWired(it) }) return
                 main.postDelayed({
-                    if (!wired(ctx) && (player.playWhenReady || player.isPlaying)) {
+                    if (wired(ctx)) return@postDelayed
+                    if (player.playWhenReady || player.isPlaying) {
                         deny(player, "Headset removed: playback stopped (headset-only mode)")
                     }
+                    // Release the output completely, so the next start opens a fresh DIRECT track on the headset instead of
+                    // reusing one the system may have moved while the headset was away. The queue and position are kept.
+                    if (player.currentMediaItem != null && player.playbackState != Player.STATE_IDLE) {
+                        DirectOutputState.needsPrepare = true
+                        try { player.stop() } catch (_: Exception) { }
+                    }
                 }, 150L)
+            }
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                if (addedDevices.none { isWired(it) }) return
+                // The headset is back: bring the track back by itself (no need to close and reopen the app). It stays paused
+                // unless the user had asked for playback.
+                main.postDelayed({
+                    if (!wired(ctx) || player.currentMediaItem == null) return@postDelayed
+                    if (DirectOutputState.needsPrepare || player.playerError != null) {
+                        DirectOutputState.needsPrepare = false
+                        DirectOutputState.strictStopText = ""
+                        DirectOutputState.log("headset plugged in: preparing the track again")
+                        try { player.prepare() } catch (_: Exception) { }
+                    }
+                }, 300L)
             }
         }
         deviceCallback = cb

@@ -67,13 +67,17 @@ internal class DirectAudioOutput private constructor(
             val route = NativeDirectStream.routeInfo(handle)
             DirectOutputState.route = route
             DirectOutputState.log("start=$st route: $route")
-            // Hifi 1.30: a track that the system put on the mixer instead of the DIRECT thread is not bit-perfect: stop it.
-            if (DirectOutputState.routeIsDirect() == false) {
-                routeBad = true
-                blocked = true
-                NativeDirectStream.pause(handle)
-                DirectOutputState.strictStop("Stopped: the output is not on the DIRECT thread ($route)")
-            }
+        }
+        // Hifi 1.30: checked at EVERY start (a route hand-off while paused can move the track): a track that the system put
+        // on the mixer instead of the DIRECT thread is not bit-perfect, so it is stopped. Unreadable flags are not a failure.
+        val now = NativeDirectStream.routeInfo(handle)
+        DirectOutputState.route = now
+        if (DirectOutputState.routeIsDirect() == false) {
+            routeBad = true
+            blocked = true
+            NativeDirectStream.pause(handle)
+            DirectOutputState.needsPrepare = true
+            DirectOutputState.strictStop("Stopped: the output is not on the DIRECT thread ($now)")
         }
     }
 
@@ -313,7 +317,8 @@ internal class DirectAudioOutput private constructor(
             if (config.isTunneling || config.isOffload) return null
             if (!isEligible(config.encoding, config.sampleRate, channels)) return null
             if (!DirectOutputState.headsetPresent()) {   // Hifi 1.30 headset-only mode
-                DirectOutputState.strictStopText = "Headset-only mode: no headset connected, output not opened"
+                DirectOutputState.needsPrepare = true   // HeadsetGuard prepares the player again as soon as the headset is plugged in
+                DirectOutputState.strictStopText = "Headset-only mode: plug in the headset, the track loads by itself"
                 DirectOutputState.log("headset-only mode: no wired headset, the DIRECT output is not opened")
                 return null
             }

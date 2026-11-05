@@ -172,3 +172,7 @@
 - Route check: if the track starts and the output is read as NOT the DIRECT thread (flags without the DIRECT bit), playback is stopped with a message. Unreadable flags are not treated as a failure.
 - Volume: the native track is STREAM_MUSIC, so ringer / notification volume cannot change it. The volume keys inside the app are bound to the music stream (volumeControlStream). While playing, a sudden single jump of 4 steps or more of the music volume (system restoring another device's level) is put back to the previous level and a toast says so.
 - Not changed: audio focus / exclusive takeover from 1.61-1.67 (calls and alarms still pause and resume).
+
+## v1.31 (branch hifi-v1-31, from hifi-v1-30) - headset plugged in after the track was opened
+- Bug in 1.30: a track opened (or play pressed) without the headset left the player in an error state; plugging the headset in did not help until the app was closed and opened again.
+- Fix: HeadsetGuard now (a) flags the player when the output was refused for lack of the headset (DirectOutputState.needsPrepare) and prepares it again 300 ms after a wired headset appears (queue and position kept, no autoplay unless it had been requested); (b) on unplug stops the player (queue and position kept) so the output is released and the next start opens a fresh DIRECT track on the headset; (c) the DIRECT-thread check now runs at every start, not only the first one; (d) the error text for the missing-headset case is "Headset-only mode: plug in the headset, the track loads by itself" instead of "Playback failed".
