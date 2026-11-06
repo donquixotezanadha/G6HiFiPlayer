@@ -254,6 +254,8 @@ class MainActivity : Activity() {
     private var scrollFadeHost: EdgeCutLayout? = null
     private var queueFadeHost: EdgeCutLayout? = null
     private var queueActionsView: View? = null
+    private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
+    private var queueDialog: AlertDialog? = null     // Hifi 1.37: the queue is a floating window
     // Hifi 1.23: the mini player also belongs to the queue. While it runs its own animation (bounce in / lift out) it ignores the drag progress.
     private var miniQueueLocked = false
     private var miniQueueAnimator: android.animation.ValueAnimator? = null
@@ -731,7 +733,24 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
         }
-        metadata.addView(titleView, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
+        // Hifi 1.37: the queue button sits level with the title on the right; its right edge is the end of the progress bar (same side padding),
+        // and the title gets 40dp shorter. The button overlays the title row, so it does not change the dock height by more than a few dp.
+        val queueIcon = ImageView(this).apply {
+            setImageResource(R.drawable.ic_queue_24)
+            imageTintList = ColorStateList.valueOf(WHITE)
+            scaleType = ImageView.ScaleType.FIT_END
+        }
+        queueButton = queueIcon
+        val queueBtn = FrameLayout(this).apply {
+            contentDescription = "Queue"
+            isClickable = true; isFocusable = true
+            setOnClickListener { openQueueWindow() }
+            addView(queueIcon, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.END or Gravity.TOP).apply { topMargin = dp(2) })
+        }
+        val titleRow = FrameLayout(this).apply { clipChildren = false }
+        titleRow.addView(titleView, FrameLayout.LayoutParams(-1, -2).apply { rightMargin = dp(40) })
+        titleRow.addView(queueBtn, FrameLayout.LayoutParams(dp(40), dp(28), Gravity.END or Gravity.TOP))
+        metadata.addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
         metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
         metadata.addView(albumView, LinearLayout.LayoutParams(-1, -2))
 
@@ -1018,6 +1037,7 @@ class MainActivity : Activity() {
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
+        queueButton?.imageTintList = ColorStateList.valueOf(ink)
         if (::seek.isInitialized) {
             // Build 3.06: keep the SeekBar thumb disabled in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
@@ -3564,7 +3584,7 @@ class MainActivity : Activity() {
                 setPadding(dp(4), dp(5), dp(4), dp(5))
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); showPlayerAnimated() }
+                setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); queueDialog?.dismiss(); if (currentPage != "player") showPlayerAnimated() }   // Hifi 1.37: back to Now Playing at once
             }
             val numberView = text((position + 1).toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
             row.addView(numberView, LinearLayout.LayoutParams(dp(34), -2))
@@ -3595,6 +3615,56 @@ class MainActivity : Activity() {
         }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
+    /**
+     * Hifi 1.37: the queue is a floating window like Setting and the album options: same background and corners (floatingBackground), same width
+     * (screen minus 16dp each side), 80% of the screen height. Tapping a track plays it and closes the window (back on Now Playing); tapping outside
+     * or Back closes it too. No mini player here. The rows are the same ones as before (renderQueueRows), moved into this window while it is open.
+     */
+    private fun openQueueWindow() {
+        if (!::queueRows.isInitialized || queueDialog?.isShowing == true) return
+        val dialog = AlertDialog.Builder(this).create()
+        val windowH = (resources.displayMetrics.heightPixels * 0.8f).toInt()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(10), dp(16), dp(8))
+            minimumWidth = floatingWindowWidth()
+            minimumHeight = windowH
+            background = floatingBackground()
+        }
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(text("PLAYBACK QUEUE", 12f, MUTED, true).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), 0, 0, 0) },
+            LinearLayout.LayoutParams(0, dp(38), 1f))
+        header.addView(action("CLEAR", false) {
+            playbackQueue = emptyList()
+            playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
+            persistQueueState()
+            renderQueueRows()
+            Toast.makeText(this, "Queue cleared.", Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(dp(82), dp(36)))
+        panel.addView(header, LinearLayout.LayoutParams(-1, -2))
+        (queueRows.parent as? ViewGroup)?.removeView(queueRows)
+        renderQueueRows()
+        val scroll = ScrollView(this).apply {
+            clipToPadding = false
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = true
+            addView(queueRows, ViewGroup.LayoutParams(-1, -2))
+        }
+        queueScrollView = scroll
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        dialog.setView(panel)
+        dialog.setOnDismissListener {
+            (queueRows.parent as? ViewGroup)?.removeView(queueRows)
+            if (queueDialog === dialog) queueDialog = null
+        }
+        queueDialog = dialog
+        dialog.show()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setLayout(floatingWindowWidth(), windowH)
+        dialog.window?.setDimAmount(0.55f)
+    }
+
     private fun showAlbumOptions(album: String, indices: List<Int>) {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
@@ -3863,7 +3933,7 @@ class MainActivity : Activity() {
                 swipeBlocked = busy || queueProgress > 0.01f ||
                     touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
                     touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
-                queueEligible = !busy && currentPage == "player" && queueStartAllowed(ev.rawY)
+                queueEligible = false   // Hifi 1.37: the queue opens only from the button (no swipe up); swipe down to Album stays
                 albumEligible = !busy && currentPage == "player" && queueProgress <= 0.01f &&
                     !touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) &&
                     !touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())

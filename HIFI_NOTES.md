@@ -185,3 +185,10 @@
 - Bottom of Album: extra bottom space reduced (list bottom padding 112 -> 88dp), and the 8dp cut spacer is replaced by the 1.20 soft fade (transparency mask toward the backdrop, full 24dp above the card, gone at the middle of the card and over the navigation-bar area). The fade is automatic and only on the Album list, behind the mini player; no fade anywhere else (top of the lists, queue, cover and dock stay plain cuts).
 - Background: the flat theme veil over the cover backdrop 50% -> 60% (Dark black, Light white); still one layer.
 - Audio, check, volume guard and audio focus unchanged from 1.35. Version 1.36 (code 37), installs over 1.35.
+
+## v1.37 (branch hifi-v1-37, from hifi-v1-36) - floating queue window, queue button next to the title
+- The queue is now a floating window like Setting and the album options: the same floatingBackground() (same colour, 12dp corners), same width (screen minus 16dp each side), 80% of the screen height, dim 55% behind it. No mini player in it.
+- Tapping a track plays it and closes the window (back on Now Playing, no page animation needed because the window only opens from Now Playing). Tapping outside the window or Back closes it too. CLEAR stays in the window header.
+- Trigger: a 3-line queue icon (new ic_queue_24.xml, follows Dark / Light ink) level with the track title on the right. Its right edge is the end of the progress bar (same 30dp side padding); the title text gets 40dp shorter. The old swipe up to open the queue is off. Swipe down to Album, the Album mini player and everything else are unchanged.
+- The rows are the same renderQueueRows rows; the list view is moved into the window while it is open and taken out when it closes. The old slide-up overlay code (queuePanel, applyQueueProgress ...) is still in the file but can no longer be triggered.
+- Audio, check, volume guard and audio focus unchanged from 1.36. Version 1.37 (code 38), installs over 1.36.
