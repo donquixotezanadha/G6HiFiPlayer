@@ -1,4 +1,4 @@
-name: Hifi v1.43 - Now Playing: clear cover backdrop, no album art, no thumb, bolder progress
+name: Hifi v1.43 - Now Playing clear cover backdrop, no album art, no thumb, bolder progress
 
 on:
   workflow_dispatch:
