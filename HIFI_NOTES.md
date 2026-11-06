@@ -237,3 +237,9 @@
 - Resolution: the Now Playing cover is decoded at 1440 px (the screen width, exact scale, never upscaled; was 1200 px with power-of-two halving, often 600-750 px), cache back to 48 MB, own disk-cache key. Not raised further.
 - Background veil (Dark black / Light white) is 0x99 = 60%, unchanged: it was already set to 60% in 1.36.
 - Audio, queue window, log unchanged. Version 1.44 (code 45), installs over 1.43.
+
+## v1.45 (branch hifi-v1-45, from hifi-v1-44) - Now Playing: cover clear up to the status bar, bigger Hi-Res logo, logo no longer clipped
+- The cover now starts at the very top of the screen (status bar) and has no top fade: clear from the top. Still full width, whole picture; only the bottom 30% fades into the blur.
+- Hi-Res logo: 12% of the screen width (the same share the old album-art badge had of the cover), and hangs higher (8dp above the title row, same right edge as the queue symbol).
+- Bug fixed: the top of the logo was cut because playerPanel, the page content and the scroller clipped their children; clipping is off on them now.
+- Version 1.45 (code 46), installs over 1.44. Audio unchanged.

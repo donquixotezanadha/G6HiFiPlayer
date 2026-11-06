@@ -444,6 +444,9 @@ class MainActivity : Activity() {
         // Build 1.44: Setting shows only the folder scan and the column option. The audio/file info panels
         // are still created (other code updates their text) but are no longer attached to the screen.
         content.addView(playerPanel); content.addView(libraryPanel)
+        // Hifi 1.44b: the Hi-Res logo hangs above the title row, so no ancestor may cut it (this was the clipped top edge in 1.44).
+        content.clipChildren = false; content.clipToPadding = false; playerPanel.clipChildren = false; playerPanel.clipToPadding = false
+        scroll.clipChildren = false; scroll.clipToPadding = false
         scroll.addView(content)
         pageContentView = content
         // Queue overlay is a sibling of the page scroll, not nested inside Now Playing.
@@ -461,8 +464,6 @@ class MainActivity : Activity() {
         // Hifi 1.43: Now Playing only: the cover itself, sharp, fills the top half of the screen behind the header and fades into the blurred backdrop.
         val coverView = NowPlayingCoverView(this).apply { bitmap = playerCoverBitmap; visibility = View.GONE }
         playerCoverView = coverView
-        coverView.anchor = playerTitleRow
-        playerTitleRow?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> coverView.invalidate() }
         stage.addView(coverView, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
@@ -715,7 +716,9 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         hiResLogoView = hiResLogo
-        titleRow.addView(hiResLogo, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.END or Gravity.TOP).apply { topMargin = -dp(22) })
+        // Hifi 1.44b: 12% of the screen width (the same share of the cover as the old album-art badge), hanging higher above the queue symbol.
+        val logoSide = (resources.displayMetrics.widthPixels * 0.12f).toInt()
+        titleRow.addView(hiResLogo, FrameLayout.LayoutParams(logoSide, logoSide, Gravity.END or Gravity.TOP).apply { topMargin = -(logoSide + dp(8)) })
         metadata.addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
         metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
         metadata.addView(albumView, LinearLayout.LayoutParams(-1, -2))
@@ -1138,7 +1141,6 @@ class MainActivity : Activity() {
     private class NowPlayingCoverView(context: Context) : View(context) {
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; invalidate() }
-        var anchor: View? = null   // the title row: the cover's bottom edge is its top
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
         private val maskPaint = android.graphics.Paint().apply {
             xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
@@ -1149,35 +1151,25 @@ class MainActivity : Activity() {
             val bmp = bitmap?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 } ?: return
             val w = width.toFloat(); val viewH = height.toFloat()
             if (w <= 0f || viewH <= 0f) return
-            val a = anchor
-            val bottom = if (a != null && a.isLaidOut) {
-                val me = IntArray(2); val at = IntArray(2)
-                getLocationInWindow(me); a.getLocationInWindow(at)
-                (at[1] - me[1]).toFloat()
-            } else viewH * 0.62f
             val coverH = w * bmp.height / bmp.width          // whole picture, fitted to the width
-            val top = bottom - coverH
-            if (bottom <= 0f) return
-            val save = canvas.saveLayer(0f, top.coerceAtLeast(0f), w, bottom, null)
+            val top = 0f                                     // Hifi 1.44b: clear from the very top of the screen (status bar) down
+            val bottom = coverH
+            val save = canvas.saveLayer(0f, 0f, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
-            val topFade = (coverH * TOP_FADE).coerceAtLeast(1f)
             val bottomFade = (coverH * BOTTOM_FADE).coerceAtLeast(1f)
-            val topColor = if (top > 0f) 0x00000000 else -0x1000000   // fade in only when there is blur room above
-            val f1 = topFade / coverH
             val f2 = 1f - bottomFade / coverH
             maskPaint.shader = android.graphics.LinearGradient(
                 0f, top, 0f, bottom,
-                intArrayOf(topColor, -0x1000000, -0x1000000, 0x70000000, 0x00000000),
-                floatArrayOf(0f, f1, f2, f2 + (1f - f2) * 0.45f, 1f),
+                intArrayOf(-0x1000000, -0x1000000, 0x70000000, 0x00000000),
+                floatArrayOf(0f, f2, f2 + (1f - f2) * 0.45f, 1f),
                 android.graphics.Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, top.coerceAtLeast(0f), w, bottom, maskPaint)
+            canvas.drawRect(0f, 0f, w, bottom, maskPaint)
             canvas.restoreToCount(save)
         }
 
         companion object {
-            const val TOP_FADE = 0.12f     // share of the cover height used to fade its top into the blur
             const val BOTTOM_FADE = 0.30f  // share of the cover height used to fade its bottom into the blur
         }
     }
