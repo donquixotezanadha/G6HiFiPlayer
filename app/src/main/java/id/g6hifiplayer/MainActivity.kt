@@ -694,16 +694,16 @@ class MainActivity : Activity() {
         }
         val queueIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_queue_24)
-            imageTintList = ColorStateList.valueOf(WHITE)
+            // Hifi 1.55: exactly the colour of the unplayed part of the progress bar (same ARGB incl. its opacity), also after a theme switch
+            imageTintList = ColorStateList.valueOf(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            alpha = 0.7f   // Hifi 1.54: 70%, the same opacity as the unplayed part of the progress bar
         }
         queueButton = queueIcon
         val queueBtn = FrameLayout(this).apply {
             contentDescription = "Queue"
             isClickable = true; isFocusable = true
             setOnClickListener { openQueueWindow() }
-            addView(queueIcon, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))   // Hifi 1.54: icon 26 -> 22dp, the 56 x 40dp touch area is unchanged
+            addView(queueIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
         }
         val titleRow = FrameLayout(this)
         playerTitleRow = titleRow
@@ -971,7 +971,7 @@ class MainActivity : Activity() {
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
-        queueButton?.imageTintList = ColorStateList.valueOf(ink)
+        queueButton?.imageTintList = ColorStateList.valueOf(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY)   // Hifi 1.55: same colour as the unplayed progress track
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
