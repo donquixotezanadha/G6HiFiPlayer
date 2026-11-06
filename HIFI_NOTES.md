@@ -229,3 +229,11 @@
 - Only Now Playing: the view is visible on that page only and it slides / fades with the page (drag, tap, Back, play actions) because every page slide is mirrored on it (coverSet / coverFollow). Album and the other pages keep their blurred backdrop.
 - Gone with the box: the Hi-Res badge on the big cover (the mini player art on Album keeps its badge). Tracks without a cover show "NO COVER ART" in the middle of the page above the controls on the plain backdrop.
 - The cover is the 1200 px Now Playing bitmap scaled up (about 1.6x with the crop), so it is a little softer than a native-size image. Audio, queue window, log and everything else unchanged. Version 1.43 (code 44), installs over 1.42.
+
+## v1.44 (branch hifi-v1-44, from hifi-v1-43) - Now Playing: full-width cover above the title, blur closes both edges
+- The Now Playing cover is the whole picture fitted to the full screen width (no left/right cut), placed right above the title row (its bottom edge is the top of the title row; the header gap is ignored). Plain, sharp, no veil.
+- Its bottom 30% fades into the blurred backdrop and its top 12% fades too (when there is room above it, i.e. under the status bar / header), both down to 0%, so the blur closes the edges exactly. Where the cover would run past the top of the screen it is simply cut there.
+- Hi-Res logo: stays at the right corner, drawn in front of the blur, so it sits above the queue symbol (same right edge, hangs above the title row without moving anything).
+- Resolution: the Now Playing cover is decoded at 1440 px (the screen width, exact scale, never upscaled; was 1200 px with power-of-two halving, often 600-750 px), cache back to 48 MB, own disk-cache key. Not raised further.
+- Background veil (Dark black / Light white) is 0x99 = 60%, unchanged: it was already set to 60% in 1.36.
+- Audio, queue window, log unchanged. Version 1.44 (code 45), installs over 1.43.

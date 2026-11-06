@@ -127,8 +127,8 @@ class MainActivity : Activity() {
     private val bitmapArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(64 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
     }
-    // Now Playing covers (1200 px, ARGB_8888 = ~5.7 MB each). Kept apart from the thumbnails so the
-    // prefetch of neighbouring covers can no longer be evicted by (or evict) the library grid.
+    // Now Playing covers (Hifi 1.44: up to NOW_PLAYING_COVER_PX = 1440 px (the screen width), ARGB_8888 = up to ~8 MB each; the cover is fitted to the width
+    // at screen size). Kept apart from the thumbnails so the prefetch of neighbouring covers can no longer be evicted by (or evict) the library grid.
     private val playerArtworkCache = object : android.util.LruCache<String, android.graphics.Bitmap>(48 * 1024 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
     }
@@ -227,8 +227,10 @@ class MainActivity : Activity() {
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
     private var scrollFadeHost: EdgeCutLayout? = null
+    private var playerTitleRow: View? = null
     private var playerCoverView: NowPlayingCoverView? = null   // Hifi 1.43: the clear cover behind the Now Playing page (and its header)
     private var playerCoverBitmap: android.graphics.Bitmap? = null
+    private var hiResLogoView: ImageView? = null      // Hifi 1.44: Hi-Res logo above the queue button
     private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
     private var queueDialog: AlertDialog? = null     // Hifi 1.37: the queue is a floating window
     private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
@@ -459,6 +461,8 @@ class MainActivity : Activity() {
         // Hifi 1.43: Now Playing only: the cover itself, sharp, fills the top half of the screen behind the header and fades into the blurred backdrop.
         val coverView = NowPlayingCoverView(this).apply { bitmap = playerCoverBitmap; visibility = View.GONE }
         playerCoverView = coverView
+        coverView.anchor = playerTitleRow
+        playerTitleRow?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> coverView.invalidate() }
         stage.addView(coverView, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
@@ -682,6 +686,7 @@ class MainActivity : Activity() {
         val metadata = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
+            clipChildren = false; clipToPadding = false   // Hifi 1.44: the Hi-Res logo hangs above the title row
         }
         // Hifi 1.37: the queue button sits level with the title on the right; its right edge is the end of the progress bar (same side padding),
         // and the title gets 40dp shorter. The button overlays the title row, so it does not change the dock height by more than a few dp.
@@ -698,8 +703,19 @@ class MainActivity : Activity() {
             addView(queueIcon, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.END or Gravity.TOP).apply { topMargin = dp(2) })
         }
         val titleRow = FrameLayout(this).apply { clipChildren = false }
+        playerTitleRow = titleRow
         titleRow.addView(titleView, FrameLayout.LayoutParams(-1, -2).apply { rightMargin = dp(40) })
         titleRow.addView(queueBtn, FrameLayout.LayoutParams(dp(40), dp(28), Gravity.END or Gravity.TOP))
+        // Hifi 1.44: the Hi-Res logo (24-bit tracks) sits right above the queue symbol, same right edge, 2dp gap. It hangs above the title row
+        // without taking any room, so nothing moves.
+        val hiResLogo = ImageView(this).apply {
+            setImageResource(R.drawable.hires_logo)
+            scaleType = ImageView.ScaleType.FIT_END
+            contentDescription = "Hi-Res audio"
+            visibility = View.GONE
+        }
+        hiResLogoView = hiResLogo
+        titleRow.addView(hiResLogo, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.END or Gravity.TOP).apply { topMargin = -dp(22) })
         metadata.addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
         metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
         metadata.addView(albumView, LinearLayout.LayoutParams(-1, -2))
@@ -764,6 +780,7 @@ class MainActivity : Activity() {
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(12))
+            clipChildren = false; clipToPadding = false   // Hifi 1.44: the Hi-Res logo hangs above the title row
         }
         playerBottomDock = bottomDock
         // Build 1.66: measured positions of the control dock, so Classic and Adaptive can be compared from the diagnostics.
@@ -798,6 +815,7 @@ class MainActivity : Activity() {
         val stack = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, topInset, 0, 0)
+            clipChildren = false; clipToPadding = false   // Hifi 1.44: the Hi-Res logo hangs above the title row
         }
         // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
         stack.setPadding(0, topInset, 0, dp(STACK_BOTTOM_PAD_DP))
@@ -1112,50 +1130,55 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.43: the Now Playing cover is the page backdrop itself: the sharp picture (centre-crop) fills the top half of the screen with no veil
-     * on it, then fades out over the next part of the screen into the blurred, dark / light backdrop that every page shares. There is no separate
-     * album art any more. It sits behind the header, so it is also what the header icons are drawn on.
+     * Hifi 1.44: the Now Playing cover is the whole picture, fitted to the full screen width (no left/right cut), sitting right above the title row.
+     * It is sharp and plain (no veil, no extra layer). Its top and bottom edges fade completely into the blurred backdrop behind it, so the blur
+     * closes both edges exactly; whatever room is left above it (status bar / header) is the blur too. The bottom fade ends at the top of
+     * the title row (the header gap is ignored); the Hi-Res logo and queue button are drawn in front of it.
      */
     private class NowPlayingCoverView(context: Context) : View(context) {
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; invalidate() }
+        var anchor: View? = null   // the title row: the cover's bottom edge is its top
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
         private val maskPaint = android.graphics.Paint().apply {
             xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
         }
-        private val srcRect = android.graphics.Rect()
         private val dstRect = android.graphics.RectF()
 
         override fun onDraw(canvas: android.graphics.Canvas) {
             val bmp = bitmap?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 } ?: return
-            val w = width.toFloat(); val h = height.toFloat()
-            if (w <= 0f || h <= 0f) return
-            val clearEnd = h * CLEAR_FRACTION        // everything above this is the plain sharp cover
-            val fadeEnd = h * FADE_END_FRACTION      // the cover is gone here
-            val save = canvas.saveLayer(0f, 0f, w, fadeEnd, null)
-            // centre-crop the picture into the full width x fadeEnd area
-            val scale = maxOf(w / bmp.width, fadeEnd / bmp.height)
-            val sw = (w / scale).toInt().coerceIn(1, bmp.width)
-            val sh = (fadeEnd / scale).toInt().coerceIn(1, bmp.height)
-            val sx = (bmp.width - sw) / 2
-            val sy = (bmp.height - sh) / 2
-            srcRect.set(sx, sy, sx + sw, sy + sh)
-            dstRect.set(0f, 0f, w, fadeEnd)
-            canvas.drawBitmap(bmp, srcRect, dstRect, bitmapPaint)
-            val f = clearEnd / fadeEnd
+            val w = width.toFloat(); val viewH = height.toFloat()
+            if (w <= 0f || viewH <= 0f) return
+            val a = anchor
+            val bottom = if (a != null && a.isLaidOut) {
+                val me = IntArray(2); val at = IntArray(2)
+                getLocationInWindow(me); a.getLocationInWindow(at)
+                (at[1] - me[1]).toFloat()
+            } else viewH * 0.62f
+            val coverH = w * bmp.height / bmp.width          // whole picture, fitted to the width
+            val top = bottom - coverH
+            if (bottom <= 0f) return
+            val save = canvas.saveLayer(0f, top.coerceAtLeast(0f), w, bottom, null)
+            dstRect.set(0f, top, w, bottom)
+            canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
+            val topFade = (coverH * TOP_FADE).coerceAtLeast(1f)
+            val bottomFade = (coverH * BOTTOM_FADE).coerceAtLeast(1f)
+            val topColor = if (top > 0f) 0x00000000 else -0x1000000   // fade in only when there is blur room above
+            val f1 = topFade / coverH
+            val f2 = 1f - bottomFade / coverH
             maskPaint.shader = android.graphics.LinearGradient(
-                0f, 0f, 0f, fadeEnd,
-                intArrayOf(-0x1000000, -0x1000000, 0x70000000, 0x00000000),
-                floatArrayOf(0f, f, f + (1f - f) * 0.45f, 1f),
+                0f, top, 0f, bottom,
+                intArrayOf(topColor, -0x1000000, -0x1000000, 0x70000000, 0x00000000),
+                floatArrayOf(0f, f1, f2, f2 + (1f - f2) * 0.45f, 1f),
                 android.graphics.Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, 0f, w, fadeEnd, maskPaint)
+            canvas.drawRect(0f, top.coerceAtLeast(0f), w, bottom, maskPaint)
             canvas.restoreToCount(save)
         }
 
         companion object {
-            const val CLEAR_FRACTION = 0.5f      // the top 50% of the screen is the clear cover
-            const val FADE_END_FRACTION = 0.66f  // fully faded into the backdrop here
+            const val TOP_FADE = 0.12f     // share of the cover height used to fade its top into the blur
+            const val BOTTOM_FADE = 0.30f  // share of the cover height used to fade its bottom into the blur
         }
     }
 
@@ -2777,7 +2800,7 @@ class MainActivity : Activity() {
         // Build 1.44: the folder picture is part of the key, so a track that was cached as "no cover"
         // before its folder picture was found gets a fresh lookup.
         // Build 1.45: the key also carries the cache version, so covers cached as "none" before the WAV tag reader existed are tried again.
-        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|v" + LIBRARY_CACHE_VERSION).toByteArray())
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest((t.uri.toString() + "|" + (t.coverUri?.toString() ?: "") + "|v" + LIBRARY_CACHE_VERSION + "|np" + NOW_PLAYING_COVER_PX).toByteArray())   // Hifi 1.44: bigger covers get their own cache files
         return File(artworkDiskDir, digest.joinToString("") { "%02x".format(it) } + ".jpg")
     }
 
@@ -2849,8 +2872,9 @@ class MainActivity : Activity() {
                 return null
             }
             if (bitmap == null) {
-                // 1200 px is plenty for the G6 display and decodes noticeably faster than 1600 px.
-                bitmap = readArtworkBytes(t)?.let { decodeArtwork(it, 1200, android.graphics.Bitmap.Config.ARGB_8888) }
+                // Hifi 1.44: the cover is now the clear top of the Now Playing page (zoomed to the screen), so it keeps up to 2400 px
+                // (it was 1200 px, and the old power-of-two halving could leave a big cover at only 600 - 750 px). Never upscaled.
+                bitmap = readArtworkBytes(t)?.let { decodeArtworkExact(it, NOW_PLAYING_COVER_PX, android.graphics.Bitmap.Config.ARGB_8888) }
                 if (bitmap == null) {
                     noArtworkTracks.add(key)
                     try { noneMarker.createNewFile() } catch (_: Throwable) { }
@@ -2935,6 +2959,7 @@ class MainActivity : Activity() {
         val hires = isHiResNow()
         if (hires == hiResBadgeShown) return
         hiResBadgeShown = hires
+        hiResLogoView?.visibility = if (hires) View.VISIBLE else View.GONE
         if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(11).toFloat()) else null
         if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
@@ -3934,6 +3959,8 @@ class MainActivity : Activity() {
         private const val REQUEST_FOLDER = 1002
         /** Bump when the scan changes what it stores, so an older saved library is scanned again once. */
         private const val LIBRARY_CACHE_VERSION = 147
+        /** Hifi 1.44: longest side of the Now Playing cover (1200 before). */
+        private const val NOW_PLAYING_COVER_PX = 1440
         private const val DEFAULT_ACCENT = 0xFF6662C6.toInt()
         // Build 2.3: cover as wide as the progress bar; side padding of the bar, space under the controls, smallest gap around the cover.
         private const val SEEK_SIDE_PAD_DP = 30
