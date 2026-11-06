@@ -684,14 +684,19 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, dp(4))
             visibility = View.VISIBLE
         }
+        // Hifi 1.41: the title is always exactly one line (a long title is cut with "..." at the queue button), the same padding as when a track
+        // starts, and the artist is one line too, so the cover size and the positions of title, queue button and the rest never move.
         titleView = text("", 17f, WHITE, true).apply {
-            setPadding(0, 0, 0, dp(2))
-            maxLines = 2; isSingleLine = false
+            setPadding(0, dp(2), 0, dp(1))
+            minLines = 1; maxLines = 1; isSingleLine = false
             ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
-        artistView = text("", 13f, MUTED, false)
+        artistView = text("", 13f, MUTED, false).apply {
+            minLines = 1; maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
         albumView = text("", 11f, MUTED, false).apply {
             setPadding(0, dp(2), 0, 0); maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -3552,8 +3557,9 @@ class MainActivity : Activity() {
 
     /** Hifi 1.4: floating settings window. Album page: folder scan and columns. Now Playing page: dark / light icons. */
     /**
-     * Hifi 1.40: LOG AUDIO PATH: the last 50 tracks (newest first): checked tracks with their MD5 verdict, refused files and playback errors.
-     * Normal lines use the regular text colours; DIFFERENT / not comparable are orange, errors are red.
+     * Hifi 1.41: LOG AUDIO PATH: the last 50 tracks (newest first), ONE line each: the track name on the left, cut with "..." where the result
+     * starts, and the result on the right (MD5 MATCH, MD5 DIFFERENT, NOT PLAYED ...). Normal lines use the regular text colour; DIFFERENT / not
+     * comparable are orange, refused files and errors are red. (The time and the details are still saved with every entry.)
      */
     private fun audioPathLogView(): View {
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -3561,16 +3567,19 @@ class MainActivity : Activity() {
         if (entries.isEmpty()) {
             list.addView(text("No tracks logged yet. Play a FLAC, ALAC or WAV track.", 12f, MUTED, false))
         }
-        val clock = java.text.SimpleDateFormat("dd MMM HH:mm", Locale.getDefault())
         for (e in entries) {
-            val headColor = when (e.kind) { AudioPathLog.KIND_ERROR -> 0xFFFF5252.toInt(); AudioPathLog.KIND_UNMATCH -> 0xFFFFA040.toInt(); else -> 0 }
-            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(5), 0, dp(5)) }
-            val head = text(clock.format(java.util.Date(e.time)) + "  " + e.head + " • " + e.name, 12f, WHITE, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
-            if (headColor != 0) head.setTextColor(headColor)
-            row.addView(head)
-            row.addView(text(e.detail, 11f, MUTED, false).apply {
-                if (headColor != 0) setTextColor(headColor)
-            })
+            val warn = when (e.kind) { AudioPathLog.KIND_ERROR -> 0xFFFF5252.toInt(); AudioPathLog.KIND_UNMATCH -> 0xFFFFA040.toInt(); else -> 0 }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(6), 0, dp(6)) }
+            val name = text(e.name, 12f, WHITE, false).apply {
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                if (warn != 0) setTextColor(warn)
+            }
+            val result = text(e.head, 12f, WHITE, true).apply {
+                maxLines = 1; gravity = Gravity.END; setPadding(dp(10), 0, 0, 0)
+                if (warn != 0) setTextColor(warn)
+            }
+            row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(result, LinearLayout.LayoutParams(-2, -2))
             list.addView(row, LinearLayout.LayoutParams(-1, -2))
         }
         return ScrollView(this).apply {

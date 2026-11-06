@@ -211,3 +211,8 @@
 - What is logged: every track whose check finished (MD5 MATCH, no MD5 in file, MD5 DIFFERENT, not comparable), files refused by strict mode (NOT PLAYED, with the mime type) and playback errors. Colours: normal lines use the regular text colours; DIFFERENT / not comparable are orange; refused files and errors are red.
 - Removed because nothing used them any more: DirectOutputState.checksumText and checksumToast (the toast was already gone since 1.34).
 - The audio path, the check itself, strict mode, volume guard and audio focus are unchanged; the log only records what the check already decided. Version 1.40 (code 41), installs over 1.39.
+
+## v1.41 (branch hifi-v1-41, from hifi-v1-40) - fixed Now Playing layout, one-line audio path log
+- Now Playing: the title is always exactly one line. A long title is cut with "..." where the queue button starts (the title already ends 40dp before the button). The artist line is also one line with "..." (it could wrap and move things before). The title padding at build time now equals the padding applied when a track starts (it was 0/2dp at first and 2/1dp afterwards, a 1dp jump), and an empty title still keeps one line of height. Result: the cover size, the position of the title, the queue button and the lines below no longer change with the length of the title or artist.
+- LOG AUDIO PATH: one line per entry: the track name on the left, cut with "..." at the start of the result, the result on the right (MD5 MATCH, MD5 DIFFERENT, NOT PLAYED ...). The time and detail line are no longer shown (still saved in the entry). Colours as in 1.40.
+- Audio, queue window and everything else unchanged. Version 1.41 (code 42), installs over 1.40.
