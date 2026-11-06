@@ -107,7 +107,6 @@ class MainActivity : Activity() {
     private var darkBackdropBitmap: android.graphics.Bitmap? = null
     private var darkBackdropSource: java.lang.ref.WeakReference<android.graphics.Bitmap>? = null
     private val darkDrawables = mutableListOf<DarkBackdropDrawable>()
-    private lateinit var artBox: FrameLayout
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
     private var lightTheme = false
     // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
@@ -205,7 +204,6 @@ class MainActivity : Activity() {
     private lateinit var seek: SeekBar
     private lateinit var elapsed: TextView
     private lateinit var duration: TextView
-    private lateinit var artImage: ImageView
     private lateinit var playerBottomDock: LinearLayout
     private lateinit var prevView: ImageView
     private lateinit var nextView: ImageView
@@ -229,6 +227,8 @@ class MainActivity : Activity() {
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
     private var scrollFadeHost: EdgeCutLayout? = null
+    private var playerCoverView: NowPlayingCoverView? = null   // Hifi 1.43: the clear cover behind the Now Playing page (and its header)
+    private var playerCoverBitmap: android.graphics.Bitmap? = null
     private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
     private var queueDialog: AlertDialog? = null     // Hifi 1.37: the queue is a floating window
     private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
@@ -456,6 +456,10 @@ class MainActivity : Activity() {
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
         stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
+        // Hifi 1.43: Now Playing only: the cover itself, sharp, fills the top half of the screen behind the header and fades into the blurred backdrop.
+        val coverView = NowPlayingCoverView(this).apply { bitmap = playerCoverBitmap; visibility = View.GONE }
+        playerCoverView = coverView
+        stage.addView(coverView, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
         // is lifted by the real bar height so its buttons stay tappable.
@@ -573,13 +577,6 @@ class MainActivity : Activity() {
         setPadding(dp(leftInsetDp), 0, dp(8), 0)
     }
 
-    /** Hifi 1.1: small round thumb on the progress bar (white in Dark, ink in Light). */
-    private fun seekThumb(): android.graphics.drawable.Drawable = android.graphics.drawable.GradientDrawable().apply {
-        shape = android.graphics.drawable.GradientDrawable.OVAL
-        setColor(WHITE)
-        setSize(dp(12), dp(12))
-    }
-
     /**
      * Explicit rounded progress track. The native SeekBar's minimumHeight does not change
      * its thin drawable on Android 9, and a custom ClipDrawable previously failed to render.
@@ -630,35 +627,15 @@ class MainActivity : Activity() {
         // Build 2.0: Dark theme only. The page backdrop is shared (see DarkBackdropDrawable); Now Playing shows the cover in a small box.
         playerPanel.setBackgroundColor(Color.TRANSPARENT)
 
-        artImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         artPlaceholder = text("NO MUSIC PLAYING", 22f, WHITE, true).apply {
             gravity = Gravity.CENTER
             setPadding(dp(20), dp(20), dp(20), dp(220))
             themed { background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT) }
         }
 
-        // Build 1.45: Classic theme shows the cover as a square box above the track details.
-        val displayMetrics = resources.displayMetrics
         // Hifi 1.4: the header bar sits above the page, so the page itself needs no status-bar inset.
         val topInset = dp(4)
-        // Build 2.3: the cover is exactly as wide as the progress bar (screen width minus the 18dp side padding of the bar).
-        // sizeDarkArt() shrinks it only if the screen is too short for it.
-        // Build 2.5: a little smaller than the progress bar (ART_WIDTH_FRACTION) so the page feels less full.
-        val boxSide = ((displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt().coerceAtLeast(dp(160))
-        artBox = FrameLayout(this).apply {
-            visibility = View.VISIBLE
-            background = shape(ART, 6)
-            clipToOutline = true
-            outlineProvider = object : android.view.ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: android.graphics.Outline) {
-                    outline.setRoundRect(0, 0, view.width, view.height, dp(6).toFloat())
-                }
-            }
-            elevation = dp(8).toFloat()
-            contentDescription = "Album artwork"
-        }
-        artBox.addView(artImage, FrameLayout.LayoutParams(-1, -1))
-        // The "no cover" label sits above the box so it stays readable.
+        // The "no cover" / "no music" label sits in the middle of the page above the controls.
         playerPanel.addView(artPlaceholder, FrameLayout.LayoutParams(-1, -1))
 
         // Build 1.44: no status-bar scrim. The system bar is fully transparent and the pages show their own surface.
@@ -741,9 +718,10 @@ class MainActivity : Activity() {
             // The previous custom ClipDrawable made the Now Playing progress invisible.
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
-            // Build 3.05: no thumb; the track and played segment share the same rounded 4dp path.
+            // Hifi 1.43: no thumb; the track and played segment share the same rounded path, now 4dp thick (was 2dp).
             progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            thumb = seekThumb()
+            thumb = null
+            thumbOffset = 0
             splitTrack = false
             minimumHeight = dp(28)
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
@@ -795,8 +773,6 @@ class MainActivity : Activity() {
                 lastDockLog = top
                 val loc = IntArray(2); v.getLocationOnScreen(loc)
                 val seekLoc = IntArray(2); seek.getLocationOnScreen(seekLoc)
-                // Build 2.3: the dock height decides how much room the cover has; re-centre the cover when it changes.
-                playerPanel.post { sizeDarkArt(playerPanel.height, topInset) }
                 recordDiagnostic("DOCK_LAYOUT theme=dark" +
                     " dockTopOnScreen=" + loc[1] + " dockHeight=" + (bottom - top) + " seekTopOnScreen=" + seekLoc[1] +
                     " panelMinHeight=" + playerPanel.minimumHeight + " rootPaddingBottom=" + (pageRoot?.paddingBottom ?: -1) +
@@ -818,54 +794,20 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
-        // Build 2.0: cover, title, progress and controls are one column, centred vertically on the page.
+        // Hifi 1.43: no album art box: the cover is the clear top of the page backdrop (see NowPlayingCoverView); only the controls column is left.
         val stack = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, topInset, 0, 0)
         }
         // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
-        // Build 2.3: lower again (bottom padding 20dp -> 8dp). The cover gets equal gaps above and below (see sizeDarkArt).
         stack.setPadding(0, topInset, 0, dp(STACK_BOTTOM_PAD_DP))
-        val host = FrameLayout(this)
-        host.addView(artBox, FrameLayout.LayoutParams(boxSide, boxSide, Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(ART_MIN_GAP_DP); bottomMargin = dp(ART_MIN_GAP_DP) })
-        stack.addView(host, LinearLayout.LayoutParams(-1, -2))
         stack.addView(bottomDock, LinearLayout.LayoutParams(-1, -2))
         playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        // Build 1.55: Classic cover box = the largest square between the status bar and the controls, centred in that gap.
-        playerPanel.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ -> sizeDarkArt(bottom - top, topInset) }
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
         // The no-track state is represented by the accent-colored artwork area, not the title field.
         // The views were just rebuilt: paint them with the current surface (default colour until a cover arrives).
         appliedPlayerSurface = null
         applyPlayerPalette(playerSurface)
-    }
-
-    /**
-     * Build 2.3: the cover is as wide as the progress bar, and sits exactly in the middle of the gap between the status bar
-     * and the track title (equal space above and below). On a short screen it gets smaller instead of squeezing the controls.
-     */
-    private fun sizeDarkArt(panelHeight: Int, topInset: Int) {
-        if (!::artBox.isInitialized || !::playerBottomDock.isInitialized) return
-        val dockHeight = playerBottomDock.height
-        if (dockHeight <= 0 || panelHeight <= 0) return
-        // Build 2.11: the panel grows when its content is taller than the page, and then it measured its own overflow as
-        // free room, so the cover never shrank and the bottom lines slid under the bottom bar. playerPanel.minimumHeight
-        // is the visible page height (see the scroll listener in buildUi), so the cover is sized against that.
-        val visible = if (playerPanel.minimumHeight > 0) minOf(panelHeight, playerPanel.minimumHeight) else panelHeight
-        val free = visible - dockHeight - topInset - dp(STACK_BOTTOM_PAD_DP)
-        val wide = ((resources.displayMetrics.widthPixels - 2 * dp(SEEK_SIDE_PAD_DP)) * ART_WIDTH_FRACTION).toInt()
-        val side = minOf(wide, free - 2 * dp(ART_MIN_GAP_DP)).coerceAtLeast(dp(120))
-        val gap = ((free - side) / 2).coerceAtLeast(dp(ART_MIN_GAP_DP))
-        val lp = artBox.layoutParams as? ViewGroup.MarginLayoutParams ?: return
-        // Hifi 1.6: the whole Now Playing content sits 6dp lower (the dock is lowered by its bottom padding).
-        val lower = dp(6)
-        val bottom = ((free - side - gap) - lower).coerceAtLeast(dp(ART_MIN_GAP_DP) - lower).coerceAtLeast(0)
-        val topGap = gap + lower
-        if (lp.width != side || lp.height != side || lp.topMargin != topGap || lp.bottomMargin != bottom) {
-            lp.width = side; lp.height = side
-            lp.topMargin = topGap; lp.bottomMargin = bottom
-            artBox.layoutParams = lp
-        }
     }
 
     /** Dominant colour of a cover: the most common colour family, counting saturated pixels more than greys. */
@@ -1009,9 +951,8 @@ class MainActivity : Activity() {
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
         queueButton?.imageTintList = ColorStateList.valueOf(ink)
         if (::seek.isInitialized) {
-            // Build 3.06: keep the SeekBar thumb disabled in both themes; only the rounded progress track is visible.
+            // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
-            seek.thumb = seekThumb()
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
@@ -1168,6 +1109,54 @@ class MainActivity : Activity() {
         override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { }
         @Suppress("DEPRECATION")
         override fun getOpacity(): Int = android.graphics.PixelFormat.OPAQUE
+    }
+
+    /**
+     * Hifi 1.43: the Now Playing cover is the page backdrop itself: the sharp picture (centre-crop) fills the top half of the screen with no veil
+     * on it, then fades out over the next part of the screen into the blurred, dark / light backdrop that every page shares. There is no separate
+     * album art any more. It sits behind the header, so it is also what the header icons are drawn on.
+     */
+    private class NowPlayingCoverView(context: Context) : View(context) {
+        var bitmap: android.graphics.Bitmap? = null
+            set(value) { field = value; invalidate() }
+        private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+        private val maskPaint = android.graphics.Paint().apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+        }
+        private val srcRect = android.graphics.Rect()
+        private val dstRect = android.graphics.RectF()
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            val bmp = bitmap?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 } ?: return
+            val w = width.toFloat(); val h = height.toFloat()
+            if (w <= 0f || h <= 0f) return
+            val clearEnd = h * CLEAR_FRACTION        // everything above this is the plain sharp cover
+            val fadeEnd = h * FADE_END_FRACTION      // the cover is gone here
+            val save = canvas.saveLayer(0f, 0f, w, fadeEnd, null)
+            // centre-crop the picture into the full width x fadeEnd area
+            val scale = maxOf(w / bmp.width, fadeEnd / bmp.height)
+            val sw = (w / scale).toInt().coerceIn(1, bmp.width)
+            val sh = (fadeEnd / scale).toInt().coerceIn(1, bmp.height)
+            val sx = (bmp.width - sw) / 2
+            val sy = (bmp.height - sh) / 2
+            srcRect.set(sx, sy, sx + sw, sy + sh)
+            dstRect.set(0f, 0f, w, fadeEnd)
+            canvas.drawBitmap(bmp, srcRect, dstRect, bitmapPaint)
+            val f = clearEnd / fadeEnd
+            maskPaint.shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, fadeEnd,
+                intArrayOf(-0x1000000, -0x1000000, 0x70000000, 0x00000000),
+                floatArrayOf(0f, f, f + (1f - f) * 0.45f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, w, fadeEnd, maskPaint)
+            canvas.restoreToCount(save)
+        }
+
+        companion object {
+            const val CLEAR_FRACTION = 0.5f      // the top 50% of the screen is the clear cover
+            const val FADE_END_FRACTION = 0.66f  // fully faded into the backdrop here
+        }
     }
 
     /** The 2/3 column buttons shown in Setting. Changing the choice repaints only the buttons and the album grid. */
@@ -2352,7 +2341,6 @@ class MainActivity : Activity() {
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(WHITE)
-        animateArtForState(playing)
         if (::queueMiniPlayView.isInitialized) {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
@@ -2443,32 +2431,6 @@ class MainActivity : Activity() {
             }
             false
         }
-    }
-
-    private var artAnimView: View? = null
-    private var artAnimTarget = 1f
-
-    /**
-     * Build 2.9: gentle cover animation. Paused: the cover settles back a little (ART_PAUSED_SCALE); playing: it returns to
-     * exactly 100% (as wide as the progress bar) with no overshoot, so it never gets wider than the track.
-     * The first call for a (re)built view jumps straight to the state without animating.
-     */
-    private fun animateArtForState(playing: Boolean) {
-        if (!::artBox.isInitialized) return
-        val target = if (playing) 1f else ART_PAUSED_SCALE
-        if (artAnimView !== artBox) {
-            artAnimView = artBox
-            artAnimTarget = target
-            artBox.animate().cancel()
-            artBox.scaleX = target; artBox.scaleY = target
-            return
-        }
-        if (artAnimTarget == target) return
-        artAnimTarget = target
-        artBox.animate().cancel()
-        artBox.animate().scaleX(target).scaleY(target)
-            .setDuration(if (playing) 320L else 260L)
-            .setInterpolator(DecelerateInterpolator(1.5f)).start()
     }
 
     private fun startPlaybackKeepAlive() {
@@ -2797,7 +2759,7 @@ class MainActivity : Activity() {
      */
     private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?, provisional: Boolean = false, key: String? = null) {
         if (bitmap != null && !isFinishing) {
-            artImage.setImageBitmap(bitmap); artImage.visibility = View.VISIBLE; artPlaceholder.visibility = View.GONE
+            playerCoverBitmap = bitmap; playerCoverView?.bitmap = bitmap; artPlaceholder.visibility = View.GONE
                         // Classic theme: the cover is softened and darkened behind every page instead of recolouring them.
             updateDarkBackdrop(bitmap)
             // Colour comes from the cover that is on screen. A provisional thumbnail is sampled but not remembered.
@@ -2805,7 +2767,7 @@ class MainActivity : Activity() {
             if (provisional) return
             if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
         } else {
-            artImage.visibility = View.GONE; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            playerCoverBitmap = null; playerCoverView?.bitmap = null; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             updateDarkBackdrop(null)
             applyPlayerPalette(DARK_SURFACE)
         }
@@ -2973,7 +2935,6 @@ class MainActivity : Activity() {
         val hires = isHiResNow()
         if (hires == hiResBadgeShown) return
         hiResBadgeShown = hires
-        if (::artImage.isInitialized) artImage.foreground = if (hires) HiResBadgeDrawable(this) else null
         if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(11).toFloat()) else null
         if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
@@ -3230,6 +3191,7 @@ class MainActivity : Activity() {
         applySystemBars()
         if (which != "player" && tabsPaletteDirty) retintPages()
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
+        playerCoverView?.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
         songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
         settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
@@ -3710,6 +3672,7 @@ class MainActivity : Activity() {
         v?.animate()?.cancel()
         queueMiniHost?.animate()?.cancel()
         v?.let { it.translationX = 0f; it.alpha = 1f; it.translationY = 0f }
+        coverSet(0f, 1f)
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
         if (v == null || !canSwipeTo(toLibrary)) { swipeAnimating = false; show(if (toLibrary) "library" else "player"); return }
         slideCommit(v, toLibrary, token)
@@ -3724,6 +3687,7 @@ class MainActivity : Activity() {
             mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(110L)
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
         }
+        coverFollow(sign * width * 0.6f, 0f, 110L, android.view.animation.AccelerateInterpolator(1.2f))
         v.animate().translationX(sign * width * 0.6f).alpha(0f).setDuration(110L)
             .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f))
             .withEndAction {
@@ -3733,6 +3697,7 @@ class MainActivity : Activity() {
                 mini?.let { it.translationY = 0f; it.alpha = 1f }
                 v.translationX = -sign * width * 0.25f
                 v.alpha = 0f
+                if (toLibrary) coverSet(0f, 1f) else { coverSet(-sign * width * 0.25f, 0f); coverFollow(0f, 1f, 240L, DecelerateInterpolator(1.8f)) }
                 if (toLibrary) riseMini(token)
                 v.animate().translationX(0f).alpha(1f).setDuration(240L).setInterpolator(DecelerateInterpolator(1.8f))
                     .withEndAction { if (token == pageAnimToken) swipeAnimating = false }.start()
@@ -3771,6 +3736,16 @@ class MainActivity : Activity() {
         val shown = if (canSwipeTo(dx < 0)) dx else dx * 0.18f   // nothing on that side: only a small rubber-band
         v.translationX = shown
         v.alpha = 1f - (kotlin.math.abs(shown) / width).coerceIn(0f, 1f) * 0.55f
+        coverSet(v.translationX, v.alpha)
+    }
+
+    /** The Now Playing cover lives behind the header, outside the page view, so every page slide is mirrored on it. */
+    private fun coverSet(tx: Float, alpha: Float) {
+        playerCoverView?.let { it.animate().cancel(); it.translationX = tx; it.alpha = alpha }
+    }
+
+    private fun coverFollow(tx: Float, alpha: Float, duration: Long, interpolator: android.animation.TimeInterpolator) {
+        playerCoverView?.let { it.animate().cancel(); it.animate().translationX(tx).alpha(alpha).setDuration(duration).setInterpolator(interpolator).start() }
     }
 
     private fun finishPageDrag(dx: Float, velocityX: Float) {
@@ -3785,6 +3760,7 @@ class MainActivity : Activity() {
         swipeAnimating = true
         v.animate().cancel()
         if (!commit) {
+            coverFollow(0f, 1f, 180L, DecelerateInterpolator(1.6f))
             v.animate().translationX(0f).alpha(1f).setDuration(180L).setInterpolator(DecelerateInterpolator(1.6f))
                 .withEndAction { if (token == pageAnimToken) swipeAnimating = false }.start()
             return
@@ -3963,18 +3939,14 @@ class MainActivity : Activity() {
         private const val SEEK_SIDE_PAD_DP = 30
         private const val HEADER_H_DP = 42
         private const val STACK_BOTTOM_PAD_DP = 8
-        private const val ART_MIN_GAP_DP = 12
-        private const val ART_WIDTH_FRACTION = 1.0f
         /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
         private const val PROGRESS_TRACK_GREY = 0xB35E5E66.toInt()
         /** Build 3.01: unplayed progress track for the Light theme only. */
         private const val LIGHT_PROGRESS_TRACK_GREY = 0xB3D6D6DC.toInt()
-        /** Build 2.9: scale of the Now Playing cover while paused (was 88%; now a small step). */
-        private const val ART_PAUSED_SCALE = 0.95f
-        /** Build 2.9: thinner progress track (was 4dp) and bigger transport buttons (were 52dp / 60dp). */
-        private const val PROGRESS_THICKNESS_DP = 2
+        /** Hifi 1.43: progress track thickness (2dp before; 4dp = bolder). */
+        private const val PROGRESS_THICKNESS_DP = 4
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
         private const val ACTION_GREY = 0xFF8E8E98.toInt()
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
