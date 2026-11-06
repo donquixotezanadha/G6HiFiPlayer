@@ -275,3 +275,9 @@
 - Time labels (elapsed / duration): 4dp higher above the progress bar (gap bar-labels +4dp, gap title block-labels -4dp), so the title block and the bar do not move.
 - Queue button 4dp higher (gap under the transport controls 2dp -> -2dp). Info lines 4dp lower (STACK_BOTTOM_PAD_DP 8 -> 4 and gap above the info 2dp -> 10dp); the sums are balanced so the progress bar and the transport controls stay where they were.
 - Version 1.51 (code 52), installs over 1.50. Audio unchanged.
+
+## v1.52 (branch hifi-v1-52, from hifi-v1-51) - Now Playing: two-line queue icon, content up, bigger controls
+- Queue icon: 3 lines -> 2 lines (same width and thickness, centred in the 24dp icon).
+- Transport buttons a little bigger: play 60 -> 66dp (icon 38 -> 44dp), previous / next 52 -> 56dp (icon 32 -> 36dp).
+- Raised: title / artist / album, the Hi-Res logo, progress bar, controls and queue button all ride up. The gap above the info lines grew 10 -> 14dp (+4dp) and the bigger play row adds 6dp more above the controls; the info lines (anchored to the bottom) do not move. Everything above the controls rises about 10dp, the queue button 4dp.
+- Version 1.52 (code 53), installs over 1.51. Audio unchanged.

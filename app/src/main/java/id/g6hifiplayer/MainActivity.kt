@@ -806,7 +806,7 @@ class MainActivity : Activity() {
         // Hifi 1.49: the queue button now sits right under the transport controls, the info lines are back at the very bottom.
         bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = -dp(2) })   // Hifi 1.51: queue button 4dp higher
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(10)   // Hifi 1.51: info 4dp lower (with STACK_BOTTOM_PAD_DP 8 -> 4)
+            leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(14)   // Hifi 1.52: +4dp: everything above the info rides up 4dp, the info stays
             gravity = Gravity.CENTER_HORIZONTAL
         })
         bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
@@ -3980,8 +3980,8 @@ class MainActivity : Activity() {
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
         private const val ACTION_GREY = 0xFF8E8E98.toInt()
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
-        private const val TRANSPORT_SIDE_DP = 52
-        private const val TRANSPORT_PLAY_DP = 60
+        private const val TRANSPORT_SIDE_DP = 56   // Hifi 1.52: 52 -> 56 (icon 32 -> 36dp)
+        private const val TRANSPORT_PLAY_DP = 66   // Hifi 1.52: 60 -> 66 (icon 38 -> 44dp)
         /** Build 2.13: padding around the play/pause icon inside its 60dp area -> icon 38dp (2.12: 9dp -> 42dp; 2.11: 0 -> 60dp). */
         private const val PLAY_ICON_PAD_DP = 11
         /** Build 2.13: padding around the previous/next icons inside their 52dp area -> icon 32dp (2.12 and 2.11: 0 -> 52dp). */
