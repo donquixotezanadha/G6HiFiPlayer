@@ -688,7 +688,8 @@ class MainActivity : Activity() {
         // starts, and the artist is one line too, so the cover size and the positions of title, queue button and the rest never move.
         titleView = text("", 17f, WHITE, true).apply {
             setPadding(0, dp(2), 0, dp(1))
-            minLines = 1; maxLines = 1; isSingleLine = false
+            // (no isSingleLine = false here: that call resets maxLines to "unlimited", which let long titles take 2+ lines in 1.37 - 1.41)
+            minLines = 1; maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
