@@ -696,13 +696,14 @@ class MainActivity : Activity() {
             setImageResource(R.drawable.ic_queue_24)
             imageTintList = ColorStateList.valueOf(WHITE)
             scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0.7f   // Hifi 1.54: 70%, the same opacity as the unplayed part of the progress bar
         }
         queueButton = queueIcon
         val queueBtn = FrameLayout(this).apply {
             contentDescription = "Queue"
             isClickable = true; isFocusable = true
             setOnClickListener { openQueueWindow() }
-            addView(queueIcon, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
+            addView(queueIcon, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))   // Hifi 1.54: icon 26 -> 22dp, the 56 x 40dp touch area is unchanged
         }
         val titleRow = FrameLayout(this)
         playerTitleRow = titleRow

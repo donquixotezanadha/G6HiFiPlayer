@@ -310,7 +310,7 @@ object G6Widgets {
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
-            setTextColor(R.id.w_artist, if (light) 0xFF686875.toInt() else 0xFFE0E0E6.toInt())
+            setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             setInt(R.id.w_card, "setBackgroundResource", if (light) R.drawable.g6_widget_bg_4x1_light else R.drawable.g6_widget_bg_4x1)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             val buttonBg = if (light) R.drawable.g6_widget_btn_light else R.drawable.g6_widget_btn
@@ -347,7 +347,7 @@ object G6Widgets {
         playing: Boolean, position: Int, duration: Int, light: Boolean
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_text_4x2).apply {
         val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val muted = if (light) 0xFF686875.toInt() else 0xFFE0E0E6.toInt()
+        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
         setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
@@ -431,7 +431,7 @@ object G6Widgets {
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val radius = height / 2f
-        paint.color = if (light) 0xFFD8D8E2.toInt() else 0xFF303038.toInt()
+        paint.color = if (light) 0xB3D6D6DC.toInt() else 0xB35E5E66.toInt()   // Hifi 1.54: unplayed track = the player's (70% opacity)
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
         if (filled > 0f) {
@@ -485,7 +485,7 @@ object G6Widgets {
         val radius = size * fraction
         canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)
         context.getDrawable(R.drawable.ic_stat_music)?.mutate()?.let { icon ->
-            icon.setTint(if (light) 0xFF686875.toInt() else 0xFF8E8E98.toInt())
+            icon.setTint(if (light) 0xFF484855.toInt() else 0xFF8E8E98.toInt())
             val pad = (size * 0.28f).toInt()
             icon.setBounds(pad, pad, size - pad, size - pad)
             icon.draw(canvas)

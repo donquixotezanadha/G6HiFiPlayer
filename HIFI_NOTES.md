@@ -287,3 +287,9 @@
 - Queue icon: lines longer (21 -> 23 of 24 units wide) and closer (gap 6 -> 4 units), so it is sleeker.
 - Backdrop veil 60% -> 70% (0x99 -> 0xB3), Dark black / Light white, one flat layer.
 - Version 1.53 (code 54), installs over 1.52. Audio unchanged.
+
+## v1.54 (branch hifi-v1-54, from hifi-v1-53) - widget colours as the app, queue icon smaller and at 70%
+- Widgets, grey text (artist / time, 4x1 and Text 4x2): Light 0xFF686875 -> 0xFF484855 (the darker grey the app got in 1.22; the widgets never received it), Dark 0xFFE0E0E6 -> 0xFFA4A4B2 (the app's grey). The placeholder cover icon on Light follows the Light grey too.
+- Widgets, progress bar: the unplayed part now has the player's opacity and colours (Dark 0xB35E5E66, Light 0xB3D6D6DC = 70%) instead of the old opaque 0xFF303038 / 0xFFD8D8E2; the played part was already the same accent 0xFF6662C6.
+- Queue icon: 26 -> 22dp, the 56 x 40dp touch area is unchanged; its opacity is 70%, the same as the unplayed part of the progress bar.
+- Version 1.54 (code 55), installs over 1.53. Audio unchanged.
