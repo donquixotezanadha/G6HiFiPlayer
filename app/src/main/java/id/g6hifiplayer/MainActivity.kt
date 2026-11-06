@@ -800,13 +800,13 @@ class MainActivity : Activity() {
         // Track details and transport controls stay together; diagnostics remain below the controls.
         bottomDock.addView(metaFrame, LinearLayout.LayoutParams(-1, -2))
         // Build 2.7: even, slightly larger gaps: cover - title/artist - progress - controls - info.
-        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(PROGRESS_TOP_GAP_DP) + dp(META_RAISE_DP) })   // Hifi 1.50: extra gap = title block rides up, progress and below stay
-        bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
+        bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(PROGRESS_TOP_GAP_DP) + dp(META_RAISE_DP) - dp(4) })   // Hifi 1.50: extra gap = title block rides up, progress and below stay
+        bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(1) })   // Hifi 1.51: time labels 4dp higher above the bar (title block, bar and below unchanged)
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP - 2) })
         // Hifi 1.49: the queue button now sits right under the transport controls, the info lines are back at the very bottom.
-        bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(2) })
+        bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = -dp(2) })   // Hifi 1.51: queue button 4dp higher
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(2)
+            leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(10)   // Hifi 1.51: info 4dp lower (with STACK_BOTTOM_PAD_DP 8 -> 4)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
@@ -3208,7 +3208,7 @@ class MainActivity : Activity() {
     private fun show(which: String) {
         val previousPage = currentPage
         currentPage = which
-        if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
+        if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else ""   // Hifi 1.51: no "Now Playing" title on Now Playing (the icons stay)
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
@@ -3968,7 +3968,7 @@ class MainActivity : Activity() {
         private const val DOCK_SIDE_PAD_DP = 30   // transport buttons and info lines keep their old 30dp so they do not move
         private const val HEADER_H_DP = 42
         private const val META_RAISE_DP = 16   // Hifi 1.50: how much higher title / artist / album / logo sit above the progress bar
-        private const val STACK_BOTTOM_PAD_DP = 8
+        private const val STACK_BOTTOM_PAD_DP = 4
         /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14

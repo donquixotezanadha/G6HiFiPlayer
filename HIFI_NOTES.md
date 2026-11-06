@@ -269,3 +269,9 @@
 - Title, artist, album and the Hi-Res logo sit 16dp higher (META_RAISE_DP): the gap between that block and the time / progress row grew by 16dp; the dock is anchored to the bottom, so progress, controls, queue button and info do not move.
 - Side gaps: the title block and the progress bar (time labels too) had 30dp on both sides, which did not match the header (20dp text inset) or the Album content. They now use 20dp on both sides (SEEK_SIDE_PAD_DP 30 -> 20), so the progress bar and the title area are 20dp longer in total, left and right equal. Transport buttons and the info lines keep their old 30dp (new DOCK_SIDE_PAD_DP) so they do not move.
 - Version 1.50 (code 51), installs over 1.49. Audio unchanged.
+
+## v1.51 (branch hifi-v1-51, from hifi-v1-50) - Now Playing: no header title, time labels and queue button up, info down
+- The "Now Playing" text in the header is gone on Now Playing (empty title; the dark / light icons stay). Album keeps its "Album" title.
+- Time labels (elapsed / duration): 4dp higher above the progress bar (gap bar-labels +4dp, gap title block-labels -4dp), so the title block and the bar do not move.
+- Queue button 4dp higher (gap under the transport controls 2dp -> -2dp). Info lines 4dp lower (STACK_BOTTOM_PAD_DP 8 -> 4 and gap above the info 2dp -> 10dp); the sums are balanced so the progress bar and the transport controls stay where they were.
+- Version 1.51 (code 52), installs over 1.50. Audio unchanged.
