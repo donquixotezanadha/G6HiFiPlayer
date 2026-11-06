@@ -69,8 +69,8 @@ internal object DirectOutputState {
 
     /**
      * Hifi 1.24: MD5 check. [expected] describes the track that is playing now (set by MainActivity once its header was read).
-     * OutputMd5 hashes the samples that reach the DIRECT track and, when a whole track has gone through, writes its verdict to
-     * [checksumText]; [checksumSerial] counts the verdicts so the UI can show each one once.
+     * OutputMd5 hashes the samples that reach the DIRECT track and, when a whole track has gone through, sets [checksumResult] and adds a
+     * line to AudioPathLog; [checksumSerial] counts the verdicts so the UI can refresh once for each.
      */
     class Expected(val label: String, val source: String, val md5: ByteArray?, val totalSamples: Long,
                    val bits: Int, val channels: Int, val rate: Int,
@@ -78,15 +78,13 @@ internal object DirectOutputState {
         val supported: Boolean get() = md5 != null && totalSamples > 0 && channels == 2 && (bits == 16 || bits == 24)
     }
     @Volatile var expected: Expected? = null
-        set(value) { field = value; checksumResult = CHECK_NONE; checksumText = "" }
+        set(value) { field = value; checksumResult = CHECK_NONE }
     /** Hifi 1.27: result of the MD5 check for the CURRENT track (reset when the track's expectation is set). */
     const val CHECK_NONE = 0        // not finished yet, or the track cannot be checked
     const val CHECK_MATCH = 1
     const val CHECK_DIFFERENT = 2
     @Volatile var checksumResult: Int = CHECK_NONE
     @Volatile var checksumOwnDecoder: Boolean = false   // the track just checked was decoded by the own FLAC decoder
-    @Volatile var checksumText: String = ""
-    @Volatile var checksumToast: String = ""
     @Volatile var checksumSerial: Int = 0
     /** Hifi 1.29 strict mode: called (on the audio thread) when a track did not match its check; the service pauses the player. */
     @Volatile var strictStopHandler: ((String) -> Unit)? = null

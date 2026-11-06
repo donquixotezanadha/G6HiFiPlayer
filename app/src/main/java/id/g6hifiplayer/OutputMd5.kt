@@ -100,15 +100,12 @@ internal class OutputMd5(private val sampleRate: Int) {
         val detail = "${exp.source} ${exp.bits}-bit ${String.format(Locale.US, "%.1f", exp.rate / 1000f)} kHz"
         if (chunkFill > 0) { sentChunks.add(chunkMd.digest()); chunkFill = 0L }
         var short: String
-        val text: String
         when {
             !exp.supported || exp.md5 == null -> return
-            exp.md5.all { it.toInt() == 0 } -> { short = "no MD5 in file"; text = short }
-            total != exp.totalSamples -> {
-                short = "MD5 not comparable (length)"; text = short
-            }
-            got.contentEquals(exp.md5) -> { short = "MD5 MATCH"; text = short }
-            else -> { short = "MD5 DIFFERENT"; text = short }
+            exp.md5.all { it.toInt() == 0 } -> { short = "no MD5 in file" }
+            total != exp.totalSamples -> { short = "MD5 not comparable (length)" }
+            got.contentEquals(exp.md5) -> { short = "MD5 MATCH" }
+            else -> { short = "MD5 DIFFERENT" }
         }
         // Hifi 1.27: which decoder made this track? The own decoder runs a little ahead of the output (a second or so), so allow
         // 3 seconds of slack; MediaCodec tracks never move the counter.
@@ -133,15 +130,19 @@ internal class OutputMd5(private val sampleRate: Int) {
         }
         DirectOutputState.log("MD5 check: $short | decoder=${if (ownDecoder) "own" else "mediacodec"} | $name | $detail | frames=$total of ${exp.totalSamples} | file=${hex(exp.md5)} sent=${hex(got)}" +
             if (exp.bits == 24) " | top16=${hex(got16)}" else "")
-        DirectOutputState.checksumText = "$text: $name"
-        DirectOutputState.checksumToast = "$short\n$name\n$detail" + (if (extra.isNotEmpty()) "\n$extra" else "") +
-            "\ndecoder: " + (if (ownDecoder) "own (FLAC / ALAC / WAV)" else "Android MediaCodec")
-        // Hifi 1.29 strict mode: a track whose samples do not match the file stops playback by itself.
         val strictStop = short == "MD5 DIFFERENT" || short.startsWith("MD5 not comparable")
+        // Hifi 1.40: one line per checked track in the Setting window (LOG AUDIO PATH); the info line no longer shows the verdict.
+        AudioPathLog.add(
+            if (strictStop) AudioPathLog.KIND_UNMATCH else AudioPathLog.KIND_OK,
+            short.uppercase(Locale.US).replace("MD5 NOT COMPARABLE (LENGTH)", "MD5 NOT COMPARABLE"),
+            exp.label.take(80),
+            detail + " • decoder: " + (if (ownDecoder) "own FLAC / ALAC / WAV" else "Android MediaCodec") +
+                (if (extra.isNotEmpty()) " • $extra" else "") + (if (strictStop) " • playback stopped (strict mode)" else "")
+        )
+        // Hifi 1.29 strict mode: a track whose samples do not match the file stops playback by itself.
         if (strictStop) {
             val message = "Stopped (strict mode): $short • $name"
             DirectOutputState.strictStopText = message
-            DirectOutputState.checksumToast = DirectOutputState.checksumToast + "\nSTOPPED: strict mode"
             try { DirectOutputState.strictStopHandler?.invoke(message) } catch (_: Throwable) { }
         }
         DirectOutputState.checksumSerial++

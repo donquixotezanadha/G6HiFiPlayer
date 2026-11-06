@@ -608,6 +608,7 @@ class PlaybackKeepAliveService : Service() {
                     }
                 }
                 VolumeGuard.install(appContext, player)   // Hifi 1.34: music volume guard (any output)
+                AudioPathLog.init(appContext)   // Hifi 1.40: the audio path log also works while the app screen is closed
                 sharedPlayer = player
                 serviceInstance?.attachPlayer(player)
                 return player

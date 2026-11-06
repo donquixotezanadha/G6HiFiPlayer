@@ -204,3 +204,10 @@
 - The swipe up gesture and animation of the mini player is removed (finger-following lift, its fade, its touch hit-test and state): only a tap on the mini player returns. Also removed: the layer switching and the shared animator of the old transition.
 - One shared routine (slidePageTo / slideCommit) drives drag-release, tap, Back and play actions; a token makes an older slide's end action do nothing when a newer one starts.
 - Audio, queue window and everything else unchanged. Version 1.39 (code 40), installs over 1.38.
+
+## v1.40 (branch hifi-v1-40, from hifi-v1-39) - LOG AUDIO PATH in Setting, no MD5 text in the info line
+- The MD5 verdict is no longer written into the info (status) line on Now Playing. The green / orange BIT-PERFECT label still follows the verdict, and a strict stop still shows its message.
+- New subtitle LOG AUDIO PATH in the Setting window (the gear on Album), under ALBUM COLUMNS: a scrollable list (220dp high) of the last 50 tracks, newest first, saved across app starts (new AudioPathLog.kt, SharedPreferences "audio_path_log"). Each entry: date and time, verdict, track name, then a grey line with source format, bit depth, kHz, which decoder made it (own FLAC / ALAC / WAV or Android MediaCodec) and, for a mismatch, the per-second diagnosis.
+- What is logged: every track whose check finished (MD5 MATCH, no MD5 in file, MD5 DIFFERENT, not comparable), files refused by strict mode (NOT PLAYED, with the mime type) and playback errors. Colours: normal lines use the regular text colours; DIFFERENT / not comparable are orange; refused files and errors are red.
+- Removed because nothing used them any more: DirectOutputState.checksumText and checksumToast (the toast was already gone since 1.34).
+- The audio path, the check itself, strict mode, volume guard and audio focus are unchanged; the log only records what the check already decided. Version 1.40 (code 41), installs over 1.39.

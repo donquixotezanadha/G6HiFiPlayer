@@ -250,7 +250,7 @@ class MainActivity : Activity() {
             val sumNow = DirectOutputState.checksumSerial
             if (sumNow != lastChecksumSerial) {
                 lastChecksumSerial = sumNow
-                refreshAudioInfo()   // Hifi 1.34: no MD5 toast; the verdict stays in the status line
+                refreshAudioInfo()   // the green / orange label follows the verdict; the details are in LOG AUDIO PATH (Hifi 1.40)
             }
             if (DirectOutputState.strictStopText.isNotEmpty()) {   // Hifi 1.29 / 1.34: a strict stop (check mismatch, another app took the audio)
                 statusView.text = DirectOutputState.strictStopText
@@ -337,6 +337,7 @@ class MainActivity : Activity() {
         val savedLightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
         setTheme(if (savedLightTheme) R.style.Theme_G6HiFiPlayer else R.style.Theme_G6HiFiPlayer_Dark)
         super.onCreate(savedInstanceState)
+        AudioPathLog.init(this)   // Hifi 1.40
         lightTheme = savedLightTheme
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
@@ -2230,6 +2231,7 @@ class MainActivity : Activity() {
                     statusView.text = "Not supported (strict mode: FLAC, ALAC, WAV only)" + (mime?.let { " • $it" } ?: "") + (if (title.isNotEmpty()) "\n$title" else "")
                     try { Toast.makeText(this@MainActivity, "Not played: only FLAC, ALAC and WAV are supported" + (mime?.let { "\n($it)" } ?: ""), Toast.LENGTH_LONG).show() } catch (_: Exception) { }
                     recordDiagnostic("STRICT_UNSUPPORTED mime=" + mime)
+                    AudioPathLog.add(AudioPathLog.KIND_ERROR, "NOT PLAYED", title.ifEmpty { "Unknown track" }, "strict mode: FLAC, ALAC and WAV only" + (mime?.let { " • $it" } ?: ""))
                     syncPlaybackIcon(false)
                     refreshAudioInfo()
                 }
@@ -2242,6 +2244,7 @@ class MainActivity : Activity() {
                 val recent = DirectOutputState.historyText().lines().takeLast(3).joinToString("\n") { it.substringAfter(" | ") }
                 statusView.text = "Playback failed • " + error.errorCodeName + ": " + detail + (if (recent.isNotBlank()) "\n" + recent else "")
                 recordDiagnostic("PLAYBACK_ERROR code=" + error.errorCodeName + " detail=" + detail, error)
+                AudioPathLog.add(AudioPathLog.KIND_ERROR, "PLAYBACK ERROR", this@MainActivity.tracks.getOrNull(currentIndex)?.title ?: "Unknown track", error.errorCodeName + ": " + detail)
                 refreshAudioInfo()
             }
         }
@@ -3035,9 +3038,8 @@ class MainActivity : Activity() {
                 else -> { verdict = "● NATIVE DIRECT • 24-bit packed"; color = green }
             }
         }
-        // Hifi 1.24: the last MD5 verdict stays here until the next track has been checked.
-        val sumNote = if (DirectOutputState.checksumText.isNotEmpty()) " • " + DirectOutputState.checksumText else ""
-        val tail = " • $device$note$sumNote"
+        // Hifi 1.40: the MD5 verdict is no longer written here (it went by too fast); see LOG AUDIO PATH in the Setting window.
+        val tail = " • $device$note"
         val status = android.text.SpannableString(verdict + tail)
         status.setSpan(android.text.style.ForegroundColorSpan(color), 0, verdict.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         status.setSpan(android.text.style.ForegroundColorSpan(grey), verdict.length, status.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -3549,6 +3551,35 @@ class MainActivity : Activity() {
     }
 
     /** Hifi 1.4: floating settings window. Album page: folder scan and columns. Now Playing page: dark / light icons. */
+    /**
+     * Hifi 1.40: LOG AUDIO PATH: the last 50 tracks (newest first): checked tracks with their MD5 verdict, refused files and playback errors.
+     * Normal lines use the regular text colours; DIFFERENT / not comparable are orange, errors are red.
+     */
+    private fun audioPathLogView(): View {
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val entries = AudioPathLog.snapshot()
+        if (entries.isEmpty()) {
+            list.addView(text("No tracks logged yet. Play a FLAC, ALAC or WAV track.", 12f, MUTED, false))
+        }
+        val clock = java.text.SimpleDateFormat("dd MMM HH:mm", Locale.getDefault())
+        for (e in entries) {
+            val headColor = when (e.kind) { AudioPathLog.KIND_ERROR -> 0xFFFF5252.toInt(); AudioPathLog.KIND_UNMATCH -> 0xFFFFA040.toInt(); else -> 0 }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(5), 0, dp(5)) }
+            val head = text(clock.format(java.util.Date(e.time)) + "  " + e.head + " • " + e.name, 12f, WHITE, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+            if (headColor != 0) head.setTextColor(headColor)
+            row.addView(head)
+            row.addView(text(e.detail, 11f, MUTED, false).apply {
+                if (headColor != 0) setTextColor(headColor)
+            })
+            list.addView(row, LinearLayout.LayoutParams(-1, -2))
+        }
+        return ScrollView(this).apply {
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(list, ViewGroup.LayoutParams(-1, -2))
+        }
+    }
+
     private fun openSettingsWindow() {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
@@ -3568,6 +3599,8 @@ class MainActivity : Activity() {
             val columnButtons = buttonArea()
             fillColumnButtons(columnButtons)
             panel.addView(columnButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+            panel.addView(text("LOG AUDIO PATH", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
+            panel.addView(audioPathLogView(), LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(10) })
         } else {
             panel.addView(text("THEME", 12f, MUTED, true))
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
