@@ -32,6 +32,20 @@ object G6Widgets {
     const val EXTRA_ACTION = "g6_widget_action"
 
     private const val TAG = "G6Widgets"
+    /**
+     * Hifi 1.53: the player stores its theme with Activity.getPreferences(), whose file is named after the Activity class. The class is
+     * "id.g6hifiplayer.MainActivity" but the app id is now "id.hifi.player", so Android no longer strips the package and the file is
+     * "id.g6hifiplayer.MainActivity". The widgets still read the old file name "MainActivity", which does not exist in Hifi, so they always
+     * thought the theme was Dark. They now read the real file first (and the old name as a fallback).
+     */
+    private fun isLightTheme(context: Context): Boolean {
+        for (name in arrayOf("id.g6hifiplayer.MainActivity", "MainActivity")) {
+            val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+            if (p.contains("light_theme")) return p.getBoolean("light_theme", false)
+        }
+        return false
+    }
+
     private const val PREFS = "g6_widgets"
     private const val ART_FILE = "g6_widgets_art.jpg"
     private const val OLD_PREFS = "g6_widget_state"
@@ -188,7 +202,7 @@ object G6Widgets {
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
-        val light = app.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+        val light = isLightTheme(app)
         val bitmap = progressBitmap(progress, light)
         try {
             if (ids4.isNotEmpty()) {
@@ -256,7 +270,7 @@ object G6Widgets {
             val position = prefs.getInt(K_POS, 0)
             val duration = prefs.getInt(K_DUR, 0)
             val hires = hasTrack && prefs.getBoolean(K_HIRES, false)
-            val light = app.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+            val light = isLightTheme(app)
 
             if (ids4.isNotEmpty()) {
                 // Rounded-square cover for the 4x1. updateAppWidget has already copied the bitmap into the outgoing parcel.
@@ -367,7 +381,7 @@ object G6Widgets {
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
-        val light = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+        val light = isLightTheme(context)
         val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
         val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
         val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
@@ -466,7 +480,7 @@ object G6Widgets {
         val size = PLACEHOLDER_PX
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        val light = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getBoolean("light_theme", false)
+        val light = isLightTheme(context)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (light) 0xFFE9E9F0.toInt() else 0xFF2A2A33.toInt() }
         val radius = size * fraction
         canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)

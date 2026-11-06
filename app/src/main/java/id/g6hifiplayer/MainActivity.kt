@@ -1123,7 +1123,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0x99FFFFFF.toInt() else 0x99000000.toInt())   // Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
+            canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt())   // Hifi 1.53: veil 60% -> 70%; Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
         }
 
         override fun setAlpha(alpha: Int) { }

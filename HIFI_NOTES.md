@@ -281,3 +281,9 @@
 - Transport buttons a little bigger: play 60 -> 66dp (icon 38 -> 44dp), previous / next 52 -> 56dp (icon 32 -> 36dp).
 - Raised: title / artist / album, the Hi-Res logo, progress bar, controls and queue button all ride up. The gap above the info lines grew 10 -> 14dp (+4dp) and the bigger play row adds 6dp more above the controls; the info lines (anchored to the bottom) do not move. Everything above the controls rises about 10dp, the queue button 4dp.
 - Version 1.52 (code 53), installs over 1.51. Audio unchanged.
+
+## v1.53 (branch hifi-v1-53, from hifi-v1-52) - widget theme fix, sleeker queue icon, backdrop veil 70%
+- Widgets never followed the theme since the rebrand. Cause (found in code, an app bug, not the launcher): the player saves "light_theme" with Activity.getPreferences(), whose file is named after the Activity class. In the old app (id g6hifiplayer) Android shortened it to "MainActivity"; in Hifi the app id is id.hifi.player while the class is still id.g6hifiplayer.MainActivity, so the file is "id.g6hifiplayer.MainActivity". The widgets (G6Widgets.kt, four places) still read the file "MainActivity", which does not exist in Hifi, so they always rendered Dark. Fix: one helper isLightTheme() reads the real file first and the old name as a fallback; setLightTheme() already calls G6Widgets.renderAll(), so the widgets repaint when the theme is switched and on every app start.
+- Queue icon: lines longer (21 -> 23 of 24 units wide) and closer (gap 6 -> 4 units), so it is sleeker.
+- Backdrop veil 60% -> 70% (0x99 -> 0xB3), Dark black / Light white, one flat layer.
+- Version 1.53 (code 54), installs over 1.52. Audio unchanged.
