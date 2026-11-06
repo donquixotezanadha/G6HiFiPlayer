@@ -464,6 +464,7 @@ class MainActivity : Activity() {
         // Hifi 1.43: Now Playing only: the cover itself, sharp, fills the top half of the screen behind the header and fades into the blurred backdrop.
         val coverView = NowPlayingCoverView(this).apply { bitmap = playerCoverBitmap; visibility = View.GONE }
         playerCoverView = coverView
+        coverView.topInset = statusBarInset
         stage.addView(coverView, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
@@ -717,7 +718,7 @@ class MainActivity : Activity() {
         }
         hiResLogoView = hiResLogo
         // Hifi 1.44b: 12% of the screen width (the same share of the cover as the old album-art badge), hanging higher above the queue symbol.
-        val logoSide = (resources.displayMetrics.widthPixels * 0.12f).toInt()
+        val logoSide = (resources.displayMetrics.widthPixels * 0.08f).toInt()
         titleRow.addView(hiResLogo, FrameLayout.LayoutParams(logoSide, logoSide, Gravity.END or Gravity.TOP).apply { topMargin = -(logoSide + dp(8)) })
         metadata.addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
         metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
@@ -1139,6 +1140,7 @@ class MainActivity : Activity() {
      * the title row (the header gap is ignored); the Hi-Res logo and queue button are drawn in front of it.
      */
     private class NowPlayingCoverView(context: Context) : View(context) {
+        var topInset = 0
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; invalidate() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
@@ -1152,25 +1154,33 @@ class MainActivity : Activity() {
             val w = width.toFloat(); val viewH = height.toFloat()
             if (w <= 0f || viewH <= 0f) return
             val coverH = w * bmp.height / bmp.width          // whole picture, fitted to the width
-            val top = 0f                                     // Hifi 1.44b: clear from the very top of the screen (status bar) down
-            val bottom = coverH
-            val save = canvas.saveLayer(0f, 0f, w, bottom, null)
+            val top = topInset.toFloat()                     // Hifi 1.46: starts under the status bar (hard cut, the status bar shows the plain backdrop)
+            val bottom = top + coverH
+            val save = canvas.saveLayer(0f, top, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
-            val bottomFade = (coverH * BOTTOM_FADE).coerceAtLeast(1f)
-            val f2 = 1f - bottomFade / coverH
+            // Hifi 1.46: much softer fade: it starts earlier (the lower 50% of the cover) and follows a smootherstep curve with many stops,
+            // so there is no visible start or end of the gradient.
+            val start = 1f - BOTTOM_FADE
+            val n = 16
+            val colors = IntArray(n + 2); val pos = FloatArray(n + 2)
+            colors[0] = -0x1000000; pos[0] = 0f
+            for (i in 0..n) {
+                val t = i / n.toFloat()
+                val sm = t * t * t * (t * (t * 6f - 15f) + 10f)
+                colors[i + 1] = (Math.round(255f * (1f - sm)) shl 24)
+                pos[i + 1] = start + (1f - start) * t
+            }
+            pos[0] = 0f
             maskPaint.shader = android.graphics.LinearGradient(
-                0f, top, 0f, bottom,
-                intArrayOf(-0x1000000, -0x1000000, 0x70000000, 0x00000000),
-                floatArrayOf(0f, f2, f2 + (1f - f2) * 0.45f, 1f),
-                android.graphics.Shader.TileMode.CLAMP
+                0f, top, 0f, bottom, colors, pos, android.graphics.Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, 0f, w, bottom, maskPaint)
+            canvas.drawRect(0f, top, w, bottom, maskPaint)
             canvas.restoreToCount(save)
         }
 
         companion object {
-            const val BOTTOM_FADE = 0.30f  // share of the cover height used to fade its bottom into the blur
+            const val BOTTOM_FADE = 0.50f  // share of the cover height used to fade its bottom into the blur
         }
     }
 

@@ -243,3 +243,9 @@
 - Hi-Res logo: 12% of the screen width (the same share the old album-art badge had of the cover), and hangs higher (8dp above the title row, same right edge as the queue symbol).
 - Bug fixed: the top of the logo was cut because playerPanel, the page content and the scroller clipped their children; clipping is off on them now.
 - Version 1.45 (code 46), installs over 1.44. Audio unchanged.
+
+## v1.46 (branch hifi-v1-46, from hifi-v1-45) - Now Playing: cover under the status bar, softer fade, smaller Hi-Res logo
+- The cover starts right under the status bar; the status bar area is a hard cut showing the plain blurred backdrop (no fade at the top).
+- Softer bottom fade, taken from the reference (Apple Music-style): it now starts at 50% of the cover height (was 70%) and follows a smootherstep curve with 17 stops down to 0% at the cover's lower edge, so the gradient has no visible start or end.
+- Hi-Res logo 12% -> 8% of the screen width, same position (hangs above the title row, right edge as the queue symbol).
+- Version 1.46 (code 47), installs over 1.45. Audio unchanged.
