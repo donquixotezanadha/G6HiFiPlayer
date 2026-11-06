@@ -252,3 +252,9 @@
 
 ## v1.47 (branch hifi-v1-47, from hifi-v1-46) - Now Playing: shorter bottom fade
 - The cover fade now starts at 60% of the cover height (was 50%), so the clear part is larger; same smootherstep curve, still ends at 0% at the cover's lower edge. Nothing else changed. Version 1.47 (code 48), installs over 1.46.
+
+## v1.48 (branch hifi-v1-48, from hifi-v1-47) - Now Playing: content raised, bigger text, Hi-Res logo beside the text, queue button at the bottom centre
+- Queue button moved from the title row to the bottom centre, in its own row right after the two info lines (56 x 40dp touch area, 26dp icon). The controls column is anchored to the bottom, so this row pushes the whole column (title, progress, controls, info) up under the cover by its height; the bigger text raises it a little more. The cover and its fade are unchanged.
+- Text: title 17 -> 19sp, artist 13 -> 15sp, album 11 -> 13sp (still one line each, cut with "...").
+- Hi-Res logo 8% -> 10% of the screen width, now on the right, vertically centred on the title / artist / album block, right edge at the end of the progress bar. The text block always leaves room for it, so lines do not shift whether or not the track is hi-res.
+- Version 1.48 (code 49), installs over 1.47. Audio unchanged.

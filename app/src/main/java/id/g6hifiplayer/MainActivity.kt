@@ -669,7 +669,7 @@ class MainActivity : Activity() {
         }
         // Hifi 1.41: the title is always exactly one line (a long title is cut with "..." at the queue button), the same padding as when a track
         // starts, and the artist is one line too, so the cover size and the positions of title, queue button and the rest never move.
-        titleView = text("", 17f, WHITE, true).apply {
+        titleView = text("", 19f, WHITE, true).apply {
             setPadding(0, dp(2), 0, dp(1))
             // (no isSingleLine = false here: that call resets maxLines to "unlimited", which let long titles take 2+ lines in 1.37 - 1.41)
             minLines = 1; maxLines = 1
@@ -677,39 +677,36 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
-        artistView = text("", 13f, MUTED, false).apply {
+        artistView = text("", 15f, MUTED, false).apply {
             minLines = 1; maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        albumView = text("", 11f, MUTED, false).apply {
+        albumView = text("", 13f, MUTED, false).apply {
             setPadding(0, dp(2), 0, 0); maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
+        // Hifi 1.48: the Hi-Res logo (24-bit tracks) sits on the right, level with the title / artist / album block (centred on its height); the text
+        // always leaves room for it, so the lines never shift. The queue button moved to the bottom centre, below the info lines.
+        val logoSide = (resources.displayMetrics.widthPixels * 0.10f).toInt()
         val metadata = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)
-            clipChildren = false; clipToPadding = false   // Hifi 1.44: the Hi-Res logo hangs above the title row
+            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP) + logoSide + dp(10), 0)
         }
-        // Hifi 1.37: the queue button sits level with the title on the right; its right edge is the end of the progress bar (same side padding),
-        // and the title gets 40dp shorter. The button overlays the title row, so it does not change the dock height by more than a few dp.
         val queueIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_queue_24)
             imageTintList = ColorStateList.valueOf(WHITE)
-            scaleType = ImageView.ScaleType.FIT_END
+            scaleType = ImageView.ScaleType.FIT_CENTER
         }
         queueButton = queueIcon
         val queueBtn = FrameLayout(this).apply {
             contentDescription = "Queue"
             isClickable = true; isFocusable = true
             setOnClickListener { openQueueWindow() }
-            addView(queueIcon, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.END or Gravity.TOP).apply { topMargin = dp(2) })
+            addView(queueIcon, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
         }
-        val titleRow = FrameLayout(this).apply { clipChildren = false }
+        val titleRow = FrameLayout(this)
         playerTitleRow = titleRow
-        titleRow.addView(titleView, FrameLayout.LayoutParams(-1, -2).apply { rightMargin = dp(40) })
-        titleRow.addView(queueBtn, FrameLayout.LayoutParams(dp(40), dp(28), Gravity.END or Gravity.TOP))
-        // Hifi 1.44: the Hi-Res logo (24-bit tracks) sits right above the queue symbol, same right edge, 2dp gap. It hangs above the title row
-        // without taking any room, so nothing moves.
+        titleRow.addView(titleView, FrameLayout.LayoutParams(-1, -2))
         val hiResLogo = ImageView(this).apply {
             setImageResource(R.drawable.hires_logo)
             scaleType = ImageView.ScaleType.FIT_END
@@ -717,12 +714,12 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         hiResLogoView = hiResLogo
-        // Hifi 1.44b: 12% of the screen width (the same share of the cover as the old album-art badge), hanging higher above the queue symbol.
-        val logoSide = (resources.displayMetrics.widthPixels * 0.08f).toInt()
-        titleRow.addView(hiResLogo, FrameLayout.LayoutParams(logoSide, logoSide, Gravity.END or Gravity.TOP).apply { topMargin = -(logoSide + dp(8)) })
         metadata.addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
         metadata.addView(artistView, LinearLayout.LayoutParams(-1, -2))
         metadata.addView(albumView, LinearLayout.LayoutParams(-1, -2))
+        val metaFrame = FrameLayout(this)
+        metaFrame.addView(metadata, FrameLayout.LayoutParams(-1, -2))
+        metaFrame.addView(hiResLogo, FrameLayout.LayoutParams(logoSide, logoSide, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(SEEK_SIDE_PAD_DP) })
 
         val times = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -801,7 +798,7 @@ class MainActivity : Activity() {
             }
         }
         // Track details and transport controls stay together; diagnostics remain below the controls.
-        bottomDock.addView(metadata, LinearLayout.LayoutParams(-1, -2))
+        bottomDock.addView(metaFrame, LinearLayout.LayoutParams(-1, -2))
         // Build 2.7: even, slightly larger gaps: cover - title/artist - progress - controls - info.
         bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(PROGRESS_TOP_GAP_DP) })
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
@@ -814,6 +811,7 @@ class MainActivity : Activity() {
             leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); bottomMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
+        bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(4) })   // Hifi 1.48: queue button, bottom centre
 
         // Hifi 1.43: no album art box: the cover is the clear top of the page backdrop (see NowPlayingCoverView); only the controls column is left.
         val stack = LinearLayout(this).apply {
