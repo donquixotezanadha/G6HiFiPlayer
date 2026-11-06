@@ -264,3 +264,8 @@
 - Hi-Res logo 10% -> 9% of the screen width, top edge level with the title (not centred any more).
 - Dock order: transport, queue button (centred), then the two info lines at the very bottom as before 1.48 (queue button and info swapped).
 - Version 1.49 (code 50), installs over 1.48. Audio unchanged.
+
+## v1.50 (branch hifi-v1-50, from hifi-v1-49) - Now Playing: title block raised, side gaps as the header / Album
+- Title, artist, album and the Hi-Res logo sit 16dp higher (META_RAISE_DP): the gap between that block and the time / progress row grew by 16dp; the dock is anchored to the bottom, so progress, controls, queue button and info do not move.
+- Side gaps: the title block and the progress bar (time labels too) had 30dp on both sides, which did not match the header (20dp text inset) or the Album content. They now use 20dp on both sides (SEEK_SIDE_PAD_DP 30 -> 20), so the progress bar and the title area are 20dp longer in total, left and right equal. Transport buttons and the info lines keep their old 30dp (new DOCK_SIDE_PAD_DP) so they do not move.
+- Version 1.50 (code 51), installs over 1.49. Audio unchanged.
