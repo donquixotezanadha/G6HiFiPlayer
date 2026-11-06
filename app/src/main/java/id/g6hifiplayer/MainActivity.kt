@@ -185,7 +185,6 @@ class MainActivity : Activity() {
     private lateinit var songRows: LinearLayout
     private lateinit var songSearchInput: EditText
     private var songSearchQuery = ""
-    private lateinit var queuePanel: FrameLayout
     private lateinit var settingsPanel: LinearLayout
     private lateinit var queueRows: LinearLayout
     private lateinit var navPlayer: FrameLayout
@@ -221,45 +220,20 @@ class MainActivity : Activity() {
     private var swipeDragging = false
     private var swipeAnimating = false
     private var swipeVelocity: android.view.VelocityTracker? = null
-    // Hifi 1.17: swipe DOWN on Now Playing goes to Album. The Album area never moves: only Now Playing fades and the mini player
-    // rises with a soft bounce. Back to Now Playing: tap or swipe up the mini player (or Back). Sideways page swipe is off.
-    private val sidewaysPageSwipe = false
-    private var albumDragging = false
-    private var albumEligible = false
-    private var albumProgress = 0f
+    // Hifi 1.38: slide left on Now Playing goes to Album (slide right comes back); the Album mini player (tap or swipe up) also returns to Now Playing.
     private var albumAnimator: android.animation.ValueAnimator? = null
     private var miniDragging = false
     private var miniEligible = false
     private var miniProgress = 0f
     private var headerGear: View? = null
-    private var queueCard: View? = null
-    private var queueScrollView: ScrollView? = null
-    // Hifi 1.12: the queue is one drag-driven progress (0 = Now Playing, 1 = queue). The info dock (title..info) rises and
-    // sticks under the header, the album art sinks, the list appears below the dock.
-    private var queueProgress = 0f
-    private var queueShift = 0f
-    private var queueDragging = false
-    private var queueDragBase = 0f
-    private var queueAnimating = false
-    private var queueEligible = false
     private var queueRowsSig = Int.MIN_VALUE
-    private var queuePrewarmed = false
-    private val queueTravelFactor = 0.7f
-    private var artHost: FrameLayout? = null
-    private var queueAnimator: android.animation.ValueAnimator? = null
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
     private var scrollFadeHost: EdgeCutLayout? = null
-    private var queueFadeHost: EdgeCutLayout? = null
-    private var queueActionsView: View? = null
     private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
     private var queueDialog: AlertDialog? = null     // Hifi 1.37: the queue is a floating window
-    // Hifi 1.23: the mini player also belongs to the queue. While it runs its own animation (bounce in / lift out) it ignores the drag progress.
-    private var miniQueueLocked = false
-    private var miniQueueAnimator: android.animation.ValueAnimator? = null
-    private var miniClosingQueue = false
     private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
     private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
@@ -395,7 +369,6 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         buildingUi = true
-        queueAnimator?.cancel(); queueProgress = 0f; queueDragging = false; queueAnimating = false
         // Build 3.01: newly-created Now Playing artwork needs its Hi-Res foreground rebound after a theme rebuild.
         hiResBadgeShown = false
         darkDrawables.clear()
@@ -411,7 +384,7 @@ class MainActivity : Activity() {
             clipChildren = false
             clipToPadding = false
         }
-        navPlayer = navButton("Player", "Player") { if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) closeQueueOverlay() else show("player") }
+        navPlayer = navButton("Player", "Player") { show("player") }
         navLibrary = navButton("Albums", "Albums") { show("library") }
         navSongs = navButton("Songs", "Songs") { show("songs") }
         navFile = navButton("Setting", "Setting") { show("settings") }
@@ -435,15 +408,14 @@ class MainActivity : Activity() {
         }
         val statusBarInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
-        playerPanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { }).apply {
+        playerPanel = TouchFrameLayout(this).apply {
             // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
         libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        queuePanel = SwipeFrameLayout(this, onSwipeUp = { }, onSwipeDown = { })
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeQueuePanel()
+        makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeMiniPlayer()
         songsPanel.setPadding(dp(16), statusBarInset + dp(6), dp(16), dp(8))
         settingsPanel.setPadding(0, statusBarInset + dp(6), 0, dp(8))
         val scanCard = card()
@@ -481,8 +453,6 @@ class MainActivity : Activity() {
         fadeHost.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         scrollFadeHost = fadeHost
         contentStage.addView(fadeHost, FrameLayout.LayoutParams(-1, -1))
-        // Hifi 1.23: the queue fills the page from under the header; the mini player sits above it at the bottom, exactly as on Album.
-        contentStage.addView(queuePanel, FrameLayout.LayoutParams(-1, -1, Gravity.TOP))
         queueMiniHost?.let { contentStage.addView(it, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)) }
         root.addView(makeHeaderBar(statusBarInset), LinearLayout.LayoutParams(-1, statusBarInset + dp(HEADER_H_DP)))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -497,7 +467,6 @@ class MainActivity : Activity() {
             bottomInsetPx = bottomInset
             if (scroll.paddingBottom != bottomInset) scroll.setPadding(0, 0, 0, bottomInset)
             queueMiniHost?.let { if (it.paddingBottom != bottomInset + dp(8)) it.setPadding(dp(16), 0, dp(16), bottomInset + dp(8)) }
-            queueScrollView?.let { if (it.paddingBottom != bottomInset) it.setPadding(0, 0, 0, bottomInset) }
             updateBottomFade()
             insets
         }
@@ -853,11 +822,8 @@ class MainActivity : Activity() {
         // Build 2.1: the column sits lower on the page (anchored to the bottom) with a larger gap under the cover.
         // Build 2.3: lower again (bottom padding 20dp -> 8dp). The cover gets equal gaps above and below (see sizeDarkArt).
         stack.setPadding(0, topInset, 0, dp(STACK_BOTTOM_PAD_DP))
-        // Hifi 1.13 / 1.35: the cover lives in a host that clips it at the top edge (a plain cut, no fade), so it can ride up with the
-        // info dock and be cut off as it reaches the header (see applyQueueProgress).
         val host = FrameLayout(this)
         host.addView(artBox, FrameLayout.LayoutParams(boxSide, boxSide, Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(ART_MIN_GAP_DP); bottomMargin = dp(ART_MIN_GAP_DP) })
-        artHost = host
         stack.addView(host, LinearLayout.LayoutParams(-1, -2))
         stack.addView(bottomDock, LinearLayout.LayoutParams(-1, -2))
         playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -1054,8 +1020,7 @@ class MainActivity : Activity() {
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
         if (buildingUi) return
         refreshNav()
-        val queueOpen = ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE
-        if (currentPage == "player" && !queueOpen) tabsPaletteDirty = true else retintPages()
+        if (currentPage == "player") tabsPaletteDirty = true else retintPages()
     }
 
     private fun makeLibraryPanel() {
@@ -1241,20 +1206,8 @@ class MainActivity : Activity() {
         songsPanel.addView(heading)
     }
 
-    private fun makeQueuePanel() {
-        queuePanel.visibility = View.GONE
-        // Hifi 1.10: the queue is a slide-up list in the album-art area: no card, no dim, the same width and text as the Album track list.
-        val surface = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.TRANSPARENT)
-        }
-        queueCard = surface
-        surface.setPadding(dp(16), dp(4), dp(16), 0)
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
+    /** Hifi 1.38: builds the Album mini player and the (empty) queue row list; the queue itself is the floating window of openQueueWindow(). */
+    private fun makeMiniPlayer() {
         val mini = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -1263,7 +1216,7 @@ class MainActivity : Activity() {
             themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), floatingBackground(), null) }
             isClickable = true
             isFocusable = true
-            setOnClickListener { if (currentPage == "library") showPlayerAnimated() else closeQueueViaMini() }
+            setOnClickListener { showPlayerAnimated() }
             // Hifi 1.19: swipe up on the mini player is a finger-following drag handled in dispatchTouchEvent (startMiniDrag).
         }
         queueMiniArt = ImageView(this).apply {
@@ -1309,39 +1262,10 @@ class MainActivity : Activity() {
             setOnClickListener { togglePlayback() }
         }
         mini.addView(queueMiniPlayView, LinearLayout.LayoutParams(dp(44), dp(48)))
-        val queueActions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        queueActions.addView(text("PLAYBACK QUEUE", 12f, MUTED, true), LinearLayout.LayoutParams(0, dp(38), 1f))
-        queueActions.addView(action("CLEAR", false) {
-            playbackQueue = emptyList()
-            playbackOrder = if (currentIndex in tracks.indices) listOf(currentIndex) else emptyList()
-            persistQueueState()
-            renderQueueRows()
-            Toast.makeText(this, "Queue cleared.", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(dp(82), dp(36)))
-        surface.addView(queueActions)
-        queueActionsView = queueActions
-
         queueRowsSig = Int.MIN_VALUE
-        // Hifi 1.36: no mini player in the queue view, so no extra room at the bottom: the last row rests 12dp above the cut at the navigation bar.
+        // The rows of the queue window: they are moved into the floating window while it is open (see openQueueWindow).
         queueRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(12)) }
-        val queueScroll = ScrollView(this).apply {
-            clipToPadding = false
-            isFillViewport = false
-            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            isVerticalScrollBarEnabled = true
-            addView(queueRows, ViewGroup.LayoutParams(-1, -2))
-        }
-        // The list fills the queue area (see sizeQueueRegion); longer queues scroll inside it.
-        queueScrollView = queueScroll
-        val qFade = EdgeCutLayout(this)
-        qFade.addView(queueScroll, FrameLayout.LayoutParams(-1, -1))
-        queueFadeHost = qFade
-        surface.addView(qFade, LinearLayout.LayoutParams(-1, 0, 1f))
-        queuePanel.addView(surface, FrameLayout.LayoutParams(-1, -1))
-        // Hifi 1.7: the mini player lives on the Album page, docked at the bottom (see show()).
+        // The mini player lives on the Album page, at the bottom (see show()).
         queueMiniHost = FrameLayout(this).apply {
             setPadding(dp(16), 0, dp(16), bottomInsetPx + dp(8))
             visibility = View.GONE
@@ -1353,179 +1277,8 @@ class MainActivity : Activity() {
         updateQueueMiniPlayer()
     }
 
-    /** Where a vertical drag may start: closed = on the info dock (title, progress, controls, info); open = on the dock, or on the list while it is at its top. */
-    private fun queueStartAllowed(rawY: Float): Boolean {
-        if (!::playerBottomDock.isInitialized || !::queuePanel.isInitialized) return false
-        val loc = IntArray(2)
-        playerBottomDock.getLocationOnScreen(loc)
-        val dockTop = loc[1] - dp(24)
-        val dockBottom = loc[1] + playerBottomDock.height
-        return if (queueProgress < 0.5f) rawY >= dockTop
-        else (rawY >= dockTop && rawY <= dockBottom) || (rawY > dockBottom && (queueScrollView?.scrollY ?: 0) == 0)
-    }
-
-    /**
-     * Hifi 1.23: measures how far the dock must rise to leave through the top edge (the mini player below already shows the
-     * track, so the queue list may use the whole page under the header). Call while progress is 0.
-     */
-    private fun prepareQueueGeometry() {
-        if (!::playerBottomDock.isInitialized) return
-        val host = queuePanel.parent as? View ?: return
-        val d = IntArray(2); val h = IntArray(2)
-        playerBottomDock.getLocationOnScreen(d)
-        host.getLocationOnScreen(h)
-        val baseTop = d[1] - h[1] - playerBottomDock.translationY
-        queueShift = (baseTop + playerBottomDock.height).coerceAtLeast(dp(160).toFloat())
-        val lp = queuePanel.layoutParams as? FrameLayout.LayoutParams ?: return
-        if (lp.topMargin != 0 || lp.height != -1 || lp.gravity != Gravity.TOP) { lp.gravity = Gravity.TOP; lp.topMargin = 0; lp.height = -1; queuePanel.layoutParams = lp }
-        val sig = playbackQueue.hashCode() * 31 + tracks.size * 7 + currentIndex
-        if (sig != queueRowsSig) renderQueueRows()
-    }
-
-    /** The list rises inside a fixed panel (so its cut spacers stay where the mini player is): only the content is offset. */
-    private fun setQueueListOffset(ty: Float) {
-        queueActionsView?.translationY = ty
-        queueScrollView?.translationY = ty
-    }
-
-    /** Hifi 1.16: finger-down on the dock builds rows and geometry and lays the (invisible) list out, so the first drag frame does no heavy work. */
-    private fun prewarmQueue() {
-        if (!::queuePanel.isInitialized || queueProgress > 0.01f || queuePrewarmed) return
-        prepareQueueGeometry()
-        queuePanel.alpha = 0f
-        setQueueListOffset(queueShift)
-        queuePanel.visibility = View.INVISIBLE
-        queuePrewarmed = true
-    }
-
-    private fun cancelQueuePrewarm() {
-        if (!queuePrewarmed) return
-        queuePrewarmed = false
-        if (queueProgress <= 0.001f && !queueDragging && !queueAnimating && ::queuePanel.isInitialized) queuePanel.visibility = View.GONE
-    }
-
-    private fun queueLayers(on: Boolean) {
-        val type = if (on) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
-        if (::playerBottomDock.isInitialized && playerBottomDock.layerType != type) playerBottomDock.setLayerType(type, null)
-        if (::artBox.isInitialized && artBox.layerType != type) artBox.setLayerType(type, null)
-        if (::queuePanel.isInitialized && queuePanel.layerType != type) queuePanel.setLayerType(type, null)
-    }
-
-    /** One place that draws every stage of the transition from p (0..1). */
-    private fun applyQueueProgress(p0: Float) {
-        val p = p0.coerceIn(0f, 1f)
-        queueProgress = p
-        if (::playerBottomDock.isInitialized) playerBottomDock.translationY = -queueShift * p
-        // The cover is part of the unit: it rises with the dock (same distance) and leaves through the top edge of its host.
-        if (::artBox.isInitialized) artBox.translationY = -queueShift * p
-        // Hifi 1.35: the cover and the dock are cut at the top edge of the page (EdgeCutLayout); no fade.
-        if (::artPlaceholder.isInitialized) artPlaceholder.alpha = 1f - p
-        if (!::queuePanel.isInitialized) return
-        queuePanel.visibility = if (p > 0.001f) View.VISIBLE else if (queuePrewarmed) View.INVISIBLE else View.GONE
-        setQueueListOffset(queueShift * (1f - p))
-        queuePanel.alpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)
-        followQueueWithMini(p)
-    }
-
-    /** While the finger drags the queue the mini player follows it (rises / sinks); its own animations take over on release. */
-    private fun followQueueWithMini(p: Float) {
-        // Hifi 1.36: the mini player no longer belongs to the queue view; it stays hidden while the queue moves (it only lives on Album).
-        val m = queueMiniHost ?: return
-        if (currentPage != "library") {
-            if (m.visibility != View.GONE) m.visibility = View.GONE
-            m.translationY = 0f; m.alpha = 1f
-        }
-    }
-
-    private fun releaseMiniQueue() {
-        miniQueueAnimator?.cancel(); miniQueueAnimator = null
-        miniQueueLocked = false; miniClosingQueue = false
-    }
-
     /** Hifi 1.36: the mini player is not part of the queue view any more, so the queue has no animation for it (kept as an empty hook). */
     @Suppress("UNUSED_PARAMETER")
-    private fun startMiniQueueAnim(opening: Boolean) { }
-
-    /** Hifi 1.23: tap or swipe up on the mini player while the queue is open goes back to Now Playing. */
-    private fun closeQueueViaMini() {
-        if (!::queuePanel.isInitialized || queueProgress <= 0.001f) return
-        miniClosingQueue = true
-        animateQueueTo(0f)
-    }
-
-    private fun animateQueueTo(target: Float, velocityPxPerSec: Float = 0f) {
-        queueAnimator?.cancel()
-        val from = queueProgress
-        if (from == target) { applyQueueProgress(target); return }
-        queueAnimating = true
-        queueLayers(true)
-        val opening = target > from
-        if (opening) startMiniQueueAnim(true) else if (miniClosingQueue) startMiniQueueAnim(false)
-        queueAnimator = android.animation.ValueAnimator.ofFloat(from, target).apply {
-            duration = if (opening) 340L else 280L
-            interpolator = if (opening) android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f) else android.view.animation.PathInterpolator(0.3f, 0f, 0.2f, 1f)
-            addUpdateListener { applyQueueProgress(it.animatedValue as Float) }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                private var cancelled = false
-                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (cancelled) return
-                    queueAnimating = false
-                    if (target == 0f && miniClosingQueue) { miniQueueLocked = false; miniClosingQueue = false }
-                    applyQueueProgress(target)
-                    queueLayers(false)
-                    if (target == 0f) queueScrollView?.scrollTo(0, 0)
-                }
-            })
-            start()
-        }
-    }
-
-    private fun startQueueDrag(ev: MotionEvent) {
-        // The children get a cancel, then the drag is driven from dispatchTouchEvent.
-        val cancel = MotionEvent.obtain(ev)
-        cancel.action = MotionEvent.ACTION_CANCEL
-        super.dispatchTouchEvent(cancel)
-        cancel.recycle()
-        queueAnimator?.cancel(); queueAnimating = false
-        releaseMiniQueue()
-        if (queueProgress < 0.01f) prepareQueueGeometry()
-        queueLayers(true)
-        queuePrewarmed = false
-        queueDragBase = queueProgress
-        queueDragging = true
-    }
-
-    private fun finishQueueDrag(velocityY: Float) {
-        queueDragging = false
-        swipeVelocity?.recycle(); swipeVelocity = null
-        val fast = dp(300).toFloat()
-        // Hifi 1.16: 30% is enough to commit in the direction of travel (it was 50%).
-        val opening = queueDragBase < 0.5f
-        val target = when {
-            velocityY < -fast -> 1f
-            velocityY > fast -> 0f
-            opening -> if (queueProgress > 0.3f) 1f else 0f
-            else -> if (queueProgress < 0.7f) 0f else 1f
-        }
-        animateQueueTo(target)
-    }
-
-    private fun openQueueOverlay() {
-        if (!::queuePanel.isInitialized || !::playerPanel.isInitialized || playerPanel.visibility != View.VISIBLE) return
-        if (queueProgress >= 0.99f) return
-        queueAnimator?.cancel()
-        if (queueProgress < 0.01f) prepareQueueGeometry()
-        animateQueueTo(1f)
-        recordDiagnostic("QUEUE_OVERLAY opened=true mode=dock-rises")
-    }
-
-    private fun closeQueueOverlay() {
-        if (!::queuePanel.isInitialized || queueProgress <= 0.001f) return
-        animateQueueTo(0f)
-        recordDiagnostic("QUEUE_OVERLAY opened=false mode=dock-rises")
-    }
-
     private fun updateQueueMiniPlayer() {
         if (!::queueMiniTitle.isInitialized) return
         if (currentIndex !in tracks.indices) {
@@ -3462,23 +3215,13 @@ class MainActivity : Activity() {
 
 
     private fun show(which: String) {
-        if (which == "queue") {
-            show("player")
-            openQueueOverlay()
-            return
-        }
         val previousPage = currentPage
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else "Now Playing"
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
-        queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // Hifi 1.36: no mini player in the queue view
+        queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
-        if (which != "player" && ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
-            queueAnimator?.cancel(); queueAnimating = false; queueDragging = false
-            releaseMiniQueue()
-            applyQueueProgress(0f)
-        }
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
         if (which != "player" && tabsPaletteDirty) retintPages()
@@ -3493,15 +3236,14 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.36: Album: the list fades softly (as in 1.20) only behind the mini player card, toward the page backdrop: full strength 24dp above
-     * the card, gone at the middle of the card and over the navigation-bar area. Queue: no mini player, the list is cut plainly at the top of
-     * the navigation bar. The top of both is a plain cut under the header. Distances are measured from the bottom of the screen.
+     * Hifi 1.38: Album: the list fades softly (as in 1.20) only behind the mini player card, toward the page backdrop: full strength 24dp above
+     * the card, gone at the middle of the card and over the navigation-bar area. The top is a plain cut under the header.
+     * Distances are measured from the bottom of the screen.
      */
     private fun updateBottomFade() {
         val hostH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
         val cardH = (hostH - bottomInsetPx - dp(8)).coerceAtLeast(dp(40))
         scrollFadeHost?.configureFade(currentPage == "library", hostH + dp(24), hostH - cardH / 2)
-        queueFadeHost?.configure(true, bottomInsetPx)
     }
 
     private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
@@ -3651,7 +3393,6 @@ class MainActivity : Activity() {
             isVerticalScrollBarEnabled = true
             addView(queueRows, ViewGroup.LayoutParams(-1, -2))
         }
-        queueScrollView = scroll
         panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         dialog.setView(panel)
         dialog.setOnDismissListener {
@@ -3868,9 +3609,9 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.5: the page follows the finger while dragging horizontally. On release it either slides out and the other page
-     * slides in (distance or fling past the threshold) or springs back. Seek bar, horizontal lists, the queue overlay and a
-     * running animation never start a drag.
+     * Hifi 1.38: the page follows the finger while dragging sideways: slide left on Now Playing goes to Album, slide right on Album comes back.
+     * On release the page slides out and the other one slides in (distance or fling past the threshold) or springs back. The seek bar, horizontal
+     * lists and a running animation never start a drag. Swipe up on the Album mini player returns to Now Playing (the card follows the finger).
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (miniDragging) {
@@ -3882,33 +3623,6 @@ class MainActivity : Activity() {
                     finishMiniDrag(swipeVelocity?.yVelocity ?: 0f)
                 }
                 MotionEvent.ACTION_CANCEL -> finishMiniDrag(0f)
-            }
-            return true
-        }
-        if (albumDragging) {
-            swipeVelocity?.addMovement(ev)
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_MOVE -> applyAlbumProgress((ev.rawY - swipeDownY - dp(10)) / albumDragDistance())
-                MotionEvent.ACTION_UP -> {
-                    swipeVelocity?.computeCurrentVelocity(1000)
-                    finishAlbumDrag(swipeVelocity?.yVelocity ?: 0f)
-                }
-                MotionEvent.ACTION_CANCEL -> finishAlbumDrag(0f)
-            }
-            return true
-        }
-        if (queueDragging) {
-            swipeVelocity?.addMovement(ev)
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_MOVE -> {
-                    val dy = ev.rawY - swipeDownY
-                    applyQueueProgress(queueDragBase - dy / (queueShift * queueTravelFactor).coerceAtLeast(1f))
-                }
-                MotionEvent.ACTION_UP -> {
-                    swipeVelocity?.computeCurrentVelocity(1000)
-                    finishQueueDrag(swipeVelocity?.yVelocity ?: 0f)
-                }
-                MotionEvent.ACTION_CANCEL -> finishQueueDrag(0f)
             }
             return true
         }
@@ -3928,18 +3642,12 @@ class MainActivity : Activity() {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 swipeDownX = ev.rawX; swipeDownY = ev.rawY
-                val busy = swipeAnimating || queueAnimating
-                // Pages cannot be swiped while the queue is up, on the seek bar, on a horizontal list, or mid-animation.
-                swipeBlocked = busy || queueProgress > 0.01f ||
+                val busy = swipeAnimating
+                // Pages cannot be swiped on the seek bar, on a horizontal list, or mid-animation.
+                swipeBlocked = busy ||
                     touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
                     touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
-                queueEligible = false   // Hifi 1.37: the queue opens only from the button (no swipe up); swipe down to Album stays
-                albumEligible = !busy && currentPage == "player" && queueProgress <= 0.01f &&
-                    !touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) &&
-                    !touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
-                miniEligible = !busy && (currentPage == "library" || (currentPage == "player" && queueProgress > 0.99f)) &&
-                    touchesMini(ev.rawX.toInt(), ev.rawY.toInt())
-                if (queueEligible && queueProgress < 0.01f) prewarmQueue()
+                miniEligible = !busy && currentPage == "library" && touchesMini(ev.rawX.toInt(), ev.rawY.toInt())
                 swipeVelocity?.recycle()
                 swipeVelocity = if (busy) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
             }
@@ -3952,15 +3660,9 @@ class MainActivity : Activity() {
                     applyMiniLift((-dy - dp(10)) / miniDragDistance())
                     return true
                 }
-                if (albumEligible && dy > dp(12) && dy > kotlin.math.abs(dx) * 1.4f) {
-                    startAlbumDrag(ev)
-                    applyAlbumProgress((dy - dp(10)) / albumDragDistance())
-                    return true
-                }
-                if (sidewaysPageSwipe && !swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
+                if (!swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
                     (currentPage == "player" || currentPage == "library")) {
                     swipeDragging = true
-                    cancelQueuePrewarm()
                     val cancel = MotionEvent.obtain(ev)
                     cancel.action = MotionEvent.ACTION_CANCEL
                     super.dispatchTouchEvent(cancel)
@@ -3968,127 +3670,16 @@ class MainActivity : Activity() {
                     dragPage(dx)
                     return true
                 }
-                if (queueEligible && kotlin.math.abs(dy) > dp(9) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.15f) {
-                    val opening = queueProgress < 0.5f
-                    if ((opening && dy < 0) || (!opening && dy > 0)) {
-                        startQueueDrag(ev)
-                        applyQueueProgress(queueDragBase - dy / (queueShift * queueTravelFactor).coerceAtLeast(1f))
-                        return true
-                    }
-                }
             }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null; cancelQueuePrewarm() }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null }
         }
         return super.dispatchTouchEvent(ev)
     }
-
-    private fun albumDragDistance() = dp(220).toFloat()
-    private fun miniTravel(): Float = (queueMiniHost?.height?.takeIf { it > 0 } ?: dp(90)).toFloat()
 
     private fun albumLayers(on: Boolean) {
         val type = if (on) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
         pageContentView?.let { if (it.layerType != type) it.setLayerType(type, null) }
         queueMiniHost?.let { if (it.layerType != type) it.setLayerType(type, null) }
-    }
-
-    /** Drives the finger-following part of Now Playing -> Album: Now Playing fades and sinks a little, the mini player rises. */
-    private fun applyAlbumProgress(d0: Float) {
-        val d = d0.coerceIn(0f, 1f)
-        albumProgress = d
-        val v = pageContentView ?: return
-        v.alpha = (1f - d * 1.5f).coerceAtLeast(0f)
-        v.translationY = d * dp(28)
-        queueMiniHost?.let { m ->
-            if (d > 0.01f) {
-                if (m.visibility != View.VISIBLE) m.visibility = View.VISIBLE
-                m.translationY = (1f - d) * miniTravel()
-                m.alpha = (d * 1.5f).coerceAtMost(1f)
-            } else if (m.visibility != View.GONE) m.visibility = View.GONE
-        }
-    }
-
-    private fun startAlbumDrag(ev: MotionEvent) {
-        val cancel = MotionEvent.obtain(ev)
-        cancel.action = MotionEvent.ACTION_CANCEL
-        super.dispatchTouchEvent(cancel)
-        cancel.recycle()
-        cancelQueuePrewarm()
-        albumAnimator?.cancel()
-        albumLayers(true)
-        albumDragging = true
-    }
-
-    private fun finishAlbumDrag(velocityY: Float) {
-        albumDragging = false
-        swipeVelocity?.recycle(); swipeVelocity = null
-        val fast = dp(300).toFloat()
-        val commit = velocityY > fast || (velocityY > -fast && albumProgress > 0.25f)
-        if (commit) commitToAlbum() else cancelAlbumDrag()
-    }
-
-    private fun cancelAlbumDrag() {
-        swipeAnimating = true
-        albumAnimator?.cancel()
-        albumAnimator = android.animation.ValueAnimator.ofFloat(albumProgress, 0f).apply {
-            duration = 200L
-            interpolator = DecelerateInterpolator(1.6f)
-            addUpdateListener { applyAlbumProgress(it.animatedValue as Float) }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                private var cancelled = false
-                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (cancelled) return
-                    applyAlbumProgress(0f)
-                    albumLayers(false)
-                    swipeAnimating = false
-                }
-            })
-            start()
-        }
-    }
-
-    /**
-     * Hifi 1.17: the Album area stays where it is (it remembers its scroll position). Now Playing fades out, the Album page
-     * appears in place with a short fade, and the mini player rises into the dock with a soft overshoot (the bounce).
-     */
-    private fun commitToAlbum() {
-        val v = pageContentView
-        if (v == null) { show("library"); return }
-        val mini = queueMiniHost
-        swipeAnimating = true
-        val startAlpha = v.alpha
-        val startMiniY = mini?.translationY ?: miniTravel()
-        val startMiniAlpha = mini?.alpha ?: 0f
-        var switched = false
-        val bounce = android.view.animation.OvershootInterpolator(1.15f)
-        albumAnimator?.cancel()
-        albumAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 440L
-            interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener { a ->
-                val t = a.animatedValue as Float
-                if (!switched) {
-                    v.alpha = startAlpha * (1f - (t / 0.34f).coerceIn(0f, 1f))
-                    if (t >= 0.34f) { switched = true; v.translationY = 0f; v.alpha = 0f; show("library") }
-                } else {
-                    v.alpha = ((t - 0.34f) / 0.66f).coerceIn(0f, 1f)   // the Album page only fades in; nothing moves
-                }
-                mini?.let { m ->
-                    if (m.visibility != View.VISIBLE) m.visibility = View.VISIBLE
-                    m.translationY = startMiniY * (1f - bounce.getInterpolation(t))
-                    m.alpha = startMiniAlpha + (1f - startMiniAlpha) * (t / 0.3f).coerceIn(0f, 1f)
-                }
-            }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                private var cancelled = false
-                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (cancelled) return
-                    settleAlbumTransition()
-                }
-            })
-            start()
-        }
     }
 
     private fun miniDragDistance() = dp(160).toFloat()
@@ -4123,7 +3714,7 @@ class MainActivity : Activity() {
         swipeVelocity?.recycle(); swipeVelocity = null
         val fast = dp(300).toFloat()
         val commit = velocityY < -fast || (velocityY < fast && miniProgress > 0.25f)
-        if (commit) { if (currentPage == "library") showPlayerAnimated() else closeQueueViaMini(); return }
+        if (commit) { showPlayerAnimated(); return }
         swipeAnimating = true
         albumAnimator?.cancel()
         albumAnimator = android.animation.ValueAnimator.ofFloat(miniProgress, 0f).apply {
@@ -4145,7 +3736,6 @@ class MainActivity : Activity() {
     /** Puts every animated view of the Now Playing <-> Album transition back to its resting state. */
     private fun settleAlbumTransition() {
         albumAnimator?.cancel()
-        albumDragging = false
         miniDragging = false
         pageContentView?.let { it.alpha = 1f; it.translationY = 0f; it.translationX = 0f }
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
@@ -4155,7 +3745,7 @@ class MainActivity : Activity() {
 
     /** Hifi 1.17: Album -> Now Playing (Back, tapping or swiping up the mini player, play actions). The mini player sinks, Now Playing rises in and fades. */
     private fun showPlayerAnimated() {
-        if (swipeAnimating || albumDragging) settleAlbumTransition()
+        if (swipeAnimating) settleAlbumTransition()
         val v = pageContentView
         if (currentPage != "library" || v == null) { show("player"); return }
         val mini = queueMiniHost
@@ -4254,10 +3844,6 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE) {
-            closeQueueOverlay()
-            return
-        }
         if (currentPage == "library" && selectedAlbum != null) {
             selectedAlbum = null
             renderLibrary()
@@ -4275,13 +3861,11 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.36: clips its content at the top edge (the spacer under the header). At the bottom it either cuts plainly, [cutFromBottom] px above
-     * its bottom edge ([configure], used by the queue), or fades softly toward the page backdrop ([configureFade], used by the Album list behind
-     * the mini player, as in 1.20): full strength [fadeFull] px above the bottom edge, gone at [fadeGone] px. Only that band uses an offscreen layer.
+     * Hifi 1.38: the Album list sits in this layout. Its content is clipped at the top edge (the spacer under the header) and fades softly toward
+     * the page backdrop behind the mini player, as in 1.20: full strength [fadeFull] px above the bottom edge, gone at [fadeGone] px. Only that
+     * band goes through an offscreen layer.
      */
     private inner class EdgeCutLayout(context: Context) : FrameLayout(context) {
-        private var bottomOn = false
-        private var cutFromBottom = 0
         private var fadeOn = false
         private var fadeFull = 0
         private var fadeGone = 0
@@ -4289,82 +3873,43 @@ class MainActivity : Activity() {
             xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
         }
 
-        fun configure(enabled: Boolean, cut: Int) {
-            if (bottomOn == enabled && cutFromBottom == cut && !fadeOn) return
-            bottomOn = enabled; cutFromBottom = cut; fadeOn = false
-            invalidate()
-        }
-
         fun configureFade(enabled: Boolean, full: Int, gone: Int) {
             val g = gone.coerceAtMost(full - dp(8))
-            if (fadeOn == enabled && fadeFull == full && fadeGone == g && !bottomOn) return
-            fadeOn = enabled; fadeFull = full; fadeGone = g; bottomOn = false
+            if (fadeOn == enabled && fadeFull == full && fadeGone == g) return
+            fadeOn = enabled; fadeFull = full; fadeGone = g
             invalidate()
         }
 
         override fun dispatchDraw(canvas: android.graphics.Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
-            if (fadeOn) {
-                val bandTop = h - fadeFull
-                if (bandTop > 0f && bandTop < h) {
-                    val bandEnd = h - fadeGone
-                    canvas.save()
-                    canvas.clipRect(0f, 0f, w, bandTop)
-                    super.dispatchDraw(canvas)
-                    canvas.restore()
-                    val save = canvas.saveLayer(0f, bandTop, w, h, null)
-                    canvas.clipRect(0f, bandTop, w, h)
-                    super.dispatchDraw(canvas)
-                    maskPaint.shader = android.graphics.LinearGradient(
-                        0f, bandTop, 0f, bandEnd,
-                        intArrayOf(0x00000000, 0x80000000.toInt(), -0x1000000), floatArrayOf(0f, 0.4f, 1f),
-                        android.graphics.Shader.TileMode.CLAMP
-                    )
-                    canvas.drawRect(0f, bandTop, w, h, maskPaint)
-                    canvas.restoreToCount(save)
-                    return
-                }
-            }
-            val cutY = if (bottomOn) (h - cutFromBottom).coerceIn(0f, h) else h
-            if (cutY >= h) { super.dispatchDraw(canvas); return }
+            val bandTop = h - fadeFull
+            if (!fadeOn || bandTop <= 0f || bandTop >= h) { super.dispatchDraw(canvas); return }
+            val bandEnd = h - fadeGone
             canvas.save()
-            canvas.clipRect(0f, 0f, w, cutY)
+            canvas.clipRect(0f, 0f, w, bandTop)
             super.dispatchDraw(canvas)
             canvas.restore()
+            val save = canvas.saveLayer(0f, bandTop, w, h, null)
+            canvas.clipRect(0f, bandTop, w, h)
+            super.dispatchDraw(canvas)
+            maskPaint.shader = android.graphics.LinearGradient(
+                0f, bandTop, 0f, bandEnd,
+                intArrayOf(0x00000000, 0x80000000.toInt(), -0x1000000), floatArrayOf(0f, 0.4f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, bandTop, w, h, maskPaint)
+            canvas.restoreToCount(save)
         }
     }
 
-    private inner class SwipeFrameLayout(
-        context: Context,
-        private val onSwipeUp: () -> Unit,
-        private val onSwipeDown: () -> Unit,
-        private val startGuard: (Float, Float) -> Boolean = { _, _ -> true }
-    ) : FrameLayout(context) {
-        private var downX = 0f
-        private var downY = 0f
-        private var armed = true
-
+    /** Now Playing panel: keeps the parent scroller from stealing its touches (same behaviour as before, without the unused swipe callbacks). */
+    private inner class TouchFrameLayout(context: Context) : FrameLayout(context) {
         init { isClickable = true }
 
         override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                downX = event.x
-                downY = event.y
-                armed = startGuard(event.rawX, event.rawY)
-                parent?.requestDisallowInterceptTouchEvent(true)
-            }
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) parent?.requestDisallowInterceptTouchEvent(true)
             val handled = super.dispatchTouchEvent(event)
-            if (event.actionMasked == MotionEvent.ACTION_UP) {
-                val dx = event.x - downX
-                val dy = event.y - downY
-                // Hifi 1.10: swipe up opens the queue, swipe down closes it (a list scrolled down only closes once it is back at the top).
-                if (armed && kotlin.math.abs(dy) > dp(72) && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.25f) {
-                    val overlayOpen = ::queuePanel.isInitialized && queuePanel.visibility == View.VISIBLE
-                    if (dy < 0 && !overlayOpen) onSwipeUp()
-                    else if (dy > 0 && overlayOpen) onSwipeDown()
-                }
-                parent?.requestDisallowInterceptTouchEvent(false)
-            } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                 parent?.requestDisallowInterceptTouchEvent(false)
             }
             return handled
