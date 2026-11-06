@@ -464,7 +464,7 @@ class MainActivity : Activity() {
         // Hifi 1.43: Now Playing only: the cover itself, sharp, fills the top half of the screen behind the header and fades into the blurred backdrop.
         val coverView = NowPlayingCoverView(this).apply { bitmap = playerCoverBitmap; visibility = View.GONE }
         playerCoverView = coverView
-        coverView.topInset = statusBarInset
+        coverView.topInset = 0   // Hifi 1.49: cover and fade go up to the very top edge (behind the status bar)
         stage.addView(coverView, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
@@ -687,7 +687,7 @@ class MainActivity : Activity() {
         }
         // Hifi 1.48: the Hi-Res logo (24-bit tracks) sits on the right, level with the title / artist / album block (centred on its height); the text
         // always leaves room for it, so the lines never shift. The queue button moved to the bottom centre, below the info lines.
-        val logoSide = (resources.displayMetrics.widthPixels * 0.10f).toInt()
+        val logoSide = (resources.displayMetrics.widthPixels * 0.09f).toInt()
         val metadata = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP) + logoSide + dp(10), 0)
@@ -719,7 +719,7 @@ class MainActivity : Activity() {
         metadata.addView(albumView, LinearLayout.LayoutParams(-1, -2))
         val metaFrame = FrameLayout(this)
         metaFrame.addView(metadata, FrameLayout.LayoutParams(-1, -2))
-        metaFrame.addView(hiResLogo, FrameLayout.LayoutParams(logoSide, logoSide, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(SEEK_SIDE_PAD_DP) })
+        metaFrame.addView(hiResLogo, FrameLayout.LayoutParams(logoSide, logoSide, Gravity.END or Gravity.TOP).apply { rightMargin = dp(SEEK_SIDE_PAD_DP); topMargin = dp(2) })   // Hifi 1.49: top level with the title
 
         val times = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -803,15 +803,16 @@ class MainActivity : Activity() {
         bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(PROGRESS_TOP_GAP_DP) })
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 0; bottomMargin = dp(1) })
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP - 2) })
+        // Hifi 1.49: the queue button now sits right under the transport controls, the info lines are back at the very bottom.
+        bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(2) })
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); topMargin = dp(DOCK_GAP_DP - 2)
+            leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); topMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
             leftMargin = dp(SEEK_SIDE_PAD_DP); rightMargin = dp(SEEK_SIDE_PAD_DP); bottomMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
-        bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(4) })   // Hifi 1.48: queue button, bottom centre
 
         // Hifi 1.43: no album art box: the cover is the clear top of the page backdrop (see NowPlayingCoverView); only the controls column is left.
         val stack = LinearLayout(this).apply {

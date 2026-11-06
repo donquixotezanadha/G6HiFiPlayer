@@ -258,3 +258,9 @@
 - Text: title 17 -> 19sp, artist 13 -> 15sp, album 11 -> 13sp (still one line each, cut with "...").
 - Hi-Res logo 8% -> 10% of the screen width, now on the right, vertically centred on the title / artist / album block, right edge at the end of the progress bar. The text block always leaves room for it, so lines do not shift whether or not the track is hi-res.
 - Version 1.48 (code 49), installs over 1.47. Audio unchanged.
+
+## v1.49 (branch hifi-v1-49, from hifi-v1-48) - Now Playing: cover to the top edge, logo 9% level with the title, queue button above the info
+- The cover (and so its fade) goes up to the very top edge of the screen, behind the status bar (no cut spacer any more); the fade itself is unchanged, so the whole picture and fade move up by the status bar height.
+- Hi-Res logo 10% -> 9% of the screen width, top edge level with the title (not centred any more).
+- Dock order: transport, queue button (centred), then the two info lines at the very bottom as before 1.48 (queue button and info swapped).
+- Version 1.49 (code 50), installs over 1.48. Audio unchanged.
