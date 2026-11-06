@@ -1180,7 +1180,7 @@ class MainActivity : Activity() {
         }
 
         companion object {
-            const val BOTTOM_FADE = 0.50f  // share of the cover height used to fade its bottom into the blur
+            const val BOTTOM_FADE = 0.40f  // share of the cover height used to fade its bottom into the blur
         }
     }
 

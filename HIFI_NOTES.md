@@ -249,3 +249,6 @@
 - Softer bottom fade, taken from the reference (Apple Music-style): it now starts at 50% of the cover height (was 70%) and follows a smootherstep curve with 17 stops down to 0% at the cover's lower edge, so the gradient has no visible start or end.
 - Hi-Res logo 12% -> 8% of the screen width, same position (hangs above the title row, right edge as the queue symbol).
 - Version 1.46 (code 47), installs over 1.45. Audio unchanged.
+
+## v1.47 (branch hifi-v1-47, from hifi-v1-46) - Now Playing: shorter bottom fade
+- The cover fade now starts at 60% of the cover height (was 50%), so the clear part is larger; same smootherstep curve, still ends at 0% at the cover's lower edge. Nothing else changed. Version 1.47 (code 48), installs over 1.46.
