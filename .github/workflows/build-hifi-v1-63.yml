@@ -37,13 +37,13 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='64' versionName='1.62'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='64' versionName='1.63'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
-          cp "$APK" "verified-artifact/Hifi-v1.62.apk"
+          cp "$APK" "verified-artifact/Hifi-v1.63.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Hifi-v1.62-apk
+          name: Hifi-v1.63-apk
           path: verified-artifact/*
           if-no-files-found: error
           retention-days: 90
