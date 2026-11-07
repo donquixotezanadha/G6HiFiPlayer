@@ -447,7 +447,7 @@ object G6Widgets {
     /** Draw a tiny accent progress line into a bitmap so the launcher only inflates an ordinary ImageView. */
     private fun progressBitmap(progress: Int, light: Boolean): Bitmap {
         val width = 400
-        val height = 6
+        val height = 10
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)

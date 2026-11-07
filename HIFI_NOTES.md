@@ -339,3 +339,8 @@
 
 ## v1.62 (branch hifi-v1-62, from hifi-v1-61) - text widget gaps a little bigger
 - The user called the 4x1 widget perfect (1.61, unchanged). Text 4x2 widget: gap between title, progress and play 16 -> 22dp (TEXT_WIDGET_GAP_DP). Nothing else changed. Version 1.62 (code 63), installs over 1.61.
+
+## v1.63 (branch hifi-v1-63, from hifi-v1-62) - widget progress bar thicker, 4x1 controls moved down
+- Progress bar in both widgets (4x1 and text 4x2): 2dp -> 4dp thick (bitmap 6 -> 10 px, still fully rounded).
+- 4x1: the button row is aligned to the bottom (icons sit level with the bottom of the cover; top padding 6dp, bottom 0), progress margin 2 -> 3dp.
+- Version 1.63 (code 64), installs over 1.62. After installing, remove and re-add the widgets. Audio unchanged.

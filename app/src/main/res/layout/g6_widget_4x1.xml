@@ -66,8 +66,8 @@
             <ImageView
                 android:id="@+id/w_progress"
                 android:layout_width="match_parent"
-                android:layout_height="2dp"
-                android:layout_marginTop="2dp"
+                android:layout_height="4dp"
+                android:layout_marginTop="3dp"
                 android:scaleType="fitXY"
                 android:contentDescription="Track progress" />
 
@@ -77,13 +77,16 @@
                 android:layout_weight="1"
                 android:layout_marginTop="1dp"
                 android:orientation="horizontal"
-                android:gravity="start|center_vertical">
+                android:gravity="start|bottom">
 
                 <ImageButton
                     android:id="@+id/w_prev"
                     android:layout_width="40dp"
                     android:layout_height="match_parent"
-                    android:padding="5dp"
+                    android:paddingLeft="5dp"
+                    android:paddingRight="5dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="0dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
                     android:src="@drawable/ic_previous_s"
@@ -93,7 +96,10 @@
                     android:id="@+id/w_play"
                     android:layout_width="40dp"
                     android:layout_height="match_parent"
-                    android:padding="5dp"
+                    android:paddingLeft="5dp"
+                    android:paddingRight="5dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="0dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
                     android:src="@drawable/ic_play_s"
@@ -103,7 +109,10 @@
                     android:id="@+id/w_next"
                     android:layout_width="40dp"
                     android:layout_height="match_parent"
-                    android:padding="5dp"
+                    android:paddingLeft="5dp"
+                    android:paddingRight="5dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="0dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
                     android:src="@drawable/ic_next_s"
