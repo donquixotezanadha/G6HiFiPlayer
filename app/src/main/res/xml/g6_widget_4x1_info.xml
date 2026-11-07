@@ -4,6 +4,7 @@
     android:minWidth="250dp"
     android:minHeight="70dp"
     android:initialLayout="@layout/g6_widget_4x1"
+    android:previewImage="@drawable/g6_preview_4x1"
     android:resizeMode="horizontal"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0" />

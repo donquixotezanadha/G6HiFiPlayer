@@ -349,3 +349,7 @@
 - Checked: mini player card and floating windows use floatingBackground() = page surface mixed 12% towards the ink colour, corners 12dp. Dark theme = #1E1E1E, light theme = #DADADD (opaque).
 - 4x1 widget card and the 2x2 play button background now use exactly those colours (opaque, no longer 70% black / white) and 12dp corners (were 22dp and 18dp). Pressed 2x2 button: 12% -> 20% mix (#333333 / #C6C6C9). Text 4x2 has no background, unchanged.
 - Version 1.64 (code 65), installs over 1.63. Remove and re-add the widgets after installing. Audio unchanged.
+
+## v1.65 (branch hifi-v1-65, from hifi-v1-64) - real previews in the widget picker
+- The picker showed the app icon in a white rounded square for all three widgets (no preview was declared). Each widget provider now has android:previewImage: g6_preview_4x1 / g6_preview_4x2 / g6_preview_2x2 (PNG in drawable-nodpi, drawn like the real widgets in the dark theme: dark card #1E1E1E 12dp, sample cover, title, artist, progress, controls). No previewLayout (it would show the empty layout on Android 12+).
+- Version 1.65 (code 66), installs over 1.64. The picker may cache the old preview: if it still shows the icon, remove the widgets, restart the launcher or the phone. Audio unchanged.

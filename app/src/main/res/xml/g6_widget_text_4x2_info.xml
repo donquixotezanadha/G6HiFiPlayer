@@ -3,6 +3,7 @@
     android:minWidth="250dp"
     android:minHeight="130dp"
     android:initialLayout="@layout/g6_widget_text_4x2"
+    android:previewImage="@drawable/g6_preview_4x2"
     android:resizeMode="horizontal"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0" />
