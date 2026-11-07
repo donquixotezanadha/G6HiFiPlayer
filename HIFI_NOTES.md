@@ -380,3 +380,8 @@
 - Cover 4x2: the whole group (cover row + 6dp + progress) is centred vertically in the widget (root gravity center_vertical, no weights), so the gap above and below is equal and small. prev / play / next boxes 38 -> 60dp wide (wider spacing), row marginStart -16dp to keep it in line with the title. Title still top-aligned with the cover.
 - New widget G6WidgetSimple4x1Provider "Hifi Simple 4x1" (layout g6_widget_simple_4x1, info g6_widget_simple_4x1_info, preview g6_preview_simple_4x1): no background, side gap 20dp, cover on the left (full height, rounded 16%), on the right song 22sp bold / artist 16sp / album 14sp (one line each, "..."), tap anywhere opens Now Playing. No buttons, no progress.
 - Version 1.72 (code 73), installs over 1.71. Audio unchanged.
+
+## v1.73 (branch hifi-v1-73, from hifi-v1-72)
+- Cover 4x2: cover back to 146dp, buttons back to 38dp wide; controls pushed to the bottom of the cover (weighted spacer above them, group still centred in the widget); title 32.5sp / artist 18.75sp (same as the text 4x2: 26 / 15 sp x 1.25), title one line + "...".
+- Simple 4x1: song 26sp, artist 19sp, album 16sp; only the cover opens Now Playing (no more tap on the text).
+- Version 1.73 (code 74), installs over 1.72. Audio unchanged.

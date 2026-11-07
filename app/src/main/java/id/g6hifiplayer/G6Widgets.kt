@@ -451,7 +451,7 @@ object G6Widgets {
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4402, "toggle"))
     }
 
-    /** Hifi 1.72: simple 4x1 widget (no background): cover and song / artist / album text only; any tap opens Now Playing. */
+    /** Hifi 1.72: simple 4x1 widget (no background): cover and song / artist / album text only; only a tap on the cover opens Now Playing. */
     private fun buildSimple4x1(
         context: Context, title: String, artist: String, album: String, hasTrack: Boolean, cover: Bitmap, light: Boolean
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_simple_4x1).apply {
@@ -466,7 +466,7 @@ object G6Widgets {
         setTextColor(R.id.w_title, ink)
         setTextColor(R.id.w_artist, muted)
         setTextColor(R.id.w_album, muted)
-        setOnClickPendingIntent(R.id.w_root, openPlayerIntent(context, 4501))
+        setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4501))
     }
 
     private fun timeLabel(milliseconds: Int): String {

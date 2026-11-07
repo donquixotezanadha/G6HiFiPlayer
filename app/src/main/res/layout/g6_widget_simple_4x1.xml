@@ -36,7 +36,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:text="NO MUSIC PLAYING"
-            android:textSize="22sp"
+            android:textSize="26sp"
             android:textStyle="bold"
             android:includeFontPadding="false"
             android:textColor="#FFFFFFFF" />
@@ -47,7 +47,7 @@
             android:layout_height="wrap_content"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textSize="16sp"
+            android:textSize="19sp"
             android:includeFontPadding="false"
             android:textColor="#FFE0E0E6" />
 
@@ -57,7 +57,7 @@
             android:layout_height="wrap_content"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textSize="14sp"
+            android:textSize="16sp"
             android:includeFontPadding="false"
             android:textColor="#FFE0E0E6" />
     </LinearLayout>
