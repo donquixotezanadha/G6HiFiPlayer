@@ -303,3 +303,10 @@
 - Queue icon redrawn like the reference picture: two rows, each a round dot on the left and a long rounded bar (dot and bar the same thickness, 3.6 of 24 units; rows 7.2 units apart; the bars run to the right edge). The drawing spans the whole 24 x 24 box, shown at 24dp (touch area 56 x 40dp unchanged).
 - Colour: no longer the unplayed-progress colour with opacity; it is the grey text colour of each theme (Dark 0xFFA4A4B2, Light 0xFF484855), also after a theme switch.
 - Version 1.56 (code 57), installs over 1.55. Audio unchanged.
+
+## v1.57 (branch hifi-v1-57, from hifi-v1-56) - rounded icons everywhere (player, widgets, notification)
+- Rounded-icon philosophy: each solid icon now has a round-joined, round-capped stroke in its own colour on top of the fill, so sharp corners turn into small radii (the radius is half the stroke width). Not "super round", just no sharp tips. The icons grow by half the stroke width on each side.
+- Big player icons (play / pause / previous / next on the transport row, shown at 36 - 44dp): stroke 0.9 units, only a little, because they are scaled up (play 44dp => about 0.8dp radius).
+- Small contexts get separate copies ic_play_s / ic_pause_s / ic_previous_s / ic_next_s with stroke 1.6 units: notification actions, the 4x1 and Text 4x2 widgets (layouts and code), and the Album mini player. Notification "Close player" X and the 2x2 widget play / pause: stroke 1.6, in place. Settings gear: stroke 1.0. Queue icon (1.56), moon, sun and the Hi-Res logo were already round.
+- Not changed: ic_stat_music.png (status-bar small icon and the Text widget's open-player icon) is a raster picture, not a vector, so it keeps its shape; say if it should be redrawn as a rounded vector.
+- Version 1.57 (code 58), installs over 1.56. Audio unchanged.

@@ -1271,7 +1271,7 @@ class MainActivity : Activity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             themed { imageTintList = ColorStateList.valueOf(accentColor) }
-            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_s else R.drawable.ic_play_s)
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
@@ -2367,7 +2367,7 @@ class MainActivity : Activity() {
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(WHITE)
         if (::queueMiniPlayView.isInitialized) {
-            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
         }

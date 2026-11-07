@@ -321,7 +321,7 @@ object G6Widgets {
             setInt(R.id.w_play, "setColorFilter", iconTint)
             setInt(R.id.w_next, "setColorFilter", iconTint)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
             setInt(R.id.w_play, "setColorFilter", iconTint)
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
             setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x1Provider::class.java, 4201, "previous"))
@@ -357,7 +357,7 @@ object G6Widgets {
         setTextColor(R.id.w_duration, muted)
         setImageViewResource(R.id.w_open_player, R.drawable.ic_stat_music)
         setInt(R.id.w_open_player, "setColorFilter", ink)
-        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
         setInt(R.id.w_play, "setColorFilter", ink)
         setTextViewText(R.id.w_elapsed, timeLabel(position))
         setTextViewText(R.id.w_duration, timeLabel(duration))
@@ -382,7 +382,7 @@ object G6Widgets {
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
         val light = isLightTheme(context)
-        val icon = if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
+        val icon = if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s
         val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
         val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x1Provider::class.java))
