@@ -25,8 +25,11 @@ internal class OutputMd5(private val sampleRate: Int) {
     private val sentHead = ByteArray(48)
     private var headLen = 0
     private var padLeft = DirectOutputState.padFrames(sampleRate)   // silent frames the own decoders put in front of each track
-    private var armed = true      // a new output starts at the start of a stream
-    private var pending = false   // after flush(): the next accepted data decides whether this is a track start or a seek
+    // Hifi 1.59: also the very first data of an output decides by its presentation time whether this is the start of a track (check it) or the
+    // middle of one (do not check it). Before, a player that began at e.g. 1:50 counted from there as if it were the start, the count ran on
+    // into the next track and reached the file length at 1:50 of that next track: a false MD5 DIFFERENT that paused the music.
+    private var armed = false     // true only while the samples counted so far began at the start of the track
+    private var pending = true    // the next accepted data decides whether this is a track start or a seek / mid-track start
 
     fun onFlush() {
         armed = false; pending = true; total = 0L
@@ -130,21 +133,17 @@ internal class OutputMd5(private val sampleRate: Int) {
         }
         DirectOutputState.log("MD5 check: $short | decoder=${if (ownDecoder) "own" else "mediacodec"} | $name | $detail | frames=$total of ${exp.totalSamples} | file=${hex(exp.md5)} sent=${hex(got)}" +
             if (exp.bits == 24) " | top16=${hex(got16)}" else "")
-        val strictStop = short == "MD5 DIFFERENT" || short.startsWith("MD5 not comparable")
+        val strictStop = short == "MD5 DIFFERENT" || short.startsWith("MD5 not comparable")   // Hifi 1.59: only marks the log line, playback is never stopped by it
         // Hifi 1.40: one line per checked track in the Setting window (LOG AUDIO PATH); the info line no longer shows the verdict.
         AudioPathLog.add(
             if (strictStop) AudioPathLog.KIND_UNMATCH else AudioPathLog.KIND_OK,
             short.uppercase(Locale.US).replace("MD5 NOT COMPARABLE (LENGTH)", "MD5 NOT COMPARABLE"),
             exp.label.take(80),
             detail + " • decoder: " + (if (ownDecoder) "own FLAC / ALAC / WAV" else "Android MediaCodec") +
-                (if (extra.isNotEmpty()) " • $extra" else "") + (if (strictStop) " • playback stopped (strict mode)" else "")
+                (if (extra.isNotEmpty()) " • $extra" else "") + (if (strictStop) " • playback continues (log only since 1.59)" else "")
         )
-        // Hifi 1.29 strict mode: a track whose samples do not match the file stops playback by itself.
-        if (strictStop) {
-            val message = "Stopped (strict mode): $short • $name"
-            DirectOutputState.strictStopText = message
-            try { DirectOutputState.strictStopHandler?.invoke(message) } catch (_: Throwable) { }
-        }
+        // Hifi 1.59: no automatic stop any more. The verdict only appears at the end of a track, after it was played, so a stop could only hold
+        // back the next track (and a wrong verdict used to pause the music). The result stays in LOG AUDIO PATH (orange).
         DirectOutputState.checksumSerial++
     }
 
