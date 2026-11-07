@@ -310,3 +310,10 @@
 - Small contexts get separate copies ic_play_s / ic_pause_s / ic_previous_s / ic_next_s with stroke 1.6 units: notification actions, the 4x1 and Text 4x2 widgets (layouts and code), and the Album mini player. Notification "Close player" X and the 2x2 widget play / pause: stroke 1.6, in place. Settings gear: stroke 1.0. Queue icon (1.56), moon, sun and the Hi-Res logo were already round.
 - Not changed: ic_stat_music.png (status-bar small icon and the Text widget's open-player icon) is a raster picture, not a vector, so it keeps its shape; say if it should be redrawn as a rounded vector.
 - Version 1.57 (code 58), installs over 1.56. Audio unchanged.
+
+## v1.58 (branch hifi-v1-58, from hifi-v1-57) - LOG AUDIO PATH names the cause of every self-pause (diagnostics only)
+- Why: the user reported playback stopping mid-track in some sessions (resume stops again; fixed by closing and reopening the player; same album, no other media app). The code could not tell who paused it, so this build records it.
+- New PauseWatch.kt (display / diagnostics only; it never pauses or changes anything): whenever the player goes to pause on its own it adds one orange line to LOG AUDIO PATH: head = cause + the position in the track (for example "PAUSE: FOCUS LOST 1:23"), left = the track title, details saved = cause text, "at 1:23 / 3:43" and ExoPlayer's reason code.
+- Causes named: FOCUS LOST (another app took the audio for good), FOCUS (CALL/ALARM) (transient loss), MEDIA BUTTON (media-session pause: headset button, another app or a connected device), JACK UNPLUGGED (the app's wired-headset watcher), STRICT CHECK (MD5 / check stop), and for pauses with no mark the reason ExoPlayer reports: OUTPUT CHANGED (audio becoming noisy), REMOTE COMMAND, SUPPRESSED, or UNKNOWN (APP). A held playback (transient focus suppression) is logged as "HELD: FOCUS (TEMP)".
+- Not logged: the user's own pauses (in-app button, notification) and the end of a track.
+- Version 1.58 (code 59), installs over 1.57. Audio path and look unchanged.

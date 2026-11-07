@@ -204,10 +204,10 @@ class PlaybackKeepAliveService : Service() {
                 val now = SystemClock.elapsedRealtime()
                 if (lastToggleAtMs != Long.MIN_VALUE && now - lastToggleAtMs < TOGGLE_GUARD_MS) return
                 lastToggleAtMs = now
-                if (p.isPlaying || p.playWhenReady) p.pause() else p.play()
+                if (p.isPlaying || p.playWhenReady) { PauseWatch.markUser(); p.pause() } else p.play()
             }
             ACTION_PLAY -> p.play()
-            ACTION_PAUSE -> p.pause()
+            ACTION_PAUSE -> { PauseWatch.markUserIfNone(); p.pause() }
             ACTION_NEXT -> if (p.mediaItemCount > 0) {
                 if (p.hasNextMediaItem()) p.seekToNextMediaItem() else p.seekToDefaultPosition(0)
             }
@@ -476,7 +476,7 @@ class PlaybackKeepAliveService : Service() {
                 return MediaSession(context, "G6HiFiPlayer").apply {
                     setCallback(object : MediaSession.Callback() {
                         override fun onPlay() { dispatchAction(context, "play") }
-                        override fun onPause() { dispatchAction(context, "pause") }
+                        override fun onPause() { PauseWatch.mark("PAUSE: MEDIA BUTTON", "media session: headset button, another app or a connected device"); dispatchAction(context, "pause") }
                         override fun onSkipToNext() { dispatchAction(context, "next") }
                         override fun onSkipToPrevious() { dispatchAction(context, "previous") }
                         override fun onSeekTo(pos: Long) { sharedPlayer?.let { p -> try { p.seekTo(pos.coerceAtLeast(0L)) } catch (_: Exception) { } } }
@@ -600,9 +600,11 @@ class PlaybackKeepAliveService : Service() {
                         volume = 1.0f
                     }
                 ExclusiveAudioFocus.attach(appContext, player)
+                PauseWatch.install(player)   // Hifi 1.58: every self-pause is logged with its cause (LOG AUDIO PATH)
                 // Hifi 1.29 strict mode: a track that does not match its check stops playback (on the player's own thread).
                 DirectOutputState.strictStopHandler = { message ->
                     Handler(Looper.getMainLooper()).post {
+                        PauseWatch.mark("PAUSE: STRICT CHECK", message)
                         try { player.pause() } catch (e: Exception) { android.util.Log.w(TAG, "strict stop failed", e) }
                         android.util.Log.w(TAG, message)
                     }

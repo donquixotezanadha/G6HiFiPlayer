@@ -52,6 +52,7 @@ internal object ExclusiveAudioFocus {
                 // Hifi 1.33: another app (YouTube, a video or music player ...) took the audio for good. No fight for it and
                 // no two sounds at once: the player stops at once. Pressing play asks for the focus again.
                 pausedByFocus = false
+                PauseWatch.mark("PAUSE: FOCUS LOST", "another app took the audio for good (AUDIOFOCUS_LOSS)")
                 player.pause()
                 abandon(audioManager)
                 DirectOutputState.strictStopText = "Stopped: another app took the audio"
@@ -60,6 +61,7 @@ internal object ExclusiveAudioFocus {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 if (player.playWhenReady) {
                     pausedByFocus = true
+                    PauseWatch.mark("PAUSE: FOCUS (CALL/ALARM)", "audio focus lost for a moment (AUDIOFOCUS_LOSS_TRANSIENT)")
                     player.pause()
                     DirectOutputState.log("audio focus lost for a moment (call/alarm): paused")
                 }

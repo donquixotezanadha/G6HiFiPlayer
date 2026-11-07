@@ -296,6 +296,7 @@ class MainActivity : Activity() {
             val wasScheduledToPlay = pendingAutoplay || p?.playWhenReady == true || p?.isPlaying == true
             if (wasScheduledToPlay) {
                 pendingAutoplay = false
+                PauseWatch.mark("PAUSE: JACK UNPLUGGED", "the wired headset was reported as disconnected")
                 try { p?.pause() } catch (e: Exception) {
                     recordDiagnostic("WIRED_UNPLUG_PAUSE_FAILED", e)
                 }
@@ -2232,7 +2233,7 @@ class MainActivity : Activity() {
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isPlaying && strictBlocked) { try { exo.pause() } catch (_: Exception) { }; return }   // Hifi 1.29
+                if (isPlaying && strictBlocked) { PauseWatch.markUser(); try { exo.pause() } catch (_: Exception) { }; return }   // Hifi 1.29
                 if (prepared) {
                     if (isPlaying) notificationDismissed = false
                     syncPlaybackIcon(isPlaying)
@@ -2244,6 +2245,7 @@ class MainActivity : Activity() {
             override fun onTracksChanged(trackInfo: androidx.media3.common.Tracks) {
                 if (trackInfo.groups.isNotEmpty() && !trackInfo.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_AUDIO)) {
                     strictBlocked = true
+                    PauseWatch.markUser()
                     try { exo.pause() } catch (_: Exception) { }
                     val mime = trackInfo.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
                         ?.let { g -> try { g.getTrackFormat(0).sampleMimeType } catch (_: Exception) { null } }
