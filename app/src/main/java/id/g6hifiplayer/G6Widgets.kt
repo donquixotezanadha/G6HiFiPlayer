@@ -429,10 +429,14 @@ object G6Widgets {
         setTextColor(R.id.w_artist, muted)
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
         setInt(R.id.w_play, "setColorFilter", ink)
+        setInt(R.id.w_prev, "setColorFilter", ink)
+        setInt(R.id.w_next, "setColorFilter", ink)
         setImageViewBitmap(R.id.w_progress, progressBitmap(
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
             light
         ))
+        setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4403, "previous"))
+        setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4404, "next"))
         setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4401))
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4402, "toggle"))
     }

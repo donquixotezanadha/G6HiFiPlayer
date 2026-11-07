@@ -364,3 +364,8 @@
 - New provider G6WidgetCover4x2Provider (label "Hifi Cover 4x2"), layout g6_widget_cover_4x2, info g6_widget_cover_4x2_info (250x130dp, horizontal resize), preview g6_preview_cover_4x2.png. Based on the text 4x2 widget: no background, side gap 20dp (like the other widgets).
 - Left: big rounded cover (corner 16% of its side, COVER_WIDGET_FRACTION; Hi-Res badge as on the other covers), fills the height; tapping it opens Now Playing. Right (shorter area because of the cover): title (18sp bold, 2 lines max), artist 13sp, progress bar, play / pause, as one group centred vertically; gaps 10dp (COVER_WIDGET_GAP_DP). No player logo, no time labels.
 - Wired into refresh / refreshProgress / refreshPlayback / renderAll. The other three widgets are unchanged. Version 1.69 (code 70, above the dropped 1.68 which had 69), installs over 1.67. Audio unchanged.
+
+## v1.70 (branch hifi-v1-70, from hifi-v1-69) - cover widget layout
+- Cover: max 146dp wide (android:maxWidth, still height-bound, centred), so its right edge lines up with the right edge of the second home-screen icon column (measured on the user's screenshot at 3.5 px/dp: icons 124..636 px = 146dp).
+- Right of the cover: title (24sp bold, max 2 lines, ellipsis "..."), artist 15sp, below them prev / play / next (38dp each, left-aligned with the title). Progress moved to the bottom over the full width. Prev / next actions wired (codes 4403 / 4404). Preview image redrawn.
+- Version 1.70 (code 71), installs over 1.69. Audio unchanged.
