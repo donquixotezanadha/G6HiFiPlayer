@@ -353,3 +353,6 @@
 ## v1.65 (branch hifi-v1-65, from hifi-v1-64) - real previews in the widget picker
 - The picker showed the app icon in a white rounded square for all three widgets (no preview was declared). Each widget provider now has android:previewImage: g6_preview_4x1 / g6_preview_4x2 / g6_preview_2x2 (PNG in drawable-nodpi, drawn like the real widgets in the dark theme: dark card #1E1E1E 12dp, sample cover, title, artist, progress, controls). No previewLayout (it would show the empty layout on Android 12+).
 - Version 1.65 (code 66), installs over 1.64. The picker may cache the old preview: if it still shows the icon, remove the widgets, restart the launcher or the phone. Audio unchanged.
+
+## v1.66 (branch hifi-v1-66, from hifi-v1-65) - widget corners 12 -> 16dp
+- 4x1 widget card and 2x2 play button: corners 16dp (the user found 12dp slightly too square once the widget was resized). Picker preview images redrawn with 16dp. Colours unchanged. Version 1.66 (code 67), installs over 1.65. Audio unchanged.
