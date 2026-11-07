@@ -323,3 +323,11 @@
 - Fix 1: the very first data of an output now decides, like after a flush: only a stream whose first presentation time is within 150 ms of zero is checked; a mid-track start is not checked (no entry), and the rest of that session's tracks stay unchecked until the next flush (skip / seek / new start), as already happened after any seek.
 - Fix 2: the MD5 verdict no longer stops playback at all (the strict stop is gone for MD5 DIFFERENT / not comparable): the verdict only exists after the track was played, so a stop could only hold back the next track and a wrong verdict used to pause the music. It is still written to LOG AUDIO PATH (orange, "playback continues (log only since 1.59)"). The format restriction of strict mode (only FLAC, ALAC, WAV) is unchanged, and so are 1.58's pause-cause lines.
 - Version 1.59 (code 60), installs over 1.58. The audio data path is not touched (OutputMd5 only reads what the sink accepted).
+
+## v1.60 (branch hifi-v1-60, from hifi-v1-59) - widgets: text widget bigger and tighter, 4x1 fills its area
+- Decided with the user: no widget settings (he is not sure the launcher shows what the code says, it sometimes keeps old widget states), only direct fixes from his screenshot.
+- Text 4x2 widget: title, progress and play are one tight group centred vertically in whatever height the launcher gives (the two flexible gaps are gone; they spread the parts apart and left big gaps); text 26 / 15 / 12 sp x 1.25 = 32.5 / 19 / 15 sp (was 26 / 15 / 12); play icon 40 -> 44dp; gaps between the three parts 6dp (TEXT_WIDGET_GAP_DP).
+- 4x1 widget: the card fills the area the launcher gives (it was a fixed 70dp card centred in the area, so it looked small in a tall area); cover grows with the card height (adjustViewBounds), the button row takes the remaining height (buttons 40dp wide, icons scale); text 13 / 10 sp x 1.10; edge gap top / bottom 6dp (CARD_EDGE_DP).
+- Sizes are constants at the top of G6Widgets.kt (TEXT_WIDGET_SCALE, TEXT_WIDGET_GAP_DP, CARD_SCALE, CARD_EDGE_DP); layout bases are in the two layout files.
+- After installing: remove the two widgets from the home screen and add them again (a launcher keeps the old layout of a widget that is already placed).
+- Version 1.60 (code 61), installs over 1.59. Audio unchanged.

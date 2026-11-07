@@ -32,6 +32,12 @@ object G6Widgets {
     const val EXTRA_ACTION = "g6_widget_action"
 
     private const val TAG = "G6Widgets"
+    // Hifi 1.60: fixed sizes of the two text-based widgets (no settings): text scale against the layout bases and gaps in dp.
+    private const val TEXT_WIDGET_SCALE = 1.25f   // 4x2 text widget: 26 / 15 / 12 sp x 1.25 = 32.5 / 19 / 15 sp
+    private const val TEXT_WIDGET_GAP_DP = 6      // 4x2: gap between title, progress and play
+    private const val CARD_SCALE = 1.10f          // 4x1: 13 / 10 sp x 1.10
+    private const val CARD_EDGE_DP = 6            // 4x1: gap between the card and the top / bottom of the widget area
+
     /**
      * Hifi 1.53: the player stores its theme with Activity.getPreferences(), whose file is named after the Activity class. The class is
      * "id.g6hifiplayer.MainActivity" but the app id is now "id.hifi.player", so Android no longer strips the package and the file is
@@ -306,6 +312,12 @@ object G6Widgets {
         playing: Boolean, position: Int, duration: Int, cover: Bitmap, light: Boolean
     ): RemoteViews {
         return RemoteViews(context.packageName, layout).apply {
+            val density = context.resources.displayMetrics.density
+            val scale = CARD_SCALE
+            val edge = (CARD_EDGE_DP * density).toInt()
+            setViewPadding(R.id.w_root, (12 * density).toInt(), edge, (12 * density).toInt(), edge)   // Hifi 1.60
+            setTextViewTextSize(R.id.w_title, android.util.TypedValue.COMPLEX_UNIT_SP, 13f * scale)
+            setTextViewTextSize(R.id.w_artist, android.util.TypedValue.COMPLEX_UNIT_SP, 10f * scale)
             setImageViewBitmap(R.id.w_art, cover)
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
@@ -346,6 +358,15 @@ object G6Widgets {
         context: Context, title: String, artist: String, hasTrack: Boolean,
         playing: Boolean, position: Int, duration: Int, light: Boolean
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_text_4x2).apply {
+        val density = context.resources.displayMetrics.density
+        val scale = TEXT_WIDGET_SCALE
+        val gap = (TEXT_WIDGET_GAP_DP * density).toInt()
+        setTextViewTextSize(R.id.w_title, android.util.TypedValue.COMPLEX_UNIT_SP, 26f * scale)   // Hifi 1.60
+        setTextViewTextSize(R.id.w_artist, android.util.TypedValue.COMPLEX_UNIT_SP, 15f * scale)
+        setTextViewTextSize(R.id.w_elapsed, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * scale)
+        setTextViewTextSize(R.id.w_duration, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * scale)
+        setViewPadding(R.id.w_gap1, 0, gap, 0, 0)
+        setViewPadding(R.id.w_gap2, 0, gap, 0, 0)
         val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
         setTextViewText(R.id.w_title, title)

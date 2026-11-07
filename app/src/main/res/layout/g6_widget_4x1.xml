@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 2.66: restore the tested compact Build 2.58 values for the dedicated 4x1 provider.
+<!-- Hifi 1.60: the card fills the area the launcher gives (vertical edge gap, text sizes and these values come from the Setting window);
+     the cover and the button row grow with the card height.
+     Build 2.66: restore the tested compact Build 2.58 values for the dedicated 4x1 provider.
      Build 3.18: the card has a fixed 70dp height and is centred in whatever area the launcher gives, so LG and Nova look the same.
      Balanced padding: cover to left edge, cover to top/bottom edge and text column to right edge are all 8dp. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -8,12 +10,14 @@
     android:layout_height="match_parent"
     android:paddingStart="12dp"
     android:paddingEnd="12dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
     android:background="@android:color/transparent">
 
     <LinearLayout
         android:id="@+id/w_card"
         android:layout_width="match_parent"
-        android:layout_height="70dp"
+        android:layout_height="match_parent"
         android:layout_gravity="center"
         android:orientation="horizontal"
         android:gravity="center_vertical"
@@ -25,8 +29,9 @@
 
         <ImageView
             android:id="@+id/w_art"
-            android:layout_width="54dp"
-            android:layout_height="54dp"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:adjustViewBounds="true"
             android:scaleType="fitCenter"
             android:contentDescription="Album artwork" />
 
@@ -68,15 +73,16 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="26dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:layout_marginTop="1dp"
                 android:orientation="horizontal"
                 android:gravity="start|center_vertical">
 
                 <ImageButton
                     android:id="@+id/w_prev"
-                    android:layout_width="36dp"
-                    android:layout_height="26dp"
+                    android:layout_width="40dp"
+                    android:layout_height="match_parent"
                     android:padding="5dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
@@ -85,8 +91,8 @@
 
                 <ImageButton
                     android:id="@+id/w_play"
-                    android:layout_width="36dp"
-                    android:layout_height="26dp"
+                    android:layout_width="40dp"
+                    android:layout_height="match_parent"
                     android:padding="5dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
@@ -95,8 +101,8 @@
 
                 <ImageButton
                     android:id="@+id/w_next"
-                    android:layout_width="36dp"
-                    android:layout_height="26dp"
+                    android:layout_width="40dp"
+                    android:layout_height="match_parent"
                     android:padding="5dp"
                     android:scaleType="fitCenter"
                     android:background="@drawable/g6_widget_btn"
