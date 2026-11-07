@@ -298,3 +298,8 @@
 - Why the icon still looked brighter than the progress bar in 1.54: a white icon at 70% view alpha is 70% white, while the unplayed track is 70% of a dark grey (0x5E5E66); the same opacity gives a much lighter result. Now the icon is tinted with the track's own ARGB (Dark 0xB35E5E66, Light 0xB3D6D6DC), so it has the same colour and opacity as the unplayed track, on both themes (also after a theme switch).
 - Size 22 -> 24dp (touch area 56 x 40dp unchanged). Longer lines: the 1.53/1.54 vector had bars starting at x = 0.5 with 1.5-unit round ends, so both ends were clipped by the 24-unit icon box; the bars now span the full 0..24 with proper round ends (about 2dp longer on screen with the bigger size).
 - Version 1.55 (code 56), installs over 1.54. Audio unchanged.
+
+## v1.56 (branch hifi-v1-56, from hifi-v1-55) - queue icon like the reference, grey text colour
+- Queue icon redrawn like the reference picture: two rows, each a round dot on the left and a long rounded bar (dot and bar the same thickness, 3.6 of 24 units; rows 7.2 units apart; the bars run to the right edge). The drawing spans the whole 24 x 24 box, shown at 24dp (touch area 56 x 40dp unchanged).
+- Colour: no longer the unplayed-progress colour with opacity; it is the grey text colour of each theme (Dark 0xFFA4A4B2, Light 0xFF484855), also after a theme switch.
+- Version 1.56 (code 57), installs over 1.55. Audio unchanged.

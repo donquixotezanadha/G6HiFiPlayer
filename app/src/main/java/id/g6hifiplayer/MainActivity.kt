@@ -695,7 +695,7 @@ class MainActivity : Activity() {
         val queueIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_queue_24)
             // Hifi 1.55: exactly the colour of the unplayed part of the progress bar (same ARGB incl. its opacity), also after a theme switch
-            imageTintList = ColorStateList.valueOf(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY)
+            imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: the grey text colour of the theme, no extra opacity
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         queueButton = queueIcon
@@ -971,7 +971,7 @@ class MainActivity : Activity() {
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
-        queueButton?.imageTintList = ColorStateList.valueOf(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY)   // Hifi 1.55: same colour as the unplayed progress track
+        queueButton?.imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: grey text colour of the theme
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
