@@ -66,8 +66,7 @@ object G6Widgets {
     private const val CORNER_FRACTION = 0.12f
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
-    private const val COVER_WIDGET_FRACTION = 0.16f   // Hifi 1.69: cover widget, big rounded cover
-    private const val COVER_WIDGET_GAP_DP = 10
+    private const val COVER_WIDGET_FRACTION = 0.16f   // simple 4x1 widget cover
     /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
     private const val TOGGLE_DEBOUNCE_MS = 180L
@@ -207,8 +206,7 @@ object G6Widgets {
         val manager = AppWidgetManager.getInstance(app)
         val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x1Provider::class.java))
         val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
-        val idsCover = manager.getAppWidgetIds(ComponentName(app, G6WidgetCover4x2Provider::class.java))
-        if (ids4.isEmpty() && idsText.isEmpty() && idsCover.isEmpty()) return
+        if (ids4.isEmpty() && idsText.isEmpty()) return
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
@@ -228,12 +226,6 @@ object G6Widgets {
                     setTextViewText(R.id.w_duration, timeLabel(duration))
                 }
                 manager.partiallyUpdateAppWidget(idsText, views)
-            }
-            if (idsCover.isNotEmpty()) {
-                val views = RemoteViews(app.packageName, R.layout.g6_widget_cover_4x2).apply {
-                    setImageViewBitmap(R.id.w_progress, bitmap)
-                }
-                manager.partiallyUpdateAppWidget(idsCover, views)
             }
         } catch (e: Exception) {
             Log.w(TAG, "widget progress update failed", e)
@@ -275,9 +267,8 @@ object G6Widgets {
             val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x1Provider::class.java))
             val ids2 = manager.getAppWidgetIds(ComponentName(app, G6Widget2x2Provider::class.java))
             val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
-            val idsCover = manager.getAppWidgetIds(ComponentName(app, G6WidgetCover4x2Provider::class.java))
             val idsSimple = manager.getAppWidgetIds(ComponentName(app, G6WidgetSimple4x1Provider::class.java))
-            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsCover.isEmpty() && idsSimple.isEmpty()) return
+            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsSimple.isEmpty()) return
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean(K_HAS, false)
@@ -315,15 +306,6 @@ object G6Widgets {
                 try {
                     val views = buildSimple4x1(app, title, artist, album, hasTrack, cover, light)
                     try { manager.updateAppWidget(idsSimple, views) } catch (e: Exception) { Log.w(TAG, "simple 4x1 update failed", e) }
-                } finally {
-                    if (!cover.isRecycled) cover.recycle()
-                }
-            }
-            if (idsCover.isNotEmpty()) {
-                val cover = coverBitmap(app, hasTrack, COVER_WIDGET_FRACTION, hires)
-                try {
-                    val views = buildCover4x2(app, title, artist, hasTrack, playing, position, duration, cover, light)
-                    try { manager.updateAppWidget(idsCover, views) } catch (e: Exception) { Log.w(TAG, "cover 4x2 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
                 }
@@ -420,37 +402,6 @@ object G6Widgets {
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetText4x2Provider::class.java, 4302, "toggle"))
     }
 
-    /** Hifi 1.69: cover 4x2 widget (no background): big rounded cover, title / artist, progress, play. Tap on the cover opens Now Playing. */
-    private fun buildCover4x2(
-        context: Context, title: String, artist: String, hasTrack: Boolean,
-        playing: Boolean, position: Int, duration: Int, cover: Bitmap, light: Boolean
-    ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_cover_4x2).apply {
-        val density = context.resources.displayMetrics.density
-        val gap = (COVER_WIDGET_GAP_DP * density).toInt()
-        setViewPadding(R.id.w_gap1, 0, gap, 0, 0)
-        setViewPadding(R.id.w_gap2, 0, (6 * density).toInt(), 0, 0)   // Hifi 1.71: cover closer to the progress bar
-        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
-        setImageViewBitmap(R.id.w_art, cover)
-        setTextViewText(R.id.w_title, title)
-        setTextViewText(R.id.w_artist, artist)
-        setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
-        setTextColor(R.id.w_title, ink)
-        setTextColor(R.id.w_artist, muted)
-        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-        setInt(R.id.w_play, "setColorFilter", ink)
-        setInt(R.id.w_prev, "setColorFilter", ink)
-        setInt(R.id.w_next, "setColorFilter", ink)
-        setImageViewBitmap(R.id.w_progress, progressBitmap(
-            if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
-            light
-        ))
-        setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4403, "previous"))
-        setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4404, "next"))
-        setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4401))
-        setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4402, "toggle"))
-    }
-
     /** Hifi 1.72: simple 4x1 widget (no background): cover and song / artist / album text only; only a tap on the cover opens Now Playing. */
     private fun buildSimple4x1(
         context: Context, title: String, artist: String, album: String, hasTrack: Boolean, cover: Bitmap, light: Boolean
@@ -515,14 +466,6 @@ object G6Widgets {
                 setInt(R.id.w_play, "setColorFilter", iconTint)
             }
             try { manager.partiallyUpdateAppWidget(idsText, views) } catch (e: Exception) { Log.w(TAG, "text 4x2 playback update failed", e) }
-        }
-        val idsCover = manager.getAppWidgetIds(ComponentName(context, G6WidgetCover4x2Provider::class.java))
-        if (idsCover.isNotEmpty()) {
-            val views = RemoteViews(context.packageName, R.layout.g6_widget_cover_4x2).apply {
-                setImageViewResource(R.id.w_play, icon)
-                setInt(R.id.w_play, "setColorFilter", iconTint)
-            }
-            try { manager.partiallyUpdateAppWidget(idsCover, views) } catch (e: Exception) { Log.w(TAG, "cover 4x2 playback update failed", e) }
         }
     }
 
@@ -691,7 +634,5 @@ class G6Widget4x1Provider : G6WidgetProviderBase()
 class G6Widget2x2Provider : G6WidgetProviderBase()
 
 class G6WidgetText4x2Provider : G6WidgetProviderBase()
-
-class G6WidgetCover4x2Provider : G6WidgetProviderBase()
 
 class G6WidgetSimple4x1Provider : G6WidgetProviderBase()

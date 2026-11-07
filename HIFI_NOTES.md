@@ -385,3 +385,7 @@
 - Cover 4x2: cover back to 146dp, buttons back to 38dp wide; controls pushed to the bottom of the cover (weighted spacer above them, group still centred in the widget); title 32.5sp / artist 18.75sp (same as the text 4x2: 26 / 15 sp x 1.25), title one line + "...".
 - Simple 4x1: song 26sp, artist 19sp, album 16sp; only the cover opens Now Playing (no more tap on the text).
 - Version 1.73 (code 74), installs over 1.72. Audio unchanged.
+
+## v1.74 (branch hifi-v1-74, from hifi-v1-73) - "Hifi Cover 4x2" widget removed
+- The Cover 4x2 widget (added in 1.69) did not work out and is removed completely: provider, manifest receiver, layout, info xml, preview image and every code path. Widgets left: 4x1 card, 2x2, Text 4x2, Simple 4x1 (kept as in 1.73).
+- Version 1.74 (code 75), installs over 1.73. Audio unchanged.
