@@ -1,0 +1,49 @@
+name: Hifi v1.61 - 4x1 widget content with a gap on all sides, text widget gaps bigger
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["hifi-v1-61"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: FLAC decoder self-test (own decoder vs ffmpeg, must be bit-exact)
+        run: bash tools/flac-selftest/run.sh
+      - name: ALAC decoder self-test (own decoder vs ffmpeg, must be bit-exact)
+        run: bash tools/alac-selftest/run.sh
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build debug APK
+        run: set -o pipefail; gradle clean assembleDebug --stacktrace 2>&1 | tee build-log.txt
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='62' versionName='1.61'"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
+          mkdir -p verified-artifact
+          cp "$APK" "verified-artifact/Hifi-v1.61.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hifi-v1.61-apk
+          path: verified-artifact/*
+          if-no-files-found: error
+          retention-days: 90

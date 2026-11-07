@@ -34,7 +34,7 @@ object G6Widgets {
     private const val TAG = "G6Widgets"
     // Hifi 1.60: fixed sizes of the two text-based widgets (no settings): text scale against the layout bases and gaps in dp.
     private const val TEXT_WIDGET_SCALE = 1.25f   // 4x2 text widget: 26 / 15 / 12 sp x 1.25 = 32.5 / 19 / 15 sp
-    private const val TEXT_WIDGET_GAP_DP = 6      // 4x2: gap between title, progress and play
+    private const val TEXT_WIDGET_GAP_DP = 16     // 4x2: gap between title, progress and play (Hifi 1.61: 6 -> 16)
     private const val CARD_SCALE = 1.10f          // 4x1: 13 / 10 sp x 1.10
     private const val CARD_EDGE_DP = 6            // 4x1: gap between the card and the top / bottom of the widget area
 
