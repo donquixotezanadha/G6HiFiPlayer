@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='69' versionName='1.69'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='70' versionName='1.69'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
           cp "$APK" "verified-artifact/Hifi-v1.69.apk"

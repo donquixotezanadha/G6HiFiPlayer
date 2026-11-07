@@ -363,4 +363,4 @@
 ## v1.69 (branch hifi-v1-69, from hifi-v1-67; 1.68 is skipped) - new widget: Hifi Cover 4x2
 - New provider G6WidgetCover4x2Provider (label "Hifi Cover 4x2"), layout g6_widget_cover_4x2, info g6_widget_cover_4x2_info (250x130dp, horizontal resize), preview g6_preview_cover_4x2.png. Based on the text 4x2 widget: no background, side gap 20dp (like the other widgets).
 - Left: big rounded cover (corner 16% of its side, COVER_WIDGET_FRACTION; Hi-Res badge as on the other covers), fills the height; tapping it opens Now Playing. Right (shorter area because of the cover): title (18sp bold, 2 lines max), artist 13sp, progress bar, play / pause, as one group centred vertically; gaps 10dp (COVER_WIDGET_GAP_DP). No player logo, no time labels.
-- Wired into refresh / refreshProgress / refreshPlayback / renderAll. The other three widgets are unchanged. Version 1.69 (code 69; 1.68 had code 69 too but was dropped), installs over 1.67. Audio unchanged.
+- Wired into refresh / refreshProgress / refreshPlayback / renderAll. The other three widgets are unchanged. Version 1.69 (code 70, above the dropped 1.68 which had 69), installs over 1.67. Audio unchanged.
