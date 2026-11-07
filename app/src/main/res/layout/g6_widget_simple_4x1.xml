@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hifi 1.72: simple 4x1 widget, no background. Cover on the left (full height, same side gap 20dp as the other widgets), on its right
+     only big text: song (bold), artist, album. Tap anywhere opens Now Playing. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:background="@android:color/transparent">
+
+    <ImageView
+        android:id="@+id/w_art"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:contentDescription="Album artwork" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/w_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="NO MUSIC PLAYING"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/w_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="16sp"
+            android:includeFontPadding="false"
+            android:textColor="#FFE0E0E6" />
+
+        <TextView
+            android:id="@+id/w_album"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:textColor="#FFE0E0E6" />
+    </LinearLayout>
+</LinearLayout>

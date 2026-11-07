@@ -374,3 +374,9 @@
 - In 1.70 the cover (adjustViewBounds + maxWidth) came out smaller than the available height (118dp instead of ~137dp) and left a gap above the progress bar. Now the cover box is a fixed 146dp wide x full row height with scaleType fitStart, so the cover is as big as the row allows (max 146dp, right edge in line with the second icon column, left edge fixed). Gap between row and progress 8 -> 6dp.
 - Right column is top-aligned: title (30sp bold, includeFontPadding off, max 2 lines + "...") starts at the top of the cover, then artist 16sp, then prev / play / next.
 - Version 1.71 (code 72), installs over 1.70. Audio unchanged.
+
+## v1.72 (branch hifi-v1-72, from hifi-v1-71) - cover 4x2 centred + new "Hifi Simple 4x1"
+- Real density on the user's launcher is ~2.8 px/dp (not 3.5): the 146dp cover of 1.71 ended at 532 px while the second icon column ends at 636 px, so the cover box is now 183dp x 183dp (fitStart) -> right edge in line with the icons.
+- Cover 4x2: the whole group (cover row + 6dp + progress) is centred vertically in the widget (root gravity center_vertical, no weights), so the gap above and below is equal and small. prev / play / next boxes 38 -> 60dp wide (wider spacing), row marginStart -16dp to keep it in line with the title. Title still top-aligned with the cover.
+- New widget G6WidgetSimple4x1Provider "Hifi Simple 4x1" (layout g6_widget_simple_4x1, info g6_widget_simple_4x1_info, preview g6_preview_simple_4x1): no background, side gap 20dp, cover on the left (full height, rounded 16%), on the right song 22sp bold / artist 16sp / album 14sp (one line each, "..."), tap anywhere opens Now Playing. No buttons, no progress.
+- Version 1.72 (code 73), installs over 1.71. Audio unchanged.

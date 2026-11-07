@@ -59,5 +59,11 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_cover_4x2_info" />
         </receiver>
+        <receiver android:name="id.g6hifiplayer.G6WidgetSimple4x1Provider" android:label="Hifi Simple 4x1" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_simple_4x1_info" />
+        </receiver>
     </application>
 </manifest>

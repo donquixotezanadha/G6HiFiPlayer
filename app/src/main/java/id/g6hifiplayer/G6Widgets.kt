@@ -276,7 +276,8 @@ object G6Widgets {
             val ids2 = manager.getAppWidgetIds(ComponentName(app, G6Widget2x2Provider::class.java))
             val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
             val idsCover = manager.getAppWidgetIds(ComponentName(app, G6WidgetCover4x2Provider::class.java))
-            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsCover.isEmpty()) return
+            val idsSimple = manager.getAppWidgetIds(ComponentName(app, G6WidgetSimple4x1Provider::class.java))
+            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsCover.isEmpty() && idsSimple.isEmpty()) return
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean(K_HAS, false)
@@ -305,6 +306,15 @@ object G6Widgets {
                 try {
                     val views = build2x2(app, playing, cover, light)
                     try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
+                } finally {
+                    if (!cover.isRecycled) cover.recycle()
+                }
+            }
+            if (idsSimple.isNotEmpty()) {
+                val cover = coverBitmap(app, hasTrack, COVER_WIDGET_FRACTION, hires)
+                try {
+                    val views = buildSimple4x1(app, title, artist, album, hasTrack, cover, light)
+                    try { manager.updateAppWidget(idsSimple, views) } catch (e: Exception) { Log.w(TAG, "simple 4x1 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
                 }
@@ -439,6 +449,24 @@ object G6Widgets {
         setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4404, "next"))
         setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4401))
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetCover4x2Provider::class.java, 4402, "toggle"))
+    }
+
+    /** Hifi 1.72: simple 4x1 widget (no background): cover and song / artist / album text only; any tap opens Now Playing. */
+    private fun buildSimple4x1(
+        context: Context, title: String, artist: String, album: String, hasTrack: Boolean, cover: Bitmap, light: Boolean
+    ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_simple_4x1).apply {
+        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        setImageViewBitmap(R.id.w_art, cover)
+        setTextViewText(R.id.w_title, title)
+        setTextViewText(R.id.w_artist, artist)
+        setTextViewText(R.id.w_album, album)
+        setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
+        setViewVisibility(R.id.w_album, if (hasTrack && album.isNotEmpty()) View.VISIBLE else View.GONE)
+        setTextColor(R.id.w_title, ink)
+        setTextColor(R.id.w_artist, muted)
+        setTextColor(R.id.w_album, muted)
+        setOnClickPendingIntent(R.id.w_root, openPlayerIntent(context, 4501))
     }
 
     private fun timeLabel(milliseconds: Int): String {
@@ -665,3 +693,5 @@ class G6Widget2x2Provider : G6WidgetProviderBase()
 class G6WidgetText4x2Provider : G6WidgetProviderBase()
 
 class G6WidgetCover4x2Provider : G6WidgetProviderBase()
+
+class G6WidgetSimple4x1Provider : G6WidgetProviderBase()
