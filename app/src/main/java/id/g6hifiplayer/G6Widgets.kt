@@ -37,7 +37,7 @@ object G6Widgets {
     private const val TEXT_WIDGET_GAP_DP = 22     // 4x2: gap between title, progress and play (Hifi 1.62: 16 -> 22; 1.61: 6 -> 16)
     private const val CARD_SCALE = 1.10f          // 4x1: 13 / 10 sp x 1.10
     private const val CARD_EDGE_DP = 6            // 4x1: gap between the card and the top / bottom of the widget area
-    private const val CARD_SIDE_DP = 20           // 4x1: gap between the card and the left / right of the widget area (Hifi 1.67: 12 -> 20, card edge in line with the icons and the text widget)
+    private const val CARD_SIDE_DP = 22           // 4x1: gap between the card and the left / right of the widget area (Hifi 1.67: 20 -> 22, card edge in line with the icons and the text widget)
 
     /**
      * Hifi 1.53: the player stores its theme with Activity.getPreferences(), whose file is named after the Activity class. The class is

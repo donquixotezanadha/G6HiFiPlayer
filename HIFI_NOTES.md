@@ -359,3 +359,6 @@
 
 ## v1.67 (branch hifi-v1-67, from hifi-v1-66) - 4x1 widget card narrower
 - The 4x1 card stuck out to the left of the home-screen icons and the text widget. Gap between the card and the left / right of the widget area 12 -> 20dp (CARD_SIDE_DP, same as the text widget's 20dp), so the card edge lines up with the icons. Card inner padding, cover and controls unchanged (they follow the card). Version 1.67 (code 68), installs over 1.66. Audio unchanged.
+
+## v1.68 (branch hifi-v1-68, from hifi-v1-67) - 4x1 widget side gap 22dp
+- Gap between the 4x1 card and the left / right of the widget area 20 -> 22dp (CARD_SIDE_DP). Nothing else changed. Version 1.68 (code 69), installs over 1.67.
