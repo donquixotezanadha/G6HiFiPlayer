@@ -344,3 +344,8 @@
 - Progress bar in both widgets (4x1 and text 4x2): 2dp -> 4dp thick (bitmap 6 -> 10 px, still fully rounded).
 - 4x1: the button row is aligned to the bottom (icons sit level with the bottom of the cover; top padding 6dp, bottom 0), progress margin 2 -> 3dp.
 - Version 1.63 (code 64), installs over 1.62. After installing, remove and re-add the widgets. Audio unchanged.
+
+## v1.64 (branch hifi-v1-64, from hifi-v1-63) - widget background and corners like the mini player
+- Checked: mini player card and floating windows use floatingBackground() = page surface mixed 12% towards the ink colour, corners 12dp. Dark theme = #1E1E1E, light theme = #DADADD (opaque).
+- 4x1 widget card and the 2x2 play button background now use exactly those colours (opaque, no longer 70% black / white) and 12dp corners (were 22dp and 18dp). Pressed 2x2 button: 12% -> 20% mix (#333333 / #C6C6C9). Text 4x2 has no background, unchanged.
+- Version 1.64 (code 65), installs over 1.63. Remove and re-add the widgets after installing. Audio unchanged.

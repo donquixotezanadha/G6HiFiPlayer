@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build 3.00: light counterpart; same radius and opacity as the existing 2x2 button. -->
+<!-- Hifi 1.64: same colour and 12dp corners as the mini player card and the floating windows (light theme), opaque. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <corners android:radius="18dp" />
-            <solid android:color="#E6FFFFFF" />
+            <corners android:radius="12dp" />
+            <solid android:color="#FFC6C6C9" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <corners android:radius="18dp" />
-            <solid android:color="#B3FFFFFF" />
+            <corners android:radius="12dp" />
+            <solid android:color="#FFDADADD" />
         </shape>
     </item>
 </selector>
