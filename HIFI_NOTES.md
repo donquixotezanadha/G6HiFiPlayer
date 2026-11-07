@@ -356,3 +356,6 @@
 
 ## v1.66 (branch hifi-v1-66, from hifi-v1-65) - widget corners 12 -> 16dp
 - 4x1 widget card and 2x2 play button: corners 16dp (the user found 12dp slightly too square once the widget was resized). Picker preview images redrawn with 16dp. Colours unchanged. Version 1.66 (code 67), installs over 1.65. Audio unchanged.
+
+## v1.67 (branch hifi-v1-67, from hifi-v1-66) - 4x1 widget card narrower
+- The 4x1 card stuck out to the left of the home-screen icons and the text widget. Gap between the card and the left / right of the widget area 12 -> 20dp (CARD_SIDE_DP, same as the text widget's 20dp), so the card edge lines up with the icons. Card inner padding, cover and controls unchanged (they follow the card). Version 1.67 (code 68), installs over 1.66. Audio unchanged.
