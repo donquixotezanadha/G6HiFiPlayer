@@ -418,7 +418,7 @@ object G6Widgets {
         val density = context.resources.displayMetrics.density
         val gap = (COVER_WIDGET_GAP_DP * density).toInt()
         setViewPadding(R.id.w_gap1, 0, gap, 0, 0)
-        setViewPadding(R.id.w_gap2, 0, gap, 0, 0)
+        setViewPadding(R.id.w_gap2, 0, (6 * density).toInt(), 0, 0)   // Hifi 1.71: cover closer to the progress bar
         val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
         setImageViewBitmap(R.id.w_art, cover)

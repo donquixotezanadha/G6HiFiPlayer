@@ -369,3 +369,8 @@
 - Cover: max 146dp wide (android:maxWidth, still height-bound, centred), so its right edge lines up with the right edge of the second home-screen icon column (measured on the user's screenshot at 3.5 px/dp: icons 124..636 px = 146dp).
 - Right of the cover: title (24sp bold, max 2 lines, ellipsis "..."), artist 15sp, below them prev / play / next (38dp each, left-aligned with the title). Progress moved to the bottom over the full width. Prev / next actions wired (codes 4403 / 4404). Preview image redrawn.
 - Version 1.70 (code 71), installs over 1.69. Audio unchanged.
+
+## v1.71 (branch hifi-v1-71, from hifi-v1-70) - cover widget: bigger cover, bigger title
+- In 1.70 the cover (adjustViewBounds + maxWidth) came out smaller than the available height (118dp instead of ~137dp) and left a gap above the progress bar. Now the cover box is a fixed 146dp wide x full row height with scaleType fitStart, so the cover is as big as the row allows (max 146dp, right edge in line with the second icon column, left edge fixed). Gap between row and progress 8 -> 6dp.
+- Right column is top-aligned: title (30sp bold, includeFontPadding off, max 2 lines + "...") starts at the top of the cover, then artist 16sp, then prev / play / next.
+- Version 1.71 (code 72), installs over 1.70. Audio unchanged.

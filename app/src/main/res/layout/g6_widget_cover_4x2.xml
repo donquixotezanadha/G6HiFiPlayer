@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hifi 1.70: cover widget 4x2, no background. Top: cover (max 146dp wide = right edge in line with the second icon column) and, on its
+<!-- Hifi 1.70: cover widget 4x2, no background. Top: cover (146dp wide box, fitStart = right edge in line with the second icon column) and, on its
      right, title / artist with prev / play / next under them, left-aligned with the title. Bottom: progress over the full width. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
@@ -21,11 +21,9 @@
 
         <ImageView
             android:id="@+id/w_art"
-            android:layout_width="wrap_content"
+            android:layout_width="146dp"
             android:layout_height="match_parent"
-            android:adjustViewBounds="true"
-            android:maxWidth="146dp"
-            android:scaleType="fitCenter"
+            android:scaleType="fitStart"
             android:contentDescription="Album artwork" />
 
         <LinearLayout
@@ -34,7 +32,7 @@
             android:layout_weight="1"
             android:layout_marginStart="14dp"
             android:orientation="vertical"
-            android:gravity="center_vertical">
+            android:gravity="top">
 
             <TextView
                 android:id="@+id/w_title"
@@ -43,7 +41,8 @@
                 android:maxLines="2"
                 android:ellipsize="end"
                 android:text="NO MUSIC PLAYING"
-                android:textSize="24sp"
+                android:textSize="30sp"
+                android:includeFontPadding="false"
                 android:textStyle="bold"
                 android:textColor="#FFFFFFFF" />
 
@@ -53,7 +52,7 @@
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="15sp"
+                android:textSize="16sp"
                 android:textColor="#FFE0E0E6" />
 
             <FrameLayout
@@ -106,7 +105,7 @@
         android:id="@+id/w_gap2"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="8dp" />
+        android:paddingTop="6dp" />
 
     <ImageView
         android:id="@+id/w_progress"
