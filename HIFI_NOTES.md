@@ -336,3 +336,6 @@
 - 4x1 widget: the card's inner padding grew (left 8 -> 12dp, right 8 -> 14dp, top and bottom 3 -> 10dp), so the cover is smaller and nothing touches the edges of the card background any more; the gap between the cover and the text column 8 -> 10dp. The card still fills the area the launcher gives (edge gap 6dp), the cover and the button row still scale with its height.
 - Text 4x2 widget: gap between title, progress and play 6 -> 16dp (TEXT_WIDGET_GAP_DP).
 - Version 1.61 (code 62), installs over 1.60. After installing, remove and re-add the widgets. Audio unchanged.
+
+## v1.62 (branch hifi-v1-62, from hifi-v1-61) - text widget gaps a little bigger
+- The user called the 4x1 widget perfect (1.61, unchanged). Text 4x2 widget: gap between title, progress and play 16 -> 22dp (TEXT_WIDGET_GAP_DP). Nothing else changed. Version 1.62 (code 63), installs over 1.61.
