@@ -410,3 +410,6 @@
 - Blur 4x1: play / pause icon another 2dp smaller (1.78 -> 1.79, 4dp smaller than 1.77).
 - New widget G6WidgetBlur4x2Provider "Hifi Blur 4x2" (layout g6_widget_blur_4x2, info g6_widget_blur_4x2_info, preview g6_preview_blur_4x2): same blurred rounded card background as the Blur 4x1 (blurBackground(), drawn to the widget's size, 20dp sides, 6dp top/bottom, content padding 16dp), content as the Text 4x2 with exactly the same text sizes (26 / 15 / 12 sp x 1.25) and gaps (22dp): rounded cover 64dp on the left of title / artist, time labels, progress, play (plain icon, ink colour). Music logo removed. Tapping anywhere on the card opens the app, only the play icon toggles playback. Progress / time / play icon updated by partial updates.
 - Version 1.79 (code 80), installs over 1.78. Audio unchanged.
+
+## v1.80 (branch hifi-v1-80, from hifi-v1-79) - Album bottom fade reaches the navbar
+- updateBottomFade(): the fade still starts 24dp above the mini player card (full-strength point unchanged) but is now fully gone only at the bottom edge of the screen (gone = 0; before it was gone at the middle of the card), so a rest of the fade stays under the mini player and through the navigation-bar area. Only the Album list fade; nothing else changed. Version 1.80 (code 81), installs over 1.79. Audio unchanged.

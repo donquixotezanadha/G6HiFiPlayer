@@ -3181,14 +3181,13 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Hifi 1.38: Album: the list fades softly (as in 1.20) only behind the mini player card, toward the page backdrop: full strength 24dp above
-     * the card, gone at the middle of the card and over the navigation-bar area. The top is a plain cut under the header.
+     * Hifi 1.38: Album: the list fades softly (as in 1.20) only behind the mini player card, toward the page backdrop: starts 24dp above
+     * the card; Hifi 1.80: the fade keeps going under the card and through the navigation-bar area, fully gone at the bottom edge of the screen. The top is a plain cut under the header.
      * Distances are measured from the bottom of the screen.
      */
     private fun updateBottomFade() {
         val hostH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
-        val cardH = (hostH - bottomInsetPx - dp(8)).coerceAtLeast(dp(40))
-        scrollFadeHost?.configureFade(currentPage == "library", hostH + dp(24), hostH - cardH / 2)
+        scrollFadeHost?.configureFade(currentPage == "library", hostH + dp(24), 0)   // Hifi 1.80: the fade ends at the very bottom of the screen (was: gone at the middle of the mini player card)
     }
 
     private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
