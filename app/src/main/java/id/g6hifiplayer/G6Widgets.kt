@@ -207,7 +207,8 @@ object G6Widgets {
         val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x1Provider::class.java))
         val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
         val idsBlur = manager.getAppWidgetIds(ComponentName(app, G6WidgetBlur4x1Provider::class.java))
-        if (ids4.isEmpty() && idsText.isEmpty() && idsBlur.isEmpty()) return
+        val idsBlur2 = manager.getAppWidgetIds(ComponentName(app, G6WidgetBlur4x2Provider::class.java))
+        if (ids4.isEmpty() && idsText.isEmpty() && idsBlur.isEmpty() && idsBlur2.isEmpty()) return
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
@@ -233,6 +234,14 @@ object G6Widgets {
                     setImageViewBitmap(R.id.w_progress, bitmap)
                 }
                 manager.partiallyUpdateAppWidget(idsBlur, views)
+            }
+            if (idsBlur2.isNotEmpty()) {
+                val views = RemoteViews(app.packageName, R.layout.g6_widget_blur_4x2).apply {
+                    setImageViewBitmap(R.id.w_progress, bitmap)
+                    setTextViewText(R.id.w_elapsed, timeLabel(position))
+                    setTextViewText(R.id.w_duration, timeLabel(duration))
+                }
+                manager.partiallyUpdateAppWidget(idsBlur2, views)
             }
         } catch (e: Exception) {
             Log.w(TAG, "widget progress update failed", e)
@@ -276,7 +285,8 @@ object G6Widgets {
             val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
             val idsSimple = manager.getAppWidgetIds(ComponentName(app, G6WidgetSimple4x1Provider::class.java))
             val idsBlur = manager.getAppWidgetIds(ComponentName(app, G6WidgetBlur4x1Provider::class.java))
-            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsSimple.isEmpty() && idsBlur.isEmpty()) return
+            val idsBlur2 = manager.getAppWidgetIds(ComponentName(app, G6WidgetBlur4x2Provider::class.java))
+            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsSimple.isEmpty() && idsBlur.isEmpty() && idsBlur2.isEmpty()) return
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean(K_HAS, false)
@@ -306,6 +316,17 @@ object G6Widgets {
                     val views = build2x2(app, playing, cover, light)
                     try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
                 } finally {
+                    if (!cover.isRecycled) cover.recycle()
+                }
+            }
+            for (id in idsBlur2) {
+                val bg = blurBackground(app, manager, id, hasTrack, light)
+                val cover = coverBitmap(app, hasTrack, COVER_WIDGET_FRACTION, hires)
+                try {
+                    val views = buildBlur4x2(app, title, artist, hasTrack, playing, position, duration, bg, cover, light)
+                    try { manager.updateAppWidget(id, views) } catch (e: Exception) { Log.w(TAG, "blur 4x2 update failed", e) }
+                } finally {
+                    if (!bg.isRecycled) bg.recycle()
                     if (!cover.isRecycled) cover.recycle()
                 }
             }
@@ -479,6 +500,43 @@ object G6Widgets {
         return rounded
     }
 
+    /** Hifi 1.79: blur 4x2 widget: blurred card background, text 4x2 content (same sizes) with the rounded cover on the left of the title. */
+    private fun buildBlur4x2(
+        context: Context, title: String, artist: String, hasTrack: Boolean,
+        playing: Boolean, position: Int, duration: Int, background: Bitmap, cover: Bitmap, light: Boolean
+    ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x2).apply {
+        val density = context.resources.displayMetrics.density
+        val scale = TEXT_WIDGET_SCALE
+        val gap = (TEXT_WIDGET_GAP_DP * density).toInt()
+        setTextViewTextSize(R.id.w_title, android.util.TypedValue.COMPLEX_UNIT_SP, 26f * scale)
+        setTextViewTextSize(R.id.w_artist, android.util.TypedValue.COMPLEX_UNIT_SP, 15f * scale)
+        setTextViewTextSize(R.id.w_elapsed, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * scale)
+        setTextViewTextSize(R.id.w_duration, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * scale)
+        setViewPadding(R.id.w_gap1, 0, gap, 0, 0)
+        setViewPadding(R.id.w_gap2, 0, gap, 0, 0)
+        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        setImageViewBitmap(R.id.w_bg, background)
+        setImageViewBitmap(R.id.w_art, cover)
+        setTextViewText(R.id.w_title, title)
+        setTextViewText(R.id.w_artist, artist)
+        setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
+        setTextColor(R.id.w_title, ink)
+        setTextColor(R.id.w_artist, muted)
+        setTextColor(R.id.w_elapsed, muted)
+        setTextColor(R.id.w_duration, muted)
+        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+        setInt(R.id.w_play, "setColorFilter", ink)
+        setTextViewText(R.id.w_elapsed, timeLabel(position))
+        setTextViewText(R.id.w_duration, timeLabel(duration))
+        setImageViewBitmap(R.id.w_progress, progressBitmap(
+            if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
+            light
+        ))
+        setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetBlur4x2Provider::class.java, 4701, "toggle"))
+        setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4702))
+    }
+
     /** Height (dp) of the content area inside the blur card: widget height - top/bottom gaps - card padding. */
     private fun blurInnerHeightDp(manager: AppWidgetManager, id: Int): Float {
         val options: Bundle? = try { manager.getAppWidgetOptions(id) } catch (_: Exception) { null }
@@ -511,7 +569,7 @@ object G6Widgets {
         // Play button = 60% of the inner height: 20% of it left free above and below, icon padding 22% of the square.
         val density = context.resources.displayMetrics.density
         val pad = (innerHeightDp * 0.20f * density).toInt()
-        val iconPad = (innerHeightDp * 0.60f * 0.31f * density + 1f * density).toInt()   // Hifi 1.78: icon 2dp smaller   // Hifi 1.77: icon smaller (22% -> 31% padding)
+        val iconPad = (innerHeightDp * 0.60f * 0.31f * density + 2f * density).toInt()   // Hifi 1.79: icon 4dp smaller than 1.77 (1.78: 2dp)   // Hifi 1.77: icon smaller (22% -> 31% padding)
         setViewPadding(R.id.w_play_box, 0, pad, 0, pad)
         setViewPadding(R.id.w_left, 0, pad, 0, pad)   // Hifi 1.77: title top = square top, progress bottom = square bottom
         setViewPadding(R.id.w_play, iconPad, iconPad, iconPad, iconPad)
@@ -573,6 +631,14 @@ object G6Widgets {
                 setInt(R.id.w_play, "setColorFilter", if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             }
             try { manager.partiallyUpdateAppWidget(idsBlur, views) } catch (e: Exception) { Log.w(TAG, "blur 4x1 playback update failed", e) }
+        }
+        val idsBlur2 = manager.getAppWidgetIds(ComponentName(context, G6WidgetBlur4x2Provider::class.java))
+        if (idsBlur2.isNotEmpty()) {
+            val views = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x2).apply {
+                setImageViewResource(R.id.w_play, icon)
+                setInt(R.id.w_play, "setColorFilter", iconTint)
+            }
+            try { manager.partiallyUpdateAppWidget(idsBlur2, views) } catch (e: Exception) { Log.w(TAG, "blur 4x2 playback update failed", e) }
         }
         val idsText = manager.getAppWidgetIds(ComponentName(context, G6WidgetText4x2Provider::class.java))
         if (idsText.isNotEmpty()) {
@@ -753,3 +819,5 @@ class G6WidgetText4x2Provider : G6WidgetProviderBase()
 class G6WidgetSimple4x1Provider : G6WidgetProviderBase()
 
 class G6WidgetBlur4x1Provider : G6WidgetProviderBase()
+
+class G6WidgetBlur4x2Provider : G6WidgetProviderBase()

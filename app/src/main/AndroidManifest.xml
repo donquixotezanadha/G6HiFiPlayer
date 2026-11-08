@@ -65,5 +65,11 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_blur_4x1_info" />
         </receiver>
+        <receiver android:name="id.g6hifiplayer.G6WidgetBlur4x2Provider" android:label="Hifi Blur 4x2" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/g6_widget_blur_4x2_info" />
+        </receiver>
     </application>
 </manifest>
