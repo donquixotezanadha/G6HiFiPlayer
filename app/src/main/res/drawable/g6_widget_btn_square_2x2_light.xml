@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hifi 1.64: same colour and 22dp corners as the mini player card and the floating windows (light theme), opaque. -->
+<!-- Hifi 1.64: same colour and 20dp corners as the mini player card and the floating windows (light theme), opaque. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <corners android:radius="22dp" />
+            <corners android:radius="20dp" />
             <solid android:color="#FFC6C6C9" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <corners android:radius="22dp" />
+            <corners android:radius="20dp" />
             <solid android:color="#FFDADADD" />
         </shape>
     </item>

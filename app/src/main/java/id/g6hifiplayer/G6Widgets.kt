@@ -66,6 +66,7 @@ object G6Widgets {
     private const val CORNER_FRACTION = 0.12f
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
+    private const val MINI_PLAYER_ACCENT = 0xFF6662C6.toInt()   // = the app's DEFAULT_ACCENT, the colour of the mini player's play button
     private const val COVER_WIDGET_FRACTION = 0.16f   // simple 4x1 widget cover
     /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
@@ -375,20 +376,11 @@ object G6Widgets {
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             setInt(R.id.w_card, "setBackgroundResource", if (light) R.drawable.g6_widget_bg_4x1_light else R.drawable.g6_widget_bg_4x1)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-            val buttonBg = if (light) R.drawable.g6_widget_btn_light else R.drawable.g6_widget_btn
-            setInt(R.id.w_prev, "setBackgroundResource", buttonBg)
-            setInt(R.id.w_play, "setBackgroundResource", buttonBg)
-            setInt(R.id.w_next, "setBackgroundResource", buttonBg)
-            setInt(R.id.w_prev, "setColorFilter", iconTint)
-            setInt(R.id.w_play, "setColorFilter", iconTint)
-            setInt(R.id.w_next, "setColorFilter", iconTint)
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-            setInt(R.id.w_play, "setColorFilter", iconTint)
+            setInt(R.id.w_play, "setColorFilter", MINI_PLAYER_ACCENT)   // Hifi 1.85: like the mini player's play button
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
-            setOnClickPendingIntent(R.id.w_prev, actionIntent(context, G6Widget4x1Provider::class.java, 4201, "previous"))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x1Provider::class.java, 4202, "toggle"))
-            setOnClickPendingIntent(R.id.w_next, actionIntent(context, G6Widget4x1Provider::class.java, 4203, "next"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4204))
         }
     }
@@ -496,13 +488,13 @@ object G6Widgets {
     }
 
     /**
-     * Hifi 1.82: cuts the flat blurred card into the 9 pieces of g6_blur_bg: four 22dp corner quarter-circles (always true circles, whatever the
+     * Hifi 1.82: cuts the flat blurred card into the 9 pieces of g6_blur_bg: four 20dp corner quarter-circles (always true circles, whatever the
      * real widget size) plus stretching edges and centre. Pieces are copies, so [flat] can be recycled afterwards.
      */
     private fun RemoteViews.setBlurBackground(flat: Bitmap) {
         val w = flat.width; val h = flat.height
         val scale = flat.density / 1000f
-        val c = (22f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
+        val c = (20f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
         fun crop(x: Int, y: Int, cw: Int, ch: Int) = Bitmap.createBitmap(flat, x, y, cw.coerceAtLeast(1), ch.coerceAtLeast(1))
         fun corner(x: Int, y: Int, rect: RectF): Bitmap {
             val src = crop(x, y, c, c)
@@ -630,13 +622,7 @@ object G6Widgets {
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
-                val buttonBg = if (light) R.drawable.g6_widget_btn_light else R.drawable.g6_widget_btn
-                setInt(R.id.w_prev, "setBackgroundResource", buttonBg)
-                setInt(R.id.w_play, "setBackgroundResource", buttonBg)
-                setInt(R.id.w_next, "setBackgroundResource", buttonBg)
-                setInt(R.id.w_prev, "setColorFilter", iconTint)
-                setInt(R.id.w_play, "setColorFilter", iconTint)
-                setInt(R.id.w_next, "setColorFilter", iconTint)
+                setInt(R.id.w_play, "setColorFilter", MINI_PLAYER_ACCENT)
             }
             try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 playback update failed", e) }
         }

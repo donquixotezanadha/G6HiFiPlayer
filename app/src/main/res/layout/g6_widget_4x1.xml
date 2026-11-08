@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hifi 1.60: the card fills the area the launcher gives (vertical edge gap, text sizes and these values come from the Setting window);
+<!-- Hifi 1.85: content like the Album mini player: cover, title / artist / progress, one play button on the right (no previous / next).
+     Hifi 1.60: the card fills the area the launcher gives (vertical edge gap, text sizes and these values come from the Setting window);
      the cover and the button row grow with the card height.
      Build 2.66: restore the tested compact Build 2.58 values for the dedicated 4x1 provider.
      Build 3.18: the card has a fixed 70dp height and is centred in whatever area the launcher gives, so LG and Nova look the same.
@@ -67,57 +68,20 @@
                 android:id="@+id/w_progress"
                 android:layout_width="match_parent"
                 android:layout_height="4dp"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="7dp"
                 android:scaleType="fitXY"
                 android:contentDescription="Track progress" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_marginTop="1dp"
-                android:orientation="horizontal"
-                android:gravity="start|bottom">
-
-                <ImageButton
-                    android:id="@+id/w_prev"
-                    android:layout_width="40dp"
-                    android:layout_height="match_parent"
-                    android:paddingLeft="5dp"
-                    android:paddingRight="5dp"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="0dp"
-                    android:scaleType="fitCenter"
-                    android:background="@drawable/g6_widget_btn"
-                    android:src="@drawable/ic_previous_s"
-                    android:contentDescription="Previous" />
-
-                <ImageButton
-                    android:id="@+id/w_play"
-                    android:layout_width="40dp"
-                    android:layout_height="match_parent"
-                    android:paddingLeft="5dp"
-                    android:paddingRight="5dp"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="0dp"
-                    android:scaleType="fitCenter"
-                    android:background="@drawable/g6_widget_btn"
-                    android:src="@drawable/ic_play_s"
-                    android:contentDescription="Play or pause" />
-
-                <ImageButton
-                    android:id="@+id/w_next"
-                    android:layout_width="40dp"
-                    android:layout_height="match_parent"
-                    android:paddingLeft="5dp"
-                    android:paddingRight="5dp"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="0dp"
-                    android:scaleType="fitCenter"
-                    android:background="@drawable/g6_widget_btn"
-                    android:src="@drawable/ic_next_s"
-                    android:contentDescription="Next" />
-            </LinearLayout>
         </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/w_play"
+            android:layout_width="44dp"
+            android:layout_height="48dp"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_play_s"
+            android:contentDescription="Play or pause" />
     </LinearLayout>
 </FrameLayout>
