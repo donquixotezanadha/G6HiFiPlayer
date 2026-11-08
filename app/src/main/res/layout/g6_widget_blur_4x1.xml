@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Hifi 1.75: blur 4x1 widget. Same outer size/gaps as the 4x1 card (20dp sides, 6dp top/bottom). Background = blurred cover + theme veil,
-     rounded 16dp (one bitmap drawn to the widget's size). Left: title, artist and the progress bar; right: one big play button. -->
+     rounded 16dp (one bitmap drawn to the widget's size). Left: title, artist and the progress bar; right: one big rounded-square play button (about 60% of the height). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -66,25 +66,36 @@
                 android:contentDescription="Track progress" />
         </LinearLayout>
 
-        <FrameLayout
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginStart="12dp">
+        <LinearLayout
+            android:id="@+id/w_play_box"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
 
-            <ImageView
-                android:id="@+id/w_play_bg"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:src="@drawable/g6_w_circle" />
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent">
 
-            <ImageView
-                android:id="@+id/w_play"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="12dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_play_s"
-                android:contentDescription="Play or pause" />
-        </FrameLayout>
+                <ImageView
+                    android:id="@+id/w_play_bg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:adjustViewBounds="true"
+                    android:scaleType="fitCenter" />
+
+                <ImageView
+                    android:id="@+id/w_play"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_play_s"
+                    android:contentDescription="Play or pause" />
+            </FrameLayout>
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

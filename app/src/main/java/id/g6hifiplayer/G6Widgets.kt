@@ -312,7 +312,7 @@ object G6Widgets {
             for (id in idsBlur) {
                 val bg = blurBackground(app, manager, id, hasTrack, light)
                 try {
-                    val views = buildBlur4x1(app, title, artist, hasTrack, playing, position, duration, bg, light)
+                    val views = buildBlur4x1(app, blurInnerHeightDp(manager, id), title, artist, hasTrack, playing, position, duration, bg, light)
                     try { manager.updateAppWidget(id, views) } catch (e: Exception) { Log.w(TAG, "blur 4x1 update failed", e) }
                 } finally {
                     if (!bg.isRecycled) bg.recycle()
@@ -479,22 +479,44 @@ object G6Widgets {
         return rounded
     }
 
+    /** Height (dp) of the content area inside the blur card: widget height - top/bottom gaps - card padding. */
+    private fun blurInnerHeightDp(manager: AppWidgetManager, id: Int): Float {
+        val options: Bundle? = try { manager.getAppWidgetOptions(id) } catch (_: Exception) { null }
+        val heightDp = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0) ?: 0).let { if (it > 0) it else 70 }
+        return (heightDp - 2 * CARD_EDGE_DP - 18).coerceAtLeast(30).toFloat()
+    }
+
+    /** Rounded-square play background in the 2x2 button colours (theme), corners like that button (16dp on ~56dp = 0.28). */
+    private fun playSquare(light: Boolean): Bitmap {
+        val size = 160
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = if (light) 0xFFDADADD.toInt() else 0xFF1E1E1E.toInt()
+        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.28f, size * 0.28f, paint)
+        return bmp
+    }
+
     private fun buildBlur4x1(
-        context: Context, title: String, artist: String, hasTrack: Boolean,
+        context: Context, innerHeightDp: Float, title: String, artist: String, hasTrack: Boolean,
         playing: Boolean, position: Int, duration: Int, background: Bitmap, light: Boolean
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
         val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
-        val surface = if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
         setImageViewBitmap(R.id.w_bg, background)
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
         setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
         setTextColor(R.id.w_title, ink)
         setTextColor(R.id.w_artist, muted)
-        setInt(R.id.w_play_bg, "setColorFilter", ink)
+        // Play button = 60% of the inner height: 20% of it left free above and below, icon padding 22% of the square.
+        val density = context.resources.displayMetrics.density
+        val pad = (innerHeightDp * 0.20f * density).toInt()
+        val iconPad = (innerHeightDp * 0.60f * 0.22f * density).toInt()
+        setViewPadding(R.id.w_play_box, 0, pad, 0, pad)
+        setViewPadding(R.id.w_play, iconPad, iconPad, iconPad, iconPad)
+        setImageViewBitmap(R.id.w_play_bg, playSquare(light))
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-        setInt(R.id.w_play, "setColorFilter", surface)
+        setInt(R.id.w_play, "setColorFilter", ink)
         setImageViewBitmap(R.id.w_progress, progressBitmap(
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
             light
@@ -547,7 +569,7 @@ object G6Widgets {
         if (idsBlur.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
-                setInt(R.id.w_play, "setColorFilter", if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
+                setInt(R.id.w_play, "setColorFilter", if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             }
             try { manager.partiallyUpdateAppWidget(idsBlur, views) } catch (e: Exception) { Log.w(TAG, "blur 4x1 playback update failed", e) }
         }

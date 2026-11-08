@@ -394,3 +394,7 @@
 - Blur strength lives in one place now: BackdropBlur.kt (RADIUS, PASSES). App backdrop blur radius 3 -> 4 (one level more; 2 passes, cover scaled to 96 px, then flat 70% veil as before). The widget uses the same object, so "more / less blur" changes both.
 - New widget G6WidgetBlur4x1Provider "Hifi Blur 4x1" (layout g6_widget_blur_4x1, info g6_widget_blur_4x1_info, preview g6_preview_blur_4x1): same outer size and gaps as the 4x1 card (20dp sides, 6dp top/bottom). Background = one bitmap drawn to the widget's own size (from launcher options; theme surface colour + blurred cover centre-cropped + 70% veil, corners 16dp). Left: title, artist, progress bar inside the box; right: one big 52dp round play button (circle = ink colour, icon = surface colour, so it follows the theme). Tap on the card opens the app; the progress and play icon are updated by partial updates like the other widgets.
 - Version 1.75 (code 76), installs over 1.74. Audio unchanged.
+
+## v1.76 (branch hifi-v1-76, from hifi-v1-75) - Blur 4x1: rounded-square play button
+- The round play button of 1.75 is replaced by a rounded square like the 2x2 widget's button (theme colours #1E1E1E / #DADADD, corners 0.28 of the side), icon in the theme ink colour, size = 60% of the card's inner height (20% free above and below, computed from the launcher's widget height; the square bitmap is drawn by playSquare()). Preview image redrawn. 1.75 (round button) was superseded and not used.
+- Version 1.76 (code 77), installs over 1.75 / 1.74. Audio unchanged.
