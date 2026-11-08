@@ -434,3 +434,6 @@
 
 ## v1.86 (branch hifi-v1-86, from hifi-v1-85) - Hifi 4x1 bigger text and play
 - Corners of 1.85 (player 16dp, widgets 20dp) confirmed right. 4x1 card: title / artist 14.3 / 11sp -> 17 / 13sp (CARD_SCALE 1.10 -> 1.31); play button 44 x 48 -> 52 x 56dp (icon about 28% bigger) and moved left (card end padding 14 -> 22dp). Preview redrawn. Version 1.86 (code 87), installs over 1.85. Audio unchanged.
+
+## v1.87 (branch hifi-v1-87, from hifi-v1-86) - Hifi 4x1: only the cover opens the player
+- 4x1 card widget: the tap on the whole card is removed; only the album art opens Now Playing (openPlayerIntent on w_art, code 4204); the play button still toggles. Version 1.87 (code 88), installs over 1.86. Audio unchanged.

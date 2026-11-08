@@ -381,7 +381,7 @@ object G6Widgets {
             setInt(R.id.w_play, "setColorFilter", MINI_PLAYER_ACCENT)   // Hifi 1.85: like the mini player's play button
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x1Provider::class.java, 4202, "toggle"))
-            setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4204))
+            setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4204))   // Hifi 1.87: only the cover opens Now Playing
         }
     }
 
