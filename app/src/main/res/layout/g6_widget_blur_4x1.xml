@@ -29,11 +29,14 @@
         android:paddingBottom="10dp">
 
         <LinearLayout
+            android:id="@+id/w_left"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:gravity="center_vertical">
+            android:gravity="top"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
 
             <TextView
                 android:id="@+id/w_title"
@@ -42,7 +45,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="NO MUSIC PLAYING"
-                android:textSize="15sp"
+                android:textSize="17sp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
                 android:textColor="#FFFFFFFF" />
@@ -53,15 +56,19 @@
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="12sp"
+                android:textSize="13.5sp"
                 android:includeFontPadding="false"
                 android:textColor="#FFE0E0E6" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <ImageView
                 android:id="@+id/w_progress"
                 android:layout_width="match_parent"
                 android:layout_height="4dp"
-                android:layout_marginTop="8dp"
                 android:scaleType="fitXY"
                 android:contentDescription="Track progress" />
         </LinearLayout>

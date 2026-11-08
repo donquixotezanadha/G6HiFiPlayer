@@ -398,3 +398,7 @@
 ## v1.76 (branch hifi-v1-76, from hifi-v1-75) - Blur 4x1: rounded-square play button
 - The round play button of 1.75 is replaced by a rounded square like the 2x2 widget's button (theme colours #1E1E1E / #DADADD, corners 0.28 of the side), icon in the theme ink colour, size = 60% of the card's inner height (20% free above and below, computed from the launcher's widget height; the square bitmap is drawn by playSquare()). Preview image redrawn. 1.75 (round button) was superseded and not used.
 - Version 1.76 (code 77), installs over 1.75 / 1.74. Audio unchanged.
+
+## v1.77 (branch hifi-v1-77, from hifi-v1-76) - Blur 4x1 tweaks
+- Play / pause icon smaller (padding 22% -> 31% of the square; square size unchanged, the user found it right). Left column gets the same top/bottom padding as the square, with a weighted spacer: title top = top of the square, progress bar bottom = bottom of the square. Title 15 -> 17sp, artist 12 -> 13.5sp.
+- Version 1.77 (code 78), installs over 1.76. Audio unchanged.
