@@ -491,13 +491,38 @@ object G6Widgets {
             }
         }
         canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt())
-        val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = BitmapShader(flat, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-        val radius = 16f * scale
-        Canvas(rounded).drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radius, radius, paint)
-        flat.recycle()
-        return rounded
+        flat.density = (scale * 1000).toInt()   // remembers pixels-per-dp (x1000) for blurPieces()
+        return flat
+    }
+
+    /**
+     * Hifi 1.82: cuts the flat blurred card into the 9 pieces of g6_blur_bg: four 16dp corner quarter-circles (always true circles, whatever the
+     * real widget size) plus stretching edges and centre. Pieces are copies, so [flat] can be recycled afterwards.
+     */
+    private fun RemoteViews.setBlurBackground(flat: Bitmap) {
+        val w = flat.width; val h = flat.height
+        val scale = flat.density / 1000f
+        val c = (16f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
+        fun crop(x: Int, y: Int, cw: Int, ch: Int) = Bitmap.createBitmap(flat, x, y, cw.coerceAtLeast(1), ch.coerceAtLeast(1))
+        fun corner(x: Int, y: Int, rect: RectF): Bitmap {
+            val src = crop(x, y, c, c)
+            val out = Bitmap.createBitmap(c, c, Bitmap.Config.ARGB_8888)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            paint.shader = BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            Canvas(out).drawRoundRect(rect, c.toFloat(), c.toFloat(), paint)
+            src.recycle()
+            return out
+        }
+        val cf = c.toFloat()
+        setImageViewBitmap(R.id.w_bg_tl, corner(0, 0, RectF(0f, 0f, 2 * cf, 2 * cf)))
+        setImageViewBitmap(R.id.w_bg_tr, corner(w - c, 0, RectF(-cf, 0f, cf, 2 * cf)))
+        setImageViewBitmap(R.id.w_bg_bl, corner(0, h - c, RectF(0f, -cf, 2 * cf, cf)))
+        setImageViewBitmap(R.id.w_bg_br, corner(w - c, h - c, RectF(-cf, -cf, cf, cf)))
+        setImageViewBitmap(R.id.w_bg_t, crop(c, 0, w - 2 * c, c))
+        setImageViewBitmap(R.id.w_bg_b, crop(c, h - c, w - 2 * c, c))
+        setImageViewBitmap(R.id.w_bg_l, crop(0, c, c, h - 2 * c))
+        setImageViewBitmap(R.id.w_bg_r, crop(w - c, c, c, h - 2 * c))
+        setImageViewBitmap(R.id.w_bg_c, crop(c, c, w - 2 * c, h - 2 * c))
     }
 
     /** Hifi 1.79: blur 4x2 widget: blurred card background, text 4x2 content (same sizes) with the rounded cover on the left of the title. */
@@ -516,7 +541,7 @@ object G6Widgets {
         setViewPadding(R.id.w_gap2, 0, gap, 0, 0)
         val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
-        setImageViewBitmap(R.id.w_bg, background)
+        setBlurBackground(background)
         setImageViewBitmap(R.id.w_art, cover)
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
@@ -560,7 +585,7 @@ object G6Widgets {
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
         val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
-        setImageViewBitmap(R.id.w_bg, background)
+        setBlurBackground(background)
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
         setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)

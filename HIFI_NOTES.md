@@ -416,3 +416,6 @@
 
 ## v1.81 (branch hifi-v1-81, from hifi-v1-80) - Album fade ends at the middle of the navbar
 - The Album bottom fade is fully gone at half the navigation-bar height above the bottom edge (bottomInsetPx / 2, the middle of the nav icons) instead of at the very bottom edge. Start point unchanged (24dp above the mini player). Version 1.81 (code 82), installs over 1.80. Audio unchanged.
+
+## v1.82 (branch hifi-v1-82, from hifi-v1-81) - blur widgets: true 16dp corners
+- The Blur 4x1 / 4x2 background was one bitmap with rounded corners stretched (fitXY) to the widget; when the launcher's real size differed from the size it reports in the widget options, the corners were stretched (not round like the 4x1 card, mini player, windows). Now the card background is cut into 9 pieces (layout g6_blur_bg, included in both widget layouts): four fixed 16dp x 16dp corner pieces (quarter circles, always exact 16dp) and stretching edges + centre, all slices of the same blurred bitmap (blurBackground() + RemoteViews.setBlurBackground()). Look otherwise unchanged. Version 1.82 (code 83), installs over 1.81. Audio unchanged.

@@ -11,12 +11,10 @@
     android:paddingBottom="6dp"
     android:background="@android:color/transparent">
 
-    <ImageView
-        android:id="@+id/w_bg"
+    <include
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="fitXY"
-        android:contentDescription="Blurred artwork background" />
+        layout="@layout/g6_blur_bg" />
 
     <LinearLayout
         android:layout_width="match_parent"
