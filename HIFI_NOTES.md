@@ -419,3 +419,8 @@
 
 ## v1.82 (branch hifi-v1-82, from hifi-v1-81) - blur widgets: true 16dp corners
 - The Blur 4x1 / 4x2 background was one bitmap with rounded corners stretched (fitXY) to the widget; when the launcher's real size differed from the size it reports in the widget options, the corners were stretched (not round like the 4x1 card, mini player, windows). Now the card background is cut into 9 pieces (layout g6_blur_bg, included in both widget layouts): four fixed 16dp x 16dp corner pieces (quarter circles, always exact 16dp) and stretching edges + centre, all slices of the same blurred bitmap (blurBackground() + RemoteViews.setBlurBackground()). Look otherwise unchanged. Version 1.82 (code 83), installs over 1.81. Audio unchanged.
+
+## v1.83 (branch hifi-v1-83, from hifi-v1-82) - outer corners 18dp
+- Outer backgrounds only (not buttons): floatingBackground() (floating windows: Setting, album options, queue, and the mini player) 12 -> 18dp; widget cards: 4x1 card (g6_widget_bg_4x1 / _light) 16 -> 18dp, 2x2 play square 16 -> 18dp, Blur 4x1 / 4x2 (g6_blur_bg corner pieces, setBlurBackground) 16 -> 18dp. Picker previews redrawn with 18dp. Buttons (transport, Blur play square at 0.28 of its side, etc.) unchanged.
+- Correction: before 1.83 the windows and the mini player were 12dp (not 16dp as said earlier); the widget cards were 16dp.
+- Version 1.83 (code 84), installs over 1.82. Audio unchanged.

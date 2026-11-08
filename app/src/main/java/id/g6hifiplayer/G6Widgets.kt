@@ -496,13 +496,13 @@ object G6Widgets {
     }
 
     /**
-     * Hifi 1.82: cuts the flat blurred card into the 9 pieces of g6_blur_bg: four 16dp corner quarter-circles (always true circles, whatever the
+     * Hifi 1.82: cuts the flat blurred card into the 9 pieces of g6_blur_bg: four 18dp corner quarter-circles (always true circles, whatever the
      * real widget size) plus stretching edges and centre. Pieces are copies, so [flat] can be recycled afterwards.
      */
     private fun RemoteViews.setBlurBackground(flat: Bitmap) {
         val w = flat.width; val h = flat.height
         val scale = flat.density / 1000f
-        val c = (16f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
+        val c = (18f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
         fun crop(x: Int, y: Int, cw: Int, ch: Int) = Bitmap.createBitmap(flat, x, y, cw.coerceAtLeast(1), ch.coerceAtLeast(1))
         fun corner(x: Int, y: Int, rect: RectF): Bitmap {
             val src = crop(x, y, c, c)
