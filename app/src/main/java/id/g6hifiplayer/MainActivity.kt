@@ -1038,58 +1038,8 @@ class MainActivity : Activity() {
         G6Widgets.renderAll(this)
     }
 
-    /** Cover for the Classic backdrop: scaled to ~96 px and box-blurred, so it can be stretched over the screen cheaply. */
-    private fun softCoverForBackdrop(source: android.graphics.Bitmap): android.graphics.Bitmap? = try {
-        if (source.isRecycled || source.width <= 0 || source.height <= 0) null else {
-            val ratio = 96f / maxOf(source.width, source.height)
-            val w = (source.width * ratio).toInt().coerceAtLeast(2)
-            val h = (source.height * ratio).toInt().coerceAtLeast(2)
-            val scaled = android.graphics.Bitmap.createScaledBitmap(source, w, h, true)
-            val small = scaled.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
-            val pixels = IntArray(w * h)
-            small.getPixels(pixels, 0, w, 0, 0, w, h)
-            repeat(2) { boxBlur(pixels, w, h, 3) }
-            small.setPixels(pixels, 0, w, 0, 0, w, h)
-            small
-        }
-    } catch (_: Throwable) { null }
-
-    /** One horizontal and one vertical box-blur pass over an opaque ARGB pixel array (edges are clamped). */
-    private fun boxBlur(px: IntArray, w: Int, h: Int, r: Int) {
-        val tmp = IntArray(px.size)
-        val n = 2 * r + 1
-        for (y in 0 until h) {
-            val row = y * w
-            var rs = 0; var gs = 0; var bs = 0
-            for (i in -r..r) {
-                val p = px[row + i.coerceIn(0, w - 1)]
-                rs += (p shr 16) and 0xFF; gs += (p shr 8) and 0xFF; bs += p and 0xFF
-            }
-            for (x in 0 until w) {
-                tmp[row + x] = (0xFF shl 24) or ((rs / n) shl 16) or ((gs / n) shl 8) or (bs / n)
-                val add = px[row + (x + r + 1).coerceAtMost(w - 1)]
-                val sub = px[row + (x - r).coerceAtLeast(0)]
-                rs += ((add shr 16) and 0xFF) - ((sub shr 16) and 0xFF)
-                gs += ((add shr 8) and 0xFF) - ((sub shr 8) and 0xFF)
-                bs += (add and 0xFF) - (sub and 0xFF)
-            }
-        }
-        for (x in 0 until w) {
-            var rs = 0; var gs = 0; var bs = 0
-            for (i in -r..r) {
-                val p = tmp[i.coerceIn(0, h - 1) * w + x]
-                rs += (p shr 16) and 0xFF; gs += (p shr 8) and 0xFF; bs += p and 0xFF
-            }
-            for (y in 0 until h) {
-                px[y * w + x] = (0xFF shl 24) or ((rs / n) shl 16) or ((gs / n) shl 8) or (bs / n)
-                val add = tmp[(y + r + 1).coerceAtMost(h - 1) * w + x]
-                val sub = tmp[(y - r).coerceAtLeast(0) * w + x]
-                rs += ((add shr 16) and 0xFF) - ((sub shr 16) and 0xFF)
-                gs += ((add shr 8) and 0xFF) - ((sub shr 8) and 0xFF)
-                bs += (add and 0xFF) - (sub and 0xFF)
-            }
-        }
-    }
+    /** Cover for the Classic backdrop: scaled to ~96 px and box-blurred (see [BackdropBlur], shared with the blur widget). */
+    private fun softCoverForBackdrop(source: android.graphics.Bitmap): android.graphics.Bitmap? = BackdropBlur.soft(source)
 
     private fun newDarkDrawable(): DarkBackdropDrawable =
         DarkBackdropDrawable(lightTheme).also { it.bitmap = darkBackdropBitmap; darkDrawables.add(it) }

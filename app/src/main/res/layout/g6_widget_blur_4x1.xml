@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hifi 1.75: blur 4x1 widget. Same outer size/gaps as the 4x1 card (20dp sides, 6dp top/bottom). Background = blurred cover + theme veil,
+     rounded 16dp (one bitmap drawn to the widget's size). Left: title, artist and the progress bar; right: one big play button. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:background="@android:color/transparent">
+
+    <ImageView
+        android:id="@+id/w_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="Blurred artwork background" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="NO MUSIC PLAYING"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/w_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="12sp"
+                android:includeFontPadding="false"
+                android:textColor="#FFE0E0E6" />
+
+            <ImageView
+                android:id="@+id/w_progress"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="8dp"
+                android:scaleType="fitXY"
+                android:contentDescription="Track progress" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginStart="12dp">
+
+            <ImageView
+                android:id="@+id/w_play_bg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/g6_w_circle" />
+
+            <ImageView
+                android:id="@+id/w_play"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_play_s"
+                android:contentDescription="Play or pause" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

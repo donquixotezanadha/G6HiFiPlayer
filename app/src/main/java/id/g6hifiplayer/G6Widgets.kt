@@ -206,7 +206,8 @@ object G6Widgets {
         val manager = AppWidgetManager.getInstance(app)
         val ids4 = manager.getAppWidgetIds(ComponentName(app, G6Widget4x1Provider::class.java))
         val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
-        if (ids4.isEmpty() && idsText.isEmpty()) return
+        val idsBlur = manager.getAppWidgetIds(ComponentName(app, G6WidgetBlur4x1Provider::class.java))
+        if (ids4.isEmpty() && idsText.isEmpty() && idsBlur.isEmpty()) return
         val progress = if (duration > 0) {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
@@ -226,6 +227,12 @@ object G6Widgets {
                     setTextViewText(R.id.w_duration, timeLabel(duration))
                 }
                 manager.partiallyUpdateAppWidget(idsText, views)
+            }
+            if (idsBlur.isNotEmpty()) {
+                val views = RemoteViews(app.packageName, R.layout.g6_widget_blur_4x1).apply {
+                    setImageViewBitmap(R.id.w_progress, bitmap)
+                }
+                manager.partiallyUpdateAppWidget(idsBlur, views)
             }
         } catch (e: Exception) {
             Log.w(TAG, "widget progress update failed", e)
@@ -268,7 +275,8 @@ object G6Widgets {
             val ids2 = manager.getAppWidgetIds(ComponentName(app, G6Widget2x2Provider::class.java))
             val idsText = manager.getAppWidgetIds(ComponentName(app, G6WidgetText4x2Provider::class.java))
             val idsSimple = manager.getAppWidgetIds(ComponentName(app, G6WidgetSimple4x1Provider::class.java))
-            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsSimple.isEmpty()) return
+            val idsBlur = manager.getAppWidgetIds(ComponentName(app, G6WidgetBlur4x1Provider::class.java))
+            if (ids4.isEmpty() && ids2.isEmpty() && idsText.isEmpty() && idsSimple.isEmpty() && idsBlur.isEmpty()) return
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val hasTrack = prefs.getBoolean(K_HAS, false)
@@ -299,6 +307,15 @@ object G6Widgets {
                     try { manager.updateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 update failed", e) }
                 } finally {
                     if (!cover.isRecycled) cover.recycle()
+                }
+            }
+            for (id in idsBlur) {
+                val bg = blurBackground(app, manager, id, hasTrack, light)
+                try {
+                    val views = buildBlur4x1(app, title, artist, hasTrack, playing, position, duration, bg, light)
+                    try { manager.updateAppWidget(id, views) } catch (e: Exception) { Log.w(TAG, "blur 4x1 update failed", e) }
+                } finally {
+                    if (!bg.isRecycled) bg.recycle()
                 }
             }
             if (idsSimple.isNotEmpty()) {
@@ -420,6 +437,73 @@ object G6Widgets {
         setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4501))
     }
 
+    /**
+     * Hifi 1.75: background of the blur 4x1 widget, drawn to the widget's own size (from its launcher options): theme surface colour, the
+     * blurred cover (same blur as the app, [BackdropBlur]) centre-cropped, the same flat 70% veil as the app, rounded 16dp.
+     */
+    private fun blurBackground(context: Context, manager: AppWidgetManager, id: Int, hasTrack: Boolean, light: Boolean): Bitmap {
+        val density = context.resources.displayMetrics.density
+        val options: Bundle? = try { manager.getAppWidgetOptions(id) } catch (_: Exception) { null }
+        val widthDp = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0).let { if (it > 0) it else 250 }
+        val heightDp = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0) ?: 0).let { if (it > 0) it else 70 }
+        val cardW = (widthDp - 2 * CARD_SIDE_DP).coerceAtLeast(120f.toInt())
+        val cardH = (heightDp - 2 * CARD_EDGE_DP).coerceAtLeast(40)
+        val scale = (density * 0.6f).coerceAtMost(900f / cardW)
+        val w = (cardW * scale).toInt().coerceAtLeast(64)
+        val h = (cardH * scale).toInt().coerceAtLeast(32)
+        val flat = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(flat)
+        canvas.drawColor(if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
+        if (hasTrack) {
+            val file = File(context.filesDir, ART_FILE)
+            val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null
+            val soft = raw?.let { BackdropBlur.soft(it) }
+            raw?.recycle()
+            if (soft != null) {
+                val k = maxOf(w / soft.width.toFloat(), h / soft.height.toFloat())
+                val sw = (w / k).toInt().coerceIn(1, soft.width)
+                val sh = (h / k).toInt().coerceIn(1, soft.height)
+                val sx = (soft.width - sw) / 2
+                val sy = (soft.height - sh) / 2
+                canvas.drawBitmap(soft, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.Rect(0, 0, w, h), Paint(Paint.FILTER_BITMAP_FLAG))
+                soft.recycle()
+            }
+        }
+        canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt())
+        val rounded = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.shader = BitmapShader(flat, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        val radius = 16f * scale
+        Canvas(rounded).drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radius, radius, paint)
+        flat.recycle()
+        return rounded
+    }
+
+    private fun buildBlur4x1(
+        context: Context, title: String, artist: String, hasTrack: Boolean,
+        playing: Boolean, position: Int, duration: Int, background: Bitmap, light: Boolean
+    ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
+        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        val surface = if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt()
+        setImageViewBitmap(R.id.w_bg, background)
+        setTextViewText(R.id.w_title, title)
+        setTextViewText(R.id.w_artist, artist)
+        setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
+        setTextColor(R.id.w_title, ink)
+        setTextColor(R.id.w_artist, muted)
+        setInt(R.id.w_play_bg, "setColorFilter", ink)
+        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+        setInt(R.id.w_play, "setColorFilter", surface)
+        setImageViewBitmap(R.id.w_progress, progressBitmap(
+            if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
+            light
+        ))
+        setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetBlur4x1Provider::class.java, 4601, "toggle"))
+        setOnClickPendingIntent(R.id.w_play_bg, actionIntent(context, G6WidgetBlur4x1Provider::class.java, 4601, "toggle"))
+        setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4602))
+    }
+
     private fun timeLabel(milliseconds: Int): String {
         val seconds = milliseconds.coerceAtLeast(0) / 1000
         return if (seconds >= 3600) {
@@ -458,6 +542,14 @@ object G6Widgets {
                 setInt(R.id.w_play, "setColorFilter", iconTint)
             }
             try { manager.partiallyUpdateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 playback update failed", e) }
+        }
+        val idsBlur = manager.getAppWidgetIds(ComponentName(context, G6WidgetBlur4x1Provider::class.java))
+        if (idsBlur.isNotEmpty()) {
+            val views = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
+                setImageViewResource(R.id.w_play, icon)
+                setInt(R.id.w_play, "setColorFilter", if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
+            }
+            try { manager.partiallyUpdateAppWidget(idsBlur, views) } catch (e: Exception) { Log.w(TAG, "blur 4x1 playback update failed", e) }
         }
         val idsText = manager.getAppWidgetIds(ComponentName(context, G6WidgetText4x2Provider::class.java))
         if (idsText.isNotEmpty()) {
@@ -636,3 +728,5 @@ class G6Widget2x2Provider : G6WidgetProviderBase()
 class G6WidgetText4x2Provider : G6WidgetProviderBase()
 
 class G6WidgetSimple4x1Provider : G6WidgetProviderBase()
+
+class G6WidgetBlur4x1Provider : G6WidgetProviderBase()

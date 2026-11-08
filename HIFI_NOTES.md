@@ -389,3 +389,8 @@
 ## v1.74 (branch hifi-v1-74, from hifi-v1-73) - "Hifi Cover 4x2" widget removed
 - The Cover 4x2 widget (added in 1.69) did not work out and is removed completely: provider, manifest receiver, layout, info xml, preview image and every code path. Widgets left: 4x1 card, 2x2, Text 4x2, Simple 4x1 (kept as in 1.73).
 - Version 1.74 (code 75), installs over 1.73. Audio unchanged.
+
+## v1.75 (branch hifi-v1-75, from hifi-v1-74) - Blur 4x1 widget + one more blur level
+- Blur strength lives in one place now: BackdropBlur.kt (RADIUS, PASSES). App backdrop blur radius 3 -> 4 (one level more; 2 passes, cover scaled to 96 px, then flat 70% veil as before). The widget uses the same object, so "more / less blur" changes both.
+- New widget G6WidgetBlur4x1Provider "Hifi Blur 4x1" (layout g6_widget_blur_4x1, info g6_widget_blur_4x1_info, preview g6_preview_blur_4x1): same outer size and gaps as the 4x1 card (20dp sides, 6dp top/bottom). Background = one bitmap drawn to the widget's own size (from launcher options; theme surface colour + blurred cover centre-cropped + 70% veil, corners 16dp). Left: title, artist, progress bar inside the box; right: one big 52dp round play button (circle = ink colour, icon = surface colour, so it follows the theme). Tap on the card opens the app; the progress and play icon are updated by partial updates like the other widgets.
+- Version 1.75 (code 76), installs over 1.74. Audio unchanged.
