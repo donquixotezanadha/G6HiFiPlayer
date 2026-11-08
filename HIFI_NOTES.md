@@ -424,3 +424,6 @@
 - Outer backgrounds only (not buttons): floatingBackground() (floating windows: Setting, album options, queue, and the mini player) 12 -> 18dp; widget cards: 4x1 card (g6_widget_bg_4x1 / _light) 16 -> 18dp, 2x2 play square 16 -> 18dp, Blur 4x1 / 4x2 (g6_blur_bg corner pieces, setBlurBackground) 16 -> 18dp. Picker previews redrawn with 18dp. Buttons (transport, Blur play square at 0.28 of its side, etc.) unchanged.
 - Correction: before 1.83 the windows and the mini player were 12dp (not 16dp as said earlier); the widget cards were 16dp.
 - Version 1.83 (code 84), installs over 1.82. Audio unchanged.
+
+## v1.84 (branch hifi-v1-84, from hifi-v1-83) - widget corners 22dp
+- The user sees the floating window (18dp) rounder than the widgets (18dp) on the launcher, so the widget cards go to 22dp: 4x1 card, 2x2 play square, Blur 4x1 / 4x2 corner pieces. Floating windows and the mini player stay 18dp. Previews redrawn. Version 1.84 (code 85), installs over 1.83. Audio unchanged.
