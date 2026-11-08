@@ -413,3 +413,6 @@
 
 ## v1.80 (branch hifi-v1-80, from hifi-v1-79) - Album bottom fade reaches the navbar
 - updateBottomFade(): the fade still starts 24dp above the mini player card (full-strength point unchanged) but is now fully gone only at the bottom edge of the screen (gone = 0; before it was gone at the middle of the card), so a rest of the fade stays under the mini player and through the navigation-bar area. Only the Album list fade; nothing else changed. Version 1.80 (code 81), installs over 1.79. Audio unchanged.
+
+## v1.81 (branch hifi-v1-81, from hifi-v1-80) - Album fade ends at the middle of the navbar
+- The Album bottom fade is fully gone at half the navigation-bar height above the bottom edge (bottomInsetPx / 2, the middle of the nav icons) instead of at the very bottom edge. Start point unchanged (24dp above the mini player). Version 1.81 (code 82), installs over 1.80. Audio unchanged.
