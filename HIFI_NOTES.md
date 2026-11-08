@@ -402,3 +402,6 @@
 ## v1.77 (branch hifi-v1-77, from hifi-v1-76) - Blur 4x1 tweaks
 - Play / pause icon smaller (padding 22% -> 31% of the square; square size unchanged, the user found it right). Left column gets the same top/bottom padding as the square, with a weighted spacer: title top = top of the square, progress bar bottom = bottom of the square. Title 15 -> 17sp, artist 12 -> 13.5sp.
 - Version 1.77 (code 78), installs over 1.76. Audio unchanged.
+
+## v1.78 (branch hifi-v1-78, from hifi-v1-77) - Blur 4x1 play icon 2dp smaller
+- Play / pause icon of the Blur 4x1 widget 2dp smaller (1dp more padding on each side). Nothing else changed. Version 1.78 (code 79), installs over 1.77.

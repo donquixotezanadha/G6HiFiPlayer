@@ -511,7 +511,7 @@ object G6Widgets {
         // Play button = 60% of the inner height: 20% of it left free above and below, icon padding 22% of the square.
         val density = context.resources.displayMetrics.density
         val pad = (innerHeightDp * 0.20f * density).toInt()
-        val iconPad = (innerHeightDp * 0.60f * 0.31f * density).toInt()   // Hifi 1.77: icon smaller (22% -> 31% padding)
+        val iconPad = (innerHeightDp * 0.60f * 0.31f * density + 1f * density).toInt()   // Hifi 1.78: icon 2dp smaller   // Hifi 1.77: icon smaller (22% -> 31% padding)
         setViewPadding(R.id.w_play_box, 0, pad, 0, pad)
         setViewPadding(R.id.w_left, 0, pad, 0, pad)   // Hifi 1.77: title top = square top, progress bottom = square bottom
         setViewPadding(R.id.w_play, iconPad, iconPad, iconPad, iconPad)
