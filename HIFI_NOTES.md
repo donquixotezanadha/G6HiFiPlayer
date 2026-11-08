@@ -431,3 +431,6 @@
 ## v1.85 (branch hifi-v1-85, from hifi-v1-84) - corners minus 2dp, Hifi 4x1 like the mini player
 - Corner step = 2dp for both groups (separate numbers): player (floating windows + mini player, floatingBackground) 18 -> 16dp; widgets (4x1 card, 2x2 square, Blur 4x1 / 4x2) 22 -> 20dp. 1.84 (18 / 22) stays as the other option.
 - The Hifi 4x1 card widget content now follows the mini player: cover, title / artist / progress, and ONE play / pause button on the right (44 x 48dp, accent colour 0xFF6662C6 like the mini player's); previous / next removed (layout, code, actions 4201 / 4203). Card background, sizes and gaps unchanged. Preview redrawn. Version 1.85 (code 86), installs over 1.84. Audio unchanged.
+
+## v1.86 (branch hifi-v1-86, from hifi-v1-85) - Hifi 4x1 bigger text and play
+- Corners of 1.85 (player 16dp, widgets 20dp) confirmed right. 4x1 card: title / artist 14.3 / 11sp -> 17 / 13sp (CARD_SCALE 1.10 -> 1.31); play button 44 x 48 -> 52 x 56dp (icon about 28% bigger) and moved left (card end padding 14 -> 22dp). Preview redrawn. Version 1.86 (code 87), installs over 1.85. Audio unchanged.

@@ -23,7 +23,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="12dp"
-        android:paddingEnd="14dp"
+        android:paddingEnd="22dp"
         android:paddingTop="10dp"
         android:paddingBottom="10dp"
         android:background="@drawable/g6_widget_bg_4x1">
@@ -76,8 +76,8 @@
 
         <ImageButton
             android:id="@+id/w_play"
-            android:layout_width="44dp"
-            android:layout_height="48dp"
+            android:layout_width="52dp"
+            android:layout_height="56dp"
             android:padding="8dp"
             android:scaleType="fitCenter"
             android:background="@android:color/transparent"
