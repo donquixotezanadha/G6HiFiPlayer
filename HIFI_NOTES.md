@@ -456,3 +456,7 @@
 - Album page: the "‹ ALBUMS" button is gone; a plain left arrow sits at the left of the big cover. PLAY ALBUM / ADD TO QUEUE have no box any more (bigger text, top aligned), the list moves up.
 - Dark surfaces (text fields, cover placeholders, secondary buttons, backdrop veil) follow the darkened accent of the cover; covers without colour keep the old greys / black veil.
 - AlbumAccent: a big colour area now weighs more (FULL_AREA 12%), so it matches the notification colour more often.
+
+## v2.3
+- PLAY ALBUM text is white like ADD TO QUEUE (plain button, not a selected state).
+- Long-press album window: option buttons use the same colour as the unselected buttons in Setting (light touch of the dark accent background, no grey).

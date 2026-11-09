@@ -3405,7 +3405,7 @@ class MainActivity : Activity() {
             val item = text(label, 14f, WHITE, true).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(withAlpha(mixColors(playerSurface, playerInk, 0.22f), 0xCC), 14), null)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 14), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
             }
@@ -3457,7 +3457,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
         setPadding(dp(4), dp(2), dp(4), dp(8))
         themed {
-            setTextColor(if (primary) accentColor else WHITE)
+            setTextColor(WHITE)   // 2.3: both buttons white; they are plain buttons, not a selected state
             background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 10), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
