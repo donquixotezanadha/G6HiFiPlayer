@@ -1,4 +1,4 @@
-name: Hifi v2.2 - accent from the cover and dark window colour
+name: Hifi v2.2 - album page and tinted dark surfaces
 
 on:
   workflow_dispatch:
