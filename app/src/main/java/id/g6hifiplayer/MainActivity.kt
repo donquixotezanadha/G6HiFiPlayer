@@ -234,7 +234,6 @@ class MainActivity : Activity() {
     private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
     private var queueDialog: AlertDialog? = null     // Hifi 1.37: the queue is a floating window
     private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
-    private var headerThemeRow: LinearLayout? = null
     private lateinit var albumRows: LinearLayout
     private lateinit var trackRows: LinearLayout
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
@@ -3165,7 +3164,6 @@ class MainActivity : Activity() {
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
-        headerThemeRow?.visibility = if (which == "library") View.GONE else View.VISIBLE
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
         if (which != "player" && tabsPaletteDirty) retintPages()
@@ -3452,7 +3450,7 @@ class MainActivity : Activity() {
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
 
-    /** Hifi 1.5: header row above the page: title on the left; Now Playing shows the dark/light icons, Album shows the gear. */
+    /** Hifi 1.5: header row above the page: title on the left; Album shows the gear. Hifi 2.0: the dark/light icons on Now Playing are removed. */
     private fun makeHeaderBar(statusInset: Int): FrameLayout {
         // The bar's own top padding is the status-bar inset; children are NOT offset again (that clipped them in 1.4).
         val bar = FrameLayout(this).apply { setPadding(0, statusInset, 0, 0); setBackgroundColor(Color.TRANSPARENT) }
@@ -3473,30 +3471,10 @@ class MainActivity : Activity() {
         }
         headerGear = gear
         bar.addView(gear, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) })
-        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun themeIcon(res: Int, description: String, light: Boolean) {
-            val selected = lightTheme == light
-            val icon = ImageView(this).apply {
-                setImageResource(res)
-                contentDescription = description
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setPadding(dp(8), dp(8), dp(8), dp(8))
-                imageTintList = ColorStateList.valueOf(if (selected) accentColor else WHITE)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)),
-                    shape(if (selected) withAlpha(accentColor, 0x33) else Color.TRANSPARENT, 20), null)
-                isClickable = true; isFocusable = true
-                setOnClickListener { setLightTheme(light) }
-            }
-            themeRow.addView(icon, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(2); rightMargin = dp(2) })
-        }
-        themeIcon(R.drawable.ic_moon_fill, "Dark theme", false)
-        themeIcon(R.drawable.ic_sun_fill, "Light theme", true)
-        headerThemeRow = themeRow
-        bar.addView(themeRow, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(12) })
         return bar
     }
 
-    /** Hifi 1.4: floating settings window. Album page: folder scan and columns. Now Playing page: dark / light icons. */
+    /** Hifi 1.4: floating settings window (Album page only: folder scan, columns, audio path log). Hifi 2.0: the Now Playing theme icons are gone. */
     /**
      * Hifi 1.41: LOG AUDIO PATH: the last 50 tracks (newest first), ONE line each: the track name on the left, cut with "..." where the result
      * starts, and the result on the right (MD5 MATCH, MD5 DIFFERENT, NOT PLAYED ...). Normal lines use the regular text colour; DIFFERENT / not
@@ -3551,27 +3529,6 @@ class MainActivity : Activity() {
             panel.addView(columnButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
             panel.addView(text("LOG AUDIO PATH", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
             panel.addView(audioPathLogView(), LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(10) })
-        } else {
-            panel.addView(text("THEME", 12f, MUTED, true))
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-            fun themeIcon(res: Int, description: String, light: Boolean) {
-                val selected = lightTheme == light
-                val icon = ImageView(this).apply {
-                    setImageResource(res)
-                    contentDescription = description
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                    setPadding(dp(14), dp(14), dp(14), dp(14))
-                    imageTintList = ColorStateList.valueOf(if (selected) accentColor else WHITE)
-                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)),
-                        shape(if (selected) withAlpha(accentColor, 0x33) else Color.TRANSPARENT, 18), null)
-                    isClickable = true; isFocusable = true
-                    setOnClickListener { dialog.dismiss(); setLightTheme(light) }
-                }
-                row.addView(icon, LinearLayout.LayoutParams(dp(60), dp(60)).apply { leftMargin = dp(10); rightMargin = dp(10) })
-            }
-            themeIcon(R.drawable.ic_moon_fill, "Dark theme", false)
-            themeIcon(R.drawable.ic_sun_fill, "Light theme", true)
-            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         }
         dialog.setView(panel)
         dialog.show()

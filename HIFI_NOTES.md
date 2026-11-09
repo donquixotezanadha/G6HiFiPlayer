@@ -437,3 +437,9 @@
 
 ## v1.87 (branch hifi-v1-87, from hifi-v1-86) - Hifi 4x1: only the cover opens the player
 - 4x1 card widget: the tap on the whole card is removed; only the album art opens Now Playing (openPlayerIntent on w_art, code 4204); the play button still toggles. Version 1.87 (code 88), installs over 1.86. Audio unchanged.
+
+## v2.0 (branch hifi-v2-0, from hifi-v1-87) - new logo and icons, theme buttons removed
+- New logo (a single-colour wavy line with pointed ends, traced from the user's own picture): launcher icon = black logo on the white adaptive background (ic_launcher_foreground.xml is now a 108dp vector, inside the 66dp safe zone; the old bitmap ic_launcher_foreground_original.png is deleted).
+- Small silhouette icon ic_stat_music.png (notification small icon, 4x2 text widget open-player icon, cover placeholder) replaced by the thicker-stroke version of the logo (white, 192 px) so the pointed tips stay visible at 24dp.
+- The dark / light icons above the cover on Now Playing are removed (header theme row, the dead THEME branch of the settings window, and the unused ic_moon_fill / ic_sun_fill drawables). The theme can no longer be switched from the Now Playing screen; the app stays on the theme that is active. The gear on the Album page stays.
+- Version 2.0 (code 89), installs over 1.87. Audio unchanged. Next planned build: blurred backdrop with a dark album-colour layer and a near-white tinted accent (about 85% white + 15% most vivid cover colour).
