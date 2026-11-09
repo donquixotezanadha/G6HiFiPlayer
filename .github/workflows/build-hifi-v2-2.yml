@@ -26,7 +26,10 @@ jobs:
         with:
           packages: "platform-tools"
       - name: Install Android platform and build tools
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125" "cmake;3.22.2"
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125"
+          sdkmanager --list 2>/dev/null | grep -i "cmake" || true
+          sdkmanager "cmake;3.22.1" || sdkmanager "cmake;3.22.2" || sdkmanager "cmake;3.31.5" || echo "no sdk cmake package, using the runner cmake"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
