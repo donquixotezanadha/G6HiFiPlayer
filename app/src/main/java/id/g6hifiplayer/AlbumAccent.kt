@@ -25,7 +25,7 @@ internal object AlbumAccent {
     private const val MIN_SATURATION = 0.28f      // below this a pixel counts as grey
     private const val MIN_VALUE = 0.28f           // below this a pixel counts as black
     private const val MIN_AREA = 0.003f           // a colour needs at least 0.3% of the samples (a small detail is enough)
-    private const val FULL_AREA = 0.04f           // from 4% of the samples a colour has full weight
+    private const val FULL_AREA = 0.12f           // from 12% of the samples a colour has full weight (2.2: was 4%, a big colour area now beats small vivid details)
     private const val LIFT_SATURATION = 0.45f     // the colour that is mixed in is lifted to at least this saturation ...
     private const val LIFT_VALUE = 0.85f          // ... and this brightness, so a dark or dull colour still shows in the white
     private const val DARK_VALUE = 0.20f          // brightness of the dark window colour
@@ -82,7 +82,7 @@ internal object AlbumAccent {
             val c = count[lo] + count[b] + count[hi]
             if (c < minCount) continue
             val vivid = (weight[lo] + weight[b] + weight[hi]) / c
-            val area = 0.55f + 0.45f * minOf(1f, c / (total * FULL_AREA))
+            val area = 0.40f + 0.60f * minOf(1f, c / (total * FULL_AREA))
             val score = vivid * area
             if (score > bestScore) { bestScore = score; best = b }
         }

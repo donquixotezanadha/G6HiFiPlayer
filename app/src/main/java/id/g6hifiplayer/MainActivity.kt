@@ -15,6 +15,9 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -116,9 +119,13 @@ class MainActivity : Activity() {
     // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
     private var startupSplashShown = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
-    private val CARD get() = if (lightTheme) 0xCCFFFFFF.toInt() else 0xCC101014.toInt()
-    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else 0xCC292932.toInt()
+    // Hifi 2.2: the dark greys follow the darkened accent of the cover (the old greys stay for covers without colour / no cover).
+    private val hasAlbumTint get() = albumDark != AlbumAccent.DEFAULT_DARK
+    private val CARD get() = if (lightTheme) 0xCCFFFFFF.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
+    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
+    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
+    /** Veil over the blurred cover: black, or a very dark version of the cover colour. */
+    private fun backdropVeil(): Int = if (lightTheme || !hasAlbumTint) 0xB3000000.toInt() else withAlpha(mixColors(albumDark, Color.BLACK, 0.45f), 0xB3)
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
@@ -962,6 +969,7 @@ class MainActivity : Activity() {
         albumAccent = result.accent
         albumDark = result.dark
         if (lightTheme) return
+        darkDrawables.forEach { it.veil = backdropVeil() }
         if (::seek.isInitialized) {
             seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
@@ -1063,7 +1071,7 @@ class MainActivity : Activity() {
     private fun softCoverForBackdrop(source: android.graphics.Bitmap): android.graphics.Bitmap? = BackdropBlur.soft(source)
 
     private fun newDarkDrawable(): DarkBackdropDrawable =
-        DarkBackdropDrawable(lightTheme).also { it.bitmap = darkBackdropBitmap; darkDrawables.add(it) }
+        DarkBackdropDrawable(lightTheme).also { it.bitmap = darkBackdropBitmap; it.veil = backdropVeil(); darkDrawables.add(it) }
 
     /** Called with the cover that is on screen (or null when the track has none); repaints every Classic backdrop. */
     private fun updateDarkBackdrop(source: android.graphics.Bitmap?) {
@@ -1079,6 +1087,8 @@ class MainActivity : Activity() {
      */
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
+            set(value) { field = value; invalidateSelf() }
+        var veil: Int = 0xB3000000.toInt()
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
         private val srcRect = android.graphics.Rect()
@@ -1096,7 +1106,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt())   // Hifi 1.53: veil 60% -> 70%; Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
+            canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else veil)   // Hifi 1.53: veil 60% -> 70%; Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
         }
 
         override fun setAlpha(alpha: Int) { }
@@ -1704,17 +1714,6 @@ class MainActivity : Activity() {
             } else {
                 val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
                 val queueIndices = entries.map { it.index }
-                val backRow = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(4), 0, dp(12))
-                }
-                backRow.addView(action("‹ ALBUMS", false) {
-                    selectedAlbum = null
-                    renderLibrary()
-                    restoreListScroll()
-                }, LinearLayout.LayoutParams(dp(112), dp(42)))
-                albumRows.addView(backRow, LinearLayout.LayoutParams(-1, -2))
 
                 // Build 2.3: the cover sits in the middle, fairly large; the songs are a plain numbered list below it.
                 val contentWidth = resources.displayMetrics.widthPixels - dp(32)
@@ -1727,7 +1726,23 @@ class MainActivity : Activity() {
                     contentDescription = "Artwork $album"
                 }
                 applyAlbumHiResBadge(bigCover, entries.map { it.value })
-                albumRows.addView(bigCover, LinearLayout.LayoutParams(artSide, artSide).apply { gravity = Gravity.CENTER_HORIZONTAL })
+                // Build 2.2: no "‹ ALBUMS" button any more; a plain left arrow sits at the left of the big cover.
+                val coverRow = FrameLayout(this)
+                coverRow.addView(bigCover, FrameLayout.LayoutParams(artSide, artSide, Gravity.CENTER_HORIZONTAL))
+                val backArrow = ImageView(this).apply {
+                    setImageDrawable(backArrowDrawable())
+                    scaleType = ImageView.ScaleType.CENTER
+                    isClickable = true; isFocusable = true
+                    contentDescription = "Back to albums"
+                    themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 20), null) }
+                    setOnClickListener {
+                        selectedAlbum = null
+                        renderLibrary()
+                        restoreListScroll()
+                    }
+                }
+                coverRow.addView(backArrow, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.TOP or Gravity.START))
+                albumRows.addView(coverRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
                 loadBigArtworkInto(bigCover, entries.first().value)
                 albumRows.addView(text(album, 18f, WHITE, true).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
@@ -1741,15 +1756,15 @@ class MainActivity : Activity() {
                 }, LinearLayout.LayoutParams(-1, -2))
                 val albumActions = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    setPadding(dp(4), dp(2), dp(4), dp(10))
+                    setPadding(dp(4), dp(0), dp(4), dp(6))
                 }
-                albumActions.addView(action("PLAY ALBUM", true) {
+                albumActions.addView(flatAction("PLAY ALBUM", true) {
                     if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
-                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                }, LinearLayout.LayoutParams(0, -2, 1f))
                 albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-                albumActions.addView(action("ADD TO QUEUE", false) {
+                albumActions.addView(flatAction("ADD TO QUEUE", false) {
                     addAlbumToQueue(queueIndices, album)
-                }, LinearLayout.LayoutParams(0, dp(42), 1f))
+                }, LinearLayout.LayoutParams(0, -2, 1f))
                 albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
                 entries.forEachIndexed { position, entry -> addNumberedTrackRow(albumRows, entry, position + 1, albumArtist, queueIndices) }
                 updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
@@ -3436,6 +3451,31 @@ class MainActivity : Activity() {
             background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 14), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
+    }
+    /** Build 2.2: album page buttons without a background box: larger text, accent colour for the main one. */
+    private fun flatAction(label: String, primary: Boolean, click: () -> Unit) = text(label, 15f, WHITE, true).apply {
+        gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+        setPadding(dp(4), dp(2), dp(4), dp(8))
+        themed {
+            setTextColor(if (primary) accentColor else WHITE)
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 10), null)
+        }
+        isClickable = true; isFocusable = true; setOnClickListener { click() }
+    }
+
+    private fun backArrowDrawable(): android.graphics.drawable.Drawable {
+        val d = dp(40)
+        val bmp = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(2).toFloat() + 0.5f
+            strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+        }
+        val path = android.graphics.Path().apply {
+            moveTo(d * 0.60f, d * 0.26f); lineTo(d * 0.36f, d * 0.50f); lineTo(d * 0.60f, d * 0.74f)
+        }
+        c.drawPath(path, paint)
+        return android.graphics.drawable.BitmapDrawable(resources, bmp)
     }
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 

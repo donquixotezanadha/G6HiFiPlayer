@@ -451,3 +451,8 @@
 - Widgets: the accent is computed when the cover is saved (G6Widgets.refresh) and stored in the widget prefs (accent / accent_dark); older saved state is worked out once from the saved cover. The 4x1 card and the 2x2 button box are now tinted layers (w_card_bg, w_play_bg, white rounded shape + setColorFilter) so the corners stay true circles; the fixed-colour drawables g6_widget_bg_4x1(_light), g6_widget_btn_square_2x2(_light) and the unused g6_widget_progress were deleted. WIDGET_RENDER_VERSION 254 -> 255 (full redraw after the update).
 - The six widget picker previews (g6_preview_*.png) were made neutral: grey cover, white progress and play, no purple.
 - Version 2.1 (code 90). Audio unchanged.
+
+## v2.2
+- Album page: the "‹ ALBUMS" button is gone; a plain left arrow sits at the left of the big cover. PLAY ALBUM / ADD TO QUEUE have no box any more (bigger text, top aligned), the list moves up.
+- Dark surfaces (text fields, cover placeholders, secondary buttons, backdrop veil) follow the darkened accent of the cover; covers without colour keep the old greys / black veil.
+- AlbumAccent: a big colour area now weighs more (FULL_AREA 12%), so it matches the notification colour more often.
