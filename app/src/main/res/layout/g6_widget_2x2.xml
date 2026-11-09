@@ -15,6 +15,18 @@
         android:scaleType="fitCenter"
         android:contentDescription="Album artwork" />
 
+    <!-- Hifi 2.1: the button box colour is a tinted layer (darkened accent colour of the cover) behind the button. -->
+    <ImageView
+        android:id="@+id/w_play_bg"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="14dp"
+        android:layout_marginBottom="14dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/g6_widget_card_bg"
+        android:importantForAccessibility="no" />
+
     <ImageButton
         android:id="@+id/w_play"
         android:layout_width="56dp"
@@ -24,7 +36,7 @@
         android:layout_marginBottom="14dp"
         android:padding="8dp"
         android:scaleType="fitCenter"
-        android:background="@drawable/g6_widget_btn_square_2x2"
+        android:background="@drawable/g6_widget_btn_pressed"
         android:src="@drawable/g6_w_ic_play_2x2"
         android:contentDescription="Play or pause" />
 </FrameLayout>

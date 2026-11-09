@@ -66,7 +66,8 @@ object G6Widgets {
     private const val CORNER_FRACTION = 0.12f
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
-    private const val MINI_PLAYER_ACCENT = 0xFF6662C6.toInt()   // = the app's DEFAULT_ACCENT, the colour of the mini player's play button
+    private const val LEGACY_ACCENT = 0xFF6662C6.toInt()   // Hifi 2.1: only the Light widgets keep the old purple
+    private const val LIGHT_CARD = 0xFFDADADD.toInt()      // card / button colour of the Light widgets
     private const val COVER_WIDGET_FRACTION = 0.16f   // simple 4x1 widget cover
     /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
@@ -82,11 +83,37 @@ object G6Widgets {
     private const val K_DUR = "duration"
     private const val K_ART_ID = "art_identity"
     private const val K_OLD_CLEANED = "old_cleaned"
+    private const val K_ACCENT = "accent"            // Hifi 2.1: accent of the cover (AlbumAccent)
+    private const val K_ACCENT_DARK = "accent_dark"  // Hifi 2.1: darkened accent = card / button colour of the dark widgets
     private const val K_RENDER_VERSION = "widget_render_version"
-    private const val WIDGET_RENDER_VERSION = 254
+    private const val WIDGET_RENDER_VERSION = 255
     private const val PROGRESS_CACHE_INTERVAL_MS = 5_000L
 
     private val lock = Any()
+
+    /** Hifi 2.1: accent / card colour in use by the widgets; set from the saved state by [syncAccent] before every draw. */
+    @Volatile private var accentNow = AlbumAccent.DEFAULT_ACCENT
+    @Volatile private var cardColorNow = AlbumAccent.DEFAULT_DARK
+
+    private fun syncAccent(context: Context, light: Boolean) {
+        if (light) { accentNow = LEGACY_ACCENT; cardColorNow = LIGHT_CARD; return }
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.contains(K_ACCENT)) {
+            // Saved by an older build: work it out once from the saved cover.
+            val file = File(context.filesDir, ART_FILE)
+            val result = if (prefs.getBoolean(K_HAS, false) && file.exists()) {
+                val bmp = try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Throwable) { null }
+                try { AlbumAccent.from(bmp) } finally { bmp?.recycle() }
+            } else AlbumAccent.NEUTRAL
+            storeAccent(prefs, result)
+        }
+        accentNow = prefs.getInt(K_ACCENT, AlbumAccent.DEFAULT_ACCENT)
+        cardColorNow = prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK)
+    }
+
+    private fun storeAccent(prefs: android.content.SharedPreferences, result: AlbumAccent.Result) {
+        prefs.edit().putInt(K_ACCENT, result.accent).putInt(K_ACCENT_DARK, result.dark).apply()
+    }
     private var lastToggleAtMs = Long.MIN_VALUE
     private var lastProgressPersistAtMs = Long.MIN_VALUE
 
@@ -148,12 +175,14 @@ object G6Widgets {
                         val saved = saveThumb(artwork, file)
                         if (saved) {
                             prefs.edit().putString(K_ART_ID, identity).apply()
+                            storeAccent(prefs, AlbumAccent.from(artwork))
                             artChanged = true
                         } else {
                             // Remember which track the placeholder belongs to. Do not repeatedly
                             // force full widget renders if this track's artwork cannot be written.
                             file.delete()
                             prefs.edit().putString(K_ART_ID, identity).apply()
+                            storeAccent(prefs, AlbumAccent.NEUTRAL)
                             artChanged = newTrackIdentity
                         }
                     }
@@ -161,6 +190,7 @@ object G6Widgets {
                     // Invalidate the old cover once, then keep the new track identity while its art is pending.
                     file.delete()
                     prefs.edit().putString(K_ART_ID, identity).apply()
+                    storeAccent(prefs, AlbumAccent.NEUTRAL)
                     artChanged = true
                 }
             }
@@ -214,6 +244,7 @@ object G6Widgets {
             ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100)
         } else 0
         val light = isLightTheme(app)
+        syncAccent(app, light)
         val bitmap = progressBitmap(progress, light)
         try {
             if (ids4.isNotEmpty()) {
@@ -299,6 +330,7 @@ object G6Widgets {
             val duration = prefs.getInt(K_DUR, 0)
             val hires = hasTrack && prefs.getBoolean(K_HIRES, false)
             val light = isLightTheme(app)
+            syncAccent(app, light)   // Hifi 2.1
 
             if (ids4.isNotEmpty()) {
                 // Rounded-square cover for the 4x1. updateAppWidget has already copied the bitmap into the outgoing parcel.
@@ -374,11 +406,11 @@ object G6Widgets {
             setTextViewText(R.id.w_artist, artist)
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
-            setInt(R.id.w_card, "setBackgroundResource", if (light) R.drawable.g6_widget_bg_4x1_light else R.drawable.g6_widget_bg_4x1)
+            setInt(R.id.w_card_bg, "setColorFilter", cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-            setInt(R.id.w_play, "setColorFilter", MINI_PLAYER_ACCENT)   // Hifi 1.85: like the mini player's play button
+            setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 1.85: like the mini player's play button (Hifi 2.1: accent of the cover)
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x1Provider::class.java, 4202, "toggle"))
             setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4204))   // Hifi 1.87: only the cover opens Now Playing
@@ -389,7 +421,7 @@ object G6Widgets {
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
             setImageViewBitmap(R.id.w_art, cover)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2)
-            setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_widget_btn_square_2x2_light else R.drawable.g6_widget_btn_square_2x2)
+            setInt(R.id.w_play_bg, "setColorFilter", cardColorNow)   // Hifi 2.1: button box = darkened accent colour of the cover
             setInt(R.id.w_play, "setColorFilter", if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
@@ -562,11 +594,11 @@ object G6Widgets {
     }
 
     /** Rounded-square play background in the 2x2 button colours (theme), corners like that button (16dp on ~56dp = 0.28). */
-    private fun playSquare(light: Boolean): Bitmap {
+    private fun playSquare(color: Int): Bitmap {
         val size = 160
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = if (light) 0xFFDADADD.toInt() else 0xFF1E1E1E.toInt()
+        paint.color = color
         Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.28f, size * 0.28f, paint)
         return bmp
     }
@@ -590,7 +622,7 @@ object G6Widgets {
         setViewPadding(R.id.w_play_box, 0, pad, 0, pad)
         setViewPadding(R.id.w_left, 0, pad, 0, pad)   // Hifi 1.77: title top = square top, progress bottom = square bottom
         setViewPadding(R.id.w_play, iconPad, iconPad, iconPad, iconPad)
-        setImageViewBitmap(R.id.w_play_bg, playSquare(light))
+        setImageViewBitmap(R.id.w_play_bg, playSquare(cardColorNow))
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
         setInt(R.id.w_play, "setColorFilter", ink)
         setImageViewBitmap(R.id.w_progress, progressBitmap(
@@ -615,6 +647,7 @@ object G6Widgets {
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
         val manager = AppWidgetManager.getInstance(context)
         val light = isLightTheme(context)
+        syncAccent(context, light)
         val icon = if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s
         val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
         val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
@@ -622,7 +655,7 @@ object G6Widgets {
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
-                setInt(R.id.w_play, "setColorFilter", MINI_PLAYER_ACCENT)
+                setInt(R.id.w_play, "setColorFilter", accentNow)
             }
             try { manager.partiallyUpdateAppWidget(ids4, views) } catch (e: Exception) { Log.w(TAG, "4x1 playback update failed", e) }
         }
@@ -630,7 +663,6 @@ object G6Widgets {
         if (ids2.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
                 setImageViewResource(R.id.w_play, widget2x2Icon)
-                setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_widget_btn_square_2x2_light else R.drawable.g6_widget_btn_square_2x2)
                 setInt(R.id.w_play, "setColorFilter", iconTint)
             }
             try { manager.partiallyUpdateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 playback update failed", e) }
@@ -678,7 +710,7 @@ object G6Widgets {
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
         if (filled > 0f) {
-            paint.color = 0xFF6662C6.toInt()
+            paint.color = accentNow   // Hifi 2.1: accent of the cover (Light: the old purple)
             canvas.drawRoundRect(RectF(0f, 0f, filled, height.toFloat()), radius, radius, paint)
         }
         return bitmap

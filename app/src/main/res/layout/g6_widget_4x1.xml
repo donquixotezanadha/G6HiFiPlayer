@@ -15,6 +15,15 @@
     android:paddingBottom="6dp"
     android:background="@android:color/transparent">
 
+    <!-- Hifi 2.1: the card colour is a tinted layer (darkened accent colour of the cover) behind the content. -->
+    <ImageView
+        android:id="@+id/w_card_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/g6_widget_card_bg"
+        android:importantForAccessibility="no" />
+
     <LinearLayout
         android:id="@+id/w_card"
         android:layout_width="match_parent"
@@ -25,8 +34,7 @@
         android:paddingStart="12dp"
         android:paddingEnd="22dp"
         android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:background="@drawable/g6_widget_bg_4x1">
+        android:paddingBottom="10dp">
 
         <ImageView
             android:id="@+id/w_art"

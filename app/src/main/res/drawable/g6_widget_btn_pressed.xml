@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hifi 1.64: same colour and 20dp corners as the mini player card and the floating windows (light theme), opaque. -->
+<!-- Hifi 2.1: pressed feedback of the 2x2 play button; the box colour itself comes from the w_play_bg layer behind it. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <corners android:radius="20dp" />
-            <solid android:color="#FFC6C6C9" />
+            <solid android:color="#33FFFFFF" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="20dp" />
-            <solid android:color="#FFDADADD" />
+            <solid android:color="#00000000" />
         </shape>
     </item>
 </selector>

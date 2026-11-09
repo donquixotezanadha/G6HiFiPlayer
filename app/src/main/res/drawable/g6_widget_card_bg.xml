@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hifi 2.1: white 20dp rounded card; the widget code tints it with setColorFilter (darkened accent colour of the cover, or the Light grey), so the corners stay true circles. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="20dp" />
+    <solid android:color="#FFFFFFFF" />
+</shape>

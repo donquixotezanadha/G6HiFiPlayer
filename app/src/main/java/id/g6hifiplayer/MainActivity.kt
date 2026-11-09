@@ -96,7 +96,11 @@ class MainActivity : Activity() {
     private var artToken = 0
     // Build 1.42: one palette for every page. Surface = dominant cover colour, ink = white/near-black by contrast.
     // Build 1.45: in the Classic theme the accent is the original purple instead of the page ink.
-    private val accentColor get() = DEFAULT_ACCENT
+    // Hifi 2.1: the accent is no longer the fixed purple: it comes from the cover (see AlbumAccent). Light keeps the old purple.
+    private var albumAccent = AlbumAccent.DEFAULT_ACCENT
+    private var albumDark = AlbumAccent.DEFAULT_DARK
+    private val accentColor get() = if (lightTheme) DEFAULT_ACCENT else albumAccent
+    private val accentCache = java.util.concurrent.ConcurrentHashMap<String, AlbumAccent.Result>()
     // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
     // text/button colour with the best contrast on it. This is the default ("Adaptive" in Setting).
     private var playerSurface = DEFAULT_ACCENT
@@ -737,7 +741,7 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // Hifi 1.43: no thumb; the track and played segment share the same rounded path, now 4dp thick (was 2dp).
-            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
+            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
             thumb = null
             thumbOffset = 0
             splitTrack = false
@@ -949,7 +953,25 @@ class MainActivity : Activity() {
             (if (lightTheme) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
     }
 
-    /** Dark theme palette: black page, white and grey text, purple accent. Only the backdrop follows the cover. */
+    /**
+     * Hifi 2.1: switches the accent (progress, playing marks, ripples, play icon of the mini player) and the dark window colour to the ones of the
+     * cover. Pages that are built are re-tinted at once (or when Now Playing is left). Light keeps the old purple and surfaces.
+     */
+    private fun applyAccent(result: AlbumAccent.Result) {
+        if (result.accent == albumAccent && result.dark == albumDark) return
+        albumAccent = result.accent
+        albumDark = result.dark
+        if (lightTheme) return
+        if (::seek.isInitialized) {
+            seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.invalidate()
+        }
+        updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
+        if (buildingUi) return
+        if (currentPage == "player") tabsPaletteDirty = true else retintPages()
+    }
+
+    /** Dark theme palette: black page, white and grey text, accent from the cover (Hifi 2.1). Only the backdrop follows the cover. */
     private fun applyPlayerPalette(@Suppress("UNUSED_PARAMETER") requestedSurface: Int) {
         if (!::playerBottomDock.isInitialized) return
         val targetSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
@@ -974,7 +996,7 @@ class MainActivity : Activity() {
         queueButton?.imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: grey text colour of the theme
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
-            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, DEFAULT_ACCENT, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
@@ -2738,6 +2760,7 @@ class MainActivity : Activity() {
             playerCoverBitmap = bitmap; playerCoverView?.bitmap = bitmap; artPlaceholder.visibility = View.GONE
                         // Classic theme: the cover is softened and darkened behind every page instead of recolouring them.
             updateDarkBackdrop(bitmap)
+            applyAccent(key?.let { accentCache[it] } ?: AlbumAccent.from(bitmap))   // Hifi 2.1
             // Colour comes from the cover that is on screen. A provisional thumbnail is sampled but not remembered.
             applyPlayerPalette(DARK_SURFACE)
             if (provisional) return
@@ -2745,6 +2768,7 @@ class MainActivity : Activity() {
         } else {
             playerCoverBitmap = null; playerCoverView?.bitmap = null; artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             updateDarkBackdrop(null)
+            applyAccent(AlbumAccent.NEUTRAL)   // Hifi 2.1: no cover = white accent
             applyPlayerPalette(DARK_SURFACE)
         }
     }
@@ -2846,6 +2870,8 @@ class MainActivity : Activity() {
             playerArtworkCache.put(key, result)
             // Dominant colour is worked out here, off the UI thread, together with the cover itself.
             dominantColorFor(key, result, remember = true)
+            if (accentCache.size > 400) accentCache.clear()
+            accentCache.getOrPut(key) { AlbumAccent.from(result) }
             notificationArtworkFor(t, result)
             return result
         }
@@ -3445,7 +3471,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(mixColors(playerSurface, playerInk, 0.12f), 16)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else albumDark, 16)   // Hifi 2.1: dark = the darkened accent colour of the cover (grey 0xFF1E1E1E without a colour)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
