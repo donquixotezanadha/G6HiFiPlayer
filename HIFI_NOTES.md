@@ -460,3 +460,7 @@
 ## v2.3
 - PLAY ALBUM text is white like ADD TO QUEUE (plain button, not a selected state).
 - Long-press album window: option buttons use the same colour as the unselected buttons in Setting (light touch of the dark accent background, no grey).
+
+## v2.4
+- Album tab: scan progress (small text + thin bar) moved into the header, right of "Album" up to the settings icon; the "No folder has been scanned yet" / "N tracks" line is removed so the content starts higher and never moves during a scan.
+- Unplayed part of the progress bar (player and dark widgets) uses the colour of the selected track row (LINE: light touch over the darkened accent); Light theme unchanged.

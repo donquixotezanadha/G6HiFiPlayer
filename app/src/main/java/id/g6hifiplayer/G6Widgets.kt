@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
@@ -699,6 +700,14 @@ object G6Widgets {
     }
 
     /** Draw a tiny accent progress line into a bitmap so the launcher only inflates an ordinary ImageView. */
+    /** Hifi 2.4: same as LINE in the app: a light touch over the darkened accent (old grey for covers without colour). */
+    private fun unplayedTrackColour(): Int {
+        val dark = cardColorNow
+        if (dark == AlbumAccent.DEFAULT_DARK) return 0xCC292932.toInt()
+        fun ch(a: Int) = (a + (255 - a) * 0.10f).toInt().coerceIn(0, 255)
+        return Color.argb(0xCC, ch(Color.red(dark)), ch(Color.green(dark)), ch(Color.blue(dark)))
+    }
+
     private fun progressBitmap(progress: Int, light: Boolean): Bitmap {
         val width = 400
         val height = 10
@@ -706,7 +715,7 @@ object G6Widgets {
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val radius = height / 2f
-        paint.color = if (light) 0xB3D6D6DC.toInt() else 0xB35E5E66.toInt()   // Hifi 1.54: unplayed track = the player's (70% opacity)
+        paint.color = if (light) 0xB3D6D6DC.toInt() else unplayedTrackColour()   // Hifi 2.4: unplayed part = colour of the selected track row in the app
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
         if (filled > 0f) {

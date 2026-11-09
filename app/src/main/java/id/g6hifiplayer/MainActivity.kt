@@ -748,7 +748,7 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // Hifi 1.43: no thumb; the track and played segment share the same rounded path, now 4dp thick (was 2dp).
-            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
+            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else LINE, accentColor, dp(PROGRESS_THICKNESS_DP))
             thumb = null
             thumbOffset = 0
             splitTrack = false
@@ -971,7 +971,7 @@ class MainActivity : Activity() {
         if (lightTheme) return
         darkDrawables.forEach { it.veil = backdropVeil() }
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(LINE, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
         }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
@@ -1004,7 +1004,7 @@ class MainActivity : Activity() {
         queueButton?.imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: grey text colour of the theme
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
-            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else PROGRESS_TRACK_GREY, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else LINE, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
@@ -1024,23 +1024,9 @@ class MainActivity : Activity() {
         val inset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
         // Match the inner horizontal content edge used by the Queue card (16dp).
         libraryPanel.setPadding(dp(16), dp(5), dp(16), dp(88))   // Hifi 1.36: 112 -> 88dp, the last row rests just above the mini player card (inside the soft fade)
-        albumScanSummary = text("No folder has been scanned yet.", 12f, MUTED, false).apply {
-            setPadding(dp(4), dp(2), dp(4), dp(6))
-        }
-        libraryPanel.addView(albumScanSummary, LinearLayout.LayoutParams(-1, -2))
-        scanProgressText = text("", 12f, accentColor, false).apply {
-            setPadding(dp(4), dp(4), dp(4), dp(3)); visibility = View.GONE
-        }
-        libraryPanel.addView(scanProgressText, LinearLayout.LayoutParams(-1, -2))
-        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true; visibility = View.GONE
-            progressTintList = ColorStateList.valueOf(accentColor)
-            themed {
-                progressTintList = ColorStateList.valueOf(accentColor)
-                progressBackgroundTintList = ColorStateList.valueOf(withAlpha(accentColor, 0x40))
-            }
-        }
-        libraryPanel.addView(scanProgress, LinearLayout.LayoutParams(-1, dp(5)).apply { bottomMargin = dp(6) })
+        // Hifi 2.4: the "No folder has been scanned yet" / "N tracks" line is gone from the page (kept hidden for the code that sets its text);
+        // the scan progress now lives in the header, to the right of the "Album" title (see makeHeaderBar).
+        albumScanSummary = text("", 12f, MUTED, false).apply { visibility = View.GONE }
         albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), 0, 0) }
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
     }
@@ -3521,7 +3507,28 @@ class MainActivity : Activity() {
         // The bar's own top padding is the status-bar inset; children are NOT offset again (that clipped them in 1.4).
         val bar = FrameLayout(this).apply { setPadding(0, statusInset, 0, 0); setBackgroundColor(Color.TRANSPARENT) }
         headerTitle = pageHeader("Now Playing", 20).apply { textSize = 20f }
-        bar.addView(headerTitle, FrameLayout.LayoutParams(-2, dp(HEADER_H_DP), Gravity.START or Gravity.TOP))
+        // Hifi 2.4: scan progress (small text + thin bar) to the right of the title, as long as the space up to the settings icon.
+        scanProgressText = text("", 10f, MUTED, false).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; visibility = View.GONE
+        }
+        scanProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true; visibility = View.GONE
+            progressTintList = ColorStateList.valueOf(accentColor)
+            themed {
+                progressTintList = ColorStateList.valueOf(accentColor)
+                progressBackgroundTintList = ColorStateList.valueOf(withAlpha(accentColor, 0x40))
+            }
+        }
+        val scanBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(scanProgressText, LinearLayout.LayoutParams(-1, -2))
+            addView(scanProgress, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(3) })
+        }
+        val titleRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        titleRow.addView(headerTitle, LinearLayout.LayoutParams(-2, dp(HEADER_H_DP)))
+        titleRow.addView(scanBox, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(12) })
+        bar.addView(titleRow, FrameLayout.LayoutParams(-1, dp(HEADER_H_DP), Gravity.START or Gravity.TOP).apply { rightMargin = dp(HEADER_H_DP) + dp(8) })
         val gear = ImageView(this).apply {
             setImageResource(R.drawable.ic_settings_fill)
             contentDescription = "Settings"
