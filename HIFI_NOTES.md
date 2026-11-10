@@ -483,3 +483,6 @@
 
 ## v2.10
 - The back arrow beside the big album cover now follows the theme ink (dark in Light, white in Dark). 2.9 (veil cap 85%) stays as chosen.
+
+## v2.11
+- Now Playing: the theme icons left the header. Under the controls there is one row theme - queue - album (24dp, filled, same grey): the theme icon shows the active mode only (moon in Dark, sun in Light) and a tap switches; the album icon slides to the Album page.

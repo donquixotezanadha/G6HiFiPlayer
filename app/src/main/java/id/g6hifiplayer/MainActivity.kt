@@ -234,7 +234,8 @@ class MainActivity : Activity() {
     // Hifi 1.39: slide left on Now Playing goes to Album (the mini player rises from the bottom); slide right on Album, tapping the mini player, Back and play actions slide back to Now Playing.
     private var pageAnimToken = 0   // Hifi 1.39: a newer page slide makes the end action of an older one do nothing
     private var headerGear: View? = null
-    private var headerThemeIcons: List<View> = emptyList()   // Hifi 2.7: moon (Dark) + sun (Light) on Now Playing
+    private var themeIconView: ImageView? = null   // Hifi 2.11: theme / queue / album row under the controls
+    private var albumIconView: ImageView? = null
     private var queueRowsSig = Int.MIN_VALUE
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
@@ -719,6 +720,39 @@ class MainActivity : Activity() {
             setOnClickListener { openQueueWindow() }
             addView(queueIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
         }
+        // Hifi 2.11: theme - queue - album in one row under the controls: same size (24dp), style (filled) and colour. The theme icon shows
+        // the active mode only (moon in Dark, sun in Light) and switches the theme when tapped; the album icon goes to the Album page.
+        val themeIcon = ImageView(this).apply {
+            setImageResource(if (lightTheme) R.drawable.ic_theme_light_24 else R.drawable.ic_theme_dark_24)
+            imageTintList = ColorStateList.valueOf(MUTED)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        themeIconView = themeIcon
+        val themeBtn = FrameLayout(this).apply {
+            contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
+            isClickable = true; isFocusable = true
+            setOnClickListener { setLightTheme(!lightTheme) }
+            addView(themeIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        }
+        val albumIcon = ImageView(this).apply {
+            setImageResource(R.drawable.ic_album_24)
+            imageTintList = ColorStateList.valueOf(MUTED)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        albumIconView = albumIcon
+        val albumBtn = FrameLayout(this).apply {
+            contentDescription = "Albums"
+            isClickable = true; isFocusable = true
+            setOnClickListener { slidePageTo(true) }
+            addView(albumIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        }
+        val iconRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            addView(themeBtn, LinearLayout.LayoutParams(dp(56), dp(40)))
+            addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)))
+            addView(albumBtn, LinearLayout.LayoutParams(dp(56), dp(40)))
+        }
         val titleRow = FrameLayout(this)
         playerTitleRow = titleRow
         titleRow.addView(titleView, FrameLayout.LayoutParams(-1, -2))
@@ -819,7 +853,7 @@ class MainActivity : Activity() {
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(1) })   // Hifi 1.51: time labels 4dp higher above the bar (title block, bar and below unchanged)
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP - 2) })
         // Hifi 1.49: the queue button now sits right under the transport controls, the info lines are back at the very bottom.
-        bottomDock.addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = -dp(2) })   // Hifi 1.51: queue button 4dp higher
+        bottomDock.addView(iconRow, LinearLayout.LayoutParams(-2, dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = -dp(2) })   // Hifi 1.51: queue button 4dp higher
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
             leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(14)   // Hifi 1.52: +4dp: everything above the info rides up 4dp, the info stays
             gravity = Gravity.CENTER_HORIZONTAL
@@ -1006,6 +1040,8 @@ class MainActivity : Activity() {
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
         queueButton?.imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: grey text colour of the theme
+        themeIconView?.imageTintList = ColorStateList.valueOf(MUTED)
+        albumIconView?.imageTintList = ColorStateList.valueOf(MUTED)
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
@@ -3195,7 +3231,6 @@ class MainActivity : Activity() {
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else ""   // Hifi 1.51: no "Now Playing" title on Now Playing (the icons stay)
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
-        headerThemeIcons.forEach { it.visibility = if (which == "library") View.GONE else View.VISIBLE }
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
@@ -3550,26 +3585,6 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         headerGear = gear
-        // Hifi 2.7: Dark / Light as two icons (moon, sun) at the right of the Now Playing header; the current mode is full strength, the other dimmed.
-        fun themeIcon(res: Int, desc: String, forLight: Boolean) = ImageView(this).apply {
-            setImageResource(res)
-            contentDescription = desc
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            themed {
-                imageTintList = ColorStateList.valueOf(WHITE)
-                alpha = if (lightTheme == forLight) 1f else 0.45f
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))
-            }
-            isClickable = true; isFocusable = true
-            setOnClickListener { setLightTheme(forLight) }
-            visibility = View.GONE
-        }
-        val moon = themeIcon(R.drawable.ic_moon_outline, "Dark theme", false)
-        val sun = themeIcon(R.drawable.ic_sun_outline, "Light theme", true)
-        headerThemeIcons = listOf(moon, sun)
-        bar.addView(sun, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) })
-        bar.addView(moon, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) + dp(HEADER_H_DP) })
         bar.addView(gear, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) })
         return bar
     }
