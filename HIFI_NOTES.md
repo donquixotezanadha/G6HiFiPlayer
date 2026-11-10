@@ -464,3 +464,6 @@
 ## v2.4
 - Album tab: scan progress (small text + thin bar) moved into the header, right of "Album" up to the settings icon; the "No folder has been scanned yet" / "N tracks" line is removed so the content starts higher and never moves during a scan.
 - Unplayed part of the progress bar (player and dark widgets) uses the colour of the selected track row (LINE: light touch over the darkened accent); Light theme unchanged.
+
+## v2.5
+- LINE (selected track row, text field, unselected buttons, long-press window buttons) and the unplayed progress (player + dark widgets) = white at 18%, no accent tint, so the blur / card colour shows through. Light theme unchanged.

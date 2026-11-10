@@ -700,13 +700,8 @@ object G6Widgets {
     }
 
     /** Draw a tiny accent progress line into a bitmap so the launcher only inflates an ordinary ImageView. */
-    /** Hifi 2.4: same as LINE in the app: a light touch over the darkened accent (old grey for covers without colour). */
-    private fun unplayedTrackColour(): Int {
-        val dark = cardColorNow
-        if (dark == AlbumAccent.DEFAULT_DARK) return 0xCC292932.toInt()
-        fun ch(a: Int) = (a + (255 - a) * 0.10f).toInt().coerceIn(0, 255)
-        return Color.argb(0xCC, ch(Color.red(dark)), ch(Color.green(dark)), ch(Color.blue(dark)))
-    }
+    /** Hifi 2.5: same as LINE in the app: white at 18%, so the card colour shows through. */
+    private fun unplayedTrackColour(): Int = 0x2EFFFFFF
 
     private fun progressBitmap(progress: Int, light: Boolean): Bitmap {
         val width = 400

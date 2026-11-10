@@ -123,7 +123,7 @@ class MainActivity : Activity() {
     private val hasAlbumTint get() = albumDark != AlbumAccent.DEFAULT_DARK
     private val CARD get() = if (lightTheme) 0xCCFFFFFF.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
+    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else 0x2EFFFFFF   // Hifi 2.5: white at 18%, no accent tint: the blur shows through (selected row, unselected buttons, unplayed progress)
     /** Veil over the blurred cover: black, or a very dark version of the cover colour. */
     private fun backdropVeil(): Int = if (lightTheme || !hasAlbumTint) 0xB3000000.toInt() else withAlpha(mixColors(albumDark, Color.BLACK, 0.45f), 0xB3)
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
