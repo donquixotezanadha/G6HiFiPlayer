@@ -849,16 +849,16 @@ class MainActivity : Activity() {
         bottomDock.addView(times, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(PROGRESS_TOP_GAP_DP) + dp(META_RAISE_DP) - dp(4) })   // Hifi 1.50: extra gap = title block rides up, progress and below stay
         bottomDock.addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(1) })   // Hifi 1.51: time labels 4dp higher above the bar (title block, bar and below unchanged)
         bottomDock.addView(transport, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(DOCK_GAP_DP - 2) })
-        // Hifi 1.49: the queue button now sits right under the transport controls, the info lines are back at the very bottom.
-        bottomDock.addView(iconRow, LinearLayout.LayoutParams(-2, dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = -dp(2) })   // Hifi 1.51: queue button 4dp higher
+        // Hifi 2.17: swapped: the info lines now sit right under the transport controls and the theme - queue - album row is at the very bottom.
         bottomDock.addView(audioInfoInline, LinearLayout.LayoutParams(-1, -2).apply {
-            leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(14)   // Hifi 1.52: +4dp: everything above the info rides up 4dp, the info stays
+            leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); topMargin = dp(10)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         bottomDock.addView(audioStatusInline, LinearLayout.LayoutParams(-1, -2).apply {
             leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); bottomMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
+        bottomDock.addView(iconRow, LinearLayout.LayoutParams(-2, dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
 
         // Hifi 1.43: no album art box: the cover is the clear top of the page backdrop (see NowPlayingCoverView); only the controls column is left.
         val stack = LinearLayout(this).apply {

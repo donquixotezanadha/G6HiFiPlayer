@@ -502,3 +502,6 @@
 
 ## v2.16
 - All floating windows (queue, Setting, long-press album) share one pop animation like launcher popups: pop-in 88% -> 100% + fade-in (220 ms, decelerating) around the icon / card that opened it (queue icon, gear, the pressed album card); exit = shrink to 92% + fade (140 ms, res/anim/g6_pop_out.xml via style G6WindowAnim). The circular reveal of the queue (2.15) is gone; the circle stays only for the theme switch.
+
+## v2.17
+- Now Playing bottom dock order swapped: transport controls -> info lines (format / kHz / bit-perfect status) -> theme - queue - album icon row at the very bottom (the icon row and the info lines changed places; gaps 10dp above the info, 8dp above the row).
