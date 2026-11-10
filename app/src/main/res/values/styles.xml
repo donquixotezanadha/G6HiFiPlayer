@@ -16,4 +16,9 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#7C4DFF</item>
     </style>
+
+    <!-- Hifi 2.16: window animation of the floating windows: no enter animation here (the pop-in runs in code from the tapped icon), a short shrink + fade on exit. -->
+    <style name="G6WindowAnim">
+        <item name="android:windowExitAnimation">@anim/g6_pop_out</item>
+    </style>
 </resources>

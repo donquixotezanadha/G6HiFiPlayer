@@ -1937,8 +1937,8 @@ class MainActivity : Activity() {
                     show("library")
                     scrollLibraryToTop()
                 }
-                setOnLongClickListener {
-                    showAlbumOptions(album, indices)
+                setOnLongClickListener { pressed ->
+                    showAlbumOptions(album, indices, pressed)
                     true
                 }
             }
@@ -3429,6 +3429,34 @@ class MainActivity : Activity() {
      * (screen minus 16dp each side), 80% of the screen height. Tapping a track plays it and closes the window (back on Now Playing); tapping outside
      * or Back closes it too. No mini player here. The rows are the same ones as before (renderQueueRows), moved into this window while it is open.
      */
+    /**
+     * Hifi 2.16: the pop-in of every floating window (queue, Setting, long-press album): it grows from 88% to full size while fading in
+     * (220 ms, decelerating), around the icon / card that opened it; the exit is the short shrink + fade of [R.style.G6WindowAnim].
+     * Call right after dialog.show() with the dialog's panel, which must have been set INVISIBLE before show().
+     */
+    private fun popIn(panel: View, anchor: View?) {
+        panel.post {
+            try {
+                panel.alpha = 0f
+                panel.visibility = View.VISIBLE
+                var px = panel.width / 2f
+                var py = panel.height / 2f
+                if (anchor != null && panel.width > 0) {
+                    val pl = IntArray(2); panel.getLocationOnScreen(pl)
+                    val al = IntArray(2); anchor.getLocationOnScreen(al)
+                    px = (al[0] + anchor.width / 2f - pl[0]).coerceIn(0f, panel.width.toFloat())
+                    py = (al[1] + anchor.height / 2f - pl[1]).coerceIn(0f, panel.height.toFloat())
+                }
+                panel.pivotX = px; panel.pivotY = py
+                panel.scaleX = 0.88f; panel.scaleY = 0.88f
+                panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220L)
+                    .setInterpolator(DecelerateInterpolator(1.6f)).start()
+            } catch (_: Throwable) {
+                panel.alpha = 1f; panel.scaleX = 1f; panel.scaleY = 1f; panel.visibility = View.VISIBLE
+            }
+        }
+    }
+
     private fun openQueueWindow() {
         if (!::queueRows.isInitialized || queueDialog?.isShowing == true) return
         val dialog = AlertDialog.Builder(this).create()
@@ -3468,33 +3496,17 @@ class MainActivity : Activity() {
         }
         queueDialog = dialog
         panel.visibility = View.INVISIBLE
+        dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
         dialog.show()
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.window?.setLayout(floatingWindowWidth(), windowH)
         dialog.window?.setDimAmount(0.55f)
-        // Hifi 2.15: the window opens as a circle growing from the queue icon (320 ms); plain show if anything is missing.
-        val origin = queueButton
-        panel.post {
-            try {
-                val pl = IntArray(2); panel.getLocationOnScreen(pl)
-                val ol = IntArray(2)
-                if (origin == null || panel.width <= 0 || panel.height <= 0) throw IllegalStateException()
-                origin.getLocationOnScreen(ol)
-                val cx = (ol[0] + origin.width / 2 - pl[0]).coerceIn(0, panel.width)
-                val cy = (ol[1] + origin.height / 2 - pl[1]).coerceIn(0, panel.height)
-                val maxR = Math.hypot(maxOf(cx, panel.width - cx).toDouble(), maxOf(cy, panel.height - cy).toDouble()).toFloat()
-                val reveal = android.view.ViewAnimationUtils.createCircularReveal(panel, cx, cy, 0f, maxR)
-                reveal.duration = 320L
-                reveal.interpolator = DecelerateInterpolator(1.4f)
-                panel.visibility = View.VISIBLE
-                reveal.start()
-            } catch (_: Throwable) {
-                panel.visibility = View.VISIBLE
-            }
+        popIn(panel, queueButton)
+    }
         }
     }
 
-    private fun showAlbumOptions(album: String, indices: List<Int>) {
+    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null) {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -3521,10 +3533,13 @@ class MainActivity : Activity() {
         }
         option("＋  Add album to queue") { addAlbumToQueue(indices, album) }
         dialog.setView(panel)
+        panel.visibility = View.INVISIBLE
+        dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
         dialog.show()
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.window?.setLayout(floatingWindowWidth(), WindowManager.LayoutParams.WRAP_CONTENT)
         dialog.window?.setDimAmount(0.55f)
+        popIn(panel, anchor)
     }
 
     private fun flatSection() = LinearLayout(this).apply {
@@ -3723,6 +3738,8 @@ class MainActivity : Activity() {
             panel.addView(audioPathLogView(), LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(10) })
         }
         dialog.setView(panel)
+        panel.visibility = View.INVISIBLE
+        dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
         dialog.show()
         dialog.window?.let { w ->
             w.setBackgroundDrawableResource(android.R.color.transparent)
@@ -3734,6 +3751,7 @@ class MainActivity : Activity() {
             lp.y = statusInset + dp(HEADER_H_DP); lp.x = 0
             w.attributes = lp
         }
+        popIn(panel, headerGear)
     }
 
     /** Album -> Now Playing (tapping the mini player, Back, play actions): a quick fade (Hifi 2.15; the sideways slide and the swipe gesture are gone). */
