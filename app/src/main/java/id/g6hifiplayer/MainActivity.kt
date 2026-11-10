@@ -3599,6 +3599,13 @@ class MainActivity : Activity() {
             val previous = if (::librarySummary.isInitialized) librarySummary.text else "No folder has been scanned yet."
             librarySummary = text(previous.toString(), 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
             panel.addView(librarySummary)
+            // Hifi 2.7: the Dark / Light choice lives in this window (the old THEME card sat in a panel that is no longer shown).
+            panel.addView(text("THEME", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
+            val themeButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            themeButtons.addView(action("DARK", !lightTheme) { dialog.dismiss(); setLightTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+            themeButtons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+            themeButtons.addView(action("LIGHT", lightTheme) { dialog.dismiss(); setLightTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+            panel.addView(themeButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
             panel.addView(text("ALBUM COLUMNS", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
             val columnButtons = buttonArea()
             fillColumnButtons(columnButtons)
