@@ -378,6 +378,13 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         buildingUi = true
+        // Hifi 2.20: the last blurred cover is saved on disk (about 96 px), so the splash and the player draw the real backdrop from the first frame.
+        if (!startupSplashShown && darkBackdropBitmap == null) {
+            try {
+                val f = java.io.File(filesDir, "last_backdrop.png")
+                if (f.isFile) darkBackdropBitmap = BitmapFactory.decodeFile(f.absolutePath)
+            } catch (_: Throwable) { }
+        }
         // Build 3.01: newly-created Now Playing artwork needs its Hi-Res foreground rebound after a theme rebuild.
         hiResBadgeShown = false
         darkDrawables.clear()
@@ -488,7 +495,7 @@ class MainActivity : Activity() {
             insets
         }
         var startupSplash: FrameLayout? = null
-        var splashLogo: ImageView? = null
+        var splashLogo: View? = null
         if (!startupSplashShown) {
             // Hifi 2.19: the splash is only the Hifi wave logo (white in Dark, dark in Light) over the SAME backdrop as the player (blurred last cover +
             // veil; it follows the player's backdrop updates, so it is the real background). The logo fades out and the controls appear on the unchanged background.
@@ -503,10 +510,20 @@ class MainActivity : Activity() {
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "Hifi"
             }
-            splashLogo = logo
             // The wave spans about 57% of the 108dp canvas of the vector: a square of 0.74 x screen width gives a logo about 42% of the width.
             val splashLogoSide = (resources.displayMetrics.widthPixels * 0.74f).toInt()
-            splash.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
+            // Hifi 2.20: the word "Hifi" (Inter ExtraBold) sits under the wave; both fade out together.
+            val wordmark = ImageView(this).apply {
+                setImageResource(R.drawable.ic_splash_wordmark)
+                imageTintList = ColorStateList.valueOf(WHITE)
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }
+            val logoGroup = FrameLayout(this)
+            logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER).apply { bottomMargin = dp(46) })
+            logoGroup.addView(wordmark, FrameLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.30f).toInt(), -2, Gravity.CENTER).apply { topMargin = dp(70) })
+            splashLogo = logoGroup
+            splash.addView(logoGroup, FrameLayout.LayoutParams(-1, -1))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
             startupSplash = splash
@@ -1153,6 +1170,18 @@ class MainActivity : Activity() {
     /** Cover for the Classic backdrop: scaled to ~96 px and box-blurred (see [BackdropBlur], shared with the blur widget). */
     private fun softCoverForBackdrop(source: android.graphics.Bitmap): android.graphics.Bitmap? = BackdropBlur.soft(source)
 
+    /** Hifi 2.20: keeps the last blurred cover for the next start (small PNG, written off the main thread; removed when the track has no cover). */
+    private fun saveBackdropToDisk(bitmap: android.graphics.Bitmap?) {
+        val copy = try { bitmap?.takeIf { !it.isRecycled }?.copy(android.graphics.Bitmap.Config.ARGB_8888, false) } catch (_: Throwable) { null }
+        val file = java.io.File(filesDir, "last_backdrop.png")
+        Thread {
+            try {
+                if (copy == null) file.delete()
+                else java.io.FileOutputStream(file).use { copy.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            } catch (_: Throwable) { }
+        }.start()
+    }
+
     private fun newDarkDrawable(): DarkBackdropDrawable =
         DarkBackdropDrawable(lightTheme).also { it.bitmap = darkBackdropBitmap; it.veil = backdropVeil(); darkDrawables.add(it) }
 
@@ -1162,6 +1191,7 @@ class MainActivity : Activity() {
         darkBackdropSource = source?.let { java.lang.ref.WeakReference(it) }
         darkBackdropBitmap = source?.let { softCoverForBackdrop(it) }
         darkDrawables.forEach { it.bitmap = darkBackdropBitmap }
+        saveBackdropToDisk(darkBackdropBitmap)
     }
 
     /**
@@ -3666,7 +3696,7 @@ class MainActivity : Activity() {
             setImageResource(R.drawable.ic_gear)   // Hifi 2.19: his own gear icon (alpha mask, tinted)
             contentDescription = "Settings"
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setPadding(dp(12), dp(12), dp(12), dp(12))   // Hifi 2.20: a little smaller (was 10dp)
             themed {
                 imageTintList = ColorStateList.valueOf(WHITE)
                 background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))

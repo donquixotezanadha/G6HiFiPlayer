@@ -513,3 +513,8 @@
 - Splash = only the Hifi wave logo (ink colour of the theme: white in Dark, dark in Light) over the same backdrop as the player (blurred last cover + veil; the splash layer is one of the player's backdrop drawables, so it follows the cover restore). The logo drifts out, then the layer dissolves, so only the controls appear on an unchanged background. Old text splash images and the unused window-preview drawables deleted.
 - Settings icon = his own gear PNG (ic_gear.png, alpha mask, tinted); old vector deleted.
 - Splash idea previews kept for later: A = same 3 words in Inter Bold, B = logo + "Hifi" (chosen first, now logo only), C = logo + small tagline (out/splash-ide.png).
+
+## v2.20
+- Splash: the wordmark "Hifi" (Inter ExtraBold, ic_splash_wordmark.png alpha mask) under the wave, fading out together with it.
+- The last blurred cover is saved to files/last_backdrop.png (about 96 px, written in a background thread, deleted when a track has no cover) and loaded synchronously at the first buildUi, so splash and player show the real backdrop from the first frame (2.19 showed black first until the cover loaded).
+- Settings gear a little smaller (padding 10 -> 12dp).
