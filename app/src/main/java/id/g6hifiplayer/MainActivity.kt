@@ -3503,8 +3503,6 @@ class MainActivity : Activity() {
         dialog.window?.setDimAmount(0.55f)
         popIn(panel, queueButton)
     }
-        }
-    }
 
     private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null) {
         val dialog = AlertDialog.Builder(this).create()
