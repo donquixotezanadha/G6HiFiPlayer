@@ -473,3 +473,7 @@
 
 ## v2.7
 - Dark / Light as two icons (moon, sun) at the right of the Now Playing header (the current mode at full strength, the other dimmed); tap switches the theme. Not in the Setting window.
+
+## v2.8
+- Light blur widget now has the same plain white veil as the player (2.6 tinted it with the accent colour: a black cover with a yellow accent gave a yellowish widget).
+- Light veil strength: 70% as before, but over a mostly black cover (low average brightness of the blurred cover) it grows up to about 91% (BackdropBlur.lightVeilAlpha), in the app and in the blur widgets. Other covers are unchanged.

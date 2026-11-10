@@ -11,6 +11,32 @@ internal object BackdropBlur {
     const val PASSES = 2
     private const val SIDE = 96
 
+    /**
+     * Hifi 2.8: strength (alpha) of the white veil in Light. 70% (0xB3) as before, but over a mostly black cover the veil grows up to ~91%
+     * (0xE8) so the page stays light; covers that are not dominated by black keep exactly 70%.
+     */
+    fun lightVeilAlpha(soft: Bitmap?): Int {
+        if (soft == null || soft.isRecycled) return 0xB3
+        var sum = 0.0
+        var n = 0
+        val step = 4
+        var y = 0
+        while (y < soft.height) {
+            var x = 0
+            while (x < soft.width) {
+                val p = soft.getPixel(x, y)
+                sum += (0.299 * ((p shr 16) and 0xFF) + 0.587 * ((p shr 8) and 0xFF) + 0.114 * (p and 0xFF)) / 255.0
+                n++
+                x += step
+            }
+            y += step
+        }
+        if (n == 0) return 0xB3
+        val lum = sum / n
+        val f = ((0.40 - lum) / 0.40).coerceIn(0.0, 1.0)
+        return (0xB3 + f * (0xE8 - 0xB3)).toInt()
+    }
+
     fun soft(source: Bitmap): Bitmap? = try {
         if (source.isRecycled || source.width <= 0 || source.height <= 0) null else {
             val ratio = SIDE.toFloat() / maxOf(source.width, source.height)
