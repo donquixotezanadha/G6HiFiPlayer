@@ -15,7 +15,16 @@ internal object AlbumAccent {
     const val DEFAULT_ACCENT = 0xFFFFFFFF.toInt()
     const val DEFAULT_DARK = 0xFF1E1E1E.toInt()
 
-    data class Result(val accent: Int, val dark: Int)
+    // Hifi 2.6: the Light look is the mirror image: accent = 70% black + 30% cover colour, windows / veil = a pastel of the cover colour.
+    const val DEFAULT_LIGHT_ACCENT = 0xFF111114.toInt()
+    const val DEFAULT_LIGHT_TINT = 0xFFF8F8FC.toInt()
+
+    data class Result(
+        val accent: Int,
+        val dark: Int,
+        val lightAccent: Int = DEFAULT_LIGHT_ACCENT,
+        val lightTint: Int = DEFAULT_LIGHT_TINT
+    )
 
     val NEUTRAL = Result(DEFAULT_ACCENT, DEFAULT_DARK)
 
@@ -90,7 +99,7 @@ internal object AlbumAccent {
         if (best < 0) {
             // No colour at all: black and white or grey cover. Mix in the average grey of the cover.
             val avg = Color.rgb((avgR / total).toInt(), (avgG / total).toInt(), (avgB / total).toInt())
-            return Result(mix(Color.WHITE, avg, COLOUR_SHARE), DEFAULT_DARK)
+            return Result(mix(Color.WHITE, avg, COLOUR_SHARE), DEFAULT_DARK, mix(Color.BLACK, avg, COLOUR_SHARE) or 0xFF000000.toInt(), DEFAULT_LIGHT_TINT)
         }
 
         val lo = (best + HUE_BINS - 1) % HUE_BINS
@@ -106,7 +115,11 @@ internal object AlbumAccent {
         val lifted = Color.HSVToColor(floatArrayOf(rawHsv[0], maxOf(rawHsv[1], LIFT_SATURATION).coerceAtMost(1f), maxOf(rawHsv[2], LIFT_VALUE).coerceAtMost(1f)))
         val accent = mix(Color.WHITE, lifted, COLOUR_SHARE)
         val dark = Color.HSVToColor(floatArrayOf(rawHsv[0], rawHsv[1].coerceIn(0.45f, 0.70f), DARK_VALUE))
-        return Result(accent or 0xFF000000.toInt(), dark or 0xFF000000.toInt())
+        // Light: a strong, bright version of the colour mixed 30% into black; a pastel of the hue for windows and the veil.
+        val strong = Color.HSVToColor(floatArrayOf(rawHsv[0], maxOf(rawHsv[1], 0.75f).coerceAtMost(1f), 1f))
+        val lightAccent = mix(Color.BLACK, strong, COLOUR_SHARE)
+        val lightTint = Color.HSVToColor(floatArrayOf(rawHsv[0], (rawHsv[1] * 0.4f).coerceIn(0.16f, 0.30f), 0.96f))
+        return Result(accent or 0xFF000000.toInt(), dark or 0xFF000000.toInt(), lightAccent or 0xFF000000.toInt(), lightTint or 0xFF000000.toInt())
     }
 
     private fun mix(from: Int, to: Int, fraction: Float): Int {

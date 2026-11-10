@@ -102,7 +102,9 @@ class MainActivity : Activity() {
     // Hifi 2.1: the accent is no longer the fixed purple: it comes from the cover (see AlbumAccent). Light keeps the old purple.
     private var albumAccent = AlbumAccent.DEFAULT_ACCENT
     private var albumDark = AlbumAccent.DEFAULT_DARK
-    private val accentColor get() = if (lightTheme) DEFAULT_ACCENT else albumAccent
+    private var albumAccentLight = AlbumAccent.DEFAULT_LIGHT_ACCENT   // Hifi 2.6
+    private var albumTint = AlbumAccent.DEFAULT_LIGHT_TINT           // Hifi 2.6: pastel of the cover colour (Light)
+    private val accentColor get() = if (lightTheme) albumAccentLight else albumAccent
     private val accentCache = java.util.concurrent.ConcurrentHashMap<String, AlbumAccent.Result>()
     // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
     // text/button colour with the best contrast on it. This is the default ("Adaptive" in Setting).
@@ -120,12 +122,12 @@ class MainActivity : Activity() {
     private var startupSplashShown = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     // Hifi 2.2: the dark greys follow the darkened accent of the cover (the old greys stay for covers without colour / no cover).
-    private val hasAlbumTint get() = albumDark != AlbumAccent.DEFAULT_DARK
-    private val CARD get() = if (lightTheme) 0xCCFFFFFF.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
-    private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
+    private val hasAlbumTint get() = if (lightTheme) albumTint != AlbumAccent.DEFAULT_LIGHT_TINT else albumDark != AlbumAccent.DEFAULT_DARK
+    private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
+    private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9F0.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
+    private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0xCCE1E1EC.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
     /** Veil over the blurred cover: black, or a very dark version of the cover colour. */
-    private fun backdropVeil(): Int = if (lightTheme || !hasAlbumTint) 0xB3000000.toInt() else withAlpha(mixColors(albumDark, Color.BLACK, 0.45f), 0xB3)
+    private fun backdropVeil(): Int = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xB3) else 0xB3FFFFFF.toInt()) else if (!hasAlbumTint) 0xB3000000.toInt() else withAlpha(mixColors(albumDark, Color.BLACK, 0.45f), 0xB3)
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
@@ -443,7 +445,7 @@ class MainActivity : Activity() {
         val themeButtons = buttonArea()
         fillThemeButtons(themeButtons)
         themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
-        themeCard.addView(text("Dark uses a darkened album-art blur. Light keeps the same layout and purple accent with a light album-art blur.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        themeCard.addView(text("Dark uses a darkened album-art blur. Light is the mirror image: a light album-art blur, dark text, accent from the cover.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         settingsPanel.addView(themeCard)
         // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
         val columnsCard = card()
@@ -965,13 +967,14 @@ class MainActivity : Activity() {
      * cover. Pages that are built are re-tinted at once (or when Now Playing is left). Light keeps the old purple and surfaces.
      */
     private fun applyAccent(result: AlbumAccent.Result) {
-        if (result.accent == albumAccent && result.dark == albumDark) return
+        if (result.accent == albumAccent && result.dark == albumDark && result.lightAccent == albumAccentLight && result.lightTint == albumTint) return
         albumAccent = result.accent
         albumDark = result.dark
-        if (lightTheme) return
+        albumAccentLight = result.lightAccent
+        albumTint = result.lightTint
         darkDrawables.forEach { it.veil = backdropVeil() }
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
         }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
@@ -3497,7 +3500,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else albumDark, 16)   // Hifi 2.1: dark = the darkened accent colour of the cover (grey 0xFF1E1E1E without a colour)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
+    private fun floatingBackground() = shape(if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.05f) or 0xFF000000.toInt() else mixColors(playerSurface, playerInk, 0.12f)) else albumDark, 16)   // Hifi 2.1: dark = the darkened accent colour of the cover (grey 0xFF1E1E1E without a colour)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -3957,7 +3960,7 @@ class MainActivity : Activity() {
         private const val DARK_PROGRESS_TRACK = 0x2EFFFFFF   // Hifi 2.5: unplayed progress = white at 18% (only the progress bar; other surfaces unchanged)
         private const val PROGRESS_TRACK_GREY = 0xB35E5E66.toInt()
         /** Build 3.01: unplayed progress track for the Light theme only. */
-        private const val LIGHT_PROGRESS_TRACK_GREY = 0xB3D6D6DC.toInt()
+        private const val LIGHT_PROGRESS_TRACK_GREY = 0x2E000000   // Hifi 2.6: mirror of the Dark track (white 18%): black 18%
         /** Hifi 1.43: progress track thickness (2dp before; 4dp = bolder). */
         private const val PROGRESS_THICKNESS_DP = 4
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */

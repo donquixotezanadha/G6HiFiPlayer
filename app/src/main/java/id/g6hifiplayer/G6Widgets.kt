@@ -85,6 +85,8 @@ object G6Widgets {
     private const val K_ART_ID = "art_identity"
     private const val K_OLD_CLEANED = "old_cleaned"
     private const val K_ACCENT = "accent"            // Hifi 2.1: accent of the cover (AlbumAccent)
+    private const val K_ACCENT_LIGHT = "accent_light"  // Hifi 2.6: Light accent (70% black + 30% cover colour)
+    private const val K_TINT_LIGHT = "tint_light"      // Hifi 2.6: Light pastel of the cover colour (cards, buttons, veil)
     private const val K_ACCENT_DARK = "accent_dark"  // Hifi 2.1: darkened accent = card / button colour of the dark widgets
     private const val K_RENDER_VERSION = "widget_render_version"
     private const val WIDGET_RENDER_VERSION = 255
@@ -95,11 +97,11 @@ object G6Widgets {
     /** Hifi 2.1: accent / card colour in use by the widgets; set from the saved state by [syncAccent] before every draw. */
     @Volatile private var accentNow = AlbumAccent.DEFAULT_ACCENT
     @Volatile private var cardColorNow = AlbumAccent.DEFAULT_DARK
+    @Volatile private var tintNow = AlbumAccent.DEFAULT_LIGHT_TINT   // Hifi 2.6: Light pastel, for the blur widget veil
 
     private fun syncAccent(context: Context, light: Boolean) {
-        if (light) { accentNow = LEGACY_ACCENT; cardColorNow = LIGHT_CARD; return }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!prefs.contains(K_ACCENT)) {
+        if (!prefs.contains(K_ACCENT) || !prefs.contains(K_TINT_LIGHT)) {
             // Saved by an older build: work it out once from the saved cover.
             val file = File(context.filesDir, ART_FILE)
             val result = if (prefs.getBoolean(K_HAS, false) && file.exists()) {
@@ -108,12 +110,22 @@ object G6Widgets {
             } else AlbumAccent.NEUTRAL
             storeAccent(prefs, result)
         }
+        if (light) {
+            val tint = prefs.getInt(K_TINT_LIGHT, AlbumAccent.DEFAULT_LIGHT_TINT)
+            accentNow = prefs.getInt(K_ACCENT_LIGHT, AlbumAccent.DEFAULT_LIGHT_ACCENT)
+            tintNow = tint
+            cardColorNow = if (tint == AlbumAccent.DEFAULT_LIGHT_TINT) LIGHT_CARD else {
+                fun ch(a: Int) = (a * 0.95f).toInt().coerceIn(0, 255)
+                Color.rgb(ch(Color.red(tint)), ch(Color.green(tint)), ch(Color.blue(tint)))
+            }
+            return
+        }
         accentNow = prefs.getInt(K_ACCENT, AlbumAccent.DEFAULT_ACCENT)
         cardColorNow = prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK)
     }
 
     private fun storeAccent(prefs: android.content.SharedPreferences, result: AlbumAccent.Result) {
-        prefs.edit().putInt(K_ACCENT, result.accent).putInt(K_ACCENT_DARK, result.dark).apply()
+        prefs.edit().putInt(K_ACCENT, result.accent).putInt(K_ACCENT_DARK, result.dark).putInt(K_ACCENT_LIGHT, result.lightAccent).putInt(K_TINT_LIGHT, result.lightTint).apply()
     }
     private var lastToggleAtMs = Long.MIN_VALUE
     private var lastProgressPersistAtMs = Long.MIN_VALUE
@@ -515,7 +527,7 @@ object G6Widgets {
                 soft.recycle()
             }
         }
-        canvas.drawColor(if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt())
+        canvas.drawColor(if (light) (if (tintNow == AlbumAccent.DEFAULT_LIGHT_TINT) 0xB3FFFFFF.toInt() else (tintNow and 0x00FFFFFF) or 0xB3000000.toInt()) else 0xB3000000.toInt())
         flat.density = (scale * 1000).toInt()   // remembers pixels-per-dp (x1000) for blurPieces()
         return flat
     }
@@ -710,7 +722,7 @@ object G6Widgets {
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val radius = height / 2f
-        paint.color = if (light) 0xB3D6D6DC.toInt() else unplayedTrackColour()   // Hifi 2.4: unplayed part = colour of the selected track row in the app
+        paint.color = if (light) 0x2E000000 else unplayedTrackColour()   // Hifi 2.4: unplayed part = colour of the selected track row in the app
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
         if (filled > 0f) {

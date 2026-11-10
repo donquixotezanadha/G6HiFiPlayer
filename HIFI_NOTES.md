@@ -467,3 +467,6 @@
 
 ## v2.5
 - Only the unplayed part of the progress bar (player + dark widgets) = white at 18%, no accent tint, so the blur / card colour shows through. Selected row, unselected buttons and other surfaces stay as in 2.4. Light theme unchanged.
+
+## v2.6
+- Light mode is the mirror of the cover-based Dark look (switch in Setting > THEME): accent = 70% black + 30% strong cover colour; veil, windows, cards and the blur widget veil = pastel of the cover hue; unselected rows / buttons = black 12%; unplayed progress = black 18%; covers without colour / no cover = neutral light grey/white with a near-black accent. AlbumAccent.Result got lightAccent / lightTint (widgets store them too: accent_light, tint_light).
