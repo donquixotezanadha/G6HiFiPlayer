@@ -518,3 +518,6 @@
 - Splash: the wordmark "Hifi" (Inter ExtraBold, ic_splash_wordmark.png alpha mask) under the wave, fading out together with it.
 - The last blurred cover is saved to files/last_backdrop.png (about 96 px, written in a background thread, deleted when a track has no cover) and loaded synchronously at the first buildUi, so splash and player show the real backdrop from the first frame (2.19 showed black first until the cover loaded).
 - Settings gear a little smaller (padding 10 -> 12dp).
+
+## v2.21
+- Splash wordmark "Hifi" in Inter Medium (was ExtraBold), same width and position.
