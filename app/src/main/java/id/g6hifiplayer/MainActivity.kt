@@ -708,7 +708,7 @@ class MainActivity : Activity() {
             setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP) + logoSide + dp(10), 0)
         }
         val queueIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_queue_24)
+            setImageResource(R.drawable.ic_row_queue)   // Hifi 2.12: his own icon (alpha mask, tinted)
             // Hifi 1.55: exactly the colour of the unplayed part of the progress bar (same ARGB incl. its opacity), also after a theme switch
             imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: the grey text colour of the theme, no extra opacity
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -718,12 +718,12 @@ class MainActivity : Activity() {
             contentDescription = "Queue"
             isClickable = true; isFocusable = true
             setOnClickListener { openQueueWindow() }
-            addView(queueIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
+            addView(queueIcon, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
         }
         // Hifi 2.11: theme - queue - album in one row under the controls: same size (24dp), style (filled) and colour. The theme icon shows
         // the active mode only (moon in Dark, sun in Light) and switches the theme when tapped; the album icon goes to the Album page.
         val themeIcon = ImageView(this).apply {
-            setImageResource(if (lightTheme) R.drawable.ic_theme_light_24 else R.drawable.ic_theme_dark_24)
+            setImageResource(if (lightTheme) R.drawable.ic_row_sun else R.drawable.ic_row_moon)
             imageTintList = ColorStateList.valueOf(MUTED)
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
@@ -732,10 +732,10 @@ class MainActivity : Activity() {
             contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
             isClickable = true; isFocusable = true
             setOnClickListener { setLightTheme(!lightTheme) }
-            addView(themeIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+            addView(themeIcon, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))
         }
         val albumIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_album_24)
+            setImageResource(R.drawable.ic_row_album)
             imageTintList = ColorStateList.valueOf(MUTED)
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
@@ -744,14 +744,16 @@ class MainActivity : Activity() {
             contentDescription = "Albums"
             isClickable = true; isFocusable = true
             setOnClickListener { slidePageTo(true) }
-            addView(albumIcon, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+            addView(albumIcon, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))
         }
         val iconRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            addView(themeBtn, LinearLayout.LayoutParams(dp(56), dp(40)))
-            addView(queueBtn, LinearLayout.LayoutParams(dp(56), dp(40)))
-            addView(albumBtn, LinearLayout.LayoutParams(dp(56), dp(40)))
+            // Hifi 2.12: slightly wider than prev / play / next (centres 26% of the screen width apart, as in his reference picture)
+            val gap = (resources.displayMetrics.widthPixels * 0.263f).toInt()
+            addView(themeBtn, LinearLayout.LayoutParams(gap, dp(40)))
+            addView(queueBtn, LinearLayout.LayoutParams(gap, dp(40)))
+            addView(albumBtn, LinearLayout.LayoutParams(gap, dp(40)))
         }
         val titleRow = FrameLayout(this)
         playerTitleRow = titleRow

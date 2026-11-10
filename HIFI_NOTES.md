@@ -486,3 +486,6 @@
 
 ## v2.11
 - Now Playing: the theme icons left the header. Under the controls there is one row theme - queue - album (24dp, filled, same grey): the theme icon shows the active mode only (moon in Dark, sun in Light) and a tap switches; the album icon slides to the Album page.
+
+## v2.12
+- The theme - queue - album row uses his own icons (PNG alpha masks ic_row_*.png in drawable-nodpi, tinted with the grey text colour, 28dp box) and is spread a little wider than prev / play / next (centres 26% of the screen width apart). Old vector icons deleted.
