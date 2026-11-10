@@ -524,3 +524,8 @@
 
 ## v2.22
 - The veil over the blurred cover is neutral in both themes (black 70% in Dark, white in Light + the stronger white over a black cover from 2.8). Since 2.2 the Dark veil was tinted with the darkened accent, which looked like an accent-coloured player background; now only the surfaces (cards, text fields, buttons, floating windows, mini player) and the progress/accent use the cover colour. The splash code (2.19-2.21) does not touch theme or veil logic (it only adds one more backdrop drawable with the same veil).
+
+## v2.23
+- New wave icon (cyan -> magenta gradient ribbon from his Freepik/Magnific PNG, glow behind it that follows the wave). Adaptive launcher icon: background solid #101014 (the app's start dark), foreground ic_launcher_fg.png (648 px, wave about 58% of the canvas = inside the 66dp safe zone). The old vector foreground was deleted.
+- Splash: the new icon (ic_splash_wave.png, about 0.82 x screen width) plus the "Hifi" wordmark over the same backdrop. Exit effect = blurry + spread + faded: the sharp layer cross-fades to a pre-blurred copy (ic_splash_wave_blur.png), the group grows 16% while fading, then the backdrop layer dissolves as before.
+- Icon source work in out/wave/ (v8 = the ribbon, v12 = glow on #101014). Free-licence asset: credit/attribution may be needed if the app is ever shared.

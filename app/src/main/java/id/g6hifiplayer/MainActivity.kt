@@ -499,6 +499,8 @@ class MainActivity : Activity() {
         }
         var startupSplash: FrameLayout? = null
         var splashLogo: View? = null
+        var splashSharp: View? = null
+        var splashBlur: View? = null
         if (!startupSplashShown) {
             // Hifi 2.19: the splash is only the Hifi wave logo (white in Dark, dark in Light) over the SAME backdrop as the player (blurred last cover +
             // veil; it follows the player's backdrop updates, so it is the real background). The logo fades out and the controls appear on the unchanged background.
@@ -507,15 +509,19 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
             }
+            // Hifi 2.23: the splash shows the new wave icon (cyan -> magenta, with its glow). Two layers of the same art: the sharp one and a pre-blurred,
+            // spread one (no RenderEffect on Android 9). The exit cross-fades sharp -> blurred while the group grows and fades ("blurry, spread, faded").
+            val splashLogoSide = (resources.displayMetrics.widthPixels * 0.82f).toInt()
             val logo = ImageView(this).apply {
-                setImageResource(R.drawable.ic_launcher_foreground)
-                imageTintList = ColorStateList.valueOf(WHITE)
+                setImageResource(R.drawable.ic_splash_wave)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "Hifi"
             }
-            // The wave spans about 57% of the 108dp canvas of the vector: a square of 0.74 x screen width gives a logo about 42% of the width.
-            val splashLogoSide = (resources.displayMetrics.widthPixels * 0.74f).toInt()
-            // Hifi 2.20: the word "Hifi" (Inter ExtraBold) sits under the wave; both fade out together.
+            val logoBlur = ImageView(this).apply {
+                setImageResource(R.drawable.ic_splash_wave_blur)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                alpha = 0f
+            }
             val wordmark = ImageView(this).apply {
                 setImageResource(R.drawable.ic_splash_wordmark)
                 imageTintList = ColorStateList.valueOf(WHITE)
@@ -523,8 +529,11 @@ class MainActivity : Activity() {
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }
             val logoGroup = FrameLayout(this)
+            logoGroup.addView(logoBlur, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER).apply { bottomMargin = dp(46) })
             logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER).apply { bottomMargin = dp(46) })
             logoGroup.addView(wordmark, FrameLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.268f).toInt(), -2, Gravity.CENTER).apply { topMargin = dp(70) })
+            splashSharp = logo
+            splashBlur = logoBlur
             splashLogo = logoGroup
             splash.addView(logoGroup, FrameLayout.LayoutParams(-1, -1))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
@@ -539,11 +548,14 @@ class MainActivity : Activity() {
                     if (stage.viewTreeObserver.isAlive) stage.viewTreeObserver.removeOnPreDrawListener(this)
                     handler.postDelayed({
                         if (!isFinishing && !isDestroyed && splash.parent === stage) {
-                            // Soft exit: the logo drifts out first (fades + grows 4%), then the splash layer (same backdrop as the player) dissolves.
+                            // Soft exit (2.23): the icon blurs and spreads (+16%) while it fades, then the splash layer (same backdrop as the player) dissolves.
                             val ease = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+                            splashSharp?.animate()?.alpha(0f)?.setDuration(560L)?.setInterpolator(ease)?.start()
+                            splashBlur?.animate()?.alpha(1f)?.setDuration(420L)?.setInterpolator(ease)?.start()
                             splashLogo?.animate()
-                                ?.alpha(0f)?.scaleX(1.04f)?.scaleY(1.04f)
-                                ?.setDuration(520L)
+                                ?.alpha(0f)?.scaleX(1.16f)?.scaleY(1.16f)
+                                ?.setStartDelay(160L)
+                                ?.setDuration(760L)
                                 ?.setInterpolator(ease)
                                 ?.start()
                             splash.animate()
