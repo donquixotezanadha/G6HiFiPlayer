@@ -521,3 +521,6 @@
 
 ## v2.21
 - Splash wordmark "Hifi" in Inter Medium (was ExtraBold), same width and position.
+
+## v2.22
+- The veil over the blurred cover is neutral in both themes (black 70% in Dark, white in Light + the stronger white over a black cover from 2.8). Since 2.2 the Dark veil was tinted with the darkened accent, which looked like an accent-coloured player background; now only the surfaces (cards, text fields, buttons, floating windows, mini player) and the progress/accent use the cover colour. The splash code (2.19-2.21) does not touch theme or veil logic (it only adds one more backdrop drawable with the same veil).

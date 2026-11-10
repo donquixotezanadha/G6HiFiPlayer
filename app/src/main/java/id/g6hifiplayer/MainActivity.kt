@@ -126,8 +126,11 @@ class MainActivity : Activity() {
     private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
     private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9F0.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
     private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0xCCE1E1EC.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
-    /** Veil over the blurred cover: black, or a very dark version of the cover colour. */
-    private fun backdropVeil(): Int = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xB3) else 0xB3FFFFFF.toInt()) else if (!hasAlbumTint) 0xB3000000.toInt() else withAlpha(mixColors(albumDark, Color.BLACK, 0.45f), 0xB3)
+    /**
+     * Veil over the blurred cover. Hifi 2.22: neutral in both themes (black 70% in Dark, white in Light; Light adds [BackdropBlur.lightVeilAlpha] over a black cover),
+     * never the accent colour: the cover colour shows only in the blur itself, the accent only in surfaces, buttons and progress.
+     */
+    private fun backdropVeil(): Int = if (lightTheme) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
