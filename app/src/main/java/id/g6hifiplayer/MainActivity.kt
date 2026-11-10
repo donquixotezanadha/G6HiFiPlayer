@@ -718,7 +718,7 @@ class MainActivity : Activity() {
             contentDescription = "Queue"
             isClickable = true; isFocusable = true
             setOnClickListener { openQueueWindow() }
-            addView(queueIcon, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
+            addView(queueIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER)   // Hifi 2.13: smaller; his new PNGs share one canvas so the sizes match each other)   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
         }
         // Hifi 2.11: theme - queue - album in one row under the controls: same size (24dp), style (filled) and colour. The theme icon shows
         // the active mode only (moon in Dark, sun in Light) and switches the theme when tapped; the album icon goes to the Album page.
@@ -732,7 +732,7 @@ class MainActivity : Activity() {
             contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
             isClickable = true; isFocusable = true
             setOnClickListener { setLightTheme(!lightTheme) }
-            addView(themeIcon, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))
+            addView(themeIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER)   // Hifi 2.13: smaller; his new PNGs share one canvas so the sizes match each other)
         }
         val albumIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_row_album)
@@ -744,7 +744,7 @@ class MainActivity : Activity() {
             contentDescription = "Albums"
             isClickable = true; isFocusable = true
             setOnClickListener { slidePageTo(true) }
-            addView(albumIcon, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))
+            addView(albumIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER)   // Hifi 2.13: smaller; his new PNGs share one canvas so the sizes match each other)
         }
         val iconRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL

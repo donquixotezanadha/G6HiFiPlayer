@@ -489,3 +489,6 @@
 
 ## v2.12
 - The theme - queue - album row uses his own icons (PNG alpha masks ic_row_*.png in drawable-nodpi, tinted with the grey text colour, 28dp box) and is spread a little wider than prev / play / next (centres 26% of the screen width apart). Old vector icons deleted.
+
+## v2.13
+- Icon row smaller (box 28 -> 21dp, visible icon about 18dp instead of 23dp, as in his target picture) and built from his new transparent PNGs with one shared canvas (no per-icon size normalisation any more, so the relative sizes are exactly as he drew them).
