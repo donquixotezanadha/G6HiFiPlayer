@@ -466,4 +466,4 @@
 - Unplayed part of the progress bar (player and dark widgets) uses the colour of the selected track row (LINE: light touch over the darkened accent); Light theme unchanged.
 
 ## v2.5
-- LINE (selected track row, text field, unselected buttons, long-press window buttons) and the unplayed progress (player + dark widgets) = white at 18%, no accent tint, so the blur / card colour shows through. Light theme unchanged.
+- Only the unplayed part of the progress bar (player + dark widgets) = white at 18%, no accent tint, so the blur / card colour shows through. Selected row, unselected buttons and other surfaces stay as in 2.4. Light theme unchanged.

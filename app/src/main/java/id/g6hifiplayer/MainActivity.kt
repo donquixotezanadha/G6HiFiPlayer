@@ -123,7 +123,7 @@ class MainActivity : Activity() {
     private val hasAlbumTint get() = albumDark != AlbumAccent.DEFAULT_DARK
     private val CARD get() = if (lightTheme) 0xCCFFFFFF.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
     private val ART get() = if (lightTheme) 0xFFE9E9F0.toInt() else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else 0x2EFFFFFF   // Hifi 2.5: white at 18%, no accent tint: the blur shows through (selected row, unselected buttons, unplayed progress)
+    private val LINE get() = if (lightTheme) 0xCCE1E1EC.toInt() else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
     /** Veil over the blurred cover: black, or a very dark version of the cover colour. */
     private fun backdropVeil(): Int = if (lightTheme || !hasAlbumTint) 0xB3000000.toInt() else withAlpha(mixColors(albumDark, Color.BLACK, 0.45f), 0xB3)
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
@@ -748,7 +748,7 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // Hifi 1.43: no thumb; the track and played segment share the same rounded path, now 4dp thick (was 2dp).
-            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else LINE, accentColor, dp(PROGRESS_THICKNESS_DP))
+            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
             thumb = null
             thumbOffset = 0
             splitTrack = false
@@ -971,7 +971,7 @@ class MainActivity : Activity() {
         if (lightTheme) return
         darkDrawables.forEach { it.veil = backdropVeil() }
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(LINE, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
         }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
@@ -1004,7 +1004,7 @@ class MainActivity : Activity() {
         queueButton?.imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: grey text colour of the theme
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
-            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else LINE, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
@@ -3954,6 +3954,7 @@ class MainActivity : Activity() {
         /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
+        private const val DARK_PROGRESS_TRACK = 0x2EFFFFFF   // Hifi 2.5: unplayed progress = white at 18% (only the progress bar; other surfaces unchanged)
         private const val PROGRESS_TRACK_GREY = 0xB35E5E66.toInt()
         /** Build 3.01: unplayed progress track for the Light theme only. */
         private const val LIGHT_PROGRESS_TRACK_GREY = 0xB3D6D6DC.toInt()
