@@ -505,3 +505,6 @@
 
 ## v2.17
 - Now Playing bottom dock order swapped: transport controls -> info lines (format / kHz / bit-perfect status) -> theme - queue - album icon row at the very bottom (the icon row and the info lines changed places; gaps 10dp above the info, 8dp above the row).
+
+## v2.18
+- The theme - queue - album row is 6dp lower (gap above it 8 -> 14dp, dock bottom padding 12 -> 6dp so the info lines and everything above stay where they were).

@@ -826,7 +826,7 @@ class MainActivity : Activity() {
 
         val bottomDock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(12))
+            setPadding(0, dp(DOCK_TOP_PAD_DP), 0, dp(6))
             clipChildren = false; clipToPadding = false   // Hifi 1.44: the Hi-Res logo hangs above the title row
         }
         playerBottomDock = bottomDock
@@ -858,7 +858,7 @@ class MainActivity : Activity() {
             leftMargin = dp(DOCK_SIDE_PAD_DP); rightMargin = dp(DOCK_SIDE_PAD_DP); bottomMargin = dp(2)
             gravity = Gravity.CENTER_HORIZONTAL
         })
-        bottomDock.addView(iconRow, LinearLayout.LayoutParams(-2, dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
+        bottomDock.addView(iconRow, LinearLayout.LayoutParams(-2, dp(40)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(14) })   // Hifi 2.18: icon row 6dp lower (info lines stay: the dock bottom padding is 6dp smaller)
 
         // Hifi 1.43: no album art box: the cover is the clear top of the page backdrop (see NowPlayingCoverView); only the controls column is left.
         val stack = LinearLayout(this).apply {
