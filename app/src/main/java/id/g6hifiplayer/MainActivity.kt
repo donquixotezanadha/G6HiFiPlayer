@@ -521,7 +521,7 @@ class MainActivity : Activity() {
             }
             val logoGroup = FrameLayout(this)
             logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER).apply { bottomMargin = dp(46) })
-            logoGroup.addView(wordmark, FrameLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.30f).toInt(), -2, Gravity.CENTER).apply { topMargin = dp(70) })
+            logoGroup.addView(wordmark, FrameLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.268f).toInt(), -2, Gravity.CENTER).apply { topMargin = dp(70) })
             splashLogo = logoGroup
             splash.addView(logoGroup, FrameLayout.LayoutParams(-1, -1))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
