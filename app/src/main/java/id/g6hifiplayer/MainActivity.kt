@@ -1725,6 +1725,7 @@ class MainActivity : Activity() {
                     scaleType = ImageView.ScaleType.CENTER
                     isClickable = true; isFocusable = true
                     contentDescription = "Back to albums"
+                    themed { imageTintList = ColorStateList.valueOf(WHITE) }   // Hifi 2.10: the arrow follows the theme ink (dark in Light)
                     themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 20), null) }
                     setOnClickListener {
                         selectedAlbum = null

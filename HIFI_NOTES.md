@@ -480,3 +480,6 @@
 
 ## v2.9
 - Light veil over a mostly black cover now grows up to 85% (0xD9) instead of 91% (2.8); everything else as in 2.8.
+
+## v2.10
+- The back arrow beside the big album cover now follows the theme ink (dark in Light, white in Dark). 2.9 (veil cap 85%) stays as chosen.
