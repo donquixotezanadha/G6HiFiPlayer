@@ -472,4 +472,4 @@
 - Light mode is the mirror of the cover-based Dark look (switch in Setting > THEME): accent = 70% black + 30% strong cover colour; veil, windows, cards and the blur widget veil = pastel of the cover hue; unselected rows / buttons = black 12%; unplayed progress = black 18%; covers without colour / no cover = neutral light grey/white with a near-black accent. AlbumAccent.Result got lightAccent / lightTint (widgets store them too: accent_light, tint_light).
 
 ## v2.7
-- THEME (DARK / LIGHT buttons) added to the real Setting window on the Album page (2.6 only had it in an old hidden panel). The window closes and the app switches.
+- Dark / Light as two icons (moon, sun) at the right of the Now Playing header (the current mode at full strength, the other dimmed); tap switches the theme. Not in the Setting window.

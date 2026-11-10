@@ -234,6 +234,7 @@ class MainActivity : Activity() {
     // Hifi 1.39: slide left on Now Playing goes to Album (the mini player rises from the bottom); slide right on Album, tapping the mini player, Back and play actions slide back to Now Playing.
     private var pageAnimToken = 0   // Hifi 1.39: a newer page slide makes the end action of an older one do nothing
     private var headerGear: View? = null
+    private var headerThemeIcons: List<View> = emptyList()   // Hifi 2.7: moon (Dark) + sun (Light) on Now Playing
     private var queueRowsSig = Int.MIN_VALUE
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
@@ -3192,6 +3193,7 @@ class MainActivity : Activity() {
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else ""   // Hifi 1.51: no "Now Playing" title on Now Playing (the icons stay)
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
+        headerThemeIcons.forEach { it.visibility = if (which == "library") View.GONE else View.VISIBLE }
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
@@ -3546,6 +3548,26 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         headerGear = gear
+        // Hifi 2.7: Dark / Light as two icons (moon, sun) at the right of the Now Playing header; the current mode is full strength, the other dimmed.
+        fun themeIcon(res: Int, desc: String, forLight: Boolean) = ImageView(this).apply {
+            setImageResource(res)
+            contentDescription = desc
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            themed {
+                imageTintList = ColorStateList.valueOf(WHITE)
+                alpha = if (lightTheme == forLight) 1f else 0.45f
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))
+            }
+            isClickable = true; isFocusable = true
+            setOnClickListener { setLightTheme(forLight) }
+            visibility = View.GONE
+        }
+        val moon = themeIcon(R.drawable.ic_moon_outline, "Dark theme", false)
+        val sun = themeIcon(R.drawable.ic_sun_outline, "Light theme", true)
+        headerThemeIcons = listOf(moon, sun)
+        bar.addView(sun, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) })
+        bar.addView(moon, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) + dp(HEADER_H_DP) })
         bar.addView(gear, FrameLayout.LayoutParams(dp(HEADER_H_DP), dp(HEADER_H_DP), Gravity.END or Gravity.TOP).apply { rightMargin = dp(8) })
         return bar
     }
@@ -3599,13 +3621,6 @@ class MainActivity : Activity() {
             val previous = if (::librarySummary.isInitialized) librarySummary.text else "No folder has been scanned yet."
             librarySummary = text(previous.toString(), 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
             panel.addView(librarySummary)
-            // Hifi 2.7: the Dark / Light choice lives in this window (the old THEME card sat in a panel that is no longer shown).
-            panel.addView(text("THEME", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
-            val themeButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            themeButtons.addView(action("DARK", !lightTheme) { dialog.dismiss(); setLightTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-            themeButtons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-            themeButtons.addView(action("LIGHT", lightTheme) { dialog.dismiss(); setLightTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
-            panel.addView(themeButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
             panel.addView(text("ALBUM COLUMNS", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
             val columnButtons = buttonArea()
             fillColumnButtons(columnButtons)
