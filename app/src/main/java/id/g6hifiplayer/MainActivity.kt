@@ -490,22 +490,23 @@ class MainActivity : Activity() {
         var startupSplash: FrameLayout? = null
         var splashLogo: ImageView? = null
         if (!startupSplashShown) {
+            // Hifi 2.19: the splash is only the Hifi wave logo (white in Dark, dark in Light) over the SAME backdrop as the player (blurred last cover +
+            // veil; it follows the player's backdrop updates, so it is the real background). The logo fades out and the controls appear on the unchanged background.
             val splash = FrameLayout(this).apply {
-                setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE)
+                background = newDarkDrawable()
                 isClickable = true
                 isFocusable = true
             }
             val logo = ImageView(this).apply {
-                // Build 3.25: splash is the text "PLAY / PURE / DIRECT" (Thin sans). Dark theme = white text on black, light theme = dark text on white.
-                setImageResource(if (lightTheme) R.drawable.splash_text_light else R.drawable.splash_text_dark)
+                setImageResource(R.drawable.ic_launcher_foreground)
+                imageTintList = ColorStateList.valueOf(WHITE)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                contentDescription = "Play Pure Direct"
+                contentDescription = "Hifi"
             }
             splashLogo = logo
-            // The word DIRECT spans 48% of the screen width; the image (715x900) has 20px transparent padding per side around the 675px-wide word.
-            val splashLogoWidth = (resources.displayMetrics.widthPixels * 0.48f * (715f / 675f)).toInt()
-            val splashLogoHeight = (splashLogoWidth * (900f / 715f)).toInt()
-            splash.addView(logo, FrameLayout.LayoutParams(splashLogoWidth, splashLogoHeight, Gravity.CENTER))
+            // The wave spans about 57% of the 108dp canvas of the vector: a square of 0.74 x screen width gives a logo about 42% of the width.
+            val splashLogoSide = (resources.displayMetrics.widthPixels * 0.74f).toInt()
+            splash.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
             startupSplash = splash
@@ -518,7 +519,7 @@ class MainActivity : Activity() {
                     if (stage.viewTreeObserver.isAlive) stage.viewTreeObserver.removeOnPreDrawListener(this)
                     handler.postDelayed({
                         if (!isFinishing && !isDestroyed && splash.parent === stage) {
-                            // Build 3.25: soft Claude-style exit. The text drifts out first (fades + grows 4%), then the background dissolves into the app.
+                            // Soft exit: the logo drifts out first (fades + grows 4%), then the splash layer (same backdrop as the player) dissolves.
                             val ease = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
                             splashLogo?.animate()
                                 ?.alpha(0f)?.scaleX(1.04f)?.scaleY(1.04f)
@@ -3662,7 +3663,7 @@ class MainActivity : Activity() {
         titleRow.addView(scanBox, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(12) })
         bar.addView(titleRow, FrameLayout.LayoutParams(-1, dp(HEADER_H_DP), Gravity.START or Gravity.TOP).apply { rightMargin = dp(HEADER_H_DP) + dp(8) })
         val gear = ImageView(this).apply {
-            setImageResource(R.drawable.ic_settings_fill)
+            setImageResource(R.drawable.ic_gear)   // Hifi 2.19: his own gear icon (alpha mask, tinted)
             contentDescription = "Settings"
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(10), dp(10), dp(10))

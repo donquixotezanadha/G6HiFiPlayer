@@ -508,3 +508,8 @@
 
 ## v2.18
 - The theme - queue - album row is 6dp lower (gap above it 8 -> 14dp, dock bottom padding 12 -> 6dp so the info lines and everything above stay where they were).
+
+## v2.19
+- Splash = only the Hifi wave logo (ink colour of the theme: white in Dark, dark in Light) over the same backdrop as the player (blurred last cover + veil; the splash layer is one of the player's backdrop drawables, so it follows the cover restore). The logo drifts out, then the layer dissolves, so only the controls appear on an unchanged background. Old text splash images and the unused window-preview drawables deleted.
+- Settings icon = his own gear PNG (ic_gear.png, alpha mask, tinted); old vector deleted.
+- Splash idea previews kept for later: A = same 3 words in Inter Bold, B = logo + "Hifi" (chosen first, now logo only), C = logo + small tagline (out/splash-ide.png).
