@@ -732,7 +732,7 @@ class MainActivity : Activity() {
         val themeBtn = FrameLayout(this).apply {
             contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
             isClickable = true; isFocusable = true
-            setOnClickListener { setLightTheme(!lightTheme) }
+            setOnClickListener { switchThemeAnimated(!lightTheme, themeIconView) }
             addView(themeIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
         val albumIcon = ImageView(this).apply {
@@ -1082,6 +1082,65 @@ class MainActivity : Activity() {
         container.addView(action("DARK", !lightTheme) { setLightTheme(false) }, LinearLayout.LayoutParams(0, dp(40), 1f))
         container.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         container.addView(action("LIGHT", lightTheme) { setLightTheme(true) }, LinearLayout.LayoutParams(0, dp(40), 1f))
+    }
+
+    private var themeAnimating = false
+
+    /**
+     * Hifi 2.14: theme switch from the icon: a snapshot of the old screen stays on top while the new theme is built underneath, then a circle
+     * opens at the icon and grows over the whole screen (the new theme shows inside it); the new icon spins in. Falls back to a plain switch
+     * when the snapshot cannot be made.
+     */
+    private fun switchThemeAnimated(enabled: Boolean, originView: View?) {
+        if (lightTheme == enabled || themeAnimating) return
+        val decor = window.decorView as? android.view.ViewGroup
+        val w = decor?.width ?: 0
+        val h = decor?.height ?: 0
+        if (decor == null || w <= 0 || h <= 0 || originView == null) { setLightTheme(enabled); return }
+        val shot = try {
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also { decor.draw(android.graphics.Canvas(it)) }
+        } catch (_: Throwable) { null }
+        if (shot == null) { setLightTheme(enabled); return }
+        val loc = IntArray(2)
+        originView.getLocationInWindow(loc)
+        val cx = loc[0] + originView.width / 2f
+        val cy = loc[1] + originView.height / 2f
+        val maxR = Math.hypot(maxOf(cx, w - cx).toDouble(), maxOf(cy, h - cy).toDouble()).toFloat()
+        themeAnimating = true
+        val overlay = object : View(this) {
+            var radius = 0f
+            private val path = android.graphics.Path()
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                path.reset()
+                path.addCircle(cx, cy, radius, android.graphics.Path.Direction.CW)
+                canvas.save()
+                canvas.clipOutPath(path)
+                canvas.drawBitmap(shot, 0f, 0f, null)
+                canvas.restore()
+            }
+        }
+        overlay.isClickable = true
+        decor.addView(overlay, android.view.ViewGroup.LayoutParams(-1, -1))
+        setLightTheme(enabled)
+        themeIconView?.let { icon ->
+            icon.rotation = -200f; icon.scaleX = 0.3f; icon.scaleY = 0.3f
+            icon.animate().rotation(0f).scaleX(1f).scaleY(1f).setStartDelay(120).setDuration(420)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+        }
+        val anim = android.animation.ValueAnimator.ofFloat(0f, maxR)
+        anim.duration = 520
+        anim.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        anim.addUpdateListener { overlay.radius = it.animatedValue as Float; overlay.invalidate() }
+        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+            private fun finish() {
+                decor.removeView(overlay)
+                shot.recycle()
+                themeAnimating = false
+            }
+            override fun onAnimationEnd(animation: android.animation.Animator) = finish()
+            override fun onAnimationCancel(animation: android.animation.Animator) = finish()
+        })
+        overlay.post { anim.start() }
     }
 
     private fun setLightTheme(enabled: Boolean) {

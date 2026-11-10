@@ -492,3 +492,6 @@
 
 ## v2.13
 - Icon row smaller (box 28 -> 21dp, visible icon about 18dp instead of 23dp, as in his target picture) and built from his new transparent PNGs with one shared canvas (no per-icon size normalisation any more, so the relative sizes are exactly as he drew them).
+
+## v2.14
+- Theme switch animation: snapshot of the old screen stays on top, the new theme is built below, a circle opens at the theme icon and grows over the whole screen (520 ms, ease in/out), the new icon spins/scales in. Plain switch if the snapshot fails; taps during the animation are ignored.
