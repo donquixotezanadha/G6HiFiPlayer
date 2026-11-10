@@ -495,3 +495,7 @@
 
 ## v2.14
 - Theme switch animation: snapshot of the old screen stays on top, the new theme is built below, a circle opens at the theme icon and grows over the whole screen (520 ms, ease in/out), the new icon spins/scales in. Plain switch if the snapshot fails; taps during the animation are ignored.
+
+## v2.15
+- Queue window opens as a circular reveal from the queue icon (320 ms).
+- Page change (Now Playing <-> Album) is a quick fade (100 ms out, 160 ms in) instead of the sideways slide; the swipe gesture (drag left/right between pages) and all its code are deleted. Kept: the Album mini player rising from the bottom (overshoot) and sinking when Now Playing returns. Navigation: album icon, mini player tap, Back, play actions.

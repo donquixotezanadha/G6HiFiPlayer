@@ -222,15 +222,9 @@ class MainActivity : Activity() {
     private lateinit var nextView: ImageView
     private lateinit var artPlaceholder: TextView
     private lateinit var librarySummary: TextView
-    // Hifi 1.4: page header (title left, gear right), swipe between the two pages, floating settings window.
+    // Hifi 1.4: page header (title left, gear right), floating settings window (2.15: no swipe between pages any more).
     private lateinit var headerTitle: TextView
     private var pageContentView: View? = null
-    private var swipeDownX = 0f
-    private var swipeDownY = 0f
-    private var swipeBlocked = false
-    private var swipeDragging = false
-    private var swipeAnimating = false
-    private var swipeVelocity: android.view.VelocityTracker? = null
     // Hifi 1.39: slide left on Now Playing goes to Album (the mini player rises from the bottom); slide right on Album, tapping the mini player, Back and play actions slide back to Now Playing.
     private var pageAnimToken = 0   // Hifi 1.39: a newer page slide makes the end action of an older one do nothing
     private var headerGear: View? = null
@@ -3473,10 +3467,31 @@ class MainActivity : Activity() {
             if (queueDialog === dialog) queueDialog = null
         }
         queueDialog = dialog
+        panel.visibility = View.INVISIBLE
         dialog.show()
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.window?.setLayout(floatingWindowWidth(), windowH)
         dialog.window?.setDimAmount(0.55f)
+        // Hifi 2.15: the window opens as a circle growing from the queue icon (320 ms); plain show if anything is missing.
+        val origin = queueButton
+        panel.post {
+            try {
+                val pl = IntArray(2); panel.getLocationOnScreen(pl)
+                val ol = IntArray(2)
+                if (origin == null || panel.width <= 0 || panel.height <= 0) throw IllegalStateException()
+                origin.getLocationOnScreen(ol)
+                val cx = (ol[0] + origin.width / 2 - pl[0]).coerceIn(0, panel.width)
+                val cy = (ol[1] + origin.height / 2 - pl[1]).coerceIn(0, panel.height)
+                val maxR = Math.hypot(maxOf(cx, panel.width - cx).toDouble(), maxOf(cy, panel.height - cy).toDouble()).toFloat()
+                val reveal = android.view.ViewAnimationUtils.createCircularReveal(panel, cx, cy, 0f, maxR)
+                reveal.duration = 320L
+                reveal.interpolator = DecelerateInterpolator(1.4f)
+                panel.visibility = View.VISIBLE
+                reveal.start()
+            } catch (_: Throwable) {
+                panel.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun showAlbumOptions(album: String, indices: List<Int>) {
@@ -3721,99 +3736,40 @@ class MainActivity : Activity() {
         }
     }
 
-    /**
-     * Hifi 1.38: the page follows the finger while dragging sideways: slide left on Now Playing goes to Album, slide right on Album comes back.
-     * On release the page slides out and the other one slides in (distance or fling past the threshold) or springs back. The seek bar, horizontal
-     * lists and a running animation never start a drag.
-     */
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (swipeDragging) {
-            swipeVelocity?.addMovement(ev)
-            val dx = ev.rawX - swipeDownX
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_MOVE -> dragPage(dx)
-                MotionEvent.ACTION_UP -> {
-                    swipeVelocity?.computeCurrentVelocity(1000)
-                    finishPageDrag(dx, swipeVelocity?.xVelocity ?: 0f)
-                }
-                MotionEvent.ACTION_CANCEL -> finishPageDrag(0f, 0f)
-            }
-            return true
-        }
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                swipeDownX = ev.rawX; swipeDownY = ev.rawY
-                val busy = swipeAnimating
-                // Pages cannot be swiped on the seek bar, on a horizontal list, or mid-animation.
-                swipeBlocked = busy ||
-                    touchesSeekBar(ev.rawX.toInt(), ev.rawY.toInt()) ||
-                    touchesHorizontalScroller(window.decorView, ev.rawX.toInt(), ev.rawY.toInt())
-                swipeVelocity?.recycle()
-                swipeVelocity = if (busy) null else android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
-            }
-            MotionEvent.ACTION_MOVE -> {
-                swipeVelocity?.addMovement(ev)
-                val dx = ev.rawX - swipeDownX
-                val dy = ev.rawY - swipeDownY
-                if (!swipeBlocked && kotlin.math.abs(dx) > dp(18) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.6f &&
-                    (currentPage == "player" || currentPage == "library")) {
-                    swipeDragging = true
-                    val cancel = MotionEvent.obtain(ev)
-                    cancel.action = MotionEvent.ACTION_CANCEL
-                    super.dispatchTouchEvent(cancel)
-                    cancel.recycle()
-                    dragPage(dx)
-                    return true
-                }
-            }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> { swipeVelocity?.recycle(); swipeVelocity = null }
-        }
-        return super.dispatchTouchEvent(ev)
-    }
-
-    /** Album -> Now Playing (tapping the mini player, Back, play actions): the same slide as dragging right on Album. */
+    /** Album -> Now Playing (tapping the mini player, Back, play actions): a quick fade (Hifi 2.15; the sideways slide and the swipe gesture are gone). */
     private fun showPlayerAnimated() = slidePageTo(false)
 
     /**
-     * Slides the current page out and the other one in (the same motion as a finished sideways drag, also used by taps). Going to Album the
-     * mini player rises from the bottom with a soft overshoot; going back it sinks while the page leaves.
+     * Hifi 2.15: page change = fade out (100 ms) -> switch -> fade in (160 ms). The only motion kept is the mini player of the Album page: it
+     * rises from the bottom with a soft overshoot when the Album opens and sinks when Now Playing comes back.
      */
     private fun slidePageTo(toLibrary: Boolean) {
         val v = pageContentView
         val token = ++pageAnimToken
         v?.animate()?.cancel()
         queueMiniHost?.animate()?.cancel()
+        playerCoverView?.animate()?.cancel()
         v?.let { it.translationX = 0f; it.alpha = 1f; it.translationY = 0f }
-        coverSet(0f, 1f)
+        playerCoverView?.alpha = 1f
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
-        if (v == null || !canSwipeTo(toLibrary)) { swipeAnimating = false; show(if (toLibrary) "library" else "player"); return }
-        slideCommit(v, toLibrary, token)
-    }
-
-    private fun slideCommit(v: View, toLibrary: Boolean, token: Int) {
-        val width = resources.displayMetrics.widthPixels.toFloat()
-        val sign = if (toLibrary) -1f else 1f
+        val target = if (toLibrary) "library" else "player"
+        if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
-        swipeAnimating = true
         if (!toLibrary && mini != null && mini.visibility == View.VISIBLE) {
             mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(110L)
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
         }
-        coverFollow(sign * width * 0.6f, 0f, 110L, android.view.animation.AccelerateInterpolator(1.2f))
-        v.animate().translationX(sign * width * 0.6f).alpha(0f).setDuration(110L)
-            .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f))
-            .withEndAction {
-                if (token != pageAnimToken) return@withEndAction
-                show(if (toLibrary) "library" else "player")
-                mini?.animate()?.cancel()
-                mini?.let { it.translationY = 0f; it.alpha = 1f }
-                v.translationX = -sign * width * 0.25f
-                v.alpha = 0f
-                if (toLibrary) coverSet(0f, 1f) else { coverSet(-sign * width * 0.25f, 0f); coverFollow(0f, 1f, 240L, DecelerateInterpolator(1.8f)) }
-                if (toLibrary) riseMini(token)
-                v.animate().translationX(0f).alpha(1f).setDuration(240L).setInterpolator(DecelerateInterpolator(1.8f))
-                    .withEndAction { if (token == pageAnimToken) swipeAnimating = false }.start()
-            }.start()
+        playerCoverView?.animate()?.alpha(0f)?.setDuration(100L)?.start()
+        v.animate().alpha(0f).setDuration(100L).withEndAction {
+            if (token != pageAnimToken) return@withEndAction
+            show(target)
+            mini?.animate()?.cancel()
+            mini?.let { it.translationY = 0f; it.alpha = 1f }
+            v.alpha = 0f
+            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(160L).start() }
+            if (toLibrary) riseMini(token)
+            v.animate().alpha(1f).setDuration(160L).start()
+        }.start()
     }
 
     /** The Album mini player comes up from the bottom edge with a soft overshoot (as in 1.17). */
@@ -3838,62 +3794,6 @@ class MainActivity : Activity() {
             })
             start()
         }
-    }
-
-    private fun canSwipeTo(toLibrary: Boolean) = (toLibrary && currentPage == "player") || (!toLibrary && currentPage == "library")
-
-    private fun dragPage(dx: Float) {
-        val v = pageContentView ?: return
-        val width = resources.displayMetrics.widthPixels.toFloat()
-        val shown = if (canSwipeTo(dx < 0)) dx else dx * 0.18f   // nothing on that side: only a small rubber-band
-        v.translationX = shown
-        v.alpha = 1f - (kotlin.math.abs(shown) / width).coerceIn(0f, 1f) * 0.55f
-        coverSet(v.translationX, v.alpha)
-    }
-
-    /** The Now Playing cover lives behind the header, outside the page view, so every page slide is mirrored on it. */
-    private fun coverSet(tx: Float, alpha: Float) {
-        playerCoverView?.let { it.animate().cancel(); it.translationX = tx; it.alpha = alpha }
-    }
-
-    private fun coverFollow(tx: Float, alpha: Float, duration: Long, interpolator: android.animation.TimeInterpolator) {
-        playerCoverView?.let { it.animate().cancel(); it.animate().translationX(tx).alpha(alpha).setDuration(duration).setInterpolator(interpolator).start() }
-    }
-
-    private fun finishPageDrag(dx: Float, velocityX: Float) {
-        swipeDragging = false
-        swipeVelocity?.recycle(); swipeVelocity = null
-        val v = pageContentView ?: return
-        val width = resources.displayMetrics.widthPixels.toFloat()
-        val toLibrary = dx < 0
-        val flung = kotlin.math.abs(velocityX) > dp(600) && (velocityX < 0) == toLibrary
-        val commit = canSwipeTo(toLibrary) && (kotlin.math.abs(dx) > width * 0.28f || (flung && kotlin.math.abs(dx) > dp(30)))
-        val token = ++pageAnimToken
-        swipeAnimating = true
-        v.animate().cancel()
-        if (!commit) {
-            coverFollow(0f, 1f, 180L, DecelerateInterpolator(1.6f))
-            v.animate().translationX(0f).alpha(1f).setDuration(180L).setInterpolator(DecelerateInterpolator(1.6f))
-                .withEndAction { if (token == pageAnimToken) swipeAnimating = false }.start()
-            return
-        }
-        slideCommit(v, toLibrary, token)
-    }
-
-    private fun touchesSeekBar(x: Int, y: Int): Boolean {
-        if (!::seek.isInitialized || seek.visibility != View.VISIBLE) return false
-        val loc = IntArray(2); seek.getLocationOnScreen(loc)
-        val pad = dp(14)
-        return x >= loc[0] && x <= loc[0] + seek.width && y >= loc[1] - pad && y <= loc[1] + seek.height + pad
-    }
-
-    private fun touchesHorizontalScroller(v: View, x: Int, y: Int): Boolean {
-        if (v.visibility != View.VISIBLE) return false
-        val loc = IntArray(2); v.getLocationOnScreen(loc)
-        if (x < loc[0] || x > loc[0] + v.width || y < loc[1] || y > loc[1] + v.height) return false
-        if (v is HorizontalScrollView) return true
-        if (v is ViewGroup) for (i in 0 until v.childCount) if (touchesHorizontalScroller(v.getChildAt(i), x, y)) return true
-        return false
     }
 
     override fun onBackPressed() {
