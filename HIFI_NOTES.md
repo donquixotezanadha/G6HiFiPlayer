@@ -477,3 +477,6 @@
 ## v2.8
 - Light blur widget now has the same plain white veil as the player (2.6 tinted it with the accent colour: a black cover with a yellow accent gave a yellowish widget).
 - Light veil strength: 70% as before, but over a mostly black cover (low average brightness of the blurred cover) it grows up to about 91% (BackdropBlur.lightVeilAlpha), in the app and in the blur widgets. Other covers are unchanged.
+
+## v2.9
+- Light veil over a mostly black cover now grows up to 85% (0xD9) instead of 91% (2.8); everything else as in 2.8.

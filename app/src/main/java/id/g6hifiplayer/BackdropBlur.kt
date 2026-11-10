@@ -12,8 +12,8 @@ internal object BackdropBlur {
     private const val SIDE = 96
 
     /**
-     * Hifi 2.8: strength (alpha) of the white veil in Light. 70% (0xB3) as before, but over a mostly black cover the veil grows up to ~91%
-     * (0xE8) so the page stays light; covers that are not dominated by black keep exactly 70%.
+     * Hifi 2.8: strength (alpha) of the white veil in Light. 70% (0xB3) as before, but over a mostly black cover the veil grows up to 85%
+     * (0xD9) so the page stays light; covers that are not dominated by black keep exactly 70%.
      */
     fun lightVeilAlpha(soft: Bitmap?): Int {
         if (soft == null || soft.isRecycled) return 0xB3
@@ -34,7 +34,7 @@ internal object BackdropBlur {
         if (n == 0) return 0xB3
         val lum = sum / n
         val f = ((0.40 - lum) / 0.40).coerceIn(0.0, 1.0)
-        return (0xB3 + f * (0xE8 - 0xB3)).toInt()
+        return (0xB3 + f * (0xD9 - 0xB3)).toInt()
     }
 
     fun soft(source: Bitmap): Bitmap? = try {
