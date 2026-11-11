@@ -563,3 +563,8 @@
 ## v2.32
 - New logo (his transparent PNG with its own soft glow, cyan/blue/violet/pink ribbon) for the launcher foreground (core 60% of the canvas, background still #F8F8FC), the splash logo (core 55% of the 1000 px canvas) and the pre-blurred splash copy (same pipeline: premultiplied blur radii 35.4 / 82.5 px, boosts 1.5 / 2.4, saturation 1.15 / 1.25; halo reaches zero alpha before the canvas edge). Splash code untouched.
 - New black silhouette (his PNG) as ic_stat_music.png (192 px, fills 190 px width) and ic_stat_music_wide.png (380x145, cropped to the shape, for the 4x2 widget icon).
+
+## v2.33
+- Album tab grid: checked the naming first: before, album name was grey (MUTED) bold 12sp, max 2 lines, with the grey track count below.
+- Now each cell shows the artist (solid ink, bold, 1 line) above the album name (grey as before, 2 lines) and the track count. Both text lines always take their full height (setLines), so every cell/row has the same height whatever the text length.
+- Albums are sorted by artist A-Z, then album A-Z (albums without an artist last). Artist = the artist of most tracks of the album. The cover prewarm uses the same order. Playback "next album" order (auto-queue) is unchanged on purpose.
