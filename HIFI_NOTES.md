@@ -533,3 +533,6 @@
 ## v2.24
 - Launcher icon: stronger glow (wave 60% of the canvas, three glow layers, kept inside the circle of the adaptive mask).
 - Splash: logo only, NO glow (the glow looked cut off on the backdrop); blurred copy is the blurred logo alone, logo 0.88 x 0.70 of the screen width, same exit (sharp -> blurred, grows 16%, fades), "Hifi" wordmark kept.
+
+## v2.25
+- Splash = the wave logo only (the "Hifi" wordmark and its image deleted), logo centred; same blurry-spread-faded exit. Silhouette icons (notification, 4x2 widget, placeholder) unchanged on purpose (same style as before).

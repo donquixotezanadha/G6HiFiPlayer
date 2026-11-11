@@ -522,16 +522,9 @@ class MainActivity : Activity() {
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 alpha = 0f
             }
-            val wordmark = ImageView(this).apply {
-                setImageResource(R.drawable.ic_splash_wordmark)
-                imageTintList = ColorStateList.valueOf(WHITE)
-                adjustViewBounds = true
-                scaleType = ImageView.ScaleType.FIT_CENTER
-            }
             val logoGroup = FrameLayout(this)
-            logoGroup.addView(logoBlur, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER).apply { bottomMargin = dp(46) })
-            logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER).apply { bottomMargin = dp(46) })
-            logoGroup.addView(wordmark, FrameLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.268f).toInt(), -2, Gravity.CENTER).apply { topMargin = dp(70) })
+            logoGroup.addView(logoBlur, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
+            logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
             splashSharp = logo
             splashBlur = logoBlur
             splashLogo = logoGroup
