@@ -559,3 +559,7 @@
 - Player transport controls (previous / play-pause / next) now use the album accent like the mini player play button; re-tinted when the cover accent or theme changes.
 - All widgets: the play/pause control uses the accent (8 places: 4x1, 2x2, text 4x2, blur 4x1/4x2, partial updates in refreshPlayback).
 - Theme, queue, album icons and the Setting gear use a separate softer colour (ICON_SOFT): Light 0xFF60606D (a bit lighter than the text grey), Dark 0xFF93939F (a bit darker). Text grey MUTED unchanged.
+
+## v2.32
+- New logo (his transparent PNG with its own soft glow, cyan/blue/violet/pink ribbon) for the launcher foreground (core 60% of the canvas, background still #F8F8FC), the splash logo (core 55% of the 1000 px canvas) and the pre-blurred splash copy (same pipeline: premultiplied blur radii 35.4 / 82.5 px, boosts 1.5 / 2.4, saturation 1.15 / 1.25; halo reaches zero alpha before the canvas edge). Splash code untouched.
+- New black silhouette (his PNG) as ic_stat_music.png (192 px, fills 190 px width) and ic_stat_music_wide.png (380x145, cropped to the shape, for the 4x2 widget icon).
