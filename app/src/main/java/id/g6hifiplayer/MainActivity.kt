@@ -1999,7 +1999,8 @@ class MainActivity : Activity() {
                     scrollLibraryToTop()
                 }
                 setOnLongClickListener { pressed ->
-                    showAlbumOptions(namedAlbum, indices, pressed, albumLabel(namedArtist, namedAlbum))
+                    val (pressArtist, pressAlbum) = albumNames[album] ?: ("" to album)
+                    showAlbumOptions(pressAlbum, indices, pressed, albumLabel(pressArtist, pressAlbum))
                     true
                 }
             }
