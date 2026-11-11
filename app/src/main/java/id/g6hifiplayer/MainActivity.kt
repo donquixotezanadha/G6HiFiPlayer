@@ -546,7 +546,7 @@ class MainActivity : Activity() {
                             splashSharp?.animate()?.alpha(0f)?.setDuration(560L)?.setInterpolator(ease)?.start()
                             splashBlur?.animate()?.alpha(1f)?.setDuration(420L)?.setInterpolator(ease)?.start()
                             splashLogo?.animate()
-                                ?.alpha(0f)?.scaleX(1.16f)?.scaleY(1.16f)
+                                ?.alpha(0f)?.scaleX(1.28f)?.scaleY(1.28f)
                                 ?.setStartDelay(160L)
                                 ?.setDuration(760L)
                                 ?.setInterpolator(ease)

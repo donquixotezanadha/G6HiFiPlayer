@@ -536,3 +536,6 @@
 
 ## v2.25
 - Splash = the wave logo only (the "Hifi" wordmark and its image deleted), logo centred; same blurry-spread-faded exit. Silhouette icons (notification, 4x2 widget, placeholder) unchanged on purpose (same style as before).
+
+## v2.26
+- Splash exit blur looked blackish in Light: the old blurred copy was made by blurring RGBA with transparent black around the logo (dark fringe). Now blurred in premultiplied alpha (colours kept) and made a wider, more saturated halo of the icon's own colours (radius 30 + 70 px, alpha boosted); the sharp copy is resized in premultiplied space too. Exit growth 16% -> 28% so it spreads radially. Same in Dark and Light.
