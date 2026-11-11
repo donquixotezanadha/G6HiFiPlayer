@@ -463,7 +463,7 @@ object G6Widgets {
         setTextColor(R.id.w_artist, muted)
         setTextColor(R.id.w_elapsed, muted)
         setTextColor(R.id.w_duration, muted)
-        setImageViewResource(R.id.w_open_player, R.drawable.ic_stat_music)
+        setImageViewResource(R.id.w_open_player, R.drawable.ic_stat_music_wide)
         setInt(R.id.w_open_player, "setColorFilter", ink)
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
         setInt(R.id.w_play, "setColorFilter", ink)

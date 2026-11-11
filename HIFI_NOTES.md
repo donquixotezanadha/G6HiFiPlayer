@@ -547,3 +547,4 @@
 
 ## v2.28
 - Silhouette bigger everywhere it is used: ic_stat_music.png now fills 190 of 192 px width (notification, which is width-limited so only a few % bigger); 4x2 widget icon box 28dp -> 38 x 28dp with 2dp padding (icon about 34 dp wide instead of 22); widget cover placeholder padding 28% -> 14% per side (logo 72% of the tile instead of 44%).
+- The 4x2 widget uses ic_stat_music_wide.png (cropped to the shape, not a square canvas) so the icon really fills its 38 x 28dp box.
