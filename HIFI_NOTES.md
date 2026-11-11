@@ -568,3 +568,8 @@
 - Album tab grid: checked the naming first: before, album name was grey (MUTED) bold 12sp, max 2 lines, with the grey track count below.
 - Now each cell shows the artist (solid ink, bold, 1 line) above the album name (grey as before, 2 lines) and the track count. Both text lines always take their full height (setLines), so every cell/row has the same height whatever the text length.
 - Albums are sorted by artist A-Z, then album A-Z (albums without an artist last). Artist = the artist of most tracks of the album. The cover prewarm uses the same order. Playback "next album" order (auto-queue) is unchanged on purpose.
+
+## v2.34
+- Album grid, first screen: the 2.33 layout (artist line + 2-line album + track count) made the rows too tall. Now two single lines only, like the opened-album window: artist (solid ink) and album name (grey right under it); the track-count line is gone (totals stay in the library summary). Cells keep the same height (setLines).
+- Untagged files: "Artist unavailable" no longer shows. The album folder name (always "Artist - Album") is split into artist and album. If a folder has no " - ", the folder name is shown alone on the solid line. Sorting uses these same names (artist A-Z, then album A-Z; no-artist last).
+- Opened-album window and long-press window untouched (he said they are right).

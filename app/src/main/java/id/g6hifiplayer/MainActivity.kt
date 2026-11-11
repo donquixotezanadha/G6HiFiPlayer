@@ -1830,7 +1830,7 @@ class MainActivity : Activity() {
         // Group once per render; selected album rows are shown before the grid so tapping a
         // cover immediately reveals its tracks instead of appending them below the entire library.
         val groupedAlbums = tracks.withIndex().groupBy { it.value.album }
-        val (albums, albumArtists) = albumOrder(groupedAlbums.mapValues { e -> e.value.map { it.value } })
+        val (albums, albumNames) = albumOrder(groupedAlbums.mapValues { e -> e.value.map { it.value } })
 
         selectedAlbum?.let { album ->
             val entries = groupedAlbums[album].orEmpty().sortedWith(
@@ -1997,21 +1997,22 @@ class MainActivity : Activity() {
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
             cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
-            // Hifi 2.33: artist (solid ink, one line) above the album name (grey, two lines); both always take their full
-            // height, so every cell has the same height whatever the text length.
-            cell.addView(text(albumArtists[album].orEmpty(), 12f, WHITE, true).apply {
-                setPadding(dp(2), dp(7), dp(2), dp(1))
+            // Hifi 2.34: like the opened-album window: artist (solid ink) with the album name (grey) right under it, one
+            // line each and always two lines tall (no separate track-count line), so every cell has the same height.
+            val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
+            // no artist anywhere (no tag, folder not "Artist - Album"): the folder/album name takes the solid first line
+            val shownArtist = namedArtist.ifBlank { namedAlbum }
+            val shownAlbum = if (namedArtist.isBlank()) "" else namedAlbum
+            cell.addView(text(shownArtist, 12f, WHITE, true).apply {
+                setPadding(dp(2), dp(7), dp(2), dp(0))
                 setLines(1)
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(album, 12f, MUTED, true).apply {
+            cell.addView(text(shownAlbum, 12f, MUTED, true).apply {
                 setPadding(dp(2), dp(1), dp(2), dp(2))
-                setLines(2)
+                setLines(1)
                 ellipsize = android.text.TextUtils.TruncateAt.END
-                gravity = Gravity.CENTER_HORIZONTAL
-            }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(entries.size.toString() + " tracks", 10f, MUTED, false).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(-1, -2))
             val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
@@ -2037,19 +2038,29 @@ class MainActivity : Activity() {
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 
-    /** Hifi 2.33: the artist an album is listed under = the artist of most of its tracks. */
-    private fun albumArtistOf(entries: List<Track>): String =
-        entries.groupingBy { it.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty().trim()
+    /**
+     * Hifi 2.34: artist + album as the grid shows them. The artist is the tag of most tracks; when the tags have no
+     * artist the album folder name (always "Artist - Album") is split instead, so "Artist unavailable" never shows.
+     * Returns artist to album; artist is "" when neither source has one.
+     */
+    private fun albumDisplayNames(album: String, entries: List<Track>): Pair<String, String> {
+        val tagged = entries.map { it.artist.trim() }
+            .filter { it.isNotBlank() && !it.equals("Artist unavailable", true) && !it.equals("Unknown artist", true) }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+        if (tagged != null) return tagged to album
+        val cut = album.indexOf(" - ")
+        return if (cut > 0 && cut + 3 < album.length) album.substring(0, cut).trim() to album.substring(cut + 3).trim() else "" to album
+    }
 
     /** Hifi 2.33: album grid order = artist A-Z, then album A-Z; albums without an artist go last. */
-    private fun albumOrder(grouped: Map<String, List<Track>>): Pair<List<String>, Map<String, String>> {
-        val artists = grouped.mapValues { albumArtistOf(it.value) }
+    private fun albumOrder(grouped: Map<String, List<Track>>): Pair<List<String>, Map<String, Pair<String, String>>> {
+        val names = grouped.mapValues { albumDisplayNames(it.key, it.value) }
         val ordered = grouped.keys.sortedWith(
-            compareBy<String> { artists[it].isNullOrBlank() }
-                .thenBy { artists[it].orEmpty().lowercase(Locale.ROOT) }
-                .thenBy { it.lowercase(Locale.ROOT) }
+            compareBy<String> { names[it]!!.first.isBlank() }
+                .thenBy { names[it]!!.first.lowercase(Locale.ROOT) }
+                .thenBy { names[it]!!.second.lowercase(Locale.ROOT) }
         )
-        return ordered to artists
+        return ordered to names
     }
 
     private fun renderSongs() {
