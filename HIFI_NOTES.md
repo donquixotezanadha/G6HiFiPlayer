@@ -551,3 +551,6 @@
 
 ## v2.29
 - Logo updated (his new colour PNG, brighter cyan/violet/pink ribbon): launcher foreground, splash logo and its blurred copy regenerated with the same pipeline as 2.27. Silhouette unchanged.
+
+## v2.30
+- Splash blur halo 50% wider (felt too short before fading): blur radii 30/70 -> 35/82 asset px relative to a smaller logo (logo is 55% of the canvas instead of 70%; canvas drawn 1.12 x screen width instead of 0.88, so the on-screen logo size is unchanged). The fade now ends about 94 dp from the logo edge on the G6 (was about 63 dp) before the 1.28x exit spread. Checked that the halo reaches zero alpha before the canvas edge (no cut-off).
