@@ -511,7 +511,7 @@ class MainActivity : Activity() {
             }
             // Hifi 2.23: the splash shows the new wave icon (cyan -> magenta, with its glow). Two layers of the same art: the sharp one and a pre-blurred,
             // spread one (no RenderEffect on Android 9). The exit cross-fades sharp -> blurred while the group grows and fades ("blurry, spread, faded").
-            val splashLogoSide = (resources.displayMetrics.widthPixels * 0.82f).toInt()
+            val splashLogoSide = (resources.displayMetrics.widthPixels * 0.88f).toInt()
             val logo = ImageView(this).apply {
                 setImageResource(R.drawable.ic_splash_wave)
                 scaleType = ImageView.ScaleType.FIT_CENTER

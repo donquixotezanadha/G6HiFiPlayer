@@ -529,3 +529,7 @@
 - New wave icon (cyan -> magenta gradient ribbon from his Freepik/Magnific PNG, glow behind it that follows the wave). Adaptive launcher icon: background solid #101014 (the app's start dark), foreground ic_launcher_fg.png (648 px, wave about 58% of the canvas = inside the 66dp safe zone). The old vector foreground was deleted.
 - Splash: the new icon (ic_splash_wave.png, about 0.82 x screen width) plus the "Hifi" wordmark over the same backdrop. Exit effect = blurry + spread + faded: the sharp layer cross-fades to a pre-blurred copy (ic_splash_wave_blur.png), the group grows 16% while fading, then the backdrop layer dissolves as before.
 - Icon source work in out/wave/ (v8 = the ribbon, v12 = glow on #101014). Free-licence asset: credit/attribution may be needed if the app is ever shared.
+
+## v2.24
+- Launcher icon: stronger glow (wave 60% of the canvas, three glow layers, kept inside the circle of the adaptive mask).
+- Splash: logo only, NO glow (the glow looked cut off on the backdrop); blurred copy is the blurred logo alone, logo 0.88 x 0.70 of the screen width, same exit (sharp -> blurred, grows 16%, fades), "Hifi" wordmark kept.
