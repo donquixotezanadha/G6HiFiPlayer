@@ -554,3 +554,8 @@
 
 ## v2.30
 - Splash blur halo 50% wider (felt too short before fading): blur radii 30/70 -> 35/82 asset px relative to a smaller logo (logo is 55% of the canvas instead of 70%; canvas drawn 1.12 x screen width instead of 0.88, so the on-screen logo size is unchanged). The fade now ends about 94 dp from the logo edge on the G6 (was about 63 dp) before the 1.28x exit spread. Checked that the halo reaches zero alpha before the canvas edge (no cut-off).
+
+## v2.31
+- Player transport controls (previous / play-pause / next) now use the album accent like the mini player play button; re-tinted when the cover accent or theme changes.
+- All widgets: the play/pause control uses the accent (8 places: 4x1, 2x2, text 4x2, blur 4x1/4x2, partial updates in refreshPlayback).
+- Theme, queue, album icons and the Setting gear use a separate softer colour (ICON_SOFT): Light 0xFF60606D (a bit lighter than the text grey), Dark 0xFF93939F (a bit darker). Text grey MUTED unchanged.

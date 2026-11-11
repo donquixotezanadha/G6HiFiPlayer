@@ -133,6 +133,7 @@ class MainActivity : Activity() {
     private fun backdropVeil(): Int = if (lightTheme) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
+    private val ICON_SOFT get() = if (lightTheme) 0xFF60606D.toInt() else 0xFF93939F.toInt()   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
     private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
@@ -730,7 +731,7 @@ class MainActivity : Activity() {
         val queueIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_row_queue)   // Hifi 2.12: his own icon (alpha mask, tinted)
             // Hifi 1.55: exactly the colour of the unplayed part of the progress bar (same ARGB incl. its opacity), also after a theme switch
-            imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: the grey text colour of the theme, no extra opacity
+            imageTintList = ColorStateList.valueOf(ICON_SOFT)   // Hifi 2.31
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         queueButton = queueIcon
@@ -745,7 +746,7 @@ class MainActivity : Activity() {
         // Hifi 2.13: icon boxes 21dp (were 28dp); his new PNGs share one canvas so the sizes match each other.
         val themeIcon = ImageView(this).apply {
             setImageResource(if (lightTheme) R.drawable.ic_row_sun else R.drawable.ic_row_moon)
-            imageTintList = ColorStateList.valueOf(MUTED)
+            imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         themeIconView = themeIcon
@@ -757,7 +758,7 @@ class MainActivity : Activity() {
         }
         val albumIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_row_album)
-            imageTintList = ColorStateList.valueOf(MUTED)
+            imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         albumIconView = albumIcon
@@ -1031,6 +1032,9 @@ class MainActivity : Activity() {
         albumAccentLight = result.lightAccent
         albumTint = result.lightTint
         darkDrawables.forEach { it.veil = backdropVeil() }
+        if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31
+        if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(accentColor)
+        if (::playView.isInitialized) playView.imageTintList = ColorStateList.valueOf(accentColor)
         if (::seek.isInitialized) {
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
             seek.invalidate()
@@ -1060,11 +1064,12 @@ class MainActivity : Activity() {
         if (::duration.isInitialized) duration.setTextColor(inkMuted)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(inkMuted)
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
-        if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(ink)
-        if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(ink)
-        queueButton?.imageTintList = ColorStateList.valueOf(MUTED)   // Hifi 1.56: grey text colour of the theme
-        themeIconView?.imageTintList = ColorStateList.valueOf(MUTED)
-        albumIconView?.imageTintList = ColorStateList.valueOf(MUTED)
+        if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31: accent
+        if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(accentColor)
+        if (::playView.isInitialized) playView.imageTintList = ColorStateList.valueOf(accentColor)
+        queueButton?.imageTintList = ColorStateList.valueOf(ICON_SOFT)   // Hifi 2.31: a little less dense than the text grey
+        themeIconView?.imageTintList = ColorStateList.valueOf(ICON_SOFT)
+        albumIconView?.imageTintList = ColorStateList.valueOf(ICON_SOFT)
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
@@ -2476,7 +2481,7 @@ class MainActivity : Activity() {
         updateAlbumPlayingMarks(playing)
         playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
         playView.contentDescription = if (playing) "Pause" else "Play"
-        playView.imageTintList = ColorStateList.valueOf(WHITE)
+        playView.imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31
         if (::queueMiniPlayView.isInitialized) {
             queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
@@ -2544,7 +2549,7 @@ class MainActivity : Activity() {
     /** Build 2.9: white icon button with a soft glow on touch and a tiny press (scale down, smooth return). */
     private fun transportButton(iconRes: Int, description: String, paddingDp: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(iconRes)
-        imageTintList = ColorStateList.valueOf(WHITE)
+        imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31: controls use the accent like the mini player
         contentDescription = description
         scaleType = ImageView.ScaleType.FIT_CENTER
         setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
@@ -3706,7 +3711,7 @@ class MainActivity : Activity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(12), dp(12), dp(12), dp(12))   // Hifi 2.20: a little smaller (was 10dp)
             themed {
-                imageTintList = ColorStateList.valueOf(WHITE)
+                imageTintList = ColorStateList.valueOf(ICON_SOFT)
                 background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))
             }
             isClickable = true; isFocusable = true

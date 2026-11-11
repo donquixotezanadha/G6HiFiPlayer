@@ -435,7 +435,7 @@ object G6Widgets {
             setImageViewBitmap(R.id.w_art, cover)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2)
             setInt(R.id.w_play_bg, "setColorFilter", cardColorNow)   // Hifi 2.1: button box = darkened accent colour of the cover
-            setInt(R.id.w_play, "setColorFilter", if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
+            setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
@@ -466,7 +466,7 @@ object G6Widgets {
         setImageViewResource(R.id.w_open_player, R.drawable.ic_stat_music_wide)
         setInt(R.id.w_open_player, "setColorFilter", ink)
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-        setInt(R.id.w_play, "setColorFilter", ink)
+        setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
         setTextViewText(R.id.w_elapsed, timeLabel(position))
         setTextViewText(R.id.w_duration, timeLabel(duration))
         setImageViewBitmap(R.id.w_progress, progressBitmap(
@@ -590,7 +590,7 @@ object G6Widgets {
         setTextColor(R.id.w_elapsed, muted)
         setTextColor(R.id.w_duration, muted)
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-        setInt(R.id.w_play, "setColorFilter", ink)
+        setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
         setTextViewText(R.id.w_elapsed, timeLabel(position))
         setTextViewText(R.id.w_duration, timeLabel(duration))
         setImageViewBitmap(R.id.w_progress, progressBitmap(
@@ -639,7 +639,7 @@ object G6Widgets {
         setViewPadding(R.id.w_play, iconPad, iconPad, iconPad, iconPad)
         setImageViewBitmap(R.id.w_play_bg, playSquare(cardColorNow))
         setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
-        setInt(R.id.w_play, "setColorFilter", ink)
+        setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
         setImageViewBitmap(R.id.w_progress, progressBitmap(
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
             light
@@ -678,7 +678,7 @@ object G6Widgets {
         if (ids2.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
                 setImageViewResource(R.id.w_play, widget2x2Icon)
-                setInt(R.id.w_play, "setColorFilter", iconTint)
+                setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
             }
             try { manager.partiallyUpdateAppWidget(ids2, views) } catch (e: Exception) { Log.w(TAG, "2x2 playback update failed", e) }
         }
@@ -686,7 +686,7 @@ object G6Widgets {
         if (idsBlur.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
                 setImageViewResource(R.id.w_play, icon)
-                setInt(R.id.w_play, "setColorFilter", if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
+                setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
             }
             try { manager.partiallyUpdateAppWidget(idsBlur, views) } catch (e: Exception) { Log.w(TAG, "blur 4x1 playback update failed", e) }
         }
@@ -694,7 +694,7 @@ object G6Widgets {
         if (idsBlur2.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x2).apply {
                 setImageViewResource(R.id.w_play, icon)
-                setInt(R.id.w_play, "setColorFilter", iconTint)
+                setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
             }
             try { manager.partiallyUpdateAppWidget(idsBlur2, views) } catch (e: Exception) { Log.w(TAG, "blur 4x2 playback update failed", e) }
         }
@@ -702,7 +702,7 @@ object G6Widgets {
         if (idsText.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_text_4x2).apply {
                 setImageViewResource(R.id.w_play, icon)
-                setInt(R.id.w_play, "setColorFilter", iconTint)
+                setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
             }
             try { manager.partiallyUpdateAppWidget(idsText, views) } catch (e: Exception) { Log.w(TAG, "text 4x2 playback update failed", e) }
         }
