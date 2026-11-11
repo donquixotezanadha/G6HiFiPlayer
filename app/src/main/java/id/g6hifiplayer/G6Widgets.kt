@@ -49,9 +49,9 @@ object G6Widgets {
     private fun isLightTheme(context: Context): Boolean {
         for (name in arrayOf("id.g6hifiplayer.MainActivity", "MainActivity")) {
             val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-            if (p.contains("light_theme")) return p.getBoolean("light_theme", false)
+            if (p.contains("light_theme")) return p.getBoolean("light_theme", true)
         }
-        return false
+        return true   // Hifi 2.27: Light is the default at first install
     }
 
     private const val PREFS = "g6_widgets"

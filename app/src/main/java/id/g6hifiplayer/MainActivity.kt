@@ -348,7 +348,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Build 3.17: one launcher entry only; the theme comes from the saved preference (starting window is disabled).
-        val savedLightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", false)
+        val savedLightTheme = getPreferences(MODE_PRIVATE).getBoolean("light_theme", true)
         setTheme(if (savedLightTheme) R.style.Theme_G6HiFiPlayer else R.style.Theme_G6HiFiPlayer_Dark)
         super.onCreate(savedInstanceState)
         AudioPathLog.init(this)   // Hifi 1.40

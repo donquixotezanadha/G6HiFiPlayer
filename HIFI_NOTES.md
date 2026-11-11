@@ -539,3 +539,8 @@
 
 ## v2.26
 - Splash exit blur looked blackish in Light: the old blurred copy was made by blurring RGBA with transparent black around the logo (dark fringe). Now blurred in premultiplied alpha (colours kept) and made a wider, more saturated halo of the icon's own colours (radius 30 + 70 px, alpha boosted); the sharp copy is resized in premultiplied space too. Exit growth 16% -> 28% so it spreads radially. Same in Dark and Light.
+
+## v2.27
+- New logo (his own transparent PNG, layered cyan/blue/violet/pink ribbon) for the launcher icon (foreground 60% of the canvas), the splash (same blur / spread / fade system; blurred copy rebuilt from the new logo) and its blurred copy; new black silhouette (his PNG) as ic_stat_music.png (notification, 4x2 widget icon, widget cover placeholder), white alpha mask 192 px.
+- Launcher icon background = the Light theme colour (#F8F8FC) instead of the dark one.
+- Default theme at first install = Light (MainActivity and G6Widgets read "light_theme" with default true). An install that already saved a choice keeps it; an old install that never toggled the theme will now start Light.
