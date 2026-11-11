@@ -52,10 +52,10 @@
 
         <ImageView
             android:id="@+id/w_open_player"
-            android:layout_width="28dp"
+            android:layout_width="38dp"
             android:layout_height="28dp"
             android:layout_marginStart="8dp"
-            android:padding="3dp"
+            android:padding="2dp"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_stat_music"
             android:contentDescription="Open Now Playing" />

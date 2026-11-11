@@ -779,7 +779,7 @@ object G6Widgets {
         canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)
         context.getDrawable(R.drawable.ic_stat_music)?.mutate()?.let { icon ->
             icon.setTint(if (light) 0xFF484855.toInt() else 0xFF8E8E98.toInt())
-            val pad = (size * 0.28f).toInt()
+            val pad = (size * 0.14f).toInt()
             icon.setBounds(pad, pad, size - pad, size - pad)
             icon.draw(canvas)
         }

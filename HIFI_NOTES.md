@@ -544,3 +544,6 @@
 - New logo (his own transparent PNG, layered cyan/blue/violet/pink ribbon) for the launcher icon (foreground 60% of the canvas), the splash (same blur / spread / fade system; blurred copy rebuilt from the new logo) and its blurred copy; new black silhouette (his PNG) as ic_stat_music.png (notification, 4x2 widget icon, widget cover placeholder), white alpha mask 192 px.
 - Launcher icon background = the Light theme colour (#F8F8FC) instead of the dark one.
 - Default theme at first install = Light (MainActivity and G6Widgets read "light_theme" with default true). An install that already saved a choice keeps it; an old install that never toggled the theme will now start Light.
+
+## v2.28
+- Silhouette bigger everywhere it is used: ic_stat_music.png now fills 190 of 192 px width (notification, which is width-limited so only a few % bigger); 4x2 widget icon box 28dp -> 38 x 28dp with 2dp padding (icon about 34 dp wide instead of 22); widget cover placeholder padding 28% -> 14% per side (logo 72% of the tile instead of 44%).
