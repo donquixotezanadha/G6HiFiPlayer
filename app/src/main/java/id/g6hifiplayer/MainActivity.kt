@@ -69,7 +69,14 @@ class MainActivity : Activity() {
                                   /** Build 2.4: year from the ID tag. null = not read yet (library saved by an older build), "" = the file has none. */
                                   val year: String? = null,
                                   /** Build 2.31: source bit depth cached during library scan for persistent Hi-Res cover badges. */
-                                  val bitDepth: Int? = null)
+                                  val bitDepth: Int? = null) {
+        /** Hifi 2.34: the folder the file sits in. One folder = one album, whatever the album tags of its files say. */
+        val folder: String by lazy {
+            val u = uri.toString()
+            val cut = u.lastIndexOf("%2F").let { if (it >= 0) it else u.lastIndexOf('/') }
+            if (cut > 0) u.substring(0, cut) else u
+        }
+    }
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
     private var strictBlocked = false   // Hifi 1.29: the current file has no renderer (not FLAC / ALAC / WAV)
@@ -1479,11 +1486,12 @@ class MainActivity : Activity() {
                         for (i in 0 until array.length()) {
                             val item = array.getJSONObject(i)
                             val coverText = item.optString("coverUri", "")
+                            val (cachedArtist, cachedAlbum) = cleanArtistAlbum(item.optString("artist", ""), item.optString("album", "Unknown album"))
                             list.add(Track(
                                 Uri.parse(item.getString("uri")),
                                 item.optString("title", "Local audio"),
-                                item.optString("artist", "Artist unavailable"),
-                                item.optString("album", "Unknown album"),
+                                cachedArtist,
+                                cachedAlbum,
                                 coverText.takeIf { it.isNotBlank() }?.let { Uri.parse(it) },
                                 item.optInt("trackNumber", Int.MAX_VALUE),
                                 if (item.has("year")) item.optString("year", "") else null,
@@ -1702,7 +1710,7 @@ class MainActivity : Activity() {
             try { DocumentFile.fromTreeUri(this, uri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count) } }
             catch (e: Exception) { error = e.javaClass.simpleName + ": " + (e.message ?: "akses ditolak"); recordDiagnostic("SCAN_FAILED uri=$uri", e) }
             recordDiagnostic("SCAN_ENUMERATION_COMPLETE found=${found.size} processed=${count[0]} error=${error ?: "none"}")
-            val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+            val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.folder.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
             prewarmAlbumThumbs(sorted)
             handler.post {
                 // A rescan used to wipe the queue and the current track. Carry both over by track URI.
@@ -1723,7 +1731,7 @@ class MainActivity : Activity() {
                 librarySummary.text = when {
                     error != null -> "Failed to scan folder: " + error
                     sorted.isEmpty() -> "No audio files found. Choose a Music folder containing tracks."
-                    else -> sorted.size.toString() + " tracks • " + sorted.map { it.album }.distinct().size + " albums found"
+                    else -> sorted.size.toString() + " tracks • " + sorted.map { it.folder }.distinct().size + " albums found"
                 }
                 albumScanSummary.text = librarySummary.text
                 statusView.text = if (sorted.isEmpty()) "The library is empty. Check the selected folder." else "Library ready • " + sorted.size + " tracks."
@@ -1741,7 +1749,7 @@ class MainActivity : Activity() {
                 val key = dir.uri.toString()
                 if (!covers.containsKey(key)) covers[key] = findCover(dir)
                 // Build 2.2: a file already in the saved library keeps its saved tags (no tag reading again); only its folder picture is refreshed.
-                val prior = known?.get(file.uri.toString())?.takeIf { it.year != null } // Build 2.4: entries without a year are read again once
+                val prior = known?.get(file.uri.toString())?.takeIf { it.year != null && it.artist.isNotBlank() }   // Hifi 2.34: tracks without an artist are read again (folder-name fallback) // Build 2.4: entries without a year are read again once
                 synchronized(output) { output.add(if (prior != null) prior.copy(coverUri = covers[key]) else readTrack(file.uri, covers[key], dir.name)) }
                 count[0]++
                 if (known == null && (count[0] == 1 || count[0] % 50 == 0)) {
@@ -1756,11 +1764,11 @@ class MainActivity : Activity() {
                             if (partial.isNotEmpty()) {
                                 val previousUri = tracks.getOrNull(currentIndex)?.uri
                                 val previousTracks = tracks
-                                tracks = partial.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+                                tracks = partial.sortedWith(compareBy<Track> { it.folder.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
                                 currentIndex = previousUri?.let { uri -> tracks.indexOfFirst { it.uri == uri } } ?: -1
                                 remapPlaybackLists(previousTracks, tracks)
                                 renderLibrary()
-                                albumScanSummary.text = tracks.size.toString() + " tracks found so far • " + tracks.map { it.album }.distinct().size + " albums"
+                                albumScanSummary.text = tracks.size.toString() + " tracks found so far • " + tracks.map { it.folder }.distinct().size + " albums"
                                 librarySummary.text = albumScanSummary.text
                             }
                         }
@@ -1791,14 +1799,15 @@ class MainActivity : Activity() {
     private fun readTrack(uri: Uri, coverUri: Uri?, folderName: String?): Track {
         val r = MediaMetadataRetriever()
         var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Local audio"
-        var artist = "Artist unavailable"; var album = folderName ?: "Unknown album"; var trackNumber = Int.MAX_VALUE
+        var artist = ""; var album = folderName ?: "Unknown album"; var trackNumber = Int.MAX_VALUE
+        var albumTagged = false
         var year = ""
         try {
             r.setDataSource(this, uri)
             fun meta(key: Int) = r.extractMetadata(key)?.takeIf { it.isNotBlank() }
             title = meta(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: title
             artist = meta(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: artist
-            album = meta(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: album
+            meta(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.let { album = it; albumTagged = true }
             trackNumber = meta(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.substringBefore("/")?.toIntOrNull() ?: Int.MAX_VALUE
             year = WavTagReader.yearOf(meta(MediaMetadataRetriever.METADATA_KEY_YEAR)) ?: WavTagReader.yearOf(meta(MediaMetadataRetriever.METADATA_KEY_DATE)) ?: ""
         } catch (_: Exception) { } finally { try { r.release() } catch (_: Exception) { } }
@@ -1807,11 +1816,21 @@ class MainActivity : Activity() {
             WavTagReader.read(this, uri, wantPicture = false)?.let { wav ->
                 wav.title?.let { title = it }
                 wav.artist?.let { artist = it }
-                wav.album?.let { album = it }
+                wav.album?.let { album = it; albumTagged = true }
                 wav.trackNumber?.let { trackNumber = it }
                 wav.year?.let { year = it }
             }
         }
+        // Hifi 2.34: no artist in the tags -> the album folder name ("Artist - Album") gives it; an untagged album takes the
+        // album part of the folder name. A folder name that starts with the artist never doubles it in the album.
+        if (artist.isBlank()) {
+            val cut = folderName?.indexOf(" - ") ?: -1
+            if (folderName != null && cut > 0 && cut + 3 < folderName.length) {
+                artist = folderName.substring(0, cut).trim()
+                if (!albumTagged) album = folderName.substring(cut + 3).trim()
+            }
+        }
+        if (!albumTagged && artist.isNotBlank() && album.startsWith("$artist - ", true)) album = album.substring(artist.length + 3).trim()
         // AudioSniffer currently identifies integer bit depth for FLAC/WAV; skip unrelated formats during a large library scan.
         val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase(Locale.ROOT)
         val bitDepth = if (extension == "flac" || extension == "wav" || extension == "wave" || extension == "m4a" || extension == "mp4" || extension == "alac") AudioSniffer.sniff(this, uri)?.bits else null
@@ -1829,7 +1848,7 @@ class MainActivity : Activity() {
 
         // Group once per render; selected album rows are shown before the grid so tapping a
         // cover immediately reveals its tracks instead of appending them below the entire library.
-        val groupedAlbums = tracks.withIndex().groupBy { it.value.album }
+        val groupedAlbums = tracks.withIndex().groupBy { it.value.folder }   // Hifi 2.34: one folder = one album
         val (albums, albumNames) = albumOrder(groupedAlbums.mapValues { e -> e.value.map { it.value } })
 
         selectedAlbum?.let { album ->
@@ -1872,13 +1891,13 @@ class MainActivity : Activity() {
                 coverRow.addView(backArrow, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.TOP or Gravity.START))
                 albumRows.addView(coverRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
                 loadBigArtworkInto(bigCover, entries.first().value)
-                albumRows.addView(text(album, 18f, WHITE, true).apply {
+                // Hifi 2.34: header = "Artist - Album" in the regular weight (it was bold, unlike every other name), the artist is no longer repeated below
+                albumRows.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
+                    setLines(0); maxLines = 2
                     gravity = Gravity.CENTER_HORIZONTAL
-                    maxLines = 2
-                    ellipsize = android.text.TextUtils.TruncateAt.END
                     setPadding(dp(8), dp(16), dp(8), 0)
                 }, LinearLayout.LayoutParams(-1, -2))
-                albumRows.addView(text((if (albumArtist.isBlank()) "" else albumArtist + " • ") + entries.size + " tracks", 12f, MUTED, false).apply {
+                albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
                     setPadding(dp(8), dp(3), dp(8), dp(12))
                 }, LinearLayout.LayoutParams(-1, -2))
@@ -1937,10 +1956,8 @@ class MainActivity : Activity() {
                         }
                         applyAlbumHiResBadge(otherCover, otherEntries.map { it.value })
                         card.addView(otherCover, LinearLayout.LayoutParams(cardSide, cardSide))
-                        card.addView(text(other, 12f, MUTED, true).apply {
+                        card.addView(albumLabelView(albumNames[other]?.first.orEmpty(), albumNames[other]?.second ?: other, 12f, 2, false).apply {
                             setPadding(dp(2), dp(6), dp(2), dp(1))
-                            maxLines = 2
-                            ellipsize = android.text.TextUtils.TruncateAt.END
                             gravity = Gravity.CENTER_HORIZONTAL
                         }, LinearLayout.LayoutParams(cardSide, -2))
                         card.addView(text(otherEntries.size.toString() + " tracks", 10f, MUTED, false).apply {
@@ -1974,7 +1991,7 @@ class MainActivity : Activity() {
                 themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Open songs in album $album"
+                contentDescription = "Open songs in album " + albumLabel(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album)
                 setOnClickListener {
                     selectedAlbum = album
                     renderLibrary()
@@ -1982,7 +1999,7 @@ class MainActivity : Activity() {
                     scrollLibraryToTop()
                 }
                 setOnLongClickListener { pressed ->
-                    showAlbumOptions(album, indices, pressed)
+                    showAlbumOptions(namedAlbum, indices, pressed, albumLabel(namedArtist, namedAlbum))
                     true
                 }
             }
@@ -1997,22 +2014,11 @@ class MainActivity : Activity() {
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
             cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
-            // Hifi 2.34: like the opened-album window: artist (solid ink) with the album name (grey) right under it, one
-            // line each and always two lines tall (no separate track-count line), so every cell has the same height.
+            // Hifi 2.34: one regular-weight "Artist - Album" label (artist solid, album grey), always two lines tall so every
+            // cell has the same height whatever the text length; no track-count line.
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
-            // no artist anywhere (no tag, folder not "Artist - Album"): the folder/album name takes the solid first line
-            val shownArtist = namedArtist.ifBlank { namedAlbum }
-            val shownAlbum = if (namedArtist.isBlank()) "" else namedAlbum
-            cell.addView(text(shownArtist, 12f, WHITE, true).apply {
-                setPadding(dp(2), dp(7), dp(2), dp(0))
-                setLines(1)
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                gravity = Gravity.CENTER_HORIZONTAL
-            }, LinearLayout.LayoutParams(-1, -2))
-            cell.addView(text(shownAlbum, 12f, MUTED, true).apply {
-                setPadding(dp(2), dp(1), dp(2), dp(2))
-                setLines(1)
-                ellipsize = android.text.TextUtils.TruncateAt.END
+            cell.addView(albumLabelView(namedArtist, namedAlbum, 12f, 2, false).apply {
+                setPadding(dp(2), dp(7), dp(2), dp(2))
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(-1, -2))
             val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
@@ -2038,18 +2044,51 @@ class MainActivity : Activity() {
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 
+    /** Hifi 2.34: old saved libraries: "Artist unavailable" becomes "", an album that is a folder name "Artist - Album" is split. */
+    private fun cleanArtistAlbum(artistIn: String, albumIn: String): Pair<String, String> {
+        var artist = artistIn.trim()
+        var album = albumIn
+        if (artist.equals("Artist unavailable", true) || artist.equals("Unknown artist", true)) artist = ""
+        val cut = album.indexOf(" - ")
+        if (artist.isBlank() && cut > 0 && cut + 3 < album.length) {
+            artist = album.substring(0, cut).trim(); album = album.substring(cut + 3).trim()
+        } else if (artist.isNotBlank() && album.startsWith("$artist - ", true)) {
+            album = album.substring(artist.length + 3).trim()
+        }
+        return artist to album
+    }
+
+    /** Hifi 2.34: the one name shown for an album everywhere in the Album tab: "Artist - Album" (just the album without an artist). */
+    private fun albumLabel(artist: String, album: String) = if (artist.isBlank()) album else "$artist - $album"
+
+    /** Hifi 2.34: a regular-weight "Artist - Album" label, artist in solid ink and album in grey (or all solid). Follows the theme. */
+    private fun albumLabelView(artist: String, album: String, size: Float, lines: Int, allSolid: Boolean) = text("", size, WHITE, false).apply {
+        setLines(lines)
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        themed {
+            val label = albumLabel(artist, album)
+            val sb = android.text.SpannableStringBuilder(label)
+            if (!allSolid && artist.isNotBlank()) {
+                sb.setSpan(android.text.style.ForegroundColorSpan(WHITE), 0, artist.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(android.text.style.ForegroundColorSpan(MUTED), artist.length, label.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            text = sb
+            setTextColor(if (allSolid) WHITE else MUTED)
+        }
+    }
+
     /**
      * Hifi 2.34: artist + album as the grid shows them. The artist is the tag of most tracks; when the tags have no
      * artist the album folder name (always "Artist - Album") is split instead, so "Artist unavailable" never shows.
      * Returns artist to album; artist is "" when neither source has one.
      */
-    private fun albumDisplayNames(album: String, entries: List<Track>): Pair<String, String> {
-        val tagged = entries.map { it.artist.trim() }
-            .filter { it.isNotBlank() && !it.equals("Artist unavailable", true) && !it.equals("Unknown artist", true) }
+    private fun albumDisplayNames(folderKey: String, entries: List<Track>): Pair<String, String> {
+        val artist = entries.map { it.artist.trim() }.filter { it.isNotBlank() }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
+        val album = entries.map { it.album.trim() }.filter { it.isNotBlank() }
             .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-        if (tagged != null) return tagged to album
-        val cut = album.indexOf(" - ")
-        return if (cut > 0 && cut + 3 < album.length) album.substring(0, cut).trim() to album.substring(cut + 3).trim() else "" to album
+            ?: Uri.decode(folderKey.substringAfterLast("%2F").substringAfterLast('/'))
+        return artist to album
     }
 
     /** Hifi 2.33: album grid order = artist A-Z, then album A-Z; albums without an artist go last. */
@@ -2115,7 +2154,7 @@ class MainActivity : Activity() {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        details.addView(text(t.artist + " • " + t.album, 12f, MUTED, false).apply {
+        details.addView(text(listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" • "), 12f, MUTED, false).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
@@ -2123,7 +2162,7 @@ class MainActivity : Activity() {
         val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
-            val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
+            val albumOrder = tracks.withIndex().filter { it.value.folder == t.folder }.map { it.index }
             playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
             showPlayerAnimated()
         }
@@ -2183,7 +2222,7 @@ class MainActivity : Activity() {
         val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(36)))
         row.setOnClickListener {
-            val albumOrder = tracks.withIndex().filter { it.value.album == t.album }.map { it.index }
+            val albumOrder = tracks.withIndex().filter { it.value.folder == t.folder }.map { it.index }
             playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
             showPlayerAnimated()
         }
@@ -2265,13 +2304,13 @@ class MainActivity : Activity() {
             if (queuedByUser) {
                 toAdd = pending
             } else {
-                val lastAlbum = tracks.getOrNull(inPlayer.lastOrNull() ?: return -1)?.album ?: return -1
-                val albums = tracks.map { it.album }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
+                val lastAlbum = tracks.getOrNull(inPlayer.lastOrNull() ?: return -1)?.folder ?: return -1
+                val albums = albumOrder(tracks.groupBy { it.folder }).first   // Hifi 2.34: same order as the Album grid (artist A-Z, album A-Z)
                 val position = albums.indexOf(lastAlbum)
                 if (position < 0 || position + 1 >= albums.size) return -1
                 val nextAlbum = albums[position + 1]
                 toAdd = tracks.withIndex()
-                    .filter { it.value.album == nextAlbum && it.index !in inPlayerSet }
+                    .filter { it.value.folder == nextAlbum && it.index !in inPlayerSet }
                     .sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
                     .map { it.index }
             }
@@ -2430,7 +2469,7 @@ class MainActivity : Activity() {
             playbackOrder = requestedOrder
             playbackQueue = requestedOrder
         } else if (playbackOrder.isEmpty() || index !in playbackOrder) {
-            val albumOrder = tracks.withIndex().filter { it.value.album == tracks[index].album }.map { it.index }
+            val albumOrder = tracks.withIndex().filter { it.value.folder == tracks[index].folder }.map { it.index }
             playbackOrder = albumOrder.ifEmpty { listOf(index) }
             playbackQueue = playbackOrder
         }
@@ -2869,8 +2908,8 @@ class MainActivity : Activity() {
     private fun prewarmAlbumThumbs(library: List<Track>) {
         // Hifi 1.15: thumbnails are bigger now, so only the first albums of the (alphabetical) grid are loaded up front.
         val firstTrackOfAlbum = LinkedHashMap<String, Track>()
-        for (t in library) if (!firstTrackOfAlbum.containsKey(t.album)) firstTrackOfAlbum[t.album] = t
-        val (order, _) = albumOrder(library.groupBy { it.album })   // Hifi 2.33: same order as the grid
+        for (t in library) if (!firstTrackOfAlbum.containsKey(t.folder)) firstTrackOfAlbum[t.folder] = t
+        val (order, _) = albumOrder(library.groupBy { it.folder })   // Hifi 2.33: same order as the grid
         val firstAlbums = order.take(PREWARM_ALBUMS).mapNotNull { name -> firstTrackOfAlbum[name]?.let { name to it } }
         for ((_, t) in firstAlbums) {
             if (bitmapArtworkCache.get("thumb:" + t.uri.toString()) == null) loadThumbFromDisk(t)
@@ -2897,7 +2936,7 @@ class MainActivity : Activity() {
                 catch (e: Exception) { failed = true; recordDiagnostic("BG_SCAN_FAILED", e) }
                 // A failed or empty read never replaces a good saved library.
                 if (failed || found.isEmpty()) return@Thread
-                val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.album.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
+                val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.folder.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
                 val oldSignature = tracks.map { it.uri.toString() + "|" + (it.coverUri?.toString() ?: "") }.toSet()
                 val newSignature = sorted.map { it.uri.toString() + "|" + (it.coverUri?.toString() ?: "") }.toSet()
                 if (oldSignature == newSignature) { recordDiagnostic("BG_SCAN_NO_CHANGE tracks=" + sorted.size); return@Thread }
@@ -2911,7 +2950,7 @@ class MainActivity : Activity() {
                     noArtworkTracks.clear()
                     Thread({ saveLibraryCache(treeUri, sorted) }, "g6-library-cache-save").start()
                     try { renderLibrary() } catch (e: Throwable) { recordDiagnostic("BG_LIBRARY_RENDER_FAILED", e) }
-                    librarySummary.text = sorted.size.toString() + " tracks • " + sorted.map { it.album }.distinct().size + " albums"
+                    librarySummary.text = sorted.size.toString() + " tracks • " + sorted.map { it.folder }.distinct().size + " albums"
                     albumScanSummary.text = librarySummary.text
                     recordDiagnostic("BG_SCAN_UPDATED tracks=" + sorted.size)
                 }
@@ -3431,7 +3470,7 @@ class MainActivity : Activity() {
     private fun addToQueue(index: Int) {
         if (index !in tracks.indices) return
         val albumIndices = tracks.withIndex()
-            .filter { it.value.album == tracks[index].album }
+            .filter { it.value.folder == tracks[index].folder }
             .map { it.index }
         playbackQueue = (playbackQueue + albumIndices.ifEmpty { listOf(index) }).distinct()
         // The visible queue and the sequence used by STATE_ENDED/Next must be identical.
@@ -3583,7 +3622,7 @@ class MainActivity : Activity() {
         popIn(panel, queueButton)
     }
 
-    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null) {
+    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null, label: String = album) {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -3591,7 +3630,7 @@ class MainActivity : Activity() {
             minimumWidth = floatingWindowWidth()
             background = floatingBackground()
         }
-        panel.addView(text(album, 18f, WHITE, true).apply {
+        panel.addView(text(label, 18f, WHITE, false).apply {   // Hifi 2.34: regular weight like every other name
             setPadding(dp(2), dp(2), dp(2), dp(14)); maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
