@@ -768,7 +768,7 @@ class MainActivity : Activity() {
             setImageResource(R.drawable.ic_row_album)
             imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            scaleX = -1f   // Hifi 2.48: mirrored so the front square is bottom-left and the back one top-right, like the stacked covers in the Album tab
+            scaleY = -1f   // Hifi 2.49: flipped top-bottom once, so the diagonal runs bottom-left to top-right like the stacked covers in the Album tab
         }
         albumIconView = albumIcon
         val albumBtn = FrameLayout(this).apply {
