@@ -610,3 +610,7 @@
 
 ## v2.44
 - LOG AUDIO PATH diagnostics (log only, audio untouched): the MD5 check used to stay silent whenever it could not run. Now one plain "NOT CHECKED" line per output start says why: output began mid-track (resume / seek / pause), no reference MD5 read yet for the track, file rate differs from the output rate, or the file has no MD5 reference.
+
+## v2.45
+- LOG AUDIO PATH: tap a line to show its details (reason, decoder, format) under it; tap again to hide. (The reason of a NOT CHECKED line was stored but not visible.)
+- The "no reference MD5 yet" note is only written if the reference is still missing after 8 s of playing; before it could be a false alarm because the reference (whole-file decode) arrives a few seconds after the track starts.

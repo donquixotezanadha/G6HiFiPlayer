@@ -3982,6 +3982,13 @@ class MainActivity : Activity() {
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(result, LinearLayout.LayoutParams(-2, -2))
             list.addView(row, LinearLayout.LayoutParams(-1, -2))
+            // Hifi 2.45: tap a line to read its details (the reason / decoder / format) under it, tap again to hide them
+            if (e.detail.isNotBlank()) {
+                val more = text(e.detail, 11f, MUTED, false).apply { visibility = View.GONE; setPadding(0, 0, 0, dp(6)) }
+                list.addView(more, LinearLayout.LayoutParams(-1, -2))
+                row.isClickable = true
+                row.setOnClickListener { more.visibility = if (more.visibility == View.GONE) View.VISIBLE else View.GONE }
+            }
         }
         return ScrollView(this).apply {
             isVerticalScrollBarEnabled = true

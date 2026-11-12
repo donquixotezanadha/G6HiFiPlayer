@@ -30,6 +30,7 @@ internal class OutputMd5(private val sampleRate: Int) {
     // into the next track and reached the file length at 1:50 of that next track: a false MD5 DIFFERENT that paused the music.
     private var armed = false     // true only while the samples counted so far began at the start of the track
     private var pending = true    // the next accepted data decides whether this is a track start or a seek / mid-track start
+    private var waitedFrames = 0L
     private var noteGiven = false  // Hifi 2.44: one diagnostic line per start explains why a track is not checked (log only)
 
     private fun note(head: String, detail: String) {
@@ -39,7 +40,7 @@ internal class OutputMd5(private val sampleRate: Int) {
     }
 
     fun onFlush() {
-        armed = false; pending = true; total = 0L; noteGiven = false
+        armed = false; pending = true; total = 0L; noteGiven = false; waitedFrames = 0L
         md24.reset(); md16.reset(); resetDiag()
     }
 
@@ -54,14 +55,18 @@ internal class OutputMd5(private val sampleRate: Int) {
         if (pending) {
             pending = false
             armed = presentationTimeUs in 0..START_WINDOW_US
-            noteGiven = false
+            noteGiven = false; waitedFrames = 0L
             if (!armed) note("NOT CHECKED", "output began at " + String.format(Locale.US, "%.1f", presentationTimeUs / 1_000_000.0) + " s, not at the start of the track (resume, seek or pause)")
             total = 0L
             md24.reset(); md16.reset(); resetDiag()
         }
         if (!armed || frames <= 0) return
         val expNow = DirectOutputState.expected
-        if (expNow == null) note("NOT CHECKED", "no reference MD5 for this track yet (the file header was not read)")
+        if (expNow == null) {
+            // the reference is read a moment after the track starts (a whole-file decode for ALAC / 24-bit FLAC): only report it when it is still missing after 8 s
+            waitedFrames += frames
+            if (waitedFrames >= 8L * sampleRate) note("NOT CHECKED", "still no reference MD5 for this track after 8 s")
+        }
         else if (expNow.rate != sampleRate) note("NOT CHECKED", "file rate ${expNow.rate} Hz differs from the output rate $sampleRate Hz")
         else if (!expNow.supported || expNow.md5 == null) note("NOT CHECKED", "no MD5 reference for this file (" + expNow.source + ")")
         var offset = 0
