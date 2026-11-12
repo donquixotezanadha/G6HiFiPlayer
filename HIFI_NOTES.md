@@ -650,3 +650,6 @@
 ## Hifi 2.54 - slightly smaller icons, a little more vivid logo
 - Launcher logo 320 -> 292 px wide in the 648 px foreground (about 45%) and saturation x1.12 (brightness kept) so the colours are a little more vivid.
 - Silhouettes a little smaller: ic_stat_music 190 -> 172 px of 192; ic_stat_music_wide logo height 245 -> 220 px of 245. Splash unchanged.
+
+## Hifi 2.55 - launcher logo 42%, more vivid magenta / red / orange
+- Launcher logo 292 -> 272 px wide in the 648 px foreground (42%). Extra saturation (up to +20%) only for magenta, red and orange hues (the two right bars); blue and purple unchanged. Splash and silhouettes unchanged.
