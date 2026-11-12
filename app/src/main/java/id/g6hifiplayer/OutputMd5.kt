@@ -54,9 +54,15 @@ internal class OutputMd5(private val sampleRate: Int) {
     fun feed(out: ByteArray, frames: Int, presentationTimeUs: Long) {
         if (pending) {
             pending = false
-            armed = presentationTimeUs in 0..START_WINDOW_US
+            // Hifi 2.46: Media3 adds a renderer offset of 1,000,000 s to every presentation time after a (re)start of the queue, so the
+            // position inside the track is the time minus that offset. Before, the time was compared with 0 directly: it never was, so
+            // since 1.59 no track was ever checked. A track that follows the previous one gaplessly (in a new output, for instance after
+            // a sample-rate change) starts where the previous one ended.
+            val inTrack = presentationTimeUs - RENDERER_OFFSET_US
+            val afterPrevious = nextStartPtsUs != Long.MIN_VALUE && Math.abs(presentationTimeUs - nextStartPtsUs) <= CONTINUITY_US
+            armed = inTrack in 0..START_WINDOW_US || afterPrevious
             noteGiven = false; waitedFrames = 0L
-            if (!armed) note("NOT CHECKED", "output began at " + String.format(Locale.US, "%.1f", presentationTimeUs / 1_000_000.0) + " s, not at the start of the track (resume, seek or pause)")
+            if (!armed) note("NOT CHECKED", "output began " + String.format(Locale.US, "%.1f", inTrack / 1_000_000.0) + " s into the track, not at its start (resume, seek or pause)")
             total = 0L
             md24.reset(); md16.reset(); resetDiag()
         }
@@ -83,6 +89,7 @@ internal class OutputMd5(private val sampleRate: Int) {
             update(out, offset, take)
             total += take; offset += take; remaining -= take
             if (exp != null && exp.rate == sampleRate && total >= exp.totalSamples) {
+                nextStartPtsUs = presentationTimeUs + offset * 1_000_000L / sampleRate   // where a gapless next track begins
                 finish(exp)
                 total = 0L; resetDiag()   // whatever follows in this chunk is the start of the next track
             }
@@ -170,5 +177,8 @@ internal class OutputMd5(private val sampleRate: Int) {
     companion object {
         private const val CHUNK_FRAMES = 2048
         private const val START_WINDOW_US = 150_000L
+        private const val RENDERER_OFFSET_US = 1_000_000_000_000L   // Media3 MediaPeriodQueue.INITIAL_RENDERER_POSITION_OFFSET_US
+        private const val CONTINUITY_US = 400_000L
+        @Volatile private var nextStartPtsUs = Long.MIN_VALUE
     }
 }

@@ -614,3 +614,6 @@
 ## v2.45
 - LOG AUDIO PATH: tap a line to show its details (reason, decoder, format) under it; tap again to hide. (The reason of a NOT CHECKED line was stored but not visible.)
 - The "no reference MD5 yet" note is only written if the reference is still missing after 8 s of playing; before it could be a false alarm because the reference (whole-file decode) arrives a few seconds after the track starts.
+
+## v2.46
+- FIX (found with the v2.45 log details: "output began at 1000000.0 s"): the MD5 check decided whether a track starts at its beginning by comparing the buffer presentation time with 0..150 ms. Media3 adds a renderer offset of 1,000,000 s (1e12 us) to all presentation times after a queue (re)start, so the comparison was never true and since v1.59 no track was ever checked (only "pause" lines appeared in LOG AUDIO PATH). Now the position in the track = time - 1e12 us; a track that follows the previous one gaplessly in a new output (e.g. after a sample-rate change) starts where the previous one ended (400 ms tolerance). Audio data and output untouched; only which tracks get verified.
