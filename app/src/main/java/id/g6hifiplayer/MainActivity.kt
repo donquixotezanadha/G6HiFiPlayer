@@ -2021,7 +2021,12 @@ class MainActivity : Activity() {
                 }
                 setOnLongClickListener { pressed ->
                     val (pressArtist, pressAlbum) = albumNames[album] ?: ("" to album)
-                    showAlbumOptions(pressAlbum, indices, pressed, albumLabel(pressArtist, pressAlbum))
+                    val every = groupKeys?.flatMap { key ->
+                        groupedAlbums[key].orEmpty().sortedWith(
+                            compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+                        ).map { it.index }
+                    }
+                    showAlbumOptions(pressAlbum, indices, pressed, albumLabel(pressArtist, pressAlbum), every)
                     true
                 }
             }
@@ -3719,7 +3724,7 @@ class MainActivity : Activity() {
         popIn(panel, queueButton)
     }
 
-    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null, label: String = album) {
+    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null, label: String = album, allIndices: List<Int>? = null) {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -3741,8 +3746,13 @@ class MainActivity : Activity() {
             }
             panel.addView(item, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(8) })
         }
-        option("▶  Play entire album") {
+        // Hifi 2.41: "Play album" (the album the press is on); for a stack of several albums an extra "Play entire album"
+        // plays every album of that artist in grid order.
+        option("▶  Play album") {
             if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); showPlayerAnimated() }
+        }
+        if (allIndices != null && allIndices.isNotEmpty()) {
+            option("▶  Play entire album") { playTrackAt(allIndices.first(), true, allIndices); showPlayerAnimated() }
         }
         option("＋  Add album to queue") { addAlbumToQueue(indices, album) }
         dialog.setView(panel)

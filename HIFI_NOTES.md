@@ -598,3 +598,6 @@
 ## v2.40
 - Opened album: the drop shadow (elevation) under the big cover is removed.
 - Stacked covers: opacity step per level 10% -> 15%: front 100%, then 85%, 70%, 55%.
+
+## v2.41
+- Long-press album window: single album = "Play album" + "Add album to queue" (the old "Play entire album" is renamed "Play album"). A stack of several albums = "Play album" (the front album) + "Play entire album" (every album of that artist, in grid order, tracks by number) + "Add album to queue" (the front album).
