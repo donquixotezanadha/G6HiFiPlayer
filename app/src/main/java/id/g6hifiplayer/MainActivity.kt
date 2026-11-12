@@ -99,7 +99,7 @@ class MainActivity : Activity() {
     private var playbackQueue: List<Int> = emptyList()
     private var playbackOrder: List<Int> = emptyList()
     private var selectedAlbum: String? = null
-    private var selectedGroup: String? = null   // Hifi 2.36: the artist whose albums are open (group = stacked covers)
+    private val albumBackStack = ArrayList<String>()   // Hifi 2.37: albums opened from inside an album; Back returns to the previous one
     // A dismissed notification stays hidden until the user starts another track.
     private var notificationDismissed = false
     // Avoid rebuilding MediaSession metadata/artwork on every Play/Pause notification tap.
@@ -423,7 +423,7 @@ class MainActivity : Activity() {
         pageScroll = scroll
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
-            if (currentPage == "library" && selectedAlbum == null && selectedGroup == null && !restoringScroll) listScrollY = y
+            if (currentPage == "library" && selectedAlbum == null && !restoringScroll) listScrollY = y
         }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -1511,7 +1511,7 @@ class MainActivity : Activity() {
                 if (library != null) {
                     tracks = library
                     currentIndex = -1
-                    selectedAlbum = null; selectedGroup = null
+                    selectedAlbum = null; albumBackStack.clear()
                     playbackQueue = emptyList()
                     playbackOrder = emptyList()
                     renderLibrary()
@@ -1719,7 +1719,7 @@ class MainActivity : Activity() {
                 remapPlaybackLists(tracks, sorted)
                 tracks = sorted
                 currentIndex = previousCurrentUri?.let { u -> sorted.indexOfFirst { it.uri == u } } ?: -1
-                selectedAlbum = null; selectedGroup = null
+                selectedAlbum = null; albumBackStack.clear()
                 // Tracks marked "no cover" earlier get another chance now that the folders were read again.
                 noArtworkTracks.clear()
                 Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
@@ -1884,9 +1884,7 @@ class MainActivity : Activity() {
                     themed { imageTintList = ColorStateList.valueOf(WHITE) }   // Hifi 2.10: the arrow follows the theme ink (dark in Light)
                     themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 20), null) }
                     setOnClickListener {
-                        selectedAlbum = null
-                        renderLibrary()
-                        if (selectedGroup != null) scrollLibraryToTop() else restoreListScroll()
+                        goBackFromAlbum()
                     }
                 }
                 coverRow.addView(backArrow, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.TOP or Gravity.START))
@@ -1944,6 +1942,7 @@ class MainActivity : Activity() {
                             isFocusable = true
                             contentDescription = "Open album $other"
                             setOnClickListener {
+                                albumBackStack.add(album)   // Hifi 2.37: Back returns to this album first
                                 selectedAlbum = other
                                 renderLibrary()
                                 scrollLibraryToTop()
@@ -1978,45 +1977,17 @@ class MainActivity : Activity() {
         // Hifi 2.36: an artist with two or more albums becomes ONE stacked-cover item ("group") that opens that artist's
         // albums; those albums are not listed again in the grid, so the list is shorter.
         val groupsByArtist = albums.groupBy { albumNames[it]?.first.orEmpty() }.filter { it.key.isNotBlank() && it.value.size >= 2 }
-        if (selectedGroup != null && !groupsByArtist.containsKey(selectedGroup)) selectedGroup = null
-        val openGroup = selectedGroup
-        val items: List<Pair<String, List<String>?>> =
-            if (openGroup != null) groupsByArtist.getValue(openGroup).map { it to null }
-            else {
-                val seen = HashSet<String>()
-                albums.mapNotNull { a ->
-                    val artist = albumNames[a]?.first.orEmpty()
-                    val group = groupsByArtist[artist]
-                    when {
-                        group == null -> a to null
-                        seen.add(artist) -> ("group:" + artist) to group
-                        else -> null
-                    }
+        val items: List<Pair<String, List<String>?>> = run {
+            val seen = HashSet<String>()
+            albums.mapNotNull { a ->
+                val artist = albumNames[a]?.first.orEmpty()
+                val group = groupsByArtist[artist]
+                when {
+                    group == null -> a to null
+                    seen.add(artist) -> a to group   // the group shows its front album (first of the artist)
+                    else -> null
                 }
             }
-        if (openGroup != null) {
-            val header = FrameLayout(this)
-            val groupBack = ImageView(this).apply {
-                setImageDrawable(backArrowDrawable())
-                scaleType = ImageView.ScaleType.CENTER
-                isClickable = true; isFocusable = true
-                contentDescription = "Back to albums"
-                themed { imageTintList = ColorStateList.valueOf(WHITE) }
-                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 20), null) }
-                setOnClickListener {
-                    selectedGroup = null
-                    renderLibrary()
-                    restoreListScroll()
-                }
-            }
-            header.addView(text(openGroup, 18f, WHITE, false).apply {
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setPadding(dp(48), 0, dp(48), 0)
-            }, FrameLayout.LayoutParams(-1, dp(40), Gravity.CENTER_VERTICAL))
-            header.addView(groupBack, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.TOP or Gravity.START))
-            albumRows.addView(header, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(10) })
         }
         var gridRow: LinearLayout? = null
         items.forEachIndexed { position, item ->
@@ -2029,35 +2000,6 @@ class MainActivity : Activity() {
             val cellLp = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (position % albumGridColumns != 0) leftMargin = dp(3)
                 if (position % albumGridColumns != albumGridColumns - 1) rightMargin = dp(3)
-            }
-            if (groupKeys != null) {
-                val groupArtist = album.removePrefix("group:")
-                val groupCell = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(3), dp(4), dp(3), dp(7))
-                    themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
-                    isClickable = true
-                    isFocusable = true
-                    contentDescription = "Open $groupArtist, ${groupKeys.size} albums"
-                    setOnClickListener {
-                        selectedGroup = groupArtist
-                        renderLibrary()
-                        show("library")
-                        scrollLibraryToTop()
-                    }
-                }
-                val stack = StackedCovers(this, minOf(groupKeys.size, 4))
-                groupCell.addView(stack, LinearLayout.LayoutParams(-1, -2))
-                groupCell.addView(albumLabelView(groupArtist, groupKeys.size.toString() + " albums", 12f, 2, false).apply {
-                    setPadding(dp(2), dp(7), dp(2), dp(2))
-                    gravity = Gravity.CENTER_HORIZONTAL
-                }, LinearLayout.LayoutParams(-1, -2))
-                gridRow?.addView(groupCell, cellLp)
-                groupKeys.take(4).forEachIndexed { level, key ->
-                    groupedAlbums[key]?.firstOrNull()?.let { loadArtworkInto(stack.coverAt(level), it.value) }
-                }
-                return@forEachIndexed
             }
             val entries = groupedAlbums[album].orEmpty()
             val indices = entries.sortedWith(
@@ -2072,6 +2014,7 @@ class MainActivity : Activity() {
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album)
                 setOnClickListener {
+                    albumBackStack.clear()
                     selectedAlbum = album
                     renderLibrary()
                     show("library")
@@ -2084,16 +2027,28 @@ class MainActivity : Activity() {
                 }
             }
             // Build 2.4: square cover with rounded corners (the corners were not clipped before).
-            val cover = object : ImageView(this) {
-                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
-            }.apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                background = shape(ART, 10)
-                roundCorners(10)
-                contentDescription = "Artwork $album"
+            val cover: ImageView
+            if (groupKeys != null) {
+                // Hifi 2.37: an artist with several albums: stacked covers, but the cell works exactly like a single album
+                // (tap and long press act on the front album; the other albums are under it in the opened album).
+                val stack = StackedCovers(this, minOf(groupKeys.size, 4))
+                cell.addView(stack, LinearLayout.LayoutParams(-1, -2))
+                cover = stack.coverAt(0)
+                groupKeys.take(4).forEachIndexed { level, key ->
+                    if (level > 0) groupedAlbums[key]?.firstOrNull()?.let { loadArtworkInto(stack.coverAt(level), it.value) }
+                }
+            } else {
+                cover = object : ImageView(this) {
+                    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
+                }.apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    background = shape(ART, 10)
+                    roundCorners(10)
+                    contentDescription = "Artwork $album"
+                }
+                applyAlbumHiResBadge(cover, entries.map { it.value })
+                cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             }
-            applyAlbumHiResBadge(cover, entries.map { it.value })
-            cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             // Hifi 2.34: one regular-weight "Artist - Album" label (artist solid, album grey), always two lines tall so every
             // cell has the same height whatever the text length; no track-count line.
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
@@ -4050,17 +4005,22 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onBackPressed() {
-        if (currentPage == "library" && selectedAlbum != null) {
+    /** Hifi 2.37: Back inside the Album tab goes one step back: the album opened before this one, or the grid at its old scroll. */
+    private fun goBackFromAlbum() {
+        if (albumBackStack.isNotEmpty()) {
+            selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
+            renderLibrary()
+            scrollLibraryToTop()
+        } else {
             selectedAlbum = null
             renderLibrary()
-            if (selectedGroup != null) scrollLibraryToTop() else restoreListScroll()
-            return
-        }
-        if (currentPage == "library" && selectedGroup != null) {   // Hifi 2.36: back from a group's albums to the grid
-            selectedGroup = null
-            renderLibrary()
             restoreListScroll()
+        }
+    }
+
+    override fun onBackPressed() {
+        if (currentPage == "library" && selectedAlbum != null) {
+            goBackFromAlbum()
             return
         }
         if (currentPage != "player") {

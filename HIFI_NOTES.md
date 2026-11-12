@@ -584,3 +584,7 @@
 - Album grid: an artist with 2 or more albums (folders) becomes ONE stacked-cover item at the artist's alphabetical place; the albums inside are not listed again, so the grid is shorter. Single albums stay as before (100% cover).
 - Stack rules: all covers the same size = 90% of the single-album square, so the stack stays inside the same bounding box; front cover bottom-left, the others up and to the right, spaced closer step by step (2 covers: 0 / 10%; 3: 0 / 6 / 10%; 4 or more: 0 / 5 / 8.5 / 10%), each a little darker; max 4 covers; no folder icon. Label "Artist - N albums".
 - Tap a group: header with a back arrow and the artist name, then that artist's albums as the usual grid cells; opening an album from there and going back returns to the group; back from the group returns to the grid at its old scroll position.
+
+## v2.37
+- Stacked group (artist with 2+ albums): the cell now works exactly like a single album. Label = "Artist - Album" of the front cover (first album of the artist, A-Z) again, no "N albums"; tap opens that album directly (big cover + track list), long press acts on the front album only; the artist's other albums are under the list ("More albums by", unchanged). The v2.36 group screen with its own header/back arrow was removed.
+- Back is now one step: opening an album from "More albums by" and pressing Back (arrow or system Back) returns to the album opened before it (a small back stack), and only from the first album back to the grid at its old scroll position.
