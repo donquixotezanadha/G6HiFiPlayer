@@ -2026,7 +2026,10 @@ class MainActivity : Activity() {
                             compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
                         ).map { it.index }
                     }
-                    showAlbumOptions(pressAlbum, indices, pressed, albumLabel(pressArtist, pressAlbum), every)
+                    val others = groupKeys.orEmpty().drop(1).mapNotNull { key ->
+                        groupedAlbums[key]?.firstOrNull()?.let { first -> Triple(key, albumNames[key]?.second ?: key, first.value) }
+                    }
+                    showAlbumOptions(pressAlbum, indices, pressed, albumLabel(pressArtist, pressAlbum), every, others)
                     true
                 }
             }
@@ -3724,7 +3727,8 @@ class MainActivity : Activity() {
         popIn(panel, queueButton)
     }
 
-    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null, label: String = album, allIndices: List<Int>? = null) {
+    private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null, label: String = album, allIndices: List<Int>? = null,
+                                 others: List<Triple<String, String, Track>> = emptyList()) {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -3755,6 +3759,54 @@ class MainActivity : Activity() {
             option("▶  Play entire album") { playTrackAt(allIndices.first(), true, allIndices); showPlayerAnimated() }
         }
         option("＋  Add album to queue") { addAlbumToQueue(indices, album) }
+        // Hifi 2.42: the artist's other albums as mini covers, 3 per row with the same left/right edges as the buttons; more
+        // than 3 simply add rows (the window grows, it never scrolls). Tapping one opens that album directly, so Back goes
+        // straight to the grid.
+        if (others.isNotEmpty()) {
+            val gap = dp(8)
+            others.chunked(3).forEachIndexed { rowIndex, rowItems ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
+                for (slot in 0 until 3) {
+                    val item = rowItems.getOrNull(slot)
+                    val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                        if (slot > 0) leftMargin = gap / 2
+                        if (slot < 2) rightMargin = gap / 2
+                    }
+                    if (item == null) { row.addView(View(this), lp); continue }
+                    val (key, name, firstTrack) = item
+                    val cell = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        isClickable = true; isFocusable = true
+                        contentDescription = "Open album $name"
+                        setOnClickListener {
+                            dialog.dismiss()
+                            albumBackStack.clear()
+                            selectedAlbum = key
+                            renderLibrary()
+                            show("library")
+                            scrollLibraryToTop()
+                        }
+                    }
+                    val mini = object : ImageView(this) {
+                        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
+                    }.apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        background = shape(ART, 8)
+                        roundCorners(8)
+                    }
+                    cell.addView(mini, LinearLayout.LayoutParams(-1, -2))
+                    cell.addView(text(name, 10f, MUTED, false).apply {
+                        setLines(1)
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(dp(1), dp(4), dp(1), 0)
+                    }, LinearLayout.LayoutParams(-1, -2))
+                    row.addView(cell, lp)
+                    loadArtworkInto(mini, firstTrack)
+                }
+                panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = if (rowIndex == 0) dp(6) else dp(8) })
+            }
+        }
         dialog.setView(panel)
         panel.visibility = View.INVISIBLE
         dialog.window?.setWindowAnimations(R.style.G6WindowAnim)

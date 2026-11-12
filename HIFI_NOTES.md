@@ -601,3 +601,6 @@
 
 ## v2.41
 - Long-press album window: single album = "Play album" + "Add album to queue" (the old "Play entire album" is renamed "Play album"). A stack of several albums = "Play album" (the front album) + "Play entire album" (every album of that artist, in grid order, tracks by number) + "Add album to queue" (the front album).
+
+## v2.42
+- Long-press window of a stack: under the buttons, the artist's other albums (all but the front one) as mini covers with a one-line album name, 3 per row, the same left/right edges as the button backgrounds. More than 3 add rows: the window grows, it is not scrollable. Tapping one opens that album directly (back stack cleared), so Back returns straight to the grid.
