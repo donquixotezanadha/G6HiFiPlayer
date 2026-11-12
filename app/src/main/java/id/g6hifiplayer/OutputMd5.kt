@@ -71,7 +71,9 @@ internal class OutputMd5(private val sampleRate: Int) {
         if (expNow == null) {
             // the reference is read a moment after the track starts (a whole-file decode for ALAC / 24-bit FLAC): only report it when it is still missing after 8 s
             waitedFrames += frames
-            if (waitedFrames >= 8L * sampleRate) note("NOT CHECKED", "still no reference MD5 for this track after 8 s")
+            // Hifi 2.51: 8 s -> 45 s. After a gapless change the reference of a big 24-bit file can arrive later than 8 s; the check then still
+            // runs and ends in MATCH, so the early line was a false alarm (a nameless "track" row between two tracks).
+            if (waitedFrames >= 45L * sampleRate) note("NOT CHECKED", "still no reference MD5 for this track after 45 s")
         }
         else if (expNow.rate != sampleRate) note("NOT CHECKED", "file rate ${expNow.rate} Hz differs from the output rate $sampleRate Hz")
         else if (!expNow.supported || expNow.md5 == null) note("NOT CHECKED", "no MD5 reference for this file (" + expNow.source + ")")

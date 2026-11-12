@@ -632,3 +632,6 @@
 - The veil over the blurred cover is neutral again by default (black 70% Dark, white 70% Light, Light up to 85% over black covers) but takes on the colour of the cover when the cover is really colourful: `BackdropBlur.veilColor()`.
 - Strength follows the mean colourfulness of the blurred cover (0 below 8%, full from 30%, smooth between). Grey / black-white covers and grey covers with a small red detail stay neutral (v2.22 fix kept). Dark: dark tint of the cover colour; Light: pastel of it.
 - One function for the player backdrop and both blur widgets, so they always look the same. Audio path untouched.
+
+## Hifi 2.51 - no false "NOT CHECKED" row between gapless tracks
+- Log only. After a gapless track change the MD5 reference of the next track (whole-file read of big 24-bit files) can arrive later than 8 s; the check still ended in MATCH, but a nameless "track / NOT CHECKED / still no reference MD5 after 8 s" row appeared between the two tracks. The wait before that note is now 45 s. Audio path untouched.
