@@ -1,4 +1,4 @@
-name: Hifi v2.50 - album icon flipped top-bottom
+name: Hifi v2.50 - tinted backdrop veil
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='138' versionName='2.50'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='139' versionName='2.50'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
           cp "$APK" "verified-artifact/Hifi-v2.50.apk"
