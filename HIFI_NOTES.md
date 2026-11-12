@@ -591,3 +591,6 @@
 
 ## v2.38
 - Stacked covers: the covers behind the front one are darkened in the Dark theme and lightened (white overlay, same strength per level) in the Light theme; follows the theme switch.
+
+## v2.39
+- Stacked covers: dim/lighten replaced by opacity. Front cover 100%, behind it 90%, 80%, 70%. Each back cover is drawn only where no cover in front of it sits (the fronts' rounded shapes are clipped out), so only its visible rim fades and the stack does not look see-through. Works on both themes without a colour filter. Spacing unchanged.

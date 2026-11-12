@@ -2111,17 +2111,36 @@ class MainActivity : Activity() {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     background = shape(ART, 10)
                     roundCorners(10)
-                    // Hifi 2.38: the covers behind the front one fade toward the background: darker in Dark, lighter in Light
-                    if (level > 0) themed {
-                        val tone = if (lightTheme) 255 else 0
-                        colorFilter = android.graphics.PorterDuffColorFilter(Color.argb(40 + level * 34, tone, tone, tone), android.graphics.PorterDuff.Mode.SRC_ATOP)
-                    }
                 }
+                // Hifi 2.39: opacity instead of dim/lighten: front 100%, then 90%, 80%, 70%
+                view.alpha = 1f - 0.1f * level
                 covers.add(0, view)
                 addView(view)
             }
         }
         fun coverAt(level: Int): ImageView = covers[level.coerceIn(0, covers.size - 1)]
+        /**
+         * Hifi 2.39: each cover is drawn only where no cover in front of it sits, so its fading opacity shows just its
+         * visible rim (no see-through overlap of the stack).
+         */
+        override fun dispatchDraw(canvas: android.graphics.Canvas) {
+            val radius = dp(10).toFloat()
+            val now = drawingTime
+            for (level in covers.size - 1 downTo 0) {
+                val child = covers[level]
+                canvas.save()
+                if (level > 0) {
+                    val hole = android.graphics.Path()
+                    for (front in 0 until level) {
+                        val f = covers[front]
+                        hole.addRoundRect(f.left.toFloat(), f.top.toFloat(), f.right.toFloat(), f.bottom.toFloat(), radius, radius, android.graphics.Path.Direction.CW)
+                    }
+                    canvas.clipOutPath(hole)
+                }
+                drawChild(canvas, child, now)
+                canvas.restore()
+            }
+        }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val w = MeasureSpec.getSize(widthMeasureSpec)
             val side = MeasureSpec.makeMeasureSpec((w * 0.90f).toInt(), MeasureSpec.EXACTLY)
