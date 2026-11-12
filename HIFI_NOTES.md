@@ -635,3 +635,9 @@
 
 ## Hifi 2.51 - no false "NOT CHECKED" row between gapless tracks
 - Log only. After a gapless track change the MD5 reference of the next track (whole-file read of big 24-bit files) can arrive later than 8 s; the check still ended in MATCH, but a nameless "track / NOT CHECKED / still no reference MD5 after 8 s" row appeared between the two tracks. The wait before that note is now 45 s. Audio path untouched.
+
+## Hifi 2.52 - new five-bar logo (launcher, splash, silhouette)
+- Launcher icon: the new colour logo (blue -> purple -> pink bars) as adaptive foreground (about 62% wide), background stays #F8F8FC.
+- Splash: the logo in ONE colour that follows the theme (white in Dark, near-black in Light) with "HIFI" under it: uppercase, rounded letters drawn from round-capped strokes (like the bar ends), wide letter spacing, small. Exit animation (blur, spread, fade) unchanged.
+- Silhouettes (white, alpha only): ic_stat_music (notification, cover placeholder) and ic_stat_music_wide (4x2 widget open button, same ratio as its 38x28dp box) are now the logo.
+- Assets made by /home/claude/out/wave3/make_logo.py (alpha recovered from the white-background JPG, box resampling so no dark fringe). Audio path untouched.

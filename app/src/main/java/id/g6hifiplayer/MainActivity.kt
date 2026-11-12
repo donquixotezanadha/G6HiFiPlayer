@@ -521,15 +521,19 @@ class MainActivity : Activity() {
             // Hifi 2.23: the splash shows the new wave icon (cyan -> magenta, with its glow). Two layers of the same art: the sharp one and a pre-blurred,
             // spread one (no RenderEffect on Android 9). The exit cross-fades sharp -> blurred while the group grows and fades ("blurry, spread, faded").
             val splashLogoSide = (resources.displayMetrics.widthPixels * 1.12f).toInt()
+            // Hifi 2.52: the splash is the new five-bar logo with "HIFI" under it (rounded letters, wide spacing), a single colour that follows the theme.
+            val splashInk = if (lightTheme) 0xFF111114.toInt() else Color.WHITE
             val logo = ImageView(this).apply {
                 setImageResource(R.drawable.ic_splash_wave)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 contentDescription = "Hifi"
+                setColorFilter(splashInk, android.graphics.PorterDuff.Mode.SRC_IN)   // Hifi 2.52: one colour = the theme ink (white in Dark, near-black in Light)
             }
             val logoBlur = ImageView(this).apply {
                 setImageResource(R.drawable.ic_splash_wave_blur)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 alpha = 0f
+                setColorFilter(splashInk, android.graphics.PorterDuff.Mode.SRC_IN)
             }
             val logoGroup = FrameLayout(this)
             logoGroup.addView(logoBlur, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
