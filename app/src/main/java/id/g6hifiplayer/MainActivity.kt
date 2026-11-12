@@ -508,8 +508,6 @@ class MainActivity : Activity() {
         }
         var startupSplash: FrameLayout? = null
         var splashLogo: View? = null
-        var splashSharp: View? = null
-        var splashBlur: View? = null
         if (!startupSplashShown) {
             // Hifi 2.19: the splash is only the Hifi wave logo (white in Dark, dark in Light) over the SAME backdrop as the player (blurred last cover +
             // veil; it follows the player's backdrop updates, so it is the real background). The logo fades out and the controls appear on the unchanged background.
@@ -518,8 +516,6 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
             }
-            // Hifi 2.23: the splash shows the new wave icon (cyan -> magenta, with its glow). Two layers of the same art: the sharp one and a pre-blurred,
-            // spread one (no RenderEffect on Android 9). The exit cross-fades sharp -> blurred while the group grows and fades ("blurry, spread, faded").
             val splashLogoSide = (resources.displayMetrics.widthPixels * 1.12f).toInt()
             // Hifi 2.52: the splash is the new five-bar logo with "HIFI" under it (rounded letters, wide spacing), a single colour that follows the theme.
             val splashInk = if (lightTheme) 0xFF111114.toInt() else Color.WHITE
@@ -529,17 +525,8 @@ class MainActivity : Activity() {
                 contentDescription = "Hifi"
                 setColorFilter(splashInk, android.graphics.PorterDuff.Mode.SRC_IN)   // Hifi 2.52: one colour = the theme ink (white in Dark, near-black in Light)
             }
-            val logoBlur = ImageView(this).apply {
-                setImageResource(R.drawable.ic_splash_wave_blur)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                alpha = 0f
-                setColorFilter(splashInk, android.graphics.PorterDuff.Mode.SRC_IN)
-            }
             val logoGroup = FrameLayout(this)
-            logoGroup.addView(logoBlur, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
             logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
-            splashSharp = logo
-            splashBlur = logoBlur
             splashLogo = logoGroup
             splash.addView(logoGroup, FrameLayout.LayoutParams(-1, -1))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
@@ -554,20 +541,17 @@ class MainActivity : Activity() {
                     if (stage.viewTreeObserver.isAlive) stage.viewTreeObserver.removeOnPreDrawListener(this)
                     handler.postDelayed({
                         if (!isFinishing && !isDestroyed && splash.parent === stage) {
-                            // Soft exit (2.23): the icon blurs and spreads (+16%) while it fades, then the splash layer (same backdrop as the player) dissolves.
+                            // Hifi 2.53: simple fade (no blur, no spread, no growing): the logo fades out, then the splash layer (same backdrop as the player) dissolves.
                             val ease = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
-                            splashSharp?.animate()?.alpha(0f)?.setDuration(560L)?.setInterpolator(ease)?.start()
-                            splashBlur?.animate()?.alpha(1f)?.setDuration(420L)?.setInterpolator(ease)?.start()
                             splashLogo?.animate()
-                                ?.alpha(0f)?.scaleX(1.28f)?.scaleY(1.28f)
-                                ?.setStartDelay(160L)
-                                ?.setDuration(760L)
+                                ?.alpha(0f)
+                                ?.setDuration(500L)
                                 ?.setInterpolator(ease)
                                 ?.start()
                             splash.animate()
                                 .alpha(0f)
                                 .setStartDelay(120L)
-                                .setDuration(780L)
+                                .setDuration(640L)
                                 .setInterpolator(ease)
                                 .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
                                 .start()

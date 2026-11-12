@@ -641,3 +641,8 @@
 - Splash: the logo in ONE colour that follows the theme (white in Dark, near-black in Light) with "HIFI" under it: uppercase, rounded letters drawn from round-capped strokes (like the bar ends), wide letter spacing, small. Exit animation (blur, spread, fade) unchanged.
 - Silhouettes (white, alpha only): ic_stat_music (notification, cover placeholder) and ic_stat_music_wide (4x2 widget open button, same ratio as its 38x28dp box) are now the logo.
 - Assets made by /home/claude/out/wave3/make_logo.py (alpha recovered from the white-background JPG, box resampling so no dark fringe). Audio path untouched.
+
+## Hifi 2.53 - smaller launcher logo, simple splash fade
+- Launcher icon: the logo is now 320 px wide in the 648 px foreground (about 49%, was 62%), so it sits like the previous icon in the home screen shape.
+- Splash exit: simple fade only (logo fades out, then the splash layer dissolves over the player). No blur copy, no spreading / growing any more; ic_splash_wave_blur.png removed.
+- Asset fix: the compositing no longer stores premultiplied colour, which had left a thin grey ring on the edges of the new logo and silhouettes.
