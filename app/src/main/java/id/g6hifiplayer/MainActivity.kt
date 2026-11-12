@@ -768,6 +768,7 @@ class MainActivity : Activity() {
             setImageResource(R.drawable.ic_row_album)
             imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleX = -1f   // Hifi 2.48: mirrored so the front square is bottom-left and the back one top-right, like the stacked covers in the Album tab
         }
         albumIconView = albumIcon
         val albumBtn = FrameLayout(this).apply {
@@ -2041,6 +2042,7 @@ class MainActivity : Activity() {
                 val stack = StackedCovers(this, minOf(groupKeys.size, 4))
                 cell.addView(stack, LinearLayout.LayoutParams(-1, -2))
                 cover = stack.coverAt(0)
+                applyAlbumHiResBadge(cover, entries.map { it.value })   // Hifi 2.48: the Hi-Res logo of the front album, sized and placed on the front cover like on a single album
                 groupKeys.take(4).forEachIndexed { level, key ->
                     if (level > 0) groupedAlbums[key]?.firstOrNull()?.let { loadArtworkInto(stack.coverAt(level), it.value) }
                 }

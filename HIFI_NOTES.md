@@ -620,3 +620,7 @@
 
 ## v2.47
 - Stacked covers: opacity step per level 15% -> 20%: front 100%, then 80%, 60%, 40%.
+
+## v2.48
+- Now Playing icon row: the album icon is mirrored (scaleX = -1): front square bottom-left, back square top-right, like the stacked covers in the Album tab.
+- Stacked cell: the Hi-Res logo is back (it was skipped for stacks): drawn on the front cover (front album's tracks), same relative size (12% of the cover width) and corner as on a single album.
