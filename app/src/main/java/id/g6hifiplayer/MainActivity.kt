@@ -2111,7 +2111,11 @@ class MainActivity : Activity() {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     background = shape(ART, 10)
                     roundCorners(10)
-                    if (level > 0) colorFilter = android.graphics.PorterDuffColorFilter(Color.argb(40 + level * 34, 0, 0, 0), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                    // Hifi 2.38: the covers behind the front one fade toward the background: darker in Dark, lighter in Light
+                    if (level > 0) themed {
+                        val tone = if (lightTheme) 255 else 0
+                        colorFilter = android.graphics.PorterDuffColorFilter(Color.argb(40 + level * 34, tone, tone, tone), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                    }
                 }
                 covers.add(0, view)
                 addView(view)

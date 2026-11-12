@@ -588,3 +588,6 @@
 ## v2.37
 - Stacked group (artist with 2+ albums): the cell now works exactly like a single album. Label = "Artist - Album" of the front cover (first album of the artist, A-Z) again, no "N albums"; tap opens that album directly (big cover + track list), long press acts on the front album only; the artist's other albums are under the list ("More albums by", unchanged). The v2.36 group screen with its own header/back arrow was removed.
 - Back is now one step: opening an album from "More albums by" and pressing Back (arrow or system Back) returns to the album opened before it (a small back stack), and only from the first album back to the grid at its old scroll position.
+
+## v2.38
+- Stacked covers: the covers behind the front one are darkened in the Dark theme and lightened (white overlay, same strength per level) in the Light theme; follows the theme switch.
