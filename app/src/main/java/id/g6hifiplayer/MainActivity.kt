@@ -1869,8 +1869,7 @@ class MainActivity : Activity() {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     background = shape(ART, 10)
                     roundCorners(10)
-                    elevation = dp(6).toFloat()
-                    contentDescription = "Artwork $album"
+                    contentDescription = "Artwork $album"   // Hifi 2.40: no drop shadow under the big cover
                 }
                 applyAlbumHiResBadge(bigCover, entries.map { it.value })
                 // Build 2.2: no "‹ ALBUMS" button any more; a plain left arrow sits at the left of the big cover.
@@ -2112,8 +2111,8 @@ class MainActivity : Activity() {
                     background = shape(ART, 10)
                     roundCorners(10)
                 }
-                // Hifi 2.39: opacity instead of dim/lighten: front 100%, then 90%, 80%, 70%
-                view.alpha = 1f - 0.1f * level
+                // Hifi 2.39: opacity instead of dim/lighten
+                view.alpha = 1f - 0.15f * level   // Hifi 2.40: steps of 15% (100 / 85 / 70 / 55)
                 covers.add(0, view)
                 addView(view)
             }

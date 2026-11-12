@@ -594,3 +594,7 @@
 
 ## v2.39
 - Stacked covers: dim/lighten replaced by opacity. Front cover 100%, behind it 90%, 80%, 70%. Each back cover is drawn only where no cover in front of it sits (the fronts' rounded shapes are clipped out), so only its visible rim fades and the stack does not look see-through. Works on both themes without a colour filter. Spacing unchanged.
+
+## v2.40
+- Opened album: the drop shadow (elevation) under the big cover is removed.
+- Stacked covers: opacity step per level 10% -> 15%: front 100%, then 85%, 70%, 55%.
