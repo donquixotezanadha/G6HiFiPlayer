@@ -646,3 +646,7 @@
 - Launcher icon: the logo is now 320 px wide in the 648 px foreground (about 49%, was 62%), so it sits like the previous icon in the home screen shape.
 - Splash exit: simple fade only (logo fades out, then the splash layer dissolves over the player). No blur copy, no spreading / growing any more; ic_splash_wave_blur.png removed.
 - Asset fix: the compositing no longer stores premultiplied colour, which had left a thin grey ring on the edges of the new logo and silhouettes.
+
+## Hifi 2.54 - slightly smaller icons, a little more vivid logo
+- Launcher logo 320 -> 292 px wide in the 648 px foreground (about 45%) and saturation x1.12 (brightness kept) so the colours are a little more vivid.
+- Silhouettes a little smaller: ic_stat_music 190 -> 172 px of 192; ic_stat_music_wide logo height 245 -> 220 px of 245. Splash unchanged.
