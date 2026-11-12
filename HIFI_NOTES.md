@@ -607,3 +607,6 @@
 
 ## v2.43
 - Long-press window mini covers: fixed pixel width per cover ((window inner width - 2 gaps) / 3) instead of equal weights, so 1 or 2 other albums no longer stretch to full width (left aligned, the size of a 3-wide row). Gap between covers 8 -> 14dp, which makes each cover a little smaller; the outer left/right edges still match the button edges.
+
+## v2.44
+- LOG AUDIO PATH diagnostics (log only, audio untouched): the MD5 check used to stay silent whenever it could not run. Now one plain "NOT CHECKED" line per output start says why: output began mid-track (resume / seek / pause), no reference MD5 read yet for the track, file rate differs from the output rate, or the file has no MD5 reference.
