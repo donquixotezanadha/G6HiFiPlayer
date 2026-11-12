@@ -604,3 +604,6 @@
 
 ## v2.42
 - Long-press window of a stack: under the buttons, the artist's other albums (all but the front one) as mini covers with a one-line album name, 3 per row, the same left/right edges as the button backgrounds. More than 3 add rows: the window grows, it is not scrollable. Tapping one opens that album directly (back stack cleared), so Back returns straight to the grid.
+
+## v2.43
+- Long-press window mini covers: fixed pixel width per cover ((window inner width - 2 gaps) / 3) instead of equal weights, so 1 or 2 other albums no longer stretch to full width (left aligned, the size of a 3-wide row). Gap between covers 8 -> 14dp, which makes each cover a little smaller; the outer left/right edges still match the button edges.

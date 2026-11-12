@@ -3763,16 +3763,16 @@ class MainActivity : Activity() {
         // than 3 simply add rows (the window grows, it never scrolls). Tapping one opens that album directly, so Back goes
         // straight to the grid.
         if (others.isNotEmpty()) {
-            val gap = dp(8)
+            // Hifi 2.43: fixed pixel sizes (not weights), so 1 or 2 albums keep the size of a 3-wide row instead of stretching;
+            // a wider gap between the covers, the outer edges stay on the button edges.
+            val gap = dp(14)
+            val inner = floatingWindowWidth() - dp(40)
+            val cellWidth = (inner - 2 * gap) / 3
             others.chunked(3).forEachIndexed { rowIndex, rowItems ->
                 val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                for (slot in 0 until 3) {
-                    val item = rowItems.getOrNull(slot)
-                    val lp = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                        if (slot > 0) leftMargin = gap / 2
-                        if (slot < 2) rightMargin = gap / 2
-                    }
-                    if (item == null) { row.addView(View(this), lp); continue }
+                for (slot in rowItems.indices) {
+                    val item = rowItems[slot]
+                    val lp = LinearLayout.LayoutParams(cellWidth, -2).apply { if (slot > 0) leftMargin = gap }
                     val (key, name, firstTrack) = item
                     val cell = LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL
@@ -3794,7 +3794,7 @@ class MainActivity : Activity() {
                         background = shape(ART, 8)
                         roundCorners(8)
                     }
-                    cell.addView(mini, LinearLayout.LayoutParams(-1, -2))
+                    cell.addView(mini, LinearLayout.LayoutParams(cellWidth, cellWidth))
                     cell.addView(text(name, 10f, MUTED, false).apply {
                         setLines(1)
                         ellipsize = android.text.TextUtils.TruncateAt.END
