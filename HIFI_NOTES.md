@@ -627,3 +627,8 @@
 
 ## v2.49
 - Now Playing album icon: flipped top-bottom (scaleY = -1) instead of left-right, as he asked: the old icon ran top-left to bottom-right, the stack runs bottom-left to top-right, one flip fits. The Hi-Res logo on stacks (v2.48) stays.
+
+## Hifi 2.50 - backdrop tint back (colourful covers only)
+- The veil over the blurred cover is neutral again by default (black 70% Dark, white 70% Light, Light up to 85% over black covers) but takes on the colour of the cover when the cover is really colourful: `BackdropBlur.veilColor()`.
+- Strength follows the mean colourfulness of the blurred cover (0 below 8%, full from 30%, smooth between). Grey / black-white covers and grey covers with a small red detail stay neutral (v2.22 fix kept). Dark: dark tint of the cover colour; Light: pastel of it.
+- One function for the player backdrop and both blur widgets, so they always look the same. Audio path untouched.

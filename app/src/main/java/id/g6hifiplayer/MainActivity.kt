@@ -1222,8 +1222,8 @@ class MainActivity : Activity() {
      */
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
-            set(value) { field = value; lightAlpha = BackdropBlur.lightVeilAlpha(value); invalidateSelf() }
-        private var lightAlpha = 0xB3   // Hifi 2.8: Light veil is stronger over a mostly black cover
+            set(value) { field = value; tintedVeil = BackdropBlur.veilColor(value, light); invalidateSelf() }
+        private var tintedVeil = if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: neutral, tinted by the cover only when it is colourful   // Hifi 2.8: Light veil is stronger over a mostly black cover
         var veil: Int = 0xB3000000.toInt()
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
@@ -1242,7 +1242,7 @@ class MainActivity : Activity() {
                 srcRect.set(sx, sy, sx + sw, sy + sh)
                 canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
             }
-            canvas.drawColor(if (light) ((lightAlpha shl 24) or 0x00FFFFFF) else veil)   // Hifi 1.53: veil 60% -> 70%; Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
+            canvas.drawColor(tintedVeil)   // Hifi 1.53: veil 60% -> 70%; Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
         }
 
         override fun setAlpha(alpha: Int) { }

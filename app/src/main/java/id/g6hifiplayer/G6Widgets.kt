@@ -512,7 +512,7 @@ object G6Widgets {
         val flat = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(flat)
         canvas.drawColor(if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
-        var lightAlpha = 0xB3   // Hifi 2.8: same Light veil as the player (white, stronger over a mostly black cover)
+        var veilArgb = if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
         if (hasTrack) {
             val file = File(context.filesDir, ART_FILE)
             val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null
@@ -525,11 +525,11 @@ object G6Widgets {
                 val sx = (soft.width - sw) / 2
                 val sy = (soft.height - sh) / 2
                 canvas.drawBitmap(soft, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.Rect(0, 0, w, h), Paint(Paint.FILTER_BITMAP_FLAG))
-                lightAlpha = BackdropBlur.lightVeilAlpha(soft)
+                veilArgb = BackdropBlur.veilColor(soft, light)
                 soft.recycle()
             }
         }
-        canvas.drawColor(if (light) ((lightAlpha shl 24) or 0x00FFFFFF) else 0xB3000000.toInt())
+        canvas.drawColor(veilArgb)
         flat.density = (scale * 1000).toInt()   // remembers pixels-per-dp (x1000) for blurPieces()
         return flat
     }

@@ -37,6 +37,50 @@ internal object BackdropBlur {
         return (0xB3 + f * (0xD9 - 0xB3)).toInt()
     }
 
+
+    /**
+     * Hifi 2.50: the veil over the blurred cover, one function for the player and the widgets. Neutral theme veil (black 70% in Dark, white in
+     * Light, see [lightVeilAlpha]) that takes on the colour of the cover only when the cover is really colourful: grey, black/white or almost
+     * grey covers with a small coloured detail stay exactly neutral (the v2.22 fix), colourful covers get a dark (Dark) or pastel (Light) tint
+     * of their own colour, growing smoothly with the mean colourfulness of the blurred cover.
+     */
+    fun veilColor(soft: Bitmap?, light: Boolean): Int {
+        val neutralAlpha = if (light) lightVeilAlpha(soft) else 0xB3
+        val neutral = if (light) 0xFFFFFF else 0x000000
+        if (soft == null || soft.isRecycled) return (neutralAlpha shl 24) or neutral
+        var chromaSum = 0.0
+        var wr = 0.0; var wg = 0.0; var wb = 0.0
+        var n = 0
+        val step = 3
+        var y = 0
+        while (y < soft.height) {
+            var x = 0
+            while (x < soft.width) {
+                val p = soft.getPixel(x, y)
+                val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
+                val c = (maxOf(r, g, b) - minOf(r, g, b)) / 255.0
+                chromaSum += c
+                wr += r * c; wg += g * c; wb += b * c
+                n++
+                x += step
+            }
+            y += step
+        }
+        if (n == 0 || chromaSum <= 0.0) return (neutralAlpha shl 24) or neutral
+        val meanChroma = chromaSum / n
+        val t = ((meanChroma - 0.08) / (0.30 - 0.08)).coerceIn(0.0, 1.0).let { it * it * (3 - 2 * it) }   // smoothstep: 0 below 8%, full from 30%
+        if (t <= 0.0) return (neutralAlpha shl 24) or neutral
+        val hsv = FloatArray(3)
+        android.graphics.Color.RGBToHSV((wr / chromaSum).toInt().coerceIn(0, 255), (wg / chromaSum).toInt().coerceIn(0, 255), (wb / chromaSum).toInt().coerceIn(0, 255), hsv)
+        val tint = if (light) android.graphics.Color.HSVToColor(floatArrayOf(hsv[0], 0.34f, 1f))
+                   else android.graphics.Color.HSVToColor(floatArrayOf(hsv[0], hsv[1].coerceIn(0.45f, 0.95f), 0.34f))
+        val k = (0.85 * t).toFloat()
+        val rr = (((neutral shr 16) and 0xFF) * (1 - k) + android.graphics.Color.red(tint) * k).toInt()
+        val gg = (((neutral shr 8) and 0xFF) * (1 - k) + android.graphics.Color.green(tint) * k).toInt()
+        val bb = ((neutral and 0xFF) * (1 - k) + android.graphics.Color.blue(tint) * k).toInt()
+        return (neutralAlpha shl 24) or (rr shl 16) or (gg shl 8) or bb
+    }
+
     fun soft(source: Bitmap): Bitmap? = try {
         if (source.isRecycled || source.width <= 0 || source.height <= 0) null else {
             val ratio = SIDE.toFloat() / maxOf(source.width, source.height)
