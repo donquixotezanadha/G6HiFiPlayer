@@ -2120,7 +2120,7 @@ class MainActivity : Activity() {
                     roundCorners(10)
                 }
                 // Hifi 2.39: opacity instead of dim/lighten
-                view.alpha = 1f - 0.15f * level   // Hifi 2.40: steps of 15% (100 / 85 / 70 / 55)
+                view.alpha = 1f - 0.20f * level   // Hifi 2.47: steps of 20% (100 / 80 / 60 / 40)
                 covers.add(0, view)
                 addView(view)
             }
