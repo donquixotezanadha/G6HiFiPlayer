@@ -36,7 +36,10 @@ internal class OutputMd5(private val sampleRate: Int) {
     private fun note(head: String, detail: String) {
         if (noteGiven) return
         noteGiven = true
-        AudioPathLog.add(AudioPathLog.KIND_OK, head, DirectOutputState.expected?.label?.take(80) ?: "track", detail)
+        // Hifi 2.58: a start in the middle of a track (resume, seek, pause) is normal playback, not a result: no log row. Other reasons are
+        // written once only (not again while the same row is still among the newest ones).
+        if (detail.startsWith("output began ")) return
+        AudioPathLog.addOnce(AudioPathLog.KIND_OK, head, DirectOutputState.expected?.label?.take(80) ?: "track", detail)
     }
 
     fun onFlush() {

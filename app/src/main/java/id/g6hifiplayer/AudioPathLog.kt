@@ -53,6 +53,16 @@ internal object AudioPathLog {
         } catch (_: Exception) { }
     }
 
+    /** Hifi 2.58: like [add], but nothing is written when the same row (kind, head, name, detail) is already among the 8 newest. */
+    @Synchronized
+    fun addOnce(kind: Int, head: String, name: String, detail: String) {
+        for (i in 0 until minOf(8, entries.size)) {
+            val e = entries[i]
+            if (e.kind == kind && e.head == head && e.name == name && e.detail == detail) return
+        }
+        add(kind, head, name, detail)
+    }
+
     @Synchronized
     fun snapshot(): List<Entry> = ArrayList(entries)
 }

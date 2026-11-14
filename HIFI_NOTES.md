@@ -661,3 +661,6 @@
 ## Hifi 2.57 - info line colours
 - Fix (old bug): the grey part of the second info line ("• headset / speaker") was always the Dark grey (0xA4A4B2); it now uses the same MUTED grey as the rest of the info text, in both themes.
 - Light: BIT-PERFECT green 0xFF0F7A42 and orange warnings 0xFF9E4F00 (deeper, readable on the pale backdrop); Dark keeps 0xFF5BD98C / 0xFFFFA43A. The line is repainted when the theme is switched. Audio path untouched.
+
+## Hifi 2.57b - 2.57 plus only the log fix of 2.58 (kept as the final version before the Classic UI work)
+- Exactly 2.57 (more vivid backdrop, adaptive Dark veil, info line colours) with one change: LOG AUDIO PATH no longer gets a row for starts in the middle of a track (resume / seek / pause), and an identical NOT CHECKED row is written once while it is among the 8 newest. No Classic UI, no Adaptive / Classic window. versionCode 147.
