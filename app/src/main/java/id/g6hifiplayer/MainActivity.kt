@@ -362,6 +362,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         AudioPathLog.init(this)   // Hifi 1.40
         lightTheme = savedLightTheme
+        classicUi = getPreferences(MODE_PRIVATE).getBoolean("ui_classic", false)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
@@ -750,6 +751,7 @@ class MainActivity : Activity() {
             contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
             isClickable = true; isFocusable = true
             setOnClickListener { switchThemeAnimated(!lightTheme, themeIconView) }
+            setOnLongClickListener { openUiModeWindow(this); true }   // Hifi 2.58: long press = Adaptive / Classic
             addView(themeIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
         val albumIcon = ImageView(this).apply {
@@ -1166,6 +1168,39 @@ class MainActivity : Activity() {
         overlay.post { anim.start() }
     }
 
+    /** Hifi 2.58: Adaptive (blurred cover backdrop) or Classic (no blur at all, also in the Blur widgets); both keep Dark and Light. */
+    private fun setClassicUi(enabled: Boolean) {
+        if (classicUi == enabled) return
+        classicUi = enabled
+        getPreferences(MODE_PRIVATE).edit().putBoolean("ui_classic", enabled).apply()
+        darkDrawables.forEach { it.invalidateSelf() }
+        G6Widgets.renderAll(this)
+    }
+
+    /** Hifi 2.58: small floating window without a title: two choices, the active one filled. */
+    private fun openUiModeWindow(anchor: View?) {
+        val dialog = AlertDialog.Builder(this).create()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(8))
+            background = floatingBackground()
+        }
+        fun choice(label: String, classic: Boolean) {
+            panel.addView(action(label, classicUi == classic) { dialog.dismiss(); setClassicUi(classic) },
+                LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(8) })
+        }
+        choice("ADAPTIVE", false)
+        choice("CLASSIC", true)
+        dialog.setView(panel)
+        panel.visibility = View.INVISIBLE
+        dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
+        dialog.show()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setLayout(minOf(dp(280), floatingWindowWidth()), WindowManager.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setDimAmount(0.55f)
+        popIn(panel, anchor)
+    }
+
     private fun setLightTheme(enabled: Boolean) {
         if (lightTheme == enabled) return
         lightTheme = enabled
@@ -1222,6 +1257,7 @@ class MainActivity : Activity() {
             val b = bounds
             if (b.width() <= 0 || b.height() <= 0) return
             canvas.drawColor(if (light) LIGHT_SURFACE else DARK_SURFACE)
+            if (classicUi) return   // Hifi 2.58: Classic = plain surface, no blurred cover, no veil
             bitmap?.takeIf { !it.isRecycled }?.let { bmp ->
                 val scale = maxOf(b.width() / bmp.width.toFloat(), b.height() / bmp.height.toFloat())
                 val sw = (b.width() / scale).toInt().coerceIn(1, bmp.width)
@@ -4287,6 +4323,8 @@ class MainActivity : Activity() {
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
         private const val DARK_SURFACE = 0xFF000000.toInt()
+        /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
+        @Volatile private var classicUi = false
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }

@@ -54,6 +54,15 @@ object G6Widgets {
         return true   // Hifi 2.27: Light is the default at first install
     }
 
+    /** Hifi 2.58: Classic UI (set by a long press on the theme icon in the player) = the Blur widgets are flat, no blurred cover. */
+    private fun isClassicUi(context: Context): Boolean {
+        for (name in arrayOf("id.g6hifiplayer.MainActivity", "MainActivity")) {
+            val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+            if (p.contains("ui_classic")) return p.getBoolean("ui_classic", false)
+        }
+        return false
+    }
+
     private const val PREFS = "g6_widgets"
     private const val ART_FILE = "g6_widgets_art.jpg"
     private const val OLD_PREFS = "g6_widget_state"
@@ -512,8 +521,9 @@ object G6Widgets {
         val flat = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(flat)
         canvas.drawColor(if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
-        var veilArgb = if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
-        if (hasTrack) {
+        val classic = isClassicUi(context)   // Hifi 2.58: Classic = plain theme surface, no blurred cover, no veil
+        var veilArgb = if (classic) 0 else if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
+        if (hasTrack && !classic) {
             val file = File(context.filesDir, ART_FILE)
             val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null
             val soft = raw?.let { BackdropBlur.soft(it) }

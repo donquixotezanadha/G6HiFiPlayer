@@ -662,6 +662,7 @@
 - Fix (old bug): the grey part of the second info line ("• headset / speaker") was always the Dark grey (0xA4A4B2); it now uses the same MUTED grey as the rest of the info text, in both themes.
 - Light: BIT-PERFECT green 0xFF0F7A42 and orange warnings 0xFF9E4F00 (deeper, readable on the pale backdrop); Dark keeps 0xFF5BD98C / 0xFFFFA43A. The line is repainted when the theme is switched. Audio path untouched.
 
-## Hifi 2.58 - LOG AUDIO PATH: no rows for resume / seek / pause
+## Hifi 2.58 - LOG AUDIO PATH: no rows for resume / seek / pause; Adaptive / Classic UI
 - A start in the middle of a track ("output began X s into the track, not at its start") is no longer written to the log (it filled the log with NOT CHECKED rows for one listening session). Nothing changes in the check itself: such a start is still simply not MD5-checked.
 - Other NOT CHECKED reasons (no reference MD5, rate differs, no MD5 in the file) are written once: AudioPathLog.addOnce skips an identical row that is still among the 8 newest. Audio path untouched.
+- Long press on the theme icon (Now Playing, under the controls) opens a small floating window without a title: ADAPTIVE (default, blurred cover backdrop as in 2.57) and CLASSIC (no blur at all: plain theme surface behind the pages, no cover colour, no veil; the Blur 4x1 / 4x2 widgets are flat cards in the theme surface colour). The choice is saved ("ui_classic" in the player prefs, also read by the widgets) and works with both Dark and Light; it applies at once, the widgets are redrawn. Accent colours, the cover fade and everything else are unchanged.
