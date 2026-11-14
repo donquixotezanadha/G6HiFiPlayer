@@ -10,6 +10,8 @@ internal object BackdropBlur {
     const val RADIUS = 4
     const val PASSES = 2
     private const val SIDE = 96
+    /** Hifi 2.56: colour strength of the blurred cover (1.0 = as the cover, brightness kept). Grey stays grey. */
+    const val SATURATION = 1.3f
 
     /**
      * Hifi 2.8: strength (alpha) of the white veil in Light. 70% (0xB3) as before, but over a mostly black cover the veil grows up to 85%
@@ -39,13 +41,37 @@ internal object BackdropBlur {
 
 
     /**
+     * Hifi 2.56: strength of the black veil in Dark. 70% (0xB3) as before for bright covers (white text stays readable), but down to 55% (0x8C)
+     * over dark covers so their colour shows more. Linear in the mean brightness of the blurred cover: 55% up to 25%, 70% from 50%.
+     */
+    fun darkVeilAlpha(soft: Bitmap?): Int {
+        if (soft == null || soft.isRecycled) return 0xB3
+        var sum = 0.0
+        var n = 0
+        var y = 0
+        while (y < soft.height) {
+            var x = 0
+            while (x < soft.width) {
+                val p = soft.getPixel(x, y)
+                sum += (0.299 * ((p shr 16) and 0xFF) + 0.587 * ((p shr 8) and 0xFF) + 0.114 * (p and 0xFF)) / 255.0
+                n++
+                x += 4
+            }
+            y += 4
+        }
+        if (n == 0) return 0xB3
+        val f = ((sum / n - 0.25) / 0.25).coerceIn(0.0, 1.0)
+        return (0x8C + f * (0xB3 - 0x8C)).toInt()
+    }
+
+    /**
      * Hifi 2.50: the veil over the blurred cover, one function for the player and the widgets. Neutral theme veil (black 70% in Dark, white in
      * Light, see [lightVeilAlpha]) that takes on the colour of the cover only when the cover is really colourful: grey, black/white or almost
      * grey covers with a small coloured detail stay exactly neutral (the v2.22 fix), colourful covers get a dark (Dark) or pastel (Light) tint
      * of their own colour, growing smoothly with the mean colourfulness of the blurred cover.
      */
     fun veilColor(soft: Bitmap?, light: Boolean): Int {
-        val neutralAlpha = if (light) lightVeilAlpha(soft) else 0xB3
+        val neutralAlpha = if (light) lightVeilAlpha(soft) else darkVeilAlpha(soft)
         val neutral = if (light) 0xFFFFFF else 0x000000
         if (soft == null || soft.isRecycled) return (neutralAlpha shl 24) or neutral
         var chromaSum = 0.0
@@ -91,10 +117,23 @@ internal object BackdropBlur {
             val pixels = IntArray(w * h)
             small.getPixels(pixels, 0, w, 0, 0, w, h)
             repeat(PASSES) { boxBlur(pixels, w, h, RADIUS) }
+            saturate(pixels, SATURATION)
             small.setPixels(pixels, 0, w, 0, 0, w, h)
             small
         }
     } catch (_: Throwable) { null }
+
+    private fun saturate(px: IntArray, k: Float) {
+        for (i in px.indices) {
+            val p = px[i]
+            val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
+            val l = 0.299f * r + 0.587f * g + 0.114f * b
+            val rr = (l + (r - l) * k).toInt().coerceIn(0, 255)
+            val gg = (l + (g - l) * k).toInt().coerceIn(0, 255)
+            val bb = (l + (b - l) * k).toInt().coerceIn(0, 255)
+            px[i] = (0xFF shl 24) or (rr shl 16) or (gg shl 8) or bb
+        }
+    }
 
     private fun boxBlur(px: IntArray, w: Int, h: Int, r: Int) {
         val tmp = IntArray(px.size)

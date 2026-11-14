@@ -653,3 +653,7 @@
 
 ## Hifi 2.55 - launcher logo 42%, more vivid magenta / red / orange
 - Launcher logo 292 -> 272 px wide in the 648 px foreground (42%). Extra saturation (up to +20%) only for magenta, red and orange hues (the two right bars); blue and purple unchanged. Splash and silhouettes unchanged.
+
+## Hifi 2.56 - more vivid backdrop, adaptive Dark veil
+- BackdropBlur.soft(): colour strength x1.3 on the blurred cover (brightness kept, grey stays grey), so the player backdrop and both blur widgets are more vivid.
+- Dark veil is adaptive (BackdropBlur.darkVeilAlpha): 70% over bright covers as before (white text stays readable), down to 55% over dark covers. Light veil unchanged (70%, up to 85% over black covers). Blur radius 4 / 2 passes unchanged. Audio path untouched.
