@@ -1061,6 +1061,7 @@ class MainActivity : Activity() {
         if (::duration.isInitialized) duration.setTextColor(inkMuted)
         if (::audioInfoInline.isInitialized) audioInfoInline.setTextColor(inkMuted)
         if (::audioStatusInline.isInitialized) audioStatusInline.setTextColor(inkMuted)
+        refreshAudioInfo()   // Hifi 2.57: re-colour the verdict / grey spans for the new theme
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31: accent
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(accentColor)
         if (::playView.isInitialized) playView.imageTintList = ColorStateList.valueOf(accentColor)
@@ -3279,9 +3280,11 @@ class MainActivity : Activity() {
         val direct = prepared && player != null && DirectOutputState.active
         val jack = wiredJackConnected()
         val device = if (jack) "headset" else "speaker"
-        val green = 0xFF5BD98C.toInt()
-        val orange = 0xFFFFA43A.toInt()
-        val grey = 0xFFA4A4B2.toInt()
+        // Hifi 2.57: Light uses deeper green / orange (the bright Dark ones had almost no contrast on the pale Light backdrop);
+        // the grey part (headset / speaker) is the same MUTED grey as the rest of the info text in both themes (it was the Dark grey in Light).
+        val green = if (lightTheme) 0xFF0F7A42.toInt() else 0xFF5BD98C.toInt()
+        val orange = if (lightTheme) 0xFF9E4F00.toInt() else 0xFFFFA43A.toInt()
+        val grey = MUTED
         // Build 2.0: row 1 = file type + source -> output (no headset / speaker here).
         // Row 2 = route verdict + headset / speaker + a grey note about the data. Both rows are one line and scroll when too long.
         val typeLabel = sourceFormat?.let { "$it • " } ?: ""

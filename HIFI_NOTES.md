@@ -657,3 +657,7 @@
 ## Hifi 2.56 - more vivid backdrop, adaptive Dark veil
 - BackdropBlur.soft(): colour strength x1.3 on the blurred cover (brightness kept, grey stays grey), so the player backdrop and both blur widgets are more vivid.
 - Dark veil is adaptive (BackdropBlur.darkVeilAlpha): 70% over bright covers as before (white text stays readable), down to 55% over dark covers. Light veil unchanged (70%, up to 85% over black covers). Blur radius 4 / 2 passes unchanged. Audio path untouched.
+
+## Hifi 2.57 - info line colours
+- Fix (old bug): the grey part of the second info line ("• headset / speaker") was always the Dark grey (0xA4A4B2); it now uses the same MUTED grey as the rest of the info text, in both themes.
+- Light: BIT-PERFECT green 0xFF0F7A42 and orange warnings 0xFF9E4F00 (deeper, readable on the pale backdrop); Dark keeps 0xFF5BD98C / 0xFFFFA43A. The line is repainted when the theme is switched. Audio path untouched.
