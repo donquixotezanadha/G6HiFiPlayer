@@ -899,24 +899,27 @@ class MainActivity : Activity() {
         playerPanel.addView(stack, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         // Hifi 2.61 (as 2.59): Classic: rounded square cover in colour in the free space between the header and the info block. The info block
         // is bottom anchored and not touched, so title, progress and controls stay where they are; the cover only takes the room that is left.
-        val classicCover = ImageView(this).apply {
+        val classicCover = ClassicCoverView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             contentDescription = "Album cover"
-            roundCorners(20)
-            visibility = View.GONE
+            radiusPx = dp(10).toFloat()   // Hifi 2.62: same corner level as the big cover on the album page (10dp); drawn by the view itself, so it is round from the very first frame
+            alpha = 0f
+            visibility = View.INVISIBLE
         }
         classicCoverBox = classicCover
+        classicSide = 0
         playerPanel.addView(classicCover, FrameLayout.LayoutParams(dp(100), dp(100), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         stack.addOnLayoutChangeListener { _, _, top, _, _, _, _, _, _ ->
             val dockTop = top + dp(DOCK_TOP_PAD_DP)
-            val free = dockTop - dp(34)            // room above the Hi-Res logo / title row
-            val side = minOf(playerPanel.width - dp(64), free - dp(16)).coerceAtLeast(0)
+            val free = dockTop - dp(26)            // room above the Hi-Res logo / title row
+            val side = minOf(playerPanel.width - dp(40), free - dp(4)).coerceAtLeast(0)   // Hifi 2.62: bigger (was width - 64dp, free - 16dp)
             val lp = classicCover.layoutParams as FrameLayout.LayoutParams
             val topMargin = ((free - side) / 2).coerceAtLeast(0)
             if (lp.width != side || lp.height != side || lp.topMargin != topMargin) {
                 lp.width = side; lp.height = side; lp.topMargin = topMargin
                 classicCover.layoutParams = lp
             }
+            if (side > 0 && classicSide != side) { classicSide = side; revealClassicCover() }
         }
         updateClassicCover()
         statusView = text("Choose a music folder or audio file to begin.", 14f, WHITE, false)
@@ -1192,21 +1195,66 @@ class MainActivity : Activity() {
     }
 
     /** Hifi 2.58: Adaptive (blurred cover backdrop) or Classic (no blur at all, also in the Blur widgets); both keep Dark and Light. */
+    private var classicSide = 0
+
+    /** Hifi 2.62: the Classic cover comes in softly (fade + a short slide up, like the mini player) once its size is known; never a jump. */
+    private fun revealClassicCover() {
+        val box = classicCoverBox ?: return
+        if (!classicUi || playerCoverBitmap == null || classicSide <= 0 || box.visibility == View.VISIBLE && box.alpha >= 1f) return
+        box.animate().cancel()
+        if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = dp(28).toFloat(); box.visibility = View.VISIBLE }
+        box.animate().alpha(1f).translationY(0f).setDuration(320L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+    }
+
     private fun updateClassicCover() {
         val box = classicCoverBox ?: return
         val bmp = playerCoverBitmap?.takeIf { !it.isRecycled }
-        if (classicUi && bmp != null) { box.setImageBitmap(bmp); box.visibility = View.VISIBLE } else { box.setImageDrawable(null); box.visibility = View.GONE }
+        if (classicUi && bmp != null) {
+            box.setImageBitmap(bmp)
+            revealClassicCover()   // waits for the first layout when the size is not known yet
+        } else {
+            box.animate().cancel()
+            box.setImageDrawable(null); box.alpha = 0f; box.visibility = View.INVISIBLE
+        }
+    }
+
+    /** Hifi 2.62: cover with its rounded corners drawn by the view itself (clip path), so it is never square, not even for a frame. */
+    private class ClassicCoverView(context: Context) : ImageView(context) {
+        var radiusPx = 0f
+        private val clip = android.graphics.Path()
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            clip.reset()
+            clip.addRoundRect(android.graphics.RectF(0f, 0f, width.toFloat(), height.toFloat()), radiusPx, radiusPx, android.graphics.Path.Direction.CW)
+            val save = canvas.save()
+            canvas.clipPath(clip)
+            super.onDraw(canvas)
+            canvas.restoreToCount(save)
+        }
     }
 
     private fun setClassicUi(enabled: Boolean) {
         if (classicUi == enabled) return
         classicUi = enabled
         getPreferences(MODE_PRIVATE).edit().putBoolean("ui_classic", enabled).apply()
+        // Hifi 2.62: soft change: a snapshot of the old screen stays on top while the new look is built, then fades away (no hard cut).
+        val decor = window.decorView as? android.view.ViewGroup
+        var overlay: ImageView? = null
+        if (decor != null && decor.width > 0 && decor.height > 0) {
+            try {
+                val shot = android.graphics.Bitmap.createBitmap(decor.width, decor.height, android.graphics.Bitmap.Config.ARGB_8888)
+                decor.draw(android.graphics.Canvas(shot))
+                overlay = ImageView(this).apply { setImageBitmap(shot); isClickable = true }
+                decor.addView(overlay, ViewGroup.LayoutParams(-1, -1))
+            } catch (_: Throwable) { overlay = null }
+        }
         darkDrawables.forEach { it.invalidateSelf() }
         playerCoverView?.invalidate()
         appliedPlayerSurface = null
         buildUi()   // Hifi 2.59: the neutral greys (windows, buttons) are read while building
         G6Widgets.renderAll(this)
+        overlay?.let { ov ->
+            ov.animate().alpha(0f).setDuration(320L).setStartDelay(60L).withEndAction { (ov.parent as? ViewGroup)?.removeView(ov) }.start()
+        }
     }
 
     /** Hifi 2.58: small floating window without a title: two choices, the active one filled. */

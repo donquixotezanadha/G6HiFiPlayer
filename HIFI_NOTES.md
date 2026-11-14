@@ -683,3 +683,8 @@
 - Every page / window now has the SAME top as Now Playing: the solid theme colour with the colourless (grey band) cover and its Now Playing fade at the top (drawn by the shared page backdrop; the Now Playing cover view itself draws nothing in Classic so the fade is not doubled). The full-screen grey cover backdrop of 2.60 is gone.
 - The rounded square cover in colour above the title (as in 2.59) is back, Classic only, sized from the free space so title / controls do not move.
 - Blur widgets keep the 2.60 look (grey cover on the right 60%, fading left) on the original base colour.
+
+## Hifi 2.62 - Classic: soft changes, bigger cover with 10dp corners, 4x1 widget colour
+- Classic rounded cover: appears with a fade plus a short slide up (320 ms) once its size is known (no jump from the 100dp start size); the corners are drawn by the view itself (ClassicCoverView, clip path) so it is never square, also not during the theme switch; corner radius 10dp = the big cover on the album page; bigger: max (page width - 40dp) and the free height (was 64dp / 16dp less).
+- Switching Adaptive <-> Classic: snapshot of the old screen fades away over the new look (no hard cut).
+- Widget 4x1 (non-blur) in Classic: card colour = mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent. Adaptive unchanged.
