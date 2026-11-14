@@ -8,6 +8,9 @@ import android.graphics.Bitmap
  */
 internal object BackdropBlur {
     const val RADIUS = 4
+    /** Hifi 2.59: Classic UI page colours (no blur, no cover colour): light grey in Light, dark grey in Dark. */
+    const val CLASSIC_LIGHT = 0xFFE4E4E8.toInt()
+    const val CLASSIC_DARK = 0xFF1C1C1F.toInt()
     const val PASSES = 2
     private const val SIDE = 96
     /** Hifi 2.56: colour strength of the blurred cover (1.0 = as the cover, brightness kept). Grey stays grey. */

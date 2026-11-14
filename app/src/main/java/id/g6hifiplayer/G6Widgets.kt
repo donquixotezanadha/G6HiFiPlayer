@@ -520,8 +520,8 @@ object G6Widgets {
         val h = (cardH * scale).toInt().coerceAtLeast(32)
         val flat = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(flat)
-        canvas.drawColor(if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
-        val classic = isClassicUi(context)   // Hifi 2.58: Classic = plain theme surface, no blurred cover, no veil
+        val classic = isClassicUi(context)   // Hifi 2.58: Classic = plain card, no blurred cover, no veil (Hifi 2.59: in the Classic page grey)
+        canvas.drawColor(if (classic) (if (light) BackdropBlur.CLASSIC_LIGHT else BackdropBlur.CLASSIC_DARK) else if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
         var veilArgb = if (classic) 0 else if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
         if (hasTrack && !classic) {
             val file = File(context.filesDir, ART_FILE)
