@@ -1238,9 +1238,21 @@ class MainActivity : Activity() {
         val box = classicCoverBox
         if (!enabled && box != null && box.visibility == View.VISIBLE && box.alpha > 0f) {
             box.animate().cancel()
-            box.animate().alpha(0f).translationY(dp(28).toFloat()).setDuration(260L)
-                .setInterpolator(android.view.animation.AccelerateInterpolator(1.3f))
-                .withEndAction { applyClassicUi(false) }.start()
+            // Hifi 2.64: the fade is linear and a little shorter than the slide (before, both used one accelerating curve: the cover stayed almost
+            // fully visible for most of the time and then vanished at once, which looked like it was stuck).
+            val fade = android.animation.ObjectAnimator.ofFloat(box, View.ALPHA, box.alpha, 0f).apply {
+                duration = 220L; interpolator = android.view.animation.LinearInterpolator()
+            }
+            val slide = android.animation.ObjectAnimator.ofFloat(box, View.TRANSLATION_Y, box.translationY, dp(24).toFloat()).apply {
+                duration = 260L; interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            }
+            android.animation.AnimatorSet().apply {
+                playTogether(fade, slide)
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) { applyClassicUi(false) }
+                })
+                start()
+            }
         } else applyClassicUi(enabled)
     }
 

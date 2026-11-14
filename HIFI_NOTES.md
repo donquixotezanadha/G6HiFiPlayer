@@ -691,3 +691,6 @@
 
 ## Hifi 2.63 - Classic -> Adaptive: the cover slides down and fades out
 - Reverse of the 2.62 entrance: when Adaptive is chosen while Classic is on, the rounded cover first slides down 28dp and fades out (260 ms, accelerating), then the look changes (soft snapshot fade as before). Classic -> Adaptive entrance unchanged (slide up + fade in).
+
+## Hifi 2.64 - smoother slide down (Classic -> Adaptive)
+- The 2.63 exit used one accelerating curve for fade and slide, so the cover stayed almost fully visible and then vanished at once ("stuck"). Now the fade is linear (220 ms) and the slide is 24dp with an ease in-out curve (260 ms); the look changes when both are done.
