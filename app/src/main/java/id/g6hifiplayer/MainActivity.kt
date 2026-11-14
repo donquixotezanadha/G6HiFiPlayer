@@ -1234,6 +1234,18 @@ class MainActivity : Activity() {
 
     private fun setClassicUi(enabled: Boolean) {
         if (classicUi == enabled) return
+        // Hifi 2.63: Classic -> Adaptive is the reverse of the entrance: the rounded cover slides down and fades out first, then the look changes.
+        val box = classicCoverBox
+        if (!enabled && box != null && box.visibility == View.VISIBLE && box.alpha > 0f) {
+            box.animate().cancel()
+            box.animate().alpha(0f).translationY(dp(28).toFloat()).setDuration(260L)
+                .setInterpolator(android.view.animation.AccelerateInterpolator(1.3f))
+                .withEndAction { applyClassicUi(false) }.start()
+        } else applyClassicUi(enabled)
+    }
+
+    private fun applyClassicUi(enabled: Boolean) {
+        if (classicUi == enabled) return
         classicUi = enabled
         getPreferences(MODE_PRIVATE).edit().putBoolean("ui_classic", enabled).apply()
         // Hifi 2.62: soft change: a snapshot of the old screen stays on top while the new look is built, then fades away (no hard cut).

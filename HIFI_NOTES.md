@@ -688,3 +688,6 @@
 - Classic rounded cover: appears with a fade plus a short slide up (320 ms) once its size is known (no jump from the 100dp start size); the corners are drawn by the view itself (ClassicCoverView, clip path) so it is never square, also not during the theme switch; corner radius 10dp = the big cover on the album page; bigger: max (page width - 40dp) and the free height (was 64dp / 16dp less).
 - Switching Adaptive <-> Classic: snapshot of the old screen fades away over the new look (no hard cut).
 - Widget 4x1 (non-blur) in Classic: card colour = mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent. Adaptive unchanged.
+
+## Hifi 2.63 - Classic -> Adaptive: the cover slides down and fades out
+- Reverse of the 2.62 entrance: when Adaptive is chosen while Classic is on, the rounded cover first slides down 28dp and fades out (260 ms, accelerating), then the look changes (soft snapshot fade as before). Classic -> Adaptive entrance unchanged (slide up + fade in).
