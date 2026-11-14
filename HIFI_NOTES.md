@@ -677,3 +677,9 @@
 - The same cover, sharp and in a narrow band around the page grey (Light 0.84-0.95, Dark 0.07-0.17), is the backdrop of every page / window (replaces the adaptive blur), no veil.
 - Blur widgets in Classic: plain grey card with the grey cover on the right 60%, fading out towards the left.
 - Floating windows / mini player stay theme-grey (no accent); the accent only colours buttons, progress and similar.
+
+## Hifi 2.61 - Classic corrections
+- Base colours of Classic are the ORIGINAL theme colours again (Light 0xFFF8F8FC, Dark black), also in the Blur widgets; floating windows / mini player card are the original theme-coloured ones (Light = surface mixed 12% toward ink, Dark 0xFF1E1E1E), buttons / lines no longer have a Classic tone of their own.
+- Every page / window now has the SAME top as Now Playing: the solid theme colour with the colourless (grey band) cover and its Now Playing fade at the top (drawn by the shared page backdrop; the Now Playing cover view itself draws nothing in Classic so the fade is not doubled). The full-screen grey cover backdrop of 2.60 is gone.
+- The rounded square cover in colour above the title (as in 2.59) is back, Classic only, sized from the free space so title / controls do not move.
+- Blur widgets keep the 2.60 look (grey cover on the right 60%, fading left) on the original base colour.
