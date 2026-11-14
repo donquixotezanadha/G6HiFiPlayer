@@ -1,4 +1,4 @@
-name: Hifi v2.57bb - 2.57 with the log fix
+name: Hifi v2.57b - 2.57 with the log fix
 
 on:
   workflow_dispatch:
@@ -40,10 +40,10 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player' versionCode='147' versionName='2.57b'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
-          cp "$APK" "verified-artifact/Hifi-v2.57bb.apk"
+          cp "$APK" "verified-artifact/Hifi-v2.57b.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Hifi-v2.57bb-apk
+          name: Hifi-v2.57b-apk
           path: verified-artifact/*
           if-no-files-found: error
           retention-days: 90
