@@ -523,6 +523,31 @@ object G6Widgets {
         val classic = isClassicUi(context)   // Hifi 2.58: Classic = plain card, no blurred cover, no veil (Hifi 2.59: in the Classic page grey)
         canvas.drawColor(if (classic) (if (light) BackdropBlur.CLASSIC_LIGHT else BackdropBlur.CLASSIC_DARK) else if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
         var veilArgb = if (classic) 0 else if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
+        if (hasTrack && classic) {
+            // Hifi 2.60: Classic = the cover without colour, in a narrow grey band around the card grey, on the right half and fading out
+            // towards the left into the plain grey (no blur, no veil).
+            val file = File(context.filesDir, ART_FILE)
+            val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null
+            if (raw != null) {
+                val left = (w * 0.40f)
+                val rw = w - left
+                val k = maxOf(rw / raw.width.toFloat(), h / raw.height.toFloat())
+                val sw = (rw / k).toInt().coerceIn(1, raw.width)
+                val sh = (h / k).toInt().coerceIn(1, raw.height)
+                val sx = (raw.width - sw) / 2
+                val sy = (raw.height - sh) / 2
+                val layer = canvas.saveLayer(left, 0f, w.toFloat(), h.toFloat(), null)
+                val tone = Paint(Paint.FILTER_BITMAP_FLAG)
+                tone.colorFilter = BackdropBlur.toneFilter(if (light) 0.72f else 0.06f, if (light) 0.95f else 0.26f)
+                canvas.drawBitmap(raw, android.graphics.Rect(sx, sy, sx + sw, sy + sh), RectF(left, 0f, w.toFloat(), h.toFloat()), tone)
+                val mask = Paint()
+                mask.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+                mask.shader = android.graphics.LinearGradient(left, 0f, w.toFloat(), 0f, 0x00FFFFFF, -0x1, Shader.TileMode.CLAMP)
+                canvas.drawRect(left, 0f, w.toFloat(), h.toFloat(), mask)
+                canvas.restoreToCount(layer)
+                raw.recycle()
+            }
+        }
         if (hasTrack && !classic) {
             val file = File(context.filesDir, ART_FILE)
             val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null

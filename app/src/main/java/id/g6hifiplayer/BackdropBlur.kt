@@ -110,6 +110,18 @@ internal object BackdropBlur {
         return (neutralAlpha shl 24) or (rr shl 16) or (gg shl 8) or bb
     }
 
+    /** Hifi 2.60: Classic tone: grey value of every pixel mapped into the band [lo, hi] (0..1), so a cover loses its colour but stays visible. */
+    fun toneFilter(lo: Float, hi: Float): android.graphics.ColorMatrixColorFilter {
+        val a = hi - lo
+        val o = lo * 255f
+        return android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+            a * 0.299f, a * 0.587f, a * 0.114f, 0f, o,
+            a * 0.299f, a * 0.587f, a * 0.114f, 0f, o,
+            a * 0.299f, a * 0.587f, a * 0.114f, 0f, o,
+            0f, 0f, 0f, 1f, 0f
+        )))
+    }
+
     fun soft(source: Bitmap): Bitmap? = try {
         if (source.isRecycled || source.width <= 0 || source.height <= 0) null else {
             val ratio = SIDE.toFloat() / maxOf(source.width, source.height)

@@ -671,3 +671,9 @@
 - Classic UI: every page, window backdrop and the splash is a plain grey (BackdropBlur.CLASSIC_LIGHT 0xFFE4E4E8 in Light, CLASSIC_DARK 0xFF1C1C1F in Dark), whatever the cover. Floating windows / mini player card are neutral grey too (Light 0xFFF2F2F5, Dark 0xFF28282C) and button/line tones are neutral (no cover tint). Blur widgets are flat cards in the same grey. Accent colours still follow the cover.
 - Now Playing in Classic: the full-width faded cover is not drawn; a rounded square cover (20dp corners, centre-cropped) sits in the free space between the header and the info block, sized from that space (max screen width - 64dp). The info block is bottom anchored and untouched, so title / progress / controls do not move.
 - Switching Adaptive <-> Classic rebuilds the UI (no animation). Adaptive is unchanged. Audio path untouched.
+
+## Hifi 2.60 - Classic: the cover stays, without colour (grey tone)
+- Correction of 2.59: the rounded square cover is removed. Classic keeps the full-width Now Playing cover and its fade, but the cover has no colour: its grey value is mapped into a light grey band in Light (0.66-0.97) and a dark grey band in Dark (0.04-0.42) (BackdropBlur.toneFilter).
+- The same cover, sharp and in a narrow band around the page grey (Light 0.84-0.95, Dark 0.07-0.17), is the backdrop of every page / window (replaces the adaptive blur), no veil.
+- Blur widgets in Classic: plain grey card with the grey cover on the right 60%, fading out towards the left.
+- Floating windows / mini player stay theme-grey (no accent); the accent only colours buttons, progress and similar.
