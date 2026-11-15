@@ -626,7 +626,7 @@ object G6Widgets {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.color = color
-        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), 0f, 0f, paint)   // Hifi 2.67g: sharp 2x2 play button
+        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.28f, size * 0.28f, paint)
         return bmp
     }
 
