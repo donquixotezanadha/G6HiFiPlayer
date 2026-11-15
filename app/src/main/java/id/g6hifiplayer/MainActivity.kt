@@ -725,7 +725,7 @@ class MainActivity : Activity() {
         val logoSide = (resources.displayMetrics.widthPixels * 0.09f).toInt()
         val metadata = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(SEEK_SIDE_PAD_DP) + logoSide + dp(10), 0, dp(SEEK_SIDE_PAD_DP) + logoSide + dp(10), 0)   // Hifi 2.67g: symmetric, so the text is centred on the screen (the Hi-Res logo still has its own room on the right)
+            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP), 0)   // Hifi 2.67h: symmetric (the Hi-Res logo is on the cover now, no room needed on the right)
         }
         val queueIcon = ImageView(this).apply {
             setImageResource(R.drawable.ic_row_queue)   // Hifi 2.12: his own icon (alpha mask, tinted)
@@ -1208,6 +1208,7 @@ class MainActivity : Activity() {
     private fun updateClassicCover() {
         val box = classicCoverBox ?: return
         val bmp = playerCoverBitmap?.takeIf { !it.isRecycled }
+        box.foreground = if (isHiResNow()) HiResBadgeDrawable(this) else null   // Hifi 2.67h: Hi-Res badge on the Now Playing cover
         if (classicUi && bmp != null) {
             box.setImageBitmap(bmp)
             revealClassicCover()   // waits for the first layout when the size is not known yet
@@ -3319,7 +3320,8 @@ class MainActivity : Activity() {
         val hires = isHiResNow()
         if (hires == hiResBadgeShown) return
         hiResBadgeShown = hires
-        hiResLogoView?.visibility = if (hires) View.VISIBLE else View.GONE
+        hiResLogoView?.visibility = View.GONE   // Hifi 2.67h: the Hi-Res logo moved into the cover (same badge and size as on the album covers)
+        classicCoverBox?.foreground = if (hires) HiResBadgeDrawable(this) else null
         if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(11).toFloat()) else null
         if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
