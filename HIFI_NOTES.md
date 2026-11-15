@@ -694,3 +694,7 @@
 
 ## Hifi 2.64 - smoother slide down (Classic -> Adaptive)
 - The 2.63 exit used one accelerating curve for fade and slide, so the cover stayed almost fully visible and then vanished at once ("stuck"). Now the fade is linear (220 ms) and the slide is 24dp with an ease in-out curve (260 ms); the look changes when both are done.
+
+## Hifi 2.65 - denser veil (Adaptive), fainter grey cover (Classic)
+- Adaptive (player backdrop and Blur widgets, one shared function): Light veil 76% (was 70%), up to 88% over a mostly black cover (was 85%); Dark veil 62-76% by cover brightness (was 55-70%); the no-cover fallback veil 76%. Blur radius, saturation 1.3 and the colour tint rule unchanged.
+- Classic: the grey cover at the top of the pages is fainter: Light band 0.74-0.97 (was 0.66-0.97), Dark band 0.04-0.34 (was 0.04-0.42). The Classic widgets are unchanged (he said they are right).
