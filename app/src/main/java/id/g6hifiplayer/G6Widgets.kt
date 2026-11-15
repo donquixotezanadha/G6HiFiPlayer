@@ -54,14 +54,8 @@ object G6Widgets {
         return true   // Hifi 2.27: Light is the default at first install
     }
 
-    /** Hifi 2.58: Classic UI (set by a long press on the theme icon in the player) = the Blur widgets are flat, no blurred cover. */
-    private fun isClassicUi(context: Context): Boolean {
-        for (name in arrayOf("id.g6hifiplayer.MainActivity", "MainActivity")) {
-            val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-            if (p.contains("ui_classic")) return p.getBoolean("ui_classic", false)
-        }
-        return false
-    }
+    /** Hifi 2.67b: pure Classic, always on (the Adaptive / blur look is gone). */
+    private fun isClassicUi(@Suppress("UNUSED_PARAMETER") context: Context): Boolean = true
 
     private const val PREFS = "g6_widgets"
     private const val ART_FILE = "g6_widgets_art.jpg"
@@ -73,12 +67,12 @@ object G6Widgets {
     private const val THUMB_PX = 400
     private const val PLACEHOLDER_PX = 256
     /** Corner radius of the 4x1 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
-    private const val CORNER_FRACTION = 0.12f
+    private const val CORNER_FRACTION = 0f   // Hifi 2.67b: square cover (no rounded corners) on the 4x1
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
     private const val LEGACY_ACCENT = 0xFF6662C6.toInt()   // Hifi 2.1: only the Light widgets keep the old purple
     private const val LIGHT_CARD = 0xFFDADADD.toInt()      // card / button colour of the Light widgets
-    private const val COVER_WIDGET_FRACTION = 0.16f   // simple 4x1 widget cover
+    private const val COVER_WIDGET_FRACTION = 0f   // Hifi 2.67b: square cover on the Simple 4x1, Text 4x2 and Blur 4x2 widgets (was 0.16)
     /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
     private const val TOGGLE_DEBOUNCE_MS = 180L
@@ -523,7 +517,6 @@ object G6Widgets {
         val canvas = Canvas(flat)
         val classic = isClassicUi(context)   // Hifi 2.58: Classic = plain card, no blurred cover, no veil (Hifi 2.59: in the Classic page grey)
         canvas.drawColor(if (classic) (if (light) BackdropBlur.CLASSIC_LIGHT else BackdropBlur.CLASSIC_DARK) else if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
-        var veilArgb = if (classic) 0 else if (light) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
         if (hasTrack && classic) {
             // Hifi 2.60: Classic = the cover without colour, in a narrow grey band around the card grey, on the right half and fading out
             // towards the left into the plain grey (no blur, no veil).
@@ -549,23 +542,6 @@ object G6Widgets {
                 raw.recycle()
             }
         }
-        if (hasTrack && !classic) {
-            val file = File(context.filesDir, ART_FILE)
-            val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null
-            val soft = raw?.let { BackdropBlur.soft(it) }
-            raw?.recycle()
-            if (soft != null) {
-                val k = maxOf(w / soft.width.toFloat(), h / soft.height.toFloat())
-                val sw = (w / k).toInt().coerceIn(1, soft.width)
-                val sh = (h / k).toInt().coerceIn(1, soft.height)
-                val sx = (soft.width - sw) / 2
-                val sy = (soft.height - sh) / 2
-                canvas.drawBitmap(soft, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.Rect(0, 0, w, h), Paint(Paint.FILTER_BITMAP_FLAG))
-                veilArgb = BackdropBlur.veilColor(soft, light)
-                soft.recycle()
-            }
-        }
-        canvas.drawColor(veilArgb)
         flat.density = (scale * 1000).toInt()   // remembers pixels-per-dp (x1000) for blurPieces()
         return flat
     }

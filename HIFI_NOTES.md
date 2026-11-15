@@ -706,3 +706,8 @@
 ## Hifi 2.67 - Classic: the grey cover is on the splash from the first frame
 - Cause: in Classic the sharp cover (for the grey top) only existed after the playback state restored the track, so the splash was plain, then the grey cover appeared, then the main screen. Adaptive already drew its saved 96 px blur (last_backdrop.png).
 - Now the last cover is also saved (last_cover.jpg, max 900 px, JPEG 88, written together with last_backdrop.png, removed when the track has no cover) and read at start when Classic is on and no cover is loaded yet; the real cover replaces it silently (same picture). Adaptive unchanged.
+
+## Hifi 2.67b - pure Classic, square covers (from 2.67)
+- The blur UI is gone with all its options: the long press on the theme icon (Adaptive / Classic window) is removed, Classic is always on. Removed: the blurred backdrop, the veils, the saturation, the last_backdrop.png file (deleted at start), BackdropBlur.soft/veilColor. BackdropBlur now only keeps the Classic base colours, toneFilter and fadeShader. Blur widgets stay as the Classic flat cards with the grey cover (the look he confirmed).
+- Covers are square everywhere (no rounded corners): Now Playing cover, album page big cover, album grid and stacked covers, "More albums by" mini covers, long-press window mini covers, mini player cover, queue rows, and the widgets 4x1, Simple 4x1, Text 4x2 and Blur 4x2. The 2x2 widget keeps its round cover.
+- Windows, floating windows, buttons, widget cards keep their rounded corners. Audio path untouched. versionCode 157.
