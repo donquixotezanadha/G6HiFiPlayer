@@ -11,7 +11,7 @@
 
     <style name="Theme.G6HiFiPlayer.Dark" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowDisablePreview">true</item>
-        <item name="android:windowBackground">#FF121418</item>
+        <item name="android:windowBackground">#FF0F1114</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#7C4DFF</item>

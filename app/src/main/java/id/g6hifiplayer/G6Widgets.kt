@@ -423,7 +423,7 @@ object G6Widgets {
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
-            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF21242C.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
+            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF1E2128.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
@@ -626,7 +626,7 @@ object G6Widgets {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.color = color
-        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.28f, size * 0.28f, paint)
+        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), 0f, 0f, paint)   // Hifi 2.67g: sharp 2x2 play button
         return bmp
     }
 

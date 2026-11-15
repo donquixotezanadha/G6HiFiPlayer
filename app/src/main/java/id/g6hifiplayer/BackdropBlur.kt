@@ -7,7 +7,7 @@ package id.g6hifiplayer
 internal object BackdropBlur {
     /** Hifi 2.61: Classic UI base colours = the original theme colours (Light 0xFFF8F8FC, Dark black). */
     const val CLASSIC_LIGHT = 0xFFF8F8FC.toInt()
-    const val CLASSIC_DARK = 0xFF121418.toInt()   // Hifi 2.67f: Dark base, blue saturation 25% (was 33% in 2.67d/e = 101218; 141416 in 2.67c; black before)
+    const val CLASSIC_DARK = 0xFF0F1114.toInt()   // Hifi 2.67g: Dark base a little darker, blue saturation still 25% (121418 in 2.67f, 101218 in 2.67d/e, 141416 in 2.67c, black before)
 
         /** Hifi 2.60: Classic tone: grey value of every pixel mapped into the band [lo, hi] (0..1), so a cover loses its colour but stays visible. */
     fun toneFilter(lo: Float, hi: Float): android.graphics.ColorMatrixColorFilter {
@@ -29,7 +29,7 @@ internal object BackdropBlur {
     fun classicTone(light: Boolean, lightLo: Float, lightHi: Float, darkLo: Float, darkHi: Float): android.graphics.ColorMatrixColorFilter {
         if (light) return toneFilter(lightLo, lightHi)
         val span = darkHi - darkLo
-        val ar = span * 0.75f; val ag = span * 0.83f; val ab = span   // Hifi 2.67f: gains = the base ratios R/B and G/B, so the band keeps the same hue and ~25% saturation from dark to bright
+        val ar = span * 0.75f; val ag = span * 0.85f; val ab = span   // Hifi 2.67f: gains = the base ratios R/B and G/B, so the band keeps the same hue and ~25% saturation from dark to bright
         val br = ((CLASSIC_DARK shr 16) and 0xFF).toFloat(); val bg = ((CLASSIC_DARK shr 8) and 0xFF).toFloat(); val bb = (CLASSIC_DARK and 0xFF).toFloat()
         return android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
             ar * 0.299f, ar * 0.587f, ar * 0.114f, 0f, br,

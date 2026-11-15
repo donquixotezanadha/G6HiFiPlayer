@@ -723,3 +723,6 @@
 
 ## Hifi 2.67f - Classic Dark: blue saturation 33% -> 25% (from 2.67e)
 - Dark base 101218 -> 121418 (HSV saturation 25%), windows / mini player / 4x1 widget 22242B -> 21242C, styles.xml window background 121418. Cover band gains R 0.75 / G 0.83 / B 1.00 (= the base ratios), so the band keeps the base hue and ~25% saturation. Light unchanged. versionCode 161.
+
+## Hifi 2.67g - Classic: darker Dark, centred title, sharp buttons and icons (from 2.67f)
+- Dark base 121418 -> 0F1114 (saturation still 25%), windows / mini player / 4x1 widget 1E2128, cover band gains R 0.75 / G 0.85 / B 1.00. Both themes: Now Playing title, artist and album centred (metadata padding made symmetric, Hi-Res logo keeps its room on the right); every button now has square corners: play/pause ripple, back arrow, album tile ripples, Setting option buttons, window buttons (PLAY ALBUM etc.), plain buttons, icon-button ripple mask, selected album/queue tab highlight, widget button press drawables (g6_widget_btn, _light, _pressed, _square). Vector icons: stroke caps butt, joins miter. Kept rounded: windows (16dp), widget cards (20dp), search field, queue/album row highlights, progress bars, 2x2 cover. His own PNG icons (gear, theme, queue, album, Hi-Res) unchanged. versionCode 162.
