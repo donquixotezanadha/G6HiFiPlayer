@@ -52,6 +52,7 @@ class PlaybackKeepAliveService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        UiIcons.refresh(this)
         serviceInstance = this
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "Music playback", NotificationManager.IMPORTANCE_LOW).apply {
@@ -151,7 +152,7 @@ class PlaybackKeepAliveService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
         // Build 2.3: "Close player" now really closes (ACTION_EXIT): the notification goes away and exclusive mode ends.
-        builder.addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionBroadcast("exit", 6104)).build())
+        builder.addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_close_24), "Close player", actionBroadcast("exit", 6104)).build())
         return builder.build()
     }
 
@@ -374,11 +375,11 @@ class PlaybackKeepAliveService : Service() {
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             // Same vector icons as the in-app transport buttons (previous / play-pause / next).
-            .addAction(Notification.Action.Builder(R.drawable.ic_previous_s, "Previous", actionPending("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s,
+            .addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_previous_s), "Previous", actionPending("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s),
                 if (playing) "Pause" else "Play", actionPending("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(R.drawable.ic_next_s, "Next", actionPending("next", 6103)).build())
-            .addAction(Notification.Action.Builder(R.drawable.ic_close_24, "Close player", actionPending("exit", 6104)).build())
+            .addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_next_s), "Next", actionPending("next", 6103)).build())
+            .addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_close_24), "Close player", actionPending("exit", 6104)).build())
         // Preserve the last known artwork on state-only updates (especially PLAYING -> PAUSED).
         // The service can publish before MainActivity's next UI callback, so read MediaSession's
         // stored bitmap rather than depending on an Activity view still being attached.

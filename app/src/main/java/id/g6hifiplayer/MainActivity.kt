@@ -365,6 +365,8 @@ class MainActivity : Activity() {
         AudioPathLog.init(this)   // Hifi 1.40
         lightTheme = savedLightTheme
         classicUi = getPreferences(MODE_PRIVATE).getBoolean("ui_classic", false)
+        UiIcons.refresh(this)
+        if (noCoverAnim) window.decorView.postDelayed({ noCoverAnim = false }, 2500L)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
@@ -712,26 +714,29 @@ class MainActivity : Activity() {
             // (no isSingleLine = false here: that call resets maxLines to "unlimited", which let long titles take 2+ lines in 1.37 - 1.41)
             minLines = 1; maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            gravity = if (classicUi) Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL else Gravity.CENTER_VERTICAL or Gravity.START
+            if (classicUi) textAlignment = View.TEXT_ALIGNMENT_CENTER
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
         }
         artistView = text("", 15f, MUTED, false).apply {
             minLines = 1; maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
+            if (classicUi) { gravity = Gravity.CENTER_HORIZONTAL; textAlignment = View.TEXT_ALIGNMENT_CENTER }
         }
         albumView = text("", 13f, MUTED, false).apply {
             setPadding(0, dp(2), 0, 0); maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
+            if (classicUi) { gravity = Gravity.CENTER_HORIZONTAL; textAlignment = View.TEXT_ALIGNMENT_CENTER }
         }
         // Hifi 1.48: the Hi-Res logo (24-bit tracks) sits on the right, level with the title / artist / album block (centred on its height); the text
         // always leaves room for it, so the lines never shift. The queue button moved to the bottom centre, below the info lines.
         val logoSide = (resources.displayMetrics.widthPixels * 0.09f).toInt()
         val metadata = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP) + logoSide + dp(10), 0)
+            setPadding(dp(SEEK_SIDE_PAD_DP), 0, dp(SEEK_SIDE_PAD_DP) + (if (classicUi) 0 else logoSide + dp(10)), 0)
         }
         val queueIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_row_queue)   // Hifi 2.12: his own icon (alpha mask, tinted)
+            setImageResource(UiIcons.pick(R.drawable.ic_row_queue))   // Hifi 2.12: his own icon (alpha mask, tinted)
             // Hifi 1.55: exactly the colour of the unplayed part of the progress bar (same ARGB incl. its opacity), also after a theme switch
             imageTintList = ColorStateList.valueOf(ICON_SOFT)   // Hifi 2.31
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -747,7 +752,7 @@ class MainActivity : Activity() {
         // the active mode only (moon in Dark, sun in Light) and switches the theme when tapped; the album icon goes to the Album page.
         // Hifi 2.13: icon boxes 21dp (were 28dp); his new PNGs share one canvas so the sizes match each other.
         val themeIcon = ImageView(this).apply {
-            setImageResource(if (lightTheme) R.drawable.ic_row_sun else R.drawable.ic_row_moon)
+            setImageResource(if (lightTheme) UiIcons.pick(R.drawable.ic_row_sun) else UiIcons.pick(R.drawable.ic_row_moon))
             imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
@@ -760,7 +765,7 @@ class MainActivity : Activity() {
             addView(themeIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
         val albumIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_row_album)
+            setImageResource(UiIcons.pick(R.drawable.ic_row_album))
             imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
             scaleY = -1f   // Hifi 2.49: flipped top-bottom once, so the diagonal runs bottom-left to top-right like the stacked covers in the Album tab
@@ -842,9 +847,9 @@ class MainActivity : Activity() {
         // Build 2.13: all three icons shrink together. Play/pause: 60dp area - 2*11dp = 38dp icon (was 42dp in 2.12). Previous/Next:
         // 52dp area - 2*10dp = 32dp icon (were 52dp in 2.12, so only Play had changed). The hit areas stay 60dp / 52dp, so the
         // centres (positions) do not move; the difference is only padding around the icons.
-        prevView = transportButton(R.drawable.ic_previous_24, "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
-        playView = transportButton(R.drawable.ic_play_24, "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
-        nextView = transportButton(R.drawable.ic_next_24, "Next", SIDE_ICON_PAD_DP) { playNext() }
+        prevView = transportButton(UiIcons.pick(R.drawable.ic_previous_24), "Previous", SIDE_ICON_PAD_DP) { playPrevious() }
+        playView = transportButton(UiIcons.pick(R.drawable.ic_play_24), "Play or pause", PLAY_ICON_PAD_DP) { togglePlayback() }
+        nextView = transportButton(UiIcons.pick(R.drawable.ic_next_24), "Next", SIDE_ICON_PAD_DP) { playNext() }
         syncPlaybackIcon()
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1.3f))
@@ -906,7 +911,7 @@ class MainActivity : Activity() {
         val classicCover = ClassicCoverView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             contentDescription = "Album cover"
-            radiusPx = dp(10).toFloat()   // Hifi 2.62: same corner level as the big cover on the album page (10dp); drawn by the view itself, so it is round from the very first frame
+            radiusPx = coverR(10).let { dp(it).toFloat() }   // Hifi 2.62: same corner level as the big cover on the album page (10dp); drawn by the view itself, so it is round from the very first frame
             alpha = 0f
             visibility = View.INVISIBLE
         }
@@ -1206,6 +1211,7 @@ class MainActivity : Activity() {
         val box = classicCoverBox ?: return
         if (!classicUi || playerCoverBitmap == null || classicSide <= 0 || box.visibility == View.VISIBLE && box.alpha >= 1f) return
         box.animate().cancel()
+        if (noCoverAnim) { box.alpha = 1f; box.translationY = 0f; box.visibility = View.VISIBLE; return }   // Hifi 2.68: no cover animation after a mode switch
         if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = dp(28).toFloat(); box.visibility = View.VISIBLE }
         box.animate().alpha(1f).translationY(0f).setDuration(320L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
     }
@@ -1215,6 +1221,7 @@ class MainActivity : Activity() {
         val bmp = playerCoverBitmap?.takeIf { !it.isRecycled }
         if (classicUi && bmp != null) {
             box.setImageBitmap(bmp)
+            box.foreground = if (isHiResNow()) HiResBadgeDrawable(this) else null
             revealClassicCover()   // waits for the first layout when the size is not known yet
         } else {
             box.animate().cancel()
@@ -1236,53 +1243,18 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Hifi 2.68: switching Adaptive <-> Classic saves the choice and restarts the screen at once (no cover animation, no snapshot fade). */
     private fun setClassicUi(enabled: Boolean) {
         if (classicUi == enabled) return
-        // Hifi 2.63: Classic -> Adaptive is the reverse of the entrance: the rounded cover slides down and fades out first, then the look changes.
-        val box = classicCoverBox
-        if (!enabled && box != null && box.visibility == View.VISIBLE && box.alpha > 0f) {
-            box.animate().cancel()
-            // Hifi 2.64: the fade is linear and a little shorter than the slide (before, both used one accelerating curve: the cover stayed almost
-            // fully visible for most of the time and then vanished at once, which looked like it was stuck).
-            val fade = android.animation.ObjectAnimator.ofFloat(box, View.ALPHA, box.alpha, 0f).apply {
-                duration = 220L; interpolator = android.view.animation.LinearInterpolator()
-            }
-            val slide = android.animation.ObjectAnimator.ofFloat(box, View.TRANSLATION_Y, box.translationY, dp(24).toFloat()).apply {
-                duration = 260L; interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-            }
-            android.animation.AnimatorSet().apply {
-                playTogether(fade, slide)
-                addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: android.animation.Animator) { applyClassicUi(false) }
-                })
-                start()
-            }
-        } else applyClassicUi(enabled)
-    }
-
-    private fun applyClassicUi(enabled: Boolean) {
-        if (classicUi == enabled) return
-        classicUi = enabled
-        getPreferences(MODE_PRIVATE).edit().putBoolean("ui_classic", enabled).apply()
-        // Hifi 2.62: soft change: a snapshot of the old screen stays on top while the new look is built, then fades away (no hard cut).
-        val decor = window.decorView as? android.view.ViewGroup
-        var overlay: ImageView? = null
-        if (decor != null && decor.width > 0 && decor.height > 0) {
-            try {
-                val shot = android.graphics.Bitmap.createBitmap(decor.width, decor.height, android.graphics.Bitmap.Config.ARGB_8888)
-                decor.draw(android.graphics.Canvas(shot))
-                overlay = ImageView(this).apply { setImageBitmap(shot); isClickable = true }
-                decor.addView(overlay, ViewGroup.LayoutParams(-1, -1))
-            } catch (_: Throwable) { overlay = null }
-        }
-        darkDrawables.forEach { it.invalidateSelf() }
-        playerCoverView?.invalidate()
-        appliedPlayerSurface = null
-        buildUi()   // Hifi 2.59: the neutral greys (windows, buttons) are read while building
-        G6Widgets.renderAll(this)
-        overlay?.let { ov ->
-            ov.animate().alpha(0f).setDuration(320L).setStartDelay(60L).withEndAction { (ov.parent as? ViewGroup)?.removeView(ov) }.start()
-        }
+        getPreferences(MODE_PRIVATE).edit().putBoolean("ui_classic", enabled).commit()
+        UiIcons.classic = enabled
+        try { G6Widgets.renderAll(this) } catch (_: Throwable) {}
+        noCoverAnim = true
+        val intent = android.content.Intent(this, MainActivity::class.java)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        finish()
+        startActivity(intent)
+        overridePendingTransition(0, 0)
     }
 
     /** Hifi 2.58: small floating window without a title: two choices, the active one filled. */
@@ -1392,7 +1364,7 @@ class MainActivity : Activity() {
                     val top = b.top.toFloat()
                     val bottom = top + w * bmp.height / bmp.width
                     val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
-                    bitmapPaint.colorFilter = BackdropBlur.toneFilter(if (light) 0.82f else 0.04f, if (light) 0.97f else 0.26f)
+                    bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.82f, 0.97f, 0.07f, 0.28f)
                     canvas.drawBitmap(bmp, null, android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
                     classicMask.shader = BackdropBlur.fadeShader(top, bottom, NowPlayingCoverView.BOTTOM_FADE)
@@ -1448,7 +1420,7 @@ class MainActivity : Activity() {
             val save = canvas.saveLayer(0f, top, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             // Hifi 2.60: Classic = the cover without colour, in a light grey band (Light) or a dark grey band (Dark); the fade stays the same
-            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.toneFilter(if (light) 0.82f else 0.04f, if (light) 0.97f else 0.26f) else null
+            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.classicTone(light, 0.82f, 0.97f, 0.07f, 0.28f) else null
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
             // Hifi 1.46: much softer fade: it starts earlier (the lower 50% of the cover) and follows a smootherstep curve with many stops,
             // so there is no visible start or end of the gradient.
@@ -1529,8 +1501,8 @@ class MainActivity : Activity() {
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            themed { background = shape(ART, 8) }
-            roundCorners(8)   // Hifi 1.21: the picture itself is clipped, the background alone did not round it
+            themed { background = shape(ART, coverR(8)) }
+            roundCorners(coverR(8))   // Hifi 1.21: the picture itself is clipped, the background alone did not round it
             contentDescription = "Currently playing artwork"
         }
         mini.addView(queueMiniArt, LinearLayout.LayoutParams(dp(52), dp(52)))
@@ -1562,7 +1534,7 @@ class MainActivity : Activity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             themed { imageTintList = ColorStateList.valueOf(accentColor) }
-            setImageResource(if (player?.isPlaying == true) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+            setImageResource(if (player?.isPlaying == true) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
@@ -2041,8 +2013,8 @@ class MainActivity : Activity() {
                 val artSide = minOf((resources.displayMetrics.widthPixels * ALBUM_DETAIL_ART_FRACTION).toInt(), contentWidth)
                 val bigCover = ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, 10)
-                    roundCorners(10)
+                    background = shape(ART, coverR(10))
+                    roundCorners(coverR(10))
                     contentDescription = "Artwork $album"   // Hifi 2.40: no drop shadow under the big cover
                 }
                 applyAlbumHiResBadge(bigCover, entries.map { it.value })
@@ -2123,8 +2095,8 @@ class MainActivity : Activity() {
                         }
                         val otherCover = ImageView(this).apply {
                             scaleType = ImageView.ScaleType.CENTER_CROP
-                            background = shape(ART, 10)
-                            roundCorners(10)
+                            background = shape(ART, coverR(10))
+                            roundCorners(coverR(10))
                             contentDescription = "Artwork $other"
                         }
                         applyAlbumHiResBadge(otherCover, otherEntries.map { it.value })
@@ -2224,8 +2196,8 @@ class MainActivity : Activity() {
                     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
                 }.apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, 10)
-                    roundCorners(10)
+                    background = shape(ART, coverR(10))
+                    roundCorners(coverR(10))
                     contentDescription = "Artwork $album"
                 }
                 applyAlbumHiResBadge(cover, entries.map { it.value })
@@ -2291,8 +2263,8 @@ class MainActivity : Activity() {
             for (level in count - 1 downTo 0) {
                 val view = ImageView(context).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, 10)
-                    roundCorners(10)
+                    background = shape(ART, coverR(10))
+                    roundCorners(coverR(10))
                 }
                 // Hifi 2.39: opacity instead of dim/lighten
                 view.alpha = 1f - 0.20f * level   // Hifi 2.47: steps of 20% (100 / 80 / 60 / 40)
@@ -2423,7 +2395,7 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
         }
-        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 8) } }
+        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, coverR(8)) } }
         applyTrackHiResBadge(cover, t)
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val details = LinearLayout(this).apply {
@@ -2772,7 +2744,7 @@ class MainActivity : Activity() {
         durationMs = 0
         titleView.text = track.title
         titleView.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
-        titleView.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        titleView.gravity = (if (classicUi) Gravity.CENTER_HORIZONTAL else Gravity.START) or Gravity.CENTER_VERTICAL
         titleView.setPadding(0, dp(2), 0, dp(1))
         artistView.text = track.artist
         albumView.text = track.album
@@ -2832,11 +2804,11 @@ class MainActivity : Activity() {
         if (!::playView.isInitialized) return
         val playing = isPlaying ?: try { player?.isPlaying == true } catch (_: Exception) { false }
         updateAlbumPlayingMarks(playing)
-        playView.setImageResource(if (playing) R.drawable.ic_pause_24 else R.drawable.ic_play_24)
+        playView.setImageResource(if (playing) UiIcons.pick(R.drawable.ic_pause_24) else UiIcons.pick(R.drawable.ic_play_24))
         playView.contentDescription = if (playing) "Pause" else "Play"
         playView.imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31
         if (::queueMiniPlayView.isInitialized) {
-            queueMiniPlayView.setImageResource(if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+            queueMiniPlayView.setImageResource(if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
         }
@@ -3438,7 +3410,8 @@ class MainActivity : Activity() {
         val hires = isHiResNow()
         if (hires == hiResBadgeShown) return
         hiResBadgeShown = hires
-        hiResLogoView?.visibility = if (hires) View.VISIBLE else View.GONE
+        hiResLogoView?.visibility = if (hires && !classicUi) View.VISIBLE else View.GONE
+        if (classicUi) classicCoverBox?.foreground = if (hires) HiResBadgeDrawable(this) else null
         if (::queueMiniArt.isInitialized) queueMiniArt.foreground = if (hires) HiResBadgeDrawable(this, dp(11).toFloat()) else null
         if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
@@ -3971,8 +3944,8 @@ class MainActivity : Activity() {
                         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
                     }.apply {
                         scaleType = ImageView.ScaleType.CENTER_CROP
-                        background = shape(ART, 8)
-                        roundCorners(8)
+                        background = shape(ART, coverR(8))
+                        roundCorners(coverR(8))
                     }
                     cell.addView(mini, LinearLayout.LayoutParams(cellWidth, cellWidth))
                     cell.addView(text(name, 10f, MUTED, false).apply {
@@ -4055,6 +4028,8 @@ class MainActivity : Activity() {
     private fun shape(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
     /** Build 2.4: clips a view (an album cover) to rounded corners, whatever its background is. */
+    /** Hifi 2.68: covers are square in Classic only. */
+    private fun coverR(r: Int) = if (classicUi) 0 else r
     private fun View.roundCorners(radiusDp: Int) {
         clipToOutline = true
         outlineProvider = object : android.view.ViewOutlineProvider() {
@@ -4086,7 +4061,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (classicUi) (if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E1E1E.toInt()) else if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.05f) or 0xFF000000.toInt() else mixColors(playerSurface, playerInk, 0.12f)) else albumDark, 16)   // Hifi 2.1: dark = the darkened accent colour of the cover (grey 0xFF1E1E1E without a colour)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
+    private fun floatingBackground() = shape(if (classicUi) (if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E2128.toInt()) else if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.05f) or 0xFF000000.toInt() else mixColors(playerSurface, playerInk, 0.12f)) else albumDark, 16)   // Hifi 2.1: dark = the darkened accent colour of the cover (grey 0xFF1E1E1E without a colour)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4119,7 +4094,7 @@ class MainActivity : Activity() {
         titleRow.addView(scanBox, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(12) })
         bar.addView(titleRow, FrameLayout.LayoutParams(-1, dp(HEADER_H_DP), Gravity.START or Gravity.TOP).apply { rightMargin = dp(HEADER_H_DP) + dp(8) })
         val gear = ImageView(this).apply {
-            setImageResource(R.drawable.ic_gear)   // Hifi 2.19: his own gear icon (alpha mask, tinted)
+            setImageResource(UiIcons.pick(R.drawable.ic_gear))   // Hifi 2.19: his own gear icon (alpha mask, tinted)
             contentDescription = "Settings"
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(12), dp(12), dp(12), dp(12))   // Hifi 2.20: a little smaller (was 10dp)
@@ -4473,9 +4448,10 @@ class MainActivity : Activity() {
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
-        private const val DARK_SURFACE = 0xFF000000.toInt()
+        private val DARK_SURFACE get() = if (classicUi) 0xFF0F1114.toInt() else 0xFF000000.toInt()   // Hifi 2.68: Classic Dark base 0F1114
         /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
         @Volatile private var classicUi = false
+        @Volatile private var noCoverAnim = false   // Hifi 2.68: set by a mode switch, cleared a moment after the new screen is up
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }

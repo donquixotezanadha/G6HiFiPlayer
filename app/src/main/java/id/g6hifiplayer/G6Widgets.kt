@@ -73,12 +73,12 @@ object G6Widgets {
     private const val THUMB_PX = 400
     private const val PLACEHOLDER_PX = 256
     /** Corner radius of the 4x1 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
-    private const val CORNER_FRACTION = 0.12f
+    private val CORNER_FRACTION get() = if (UiIcons.classic) 0f else 0.12f   // Hifi 2.68: square cover in Classic only
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
     private const val LEGACY_ACCENT = 0xFF6662C6.toInt()   // Hifi 2.1: only the Light widgets keep the old purple
     private const val LIGHT_CARD = 0xFFDADADD.toInt()      // card / button colour of the Light widgets
-    private const val COVER_WIDGET_FRACTION = 0.16f   // simple 4x1 widget cover
+    private val COVER_WIDGET_FRACTION get() = if (UiIcons.classic) 0f else 0.16f   // simple 4x1 widget cover
     /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
     private const val TOGGLE_DEBOUNCE_MS = 180L
@@ -331,6 +331,7 @@ object G6Widgets {
 
     /** Draws both widgets completely from the saved state (new widget, resize, new track, new cover, boot). */
     internal fun renderAll(context: Context) {
+        UiIcons.refresh(context)
         val app = context.applicationContext
         synchronized(lock) {
             val manager = AppWidgetManager.getInstance(app)
@@ -429,10 +430,10 @@ object G6Widgets {
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
-            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF1E1E1E.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
+            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF1E2128.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+            setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
             setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 1.85: like the mini player's play button (Hifi 2.1: accent of the cover)
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x1Provider::class.java, 4202, "toggle"))
@@ -443,7 +444,7 @@ object G6Widgets {
     private fun build2x2(context: Context, playing: Boolean, cover: Bitmap, light: Boolean): RemoteViews =
         RemoteViews(context.packageName, R.layout.g6_widget_2x2).apply {
             setImageViewBitmap(R.id.w_art, cover)
-            setImageViewResource(R.id.w_play, if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2)
+            setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.g6_w_ic_pause_2x2) else UiIcons.pick(R.drawable.g6_w_ic_play_2x2))
             setInt(R.id.w_play_bg, "setColorFilter", cardColorNow)   // Hifi 2.1: button box = darkened accent colour of the cover
             setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
@@ -475,7 +476,7 @@ object G6Widgets {
         setTextColor(R.id.w_duration, muted)
         setImageViewResource(R.id.w_open_player, R.drawable.ic_stat_music_wide)
         setInt(R.id.w_open_player, "setColorFilter", ink)
-        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+        setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
         setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
         setTextViewText(R.id.w_elapsed, timeLabel(position))
         setTextViewText(R.id.w_duration, timeLabel(duration))
@@ -539,7 +540,7 @@ object G6Widgets {
                 val sy = (raw.height - sh) / 2
                 val layer = canvas.saveLayer(left, 0f, w.toFloat(), h.toFloat(), null)
                 val tone = Paint(Paint.FILTER_BITMAP_FLAG)
-                tone.colorFilter = BackdropBlur.toneFilter(if (light) 0.72f else 0.06f, if (light) 0.95f else 0.26f)
+                tone.colorFilter = BackdropBlur.classicTone(light, 0.72f, 0.95f, 0.08f, 0.28f)
                 canvas.drawBitmap(raw, android.graphics.Rect(sx, sy, sx + sw, sy + sh), RectF(left, 0f, w.toFloat(), h.toFloat()), tone)
                 val mask = Paint()
                 mask.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
@@ -625,7 +626,7 @@ object G6Widgets {
         setTextColor(R.id.w_artist, muted)
         setTextColor(R.id.w_elapsed, muted)
         setTextColor(R.id.w_duration, muted)
-        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+        setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
         setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
         setTextViewText(R.id.w_elapsed, timeLabel(position))
         setTextViewText(R.id.w_duration, timeLabel(duration))
@@ -674,7 +675,7 @@ object G6Widgets {
         setViewPadding(R.id.w_left, 0, pad, 0, pad)   // Hifi 1.77: title top = square top, progress bottom = square bottom
         setViewPadding(R.id.w_play, iconPad, iconPad, iconPad, iconPad)
         setImageViewBitmap(R.id.w_play_bg, playSquare(cardColorNow))
-        setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
+        setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
         setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
         setImageViewBitmap(R.id.w_progress, progressBitmap(
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
@@ -696,11 +697,12 @@ object G6Widgets {
 
     /** Play/pause only (the frequent case): partial update, no cover, no text. */
     private fun refreshPlayback(context: Context, playing: Boolean, position: Int, duration: Int) {
+        UiIcons.refresh(context)
         val manager = AppWidgetManager.getInstance(context)
         val light = isLightTheme(context)
         syncAccent(context, light)
-        val icon = if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s
-        val widget2x2Icon = if (playing) R.drawable.g6_w_ic_pause_2x2 else R.drawable.g6_w_ic_play_2x2
+        val icon = if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s)
+        val widget2x2Icon = if (playing) UiIcons.pick(R.drawable.g6_w_ic_pause_2x2) else UiIcons.pick(R.drawable.g6_w_ic_play_2x2)
         val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x1Provider::class.java))
         if (ids4.isNotEmpty()) {

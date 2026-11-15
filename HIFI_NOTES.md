@@ -706,3 +706,8 @@
 ## Hifi 2.67 - Classic: the grey cover is on the splash from the first frame
 - Cause: in Classic the sharp cover (for the grey top) only existed after the playback state restored the track, so the splash was plain, then the grey cover appeared, then the main screen. Adaptive already drew its saved 96 px blur (last_backdrop.png).
 - Now the last cover is also saved (last_cover.jpg, max 900 px, JPEG 88, written together with last_backdrop.png, removed when the track has no cover) and read at start when Classic is on and no cover is loaded yet; the real cover replaces it silently (same picture). Adaptive unchanged.
+
+## Hifi 2.68 (combined: Adaptive + Classic)
+- Base: 2.67. Adaptive is unchanged. All Classic-line changes (2.67b-2.67i) apply only while Classic is active: square covers (apps + widgets, 2x2 stays round), Dark base 0F1114 / windows 1E2128 / blue cover band, centred title/artist/album, Hi-Res badge on the Now Playing cover, sharp thin icons (UiIcons.pick).
+- Switching Adaptive <-> Classic now saves and restarts the screen at once (no cover animation).
+- App icon: the old coloured icon (the black 2.67j icon is only in the Classic line).
