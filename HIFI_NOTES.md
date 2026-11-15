@@ -717,3 +717,6 @@
 
 ## Hifi 2.67d - Classic: Dark base a bit darker with a thin cold blue (from 2.67c)
 - Same idea as Light F8F8FC (R=G, blue a little higher): Dark base 0xFF141416 -> 0xFF101218 (page, bars, splash background, styles.xml window background, Blur widget card). Windows / mini player card / 4x1 widget Dark 0xFF242428 -> 0xFF22242B. Grey cover band Dark 0.07-0.28 (app), 0.08-0.28 (widget). Light unchanged. versionCode 159.
+
+## Hifi 2.67e - Classic Dark: the grey cover band takes the base's cold blue (from 2.67d)
+- In Dark the cover at the top of the page (and in the Blur widgets) was neutral grey on a bluish base. BackdropBlur.classicTone: a black pixel = exactly CLASSIC_DARK (101218), brighter pixels add grey with gains R 0.90 / G 0.95 / B 1.00, so the cover melts into the background. Band span unchanged (app 0.21, widget 0.20). Light unchanged (plain grey). versionCode 160.

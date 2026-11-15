@@ -21,6 +21,24 @@ internal object BackdropBlur {
         )))
     }
 
+    /**
+     * Hifi 2.67e: the cover band in Dark carries the same cold blue as the Dark base (CLASSIC_DARK): a black pixel = exactly the base colour, brighter
+     * pixels add grey with a slightly stronger blue, so the cover melts into the background instead of looking neutral grey on a bluish page.
+     * Light keeps the plain grey band.
+     */
+    fun classicTone(light: Boolean, lightLo: Float, lightHi: Float, darkLo: Float, darkHi: Float): android.graphics.ColorMatrixColorFilter {
+        if (light) return toneFilter(lightLo, lightHi)
+        val span = darkHi - darkLo
+        val ar = span * 0.90f; val ag = span * 0.95f; val ab = span
+        val br = ((CLASSIC_DARK shr 16) and 0xFF).toFloat(); val bg = ((CLASSIC_DARK shr 8) and 0xFF).toFloat(); val bb = (CLASSIC_DARK and 0xFF).toFloat()
+        return android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+            ar * 0.299f, ar * 0.587f, ar * 0.114f, 0f, br,
+            ag * 0.299f, ag * 0.587f, ag * 0.114f, 0f, bg,
+            ab * 0.299f, ab * 0.587f, ab * 0.114f, 0f, bb,
+            0f, 0f, 0f, 1f, 0f
+        )))
+    }
+
     /** Hifi 2.61: alpha mask for the bottom fade of the Now Playing cover (smootherstep over the lower [fade] share), as NowPlayingCoverView draws it. */
     fun fadeShader(top: Float, bottom: Float, fade: Float): android.graphics.LinearGradient {
         val start = 1f - fade
