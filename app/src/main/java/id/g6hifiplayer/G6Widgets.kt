@@ -523,7 +523,7 @@ object G6Widgets {
         val canvas = Canvas(flat)
         val classic = isClassicUi(context)   // Hifi 2.58: Classic = plain card, no blurred cover, no veil (Hifi 2.59: in the Classic page grey)
         canvas.drawColor(if (classic) (if (light) BackdropBlur.CLASSIC_LIGHT else BackdropBlur.CLASSIC_DARK) else if (light) 0xFFF8F8FC.toInt() else 0xFF000000.toInt())
-        var veilArgb = if (classic) 0 else if (light) 0xC2FFFFFF.toInt() else 0xC2000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
+        var veilArgb = if (classic) 0 else if (light) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()   // Hifi 2.50: same veil as the player (neutral, tinted only by a colourful cover)
         if (hasTrack && classic) {
             // Hifi 2.60: Classic = the cover without colour, in a narrow grey band around the card grey, on the right half and fading out
             // towards the left into the plain grey (no blur, no veil).

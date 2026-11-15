@@ -20,9 +20,9 @@ internal object BackdropBlur {
      * Hifi 2.8: strength (alpha) of the white veil in Light. 70% (0xB3) as before, but over a mostly black cover the veil grows up to 85%
      * (0xD9) so the page stays light; covers that are not dominated by black keep exactly 70%.
      */
-    // Hifi 2.65: denser veil in Adaptive (player + Blur widgets): Light 76% (was 70%), up to 88% over a black cover (was 85%); Dark 62-76% (was 55-70%).
+    // Hifi 2.65: denser veil in Adaptive (player + Blur widgets): Light 76% (was 70%), up to 88% over a black cover (was 85%); Dark 62-76% (was 55-70%). Hifi 2.66: denser again: Light 82% up to 90%, Dark 69-82%.
     fun lightVeilAlpha(soft: Bitmap?): Int {
-        if (soft == null || soft.isRecycled) return 0xC2
+        if (soft == null || soft.isRecycled) return 0xD0
         var sum = 0.0
         var n = 0
         val step = 4
@@ -37,10 +37,10 @@ internal object BackdropBlur {
             }
             y += step
         }
-        if (n == 0) return 0xC2
+        if (n == 0) return 0xD0
         val lum = sum / n
         val f = ((0.40 - lum) / 0.40).coerceIn(0.0, 1.0)
-        return (0xC2 + f * (0xE0 - 0xC2)).toInt()
+        return (0xD0 + f * (0xE6 - 0xD0)).toInt()
     }
 
 
@@ -49,7 +49,7 @@ internal object BackdropBlur {
      * over dark covers so their colour shows more. Linear in the mean brightness of the blurred cover: 55% up to 25%, 70% from 50%.
      */
     fun darkVeilAlpha(soft: Bitmap?): Int {
-        if (soft == null || soft.isRecycled) return 0xC2
+        if (soft == null || soft.isRecycled) return 0xD0
         var sum = 0.0
         var n = 0
         var y = 0
@@ -63,9 +63,9 @@ internal object BackdropBlur {
             }
             y += 4
         }
-        if (n == 0) return 0xC2
+        if (n == 0) return 0xD0
         val f = ((sum / n - 0.25) / 0.25).coerceIn(0.0, 1.0)
-        return (0x9E + f * (0xC2 - 0x9E)).toInt()
+        return (0xB0 + f * (0xD0 - 0xB0)).toInt()
     }
 
     /**

@@ -698,3 +698,7 @@
 ## Hifi 2.65 - denser veil (Adaptive), fainter grey cover (Classic)
 - Adaptive (player backdrop and Blur widgets, one shared function): Light veil 76% (was 70%), up to 88% over a mostly black cover (was 85%); Dark veil 62-76% by cover brightness (was 55-70%); the no-cover fallback veil 76%. Blur radius, saturation 1.3 and the colour tint rule unchanged.
 - Classic: the grey cover at the top of the pages is fainter: Light band 0.74-0.97 (was 0.66-0.97), Dark band 0.04-0.34 (was 0.04-0.42). The Classic widgets are unchanged (he said they are right).
+
+## Hifi 2.66 - veil denser again
+- Adaptive (player backdrop + Blur widgets): Light veil 82% (was 76%), up to 90% over a mostly black cover; Dark veil 69-82% (was 62-76%); fallback veil 82%.
+- Classic (app only, widgets untouched): grey cover bands fainter again: Light 0.82-0.97 (was 0.74-0.97), Dark 0.04-0.26 (was 0.04-0.34).

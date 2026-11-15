@@ -138,7 +138,7 @@ class MainActivity : Activity() {
      * Veil over the blurred cover. Hifi 2.22: neutral in both themes (black 70% in Dark, white in Light; Light adds [BackdropBlur.lightVeilAlpha] over a black cover),
      * never the accent colour: the cover colour shows only in the blur itself, the accent only in surfaces, buttons and progress.
      */
-    private fun backdropVeil(): Int = if (lightTheme) 0xC2FFFFFF.toInt() else 0xC2000000.toInt()
+    private fun backdropVeil(): Int = if (lightTheme) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val ICON_SOFT get() = if (lightTheme) 0xFF60606D.toInt() else 0xFF93939F.toInt()   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
@@ -1353,7 +1353,7 @@ class MainActivity : Activity() {
             set(value) { field = value; invalidateSelf() }
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; tintedVeil = BackdropBlur.veilColor(value, light); invalidateSelf() }
-        private var tintedVeil = if (light) 0xC2FFFFFF.toInt() else 0xC2000000.toInt()   // Hifi 2.50: neutral, tinted by the cover only when it is colourful   // Hifi 2.8: Light veil is stronger over a mostly black cover
+        private var tintedVeil = if (light) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()   // Hifi 2.50: neutral, tinted by the cover only when it is colourful   // Hifi 2.8: Light veil is stronger over a mostly black cover
         var veil: Int = 0xB3000000.toInt()
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
@@ -1370,7 +1370,7 @@ class MainActivity : Activity() {
                     val top = b.top.toFloat()
                     val bottom = top + w * bmp.height / bmp.width
                     val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
-                    bitmapPaint.colorFilter = BackdropBlur.toneFilter(if (light) 0.74f else 0.04f, if (light) 0.97f else 0.34f)
+                    bitmapPaint.colorFilter = BackdropBlur.toneFilter(if (light) 0.82f else 0.04f, if (light) 0.97f else 0.26f)
                     canvas.drawBitmap(bmp, null, android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
                     classicMask.shader = BackdropBlur.fadeShader(top, bottom, NowPlayingCoverView.BOTTOM_FADE)
@@ -1426,7 +1426,7 @@ class MainActivity : Activity() {
             val save = canvas.saveLayer(0f, top, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             // Hifi 2.60: Classic = the cover without colour, in a light grey band (Light) or a dark grey band (Dark); the fade stays the same
-            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.toneFilter(if (light) 0.74f else 0.04f, if (light) 0.97f else 0.34f) else null
+            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.toneFilter(if (light) 0.82f else 0.04f, if (light) 0.97f else 0.26f) else null
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
             // Hifi 1.46: much softer fade: it starts earlier (the lower 50% of the cover) and follows a smootherstep curve with many stops,
             // so there is no visible start or end of the gradient.
