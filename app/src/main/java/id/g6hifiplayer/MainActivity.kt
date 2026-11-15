@@ -1287,7 +1287,7 @@ class MainActivity : Activity() {
                     val top = b.top.toFloat()
                     val bottom = top + w * bmp.height / bmp.width
                     val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
-                    bitmapPaint.colorFilter = BackdropBlur.toneFilter(if (light) 0.82f else 0.04f, if (light) 0.97f else 0.26f)
+                    bitmapPaint.colorFilter = BackdropBlur.toneFilter(if (light) 0.82f else 0.08f, if (light) 0.97f else 0.28f)
                     canvas.drawBitmap(bmp, null, android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
                     classicMask.shader = BackdropBlur.fadeShader(top, bottom, NowPlayingCoverView.BOTTOM_FADE)
@@ -1331,7 +1331,7 @@ class MainActivity : Activity() {
             val save = canvas.saveLayer(0f, top, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             // Hifi 2.60: Classic = the cover without colour, in a light grey band (Light) or a dark grey band (Dark); the fade stays the same
-            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.toneFilter(if (light) 0.82f else 0.04f, if (light) 0.97f else 0.26f) else null
+            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.toneFilter(if (light) 0.82f else 0.08f, if (light) 0.97f else 0.28f) else null
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
             // Hifi 1.46: much softer fade: it starts earlier (the lower 50% of the cover) and follows a smootherstep curve with many stops,
             // so there is no visible start or end of the gradient.
@@ -3963,7 +3963,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E1E1E.toInt(), 16)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF242428.toInt(), 16)   // Hifi 2.67c: Dark windows 1E1E1E -> 242428 (a step lighter than the new base)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4350,7 +4350,7 @@ class MainActivity : Activity() {
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
-        private const val DARK_SURFACE = 0xFF000000.toInt()
+        private const val DARK_SURFACE = 0xFF141416.toInt()   // Hifi 2.67c: was pure black
         /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
         @Volatile private var classicUi = true
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
