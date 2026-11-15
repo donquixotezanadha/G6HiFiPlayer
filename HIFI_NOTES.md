@@ -664,3 +664,6 @@
 
 ## Hifi 2.57b - 2.57 plus only the log fix of 2.58 (kept as the final version before the Classic UI work)
 - Exactly 2.57 (more vivid backdrop, adaptive Dark veil, info line colours) with one change: LOG AUDIO PATH no longer gets a row for starts in the middle of a track (resume / seek / pause), and an identical NOT CHECKED row is written once while it is among the 8 newest. No Classic UI, no Adaptive / Classic window. versionCode 147.
+
+## Hifi 2.57c - 2.57b plus the denser veil of 2.66
+- 2.57b (2.57 + log fix) with ONE change: the Adaptive veil of 2.66 (player backdrop and Blur widgets): Light 82% up to 90% over a mostly black cover, Dark 69-82%, fallback 82%. No Classic UI. versionCode 148.

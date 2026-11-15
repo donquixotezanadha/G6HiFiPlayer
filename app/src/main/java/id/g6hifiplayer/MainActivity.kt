@@ -138,7 +138,7 @@ class MainActivity : Activity() {
      * Veil over the blurred cover. Hifi 2.22: neutral in both themes (black 70% in Dark, white in Light; Light adds [BackdropBlur.lightVeilAlpha] over a black cover),
      * never the accent colour: the cover colour shows only in the blur itself, the accent only in surfaces, buttons and progress.
      */
-    private fun backdropVeil(): Int = if (lightTheme) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()
+    private fun backdropVeil(): Int = if (lightTheme) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val ICON_SOFT get() = if (lightTheme) 0xFF60606D.toInt() else 0xFF93939F.toInt()   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
@@ -1212,7 +1212,7 @@ class MainActivity : Activity() {
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var bitmap: android.graphics.Bitmap? = null
             set(value) { field = value; tintedVeil = BackdropBlur.veilColor(value, light); invalidateSelf() }
-        private var tintedVeil = if (light) 0xB3FFFFFF.toInt() else 0xB3000000.toInt()   // Hifi 2.50: neutral, tinted by the cover only when it is colourful   // Hifi 2.8: Light veil is stronger over a mostly black cover
+        private var tintedVeil = if (light) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()   // Hifi 2.50: neutral, tinted by the cover only when it is colourful   // Hifi 2.8: Light veil is stronger over a mostly black cover
         var veil: Int = 0xB3000000.toInt()
             set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
