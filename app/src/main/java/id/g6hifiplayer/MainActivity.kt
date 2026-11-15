@@ -122,6 +122,7 @@ class MainActivity : Activity() {
     private val dominantColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
     // Build 1.45 Classic theme: the cover, softened and darkened, behind every page; purple accent, white and grey text.
     private var darkBackdropBitmap: android.graphics.Bitmap? = null
+    private var classicStartBitmap: android.graphics.Bitmap? = null   // Hifi 2.67: last cover from disk, so Classic draws its grey cover from the first splash frame
     private var darkBackdropSource: java.lang.ref.WeakReference<android.graphics.Bitmap>? = null
     private val darkDrawables = mutableListOf<DarkBackdropDrawable>()
     /** True when the surface is light and the ink is dark (drives the status/navigation bar icon style). */
@@ -397,6 +398,9 @@ class MainActivity : Activity() {
             try {
                 val f = java.io.File(filesDir, "last_backdrop.png")
                 if (f.isFile) darkBackdropBitmap = BitmapFactory.decodeFile(f.absolutePath)
+                // Hifi 2.67: Classic needs the (sharp) last cover for its grey top, not only the blurred 96 px one.
+                val c = java.io.File(filesDir, "last_cover.jpg")
+                if (classicUi && playerCoverBitmap == null && c.isFile) classicStartBitmap = BitmapFactory.decodeFile(c.absolutePath)
             } catch (_: Throwable) { }
         }
         // Build 3.01: newly-created Now Playing artwork needs its Hi-Res foreground rebound after a theme rebuild.
@@ -1333,7 +1337,7 @@ class MainActivity : Activity() {
     }
 
     private fun newDarkDrawable(): DarkBackdropDrawable =
-        DarkBackdropDrawable(lightTheme).also { it.classicBitmap = playerCoverBitmap; it.bitmap = darkBackdropBitmap; it.veil = backdropVeil(); darkDrawables.add(it) }
+        DarkBackdropDrawable(lightTheme).also { it.classicBitmap = playerCoverBitmap ?: classicStartBitmap; it.bitmap = darkBackdropBitmap; it.veil = backdropVeil(); darkDrawables.add(it) }
 
     /** Called with the cover that is on screen (or null when the track has none); repaints every Classic backdrop. */
     private fun updateDarkBackdrop(source: android.graphics.Bitmap?) {
@@ -1342,6 +1346,24 @@ class MainActivity : Activity() {
         darkBackdropBitmap = source?.let { softCoverForBackdrop(it) }
         darkDrawables.forEach { it.bitmap = darkBackdropBitmap }
         saveBackdropToDisk(darkBackdropBitmap)
+        saveClassicCoverToDisk(source)
+    }
+
+    /** Hifi 2.67: keeps the last cover (max 900 px, JPEG) for the next start, written off the main thread; removed when the track has no cover. */
+    private fun saveClassicCoverToDisk(source: android.graphics.Bitmap?) {
+        val small = try {
+            source?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }?.let { b ->
+                val k = minOf(1f, 900f / maxOf(b.width, b.height))
+                android.graphics.Bitmap.createScaledBitmap(b, maxOf(1, (b.width * k).toInt()), maxOf(1, (b.height * k).toInt()), true)
+            }
+        } catch (_: Throwable) { null }
+        val file = java.io.File(filesDir, "last_cover.jpg")
+        Thread {
+            try {
+                if (small == null) file.delete()
+                else java.io.FileOutputStream(file).use { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            } catch (_: Throwable) { }
+        }.start()
     }
 
     /**
@@ -3233,6 +3255,7 @@ class MainActivity : Activity() {
     private fun showPlayerArtwork(bitmap: android.graphics.Bitmap?, provisional: Boolean = false, key: String? = null) {
         if (bitmap != null && !isFinishing) {
             playerCoverBitmap = bitmap; playerCoverView?.bitmap = bitmap; artPlaceholder.visibility = View.GONE
+            classicStartBitmap = null
             darkDrawables.forEach { it.classicBitmap = bitmap }
             updateClassicCover()
                         // Classic theme: the cover is softened and darkened behind every page instead of recolouring them.
@@ -3243,7 +3266,7 @@ class MainActivity : Activity() {
             if (provisional) return
             if (prepared) updatePlaybackNotification(try { player?.isPlaying == true } catch (_: Exception) { false })
         } else {
-            playerCoverBitmap = null; playerCoverView?.bitmap = null; darkDrawables.forEach { it.classicBitmap = null }; updateClassicCover(); artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            playerCoverBitmap = null; playerCoverView?.bitmap = null; classicStartBitmap = null; darkDrawables.forEach { it.classicBitmap = null }; updateClassicCover(); artPlaceholder.visibility = View.VISIBLE; artPlaceholder.text = "NO COVER ART"; artPlaceholder.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             updateDarkBackdrop(null)
             applyAccent(AlbumAccent.NEUTRAL)   // Hifi 2.1: no cover = white accent
             applyPlayerPalette(DARK_SURFACE)

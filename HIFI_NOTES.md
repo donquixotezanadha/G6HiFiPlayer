@@ -702,3 +702,7 @@
 ## Hifi 2.66 - veil denser again
 - Adaptive (player backdrop + Blur widgets): Light veil 82% (was 76%), up to 90% over a mostly black cover; Dark veil 69-82% (was 62-76%); fallback veil 82%.
 - Classic (app only, widgets untouched): grey cover bands fainter again: Light 0.82-0.97 (was 0.74-0.97), Dark 0.04-0.26 (was 0.04-0.34).
+
+## Hifi 2.67 - Classic: the grey cover is on the splash from the first frame
+- Cause: in Classic the sharp cover (for the grey top) only existed after the playback state restored the track, so the splash was plain, then the grey cover appeared, then the main screen. Adaptive already drew its saved 96 px blur (last_backdrop.png).
+- Now the last cover is also saved (last_cover.jpg, max 900 px, JPEG 88, written together with last_backdrop.png, removed when the track has no cover) and read at start when Classic is on and no cover is loaded yet; the real cover replaces it silently (same picture). Adaptive unchanged.
