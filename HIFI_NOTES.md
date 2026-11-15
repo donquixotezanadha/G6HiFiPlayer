@@ -714,3 +714,6 @@
 
 ## Hifi 2.67c - Classic: Dark base colour charcoal instead of pure black (from 2.67b)
 - Dark base 0xFF000000 -> 0xFF141416 (page backdrop CLASSIC_DARK, DARK_SURFACE, status/navigation bars, splash background, Blur widget card, Dark window background in styles.xml 0xFF101014 -> 0xFF141416). Floating windows / mini player card / 4x1 widget Dark 0xFF1E1E1E -> 0xFF242428 (a step lighter than the base). Grey cover band Dark 0.04-0.26 -> 0.08-0.28 (app), widget 0.06-0.26 -> 0.09-0.28, so the darkest part of a cover is not darker than the page. Light unchanged. Splash logo stays white. versionCode 158.
+
+## Hifi 2.67d - Classic: Dark base a bit darker with a thin cold blue (from 2.67c)
+- Same idea as Light F8F8FC (R=G, blue a little higher): Dark base 0xFF141416 -> 0xFF101218 (page, bars, splash background, styles.xml window background, Blur widget card). Windows / mini player card / 4x1 widget Dark 0xFF242428 -> 0xFF22242B. Grey cover band Dark 0.07-0.28 (app), 0.08-0.28 (widget). Light unchanged. versionCode 159.

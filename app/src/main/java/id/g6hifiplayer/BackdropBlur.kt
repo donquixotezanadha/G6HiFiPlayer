@@ -7,7 +7,7 @@ package id.g6hifiplayer
 internal object BackdropBlur {
     /** Hifi 2.61: Classic UI base colours = the original theme colours (Light 0xFFF8F8FC, Dark black). */
     const val CLASSIC_LIGHT = 0xFFF8F8FC.toInt()
-    const val CLASSIC_DARK = 0xFF141416.toInt()   // Hifi 2.67c: Dark base = soft charcoal instead of pure black
+    const val CLASSIC_DARK = 0xFF101218.toInt()   // Hifi 2.67d: Dark base = dark charcoal with a thin cold blue (like Light F8F8FC), was 141416 in 2.67c, black before
 
         /** Hifi 2.60: Classic tone: grey value of every pixel mapped into the band [lo, hi] (0..1), so a cover loses its colour but stays visible. */
     fun toneFilter(lo: Float, hi: Float): android.graphics.ColorMatrixColorFilter {

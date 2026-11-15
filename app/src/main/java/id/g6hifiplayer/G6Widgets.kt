@@ -423,7 +423,7 @@ object G6Widgets {
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
-            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF242428.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
+            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF22242B.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)
@@ -532,7 +532,7 @@ object G6Widgets {
                 val sy = (raw.height - sh) / 2
                 val layer = canvas.saveLayer(left, 0f, w.toFloat(), h.toFloat(), null)
                 val tone = Paint(Paint.FILTER_BITMAP_FLAG)
-                tone.colorFilter = BackdropBlur.toneFilter(if (light) 0.72f else 0.09f, if (light) 0.95f else 0.28f)
+                tone.colorFilter = BackdropBlur.toneFilter(if (light) 0.72f else 0.08f, if (light) 0.95f else 0.28f)
                 canvas.drawBitmap(raw, android.graphics.Rect(sx, sy, sx + sw, sy + sh), RectF(left, 0f, w.toFloat(), h.toFloat()), tone)
                 val mask = Paint()
                 mask.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
