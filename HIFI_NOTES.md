@@ -734,3 +734,6 @@
 
 ## Hifi 2.67i - Classic: button BACKGROUNDS rounded again, only icons stay sharp (from 2.67h)
 - He clarified: the sharp rule is for icons only. Back to the 2.67f radii for every button background / ripple / press shape: play and icon-button ripples 24dp, back arrow 20dp, album tile ripples 12dp, plain buttons 10dp, Setting option buttons 12dp, window / PLAY ALBUM buttons 14dp, selected tab highlight 16dp, widget press drawables (g6_widget_btn 24dp, _light 24dp, _pressed 20dp, _square 11dp) and the 2x2 play square (0.28). Kept from 2.67g/h: sharp icons (vector caps/joins, sharp play triangle, redrawn PNG icons), square covers, centred title, Hi-Res on the cover, Dark 0F1114. versionCode 164.
+
+## Hifi 2.67j - launcher logo plain black (from 2.67i)
+- ic_launcher_fg.png: same five-bar logo shape and alpha, colour changed to solid black (RGB 0); launcher background stays 0xFFF8F8FC (white). Nothing else changed. versionCode 165.
