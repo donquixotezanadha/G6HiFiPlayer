@@ -423,7 +423,7 @@ object G6Widgets {
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
-            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF22242B.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
+            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF21242C.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) R.drawable.ic_pause_s else R.drawable.ic_play_s)

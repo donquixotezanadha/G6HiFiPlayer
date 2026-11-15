@@ -3963,7 +3963,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF22242B.toInt(), 16)   // Hifi 2.67c: Dark windows 1E1E1E -> 242428 (a step lighter than the new base)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF21242C.toInt(), 16)   // Hifi 2.67c: Dark windows 1E1E1E -> 242428 (a step lighter than the new base)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4350,7 +4350,7 @@ class MainActivity : Activity() {
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
-        private const val DARK_SURFACE = 0xFF101218.toInt()   // Hifi 2.67c: was pure black
+        private const val DARK_SURFACE = 0xFF121418.toInt()   // Hifi 2.67c: was pure black
         /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
         @Volatile private var classicUi = true
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()

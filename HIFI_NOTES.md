@@ -720,3 +720,6 @@
 
 ## Hifi 2.67e - Classic Dark: the grey cover band takes the base's cold blue (from 2.67d)
 - In Dark the cover at the top of the page (and in the Blur widgets) was neutral grey on a bluish base. BackdropBlur.classicTone: a black pixel = exactly CLASSIC_DARK (101218), brighter pixels add grey with gains R 0.90 / G 0.95 / B 1.00, so the cover melts into the background. Band span unchanged (app 0.21, widget 0.20). Light unchanged (plain grey). versionCode 160.
+
+## Hifi 2.67f - Classic Dark: blue saturation 33% -> 25% (from 2.67e)
+- Dark base 101218 -> 121418 (HSV saturation 25%), windows / mini player / 4x1 widget 22242B -> 21242C, styles.xml window background 121418. Cover band gains R 0.75 / G 0.83 / B 1.00 (= the base ratios), so the band keeps the base hue and ~25% saturation. Light unchanged. versionCode 161.
