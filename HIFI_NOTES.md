@@ -747,3 +747,6 @@
 
 ## Hifi 2.73 classic 6
 - Fix of classic 5 (its cover came out SMALLER than classic 4: gaps of 34dp above/below were too generous). Cover now: free = dockTop - 12dp (was -26dp), side = min(width - 32dp, free - 4dp) (was width - 40dp); title block still 13dp lower. So it is bigger than classic 4 in height by ~27dp and in width cap by 8dp. versionCode 178.
+
+## Hifi 2.73 classic 7
+- Classic line only: Now Playing cover 10dp higher (COVER_RAISE_DP = 10, guessed; he will correct), size unchanged. versionCode 179.
