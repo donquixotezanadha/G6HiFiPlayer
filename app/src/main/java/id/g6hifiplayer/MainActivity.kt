@@ -925,15 +925,12 @@ class MainActivity : Activity() {
         playerPanel.addView(classicCover, FrameLayout.LayoutParams(dp(100), dp(100), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         stack.addOnLayoutChangeListener { _, _, top, _, _, _, _, _, _ ->
             val dockTop = top + dp(DOCK_TOP_PAD_DP)
-            // Hifi 2.73 classic 5: bigger cover (from his preview): it fills the space between the status bar and the title block with an even
-            // 34dp gap above and below (the Hi-Res badge is on the cover now, so no room is kept for a logo above the title any more), and is at
-            // most 44dp from each side edge.
-            val sbId = resources.getIdentifier("status_bar_height", "dimen", "android")
-            val statusBar = if (sbId > 0) resources.getDimensionPixelSize(sbId) else dp(24)
-            val avail = dockTop - statusBar
-            val side = minOf(playerPanel.width - dp(88), avail - dp(68)).coerceAtLeast(0)
+            // Hifi 2.73 classic 5 (fixed in 6): bigger than 2.73 classic 4 on every screen: less room kept above the title (12dp instead of 26dp,
+            // the Hi-Res badge is on the cover now), the title block sits 13dp lower, and the side gap is 16dp instead of 20dp.
+            val free = dockTop - dp(12)
+            val side = minOf(playerPanel.width - dp(32), free - dp(4)).coerceAtLeast(0)
             val lp = classicCover.layoutParams as FrameLayout.LayoutParams
-            val topMargin = (statusBar + (avail - side) / 2).coerceAtLeast(0)
+            val topMargin = ((free - side) / 2).coerceAtLeast(0)
             if (lp.width != side || lp.height != side || lp.topMargin != topMargin) {
                 lp.width = side; lp.height = side; lp.topMargin = topMargin
                 classicCover.layoutParams = lp

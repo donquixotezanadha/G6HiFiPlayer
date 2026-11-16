@@ -744,3 +744,6 @@
 
 ## Hifi 2.73 classic 5
 - Classic line only: bigger Now Playing cover from his preview (even 34dp gap under the status bar and above the title, max 44dp from each side; no room kept for a Hi-Res logo above the title) and the title block 13dp lower (META_RAISE_DP 16 -> 3; progress bar, controls and the rest unchanged). versionCode 177.
+
+## Hifi 2.73 classic 6
+- Fix of classic 5 (its cover came out SMALLER than classic 4: gaps of 34dp above/below were too generous). Cover now: free = dockTop - 12dp (was -26dp), side = min(width - 32dp, free - 4dp) (was width - 40dp); title block still 13dp lower. So it is bigger than classic 4 in height by ~27dp and in width cap by 8dp. versionCode 178.
