@@ -726,3 +726,6 @@
 
 ## Hifi 2.73
 - Classic: new play icon from his drawing (shorter triangle, same positions/shifts as 2.72); playing animation (equalizer bars) flat and 22% thinner. Mini player progress is already flat. Adaptive unchanged.
+
+## Hifi 2.74
+- Combined: new Classic pause icon (his pause2.png) in Classic mode; Adaptive unchanged. Old coloured launcher icon stays. versionCode 176.
