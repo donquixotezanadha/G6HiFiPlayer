@@ -738,3 +738,6 @@
 
 ## Hifi 2.73 classic 3
 - Classic line only: new pause icon (his pause2.png: thicker bars, 90/74/90 of 622). Same sizes as before (0.92 everywhere except the notification). Combined 2.73 keeps the old pause. versionCode 175.
+
+## Hifi 2.73 classic 4
+- Classic line only: stacked album covers are solid (opacity 100% for every cover, both themes) instead of 100/80/60/40; cut-out radius 0 to match the square covers. versionCode 176.

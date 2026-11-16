@@ -2191,7 +2191,7 @@ class MainActivity : Activity() {
                     background = shape(ART, 0)
                 }
                 // Hifi 2.39: opacity instead of dim/lighten
-                view.alpha = 1f - 0.20f * level   // Hifi 2.47: steps of 20% (100 / 80 / 60 / 40)
+                view.alpha = 1f   // Hifi 2.73 classic 4: solid covers in both themes (the stepped opacity 100 / 80 / 60 / 40 of 2.47 is gone)
                 covers.add(0, view)
                 addView(view)
             }
@@ -2202,7 +2202,7 @@ class MainActivity : Activity() {
          * visible rim (no see-through overlap of the stack).
          */
         override fun dispatchDraw(canvas: android.graphics.Canvas) {
-            val radius = dp(10).toFloat()
+            val radius = 0f   // Hifi 2.73 classic 4: square covers, so the cut-out matches the front cover exactly
             val now = drawingTime
             for (level in covers.size - 1 downTo 0) {
                 val child = covers[level]
