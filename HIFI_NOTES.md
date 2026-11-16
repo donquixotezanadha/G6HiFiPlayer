@@ -714,3 +714,6 @@
 
 ## Hifi 2.69
 - Classic-only icon update from his drawings: gear, sun, moon, queue, album (alpha masks in the *_sharp PNGs) and the control icons play, pause, next, previous (solid vectors, app, mini player, notification and all widgets). Adaptive keeps its old icons (UiIcons.pick).
+
+## Hifi 2.70
+- Classic: album icon no longer flipped (his own drawing is already correct); Adaptive keeps the flip. Play glyph moved 0.5 further right (optical centring); pause stays exactly centred.

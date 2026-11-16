@@ -768,7 +768,7 @@ class MainActivity : Activity() {
             setImageResource(UiIcons.pick(R.drawable.ic_row_album))
             imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            scaleY = -1f   // Hifi 2.49: flipped top-bottom once, so the diagonal runs bottom-left to top-right like the stacked covers in the Album tab
+            scaleY = if (classicUi) 1f else -1f   // Hifi 2.70: Classic icon is already drawn the right way (no flip); Adaptive keeps the flip. Hifi 2.49: flipped top-bottom once, so the diagonal runs bottom-left to top-right like the stacked covers in the Album tab
         }
         albumIconView = albumIcon
         val albumBtn = FrameLayout(this).apply {
