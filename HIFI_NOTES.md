@@ -732,3 +732,6 @@
 
 ## Hifi 2.73 classic 1
 - Classic line only: app id id.hifi.player.classic (installs next to the combined app, fresh data); new bar-waveform logo (his logo_4) as launcher icon (plain black on white), notification / 4x2 widget / cover-placeholder silhouettes and splash; splash "HIFI" now a TextView in the default system font (sans-serif-medium, no baked rounded letters). versionCode 173, "2.73 classic 1", APK Hifi-2.73-classic-1.apk.
+
+## Hifi 2.73 classic 2
+- New logo (his logo_5) in launcher / silhouettes / splash; splash HIFI now inside the same square box as the logo (was placed against the full-screen layer, so not under the logo) and a little bolder (weight 600 on API 28+). versionCode 174, APK Hifi-2.73-classic-2.apk.
