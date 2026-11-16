@@ -717,3 +717,6 @@
 
 ## Hifi 2.70
 - Classic: album icon no longer flipped (his own drawing is already correct); Adaptive keeps the flip. Play glyph shifted 0.5 further right (optical centring) ONLY on Now Playing and the notification (ic_play_24_sharp, ic_play_n_sharp); play alone (widgets, mini player, queue) stays as 2.69; pause stays exactly centred.
+
+## Hifi 2.71
+- Classic: wider gap between prev / play / next on Now Playing (inner spacers 0.5 -> 0.8); prev/play/pause/next icons 8% smaller everywhere (app, mini player, widgets) except the notification (own *_n_sharp copies keep the old size). Widgets only have a play button, so no gap change there. Adaptive unchanged.

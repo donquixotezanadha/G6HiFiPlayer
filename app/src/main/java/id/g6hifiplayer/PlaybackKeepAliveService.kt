@@ -375,10 +375,10 @@ class PlaybackKeepAliveService : Service() {
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             // Same vector icons as the in-app transport buttons (previous / play-pause / next).
-            .addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_previous_s), "Previous", actionPending("previous", 6101)).build())
-            .addAction(Notification.Action.Builder(if (playing) UiIcons.pick(R.drawable.ic_pause_s) else (if (UiIcons.classic) R.drawable.ic_play_n_sharp else R.drawable.ic_play_s),
+            .addAction(Notification.Action.Builder((if (UiIcons.classic) R.drawable.ic_previous_n_sharp else UiIcons.pick(R.drawable.ic_previous_s)), "Previous", actionPending("previous", 6101)).build())
+            .addAction(Notification.Action.Builder(if (playing) (if (UiIcons.classic) R.drawable.ic_pause_n_sharp else UiIcons.pick(R.drawable.ic_pause_s)) else (if (UiIcons.classic) R.drawable.ic_play_n_sharp else R.drawable.ic_play_s),
                 if (playing) "Pause" else "Play", actionPending("toggle", 6102)).build())
-            .addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_next_s), "Next", actionPending("next", 6103)).build())
+            .addAction(Notification.Action.Builder((if (UiIcons.classic) R.drawable.ic_next_n_sharp else UiIcons.pick(R.drawable.ic_next_s)), "Next", actionPending("next", 6103)).build())
             .addAction(Notification.Action.Builder(UiIcons.pick(R.drawable.ic_close_24), "Close player", actionPending("exit", 6104)).build())
         // Preserve the last known artwork on state-only updates (especially PLAYING -> PAUSED).
         // The service can publish before MainActivity's next UI callback, so read MediaSession's
