@@ -431,6 +431,7 @@ object G6Widgets {
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
             setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF1E2128.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
+            if (isClassicUi(context)) setViewPadding(R.id.w_card, (12 * density).toInt(), (10 * density).toInt(), (14 * density).toInt(), (10 * density).toInt())   // Hifi 2.72: Classic: play button 8dp further right (end padding 22 -> 14dp)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
@@ -761,7 +762,7 @@ object G6Widgets {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val radius = height / 2f
+        val radius = if (UiIcons.classic) 0f else height / 2f   // Hifi 2.72: flat square progress bar in Classic
         paint.color = if (light) 0x2E000000 else unplayedTrackColour()   // Hifi 2.4: unplayed part = colour of the selected track row in the app
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())

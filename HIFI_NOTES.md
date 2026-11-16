@@ -720,3 +720,6 @@
 
 ## Hifi 2.71
 - Classic: wider gap between prev / play / next on Now Playing (inner spacers 0.5 -> 0.8); prev/play/pause/next icons 8% smaller everywhere (app, mini player, widgets) except the notification (own *_n_sharp copies keep the old size). Widgets only have a play button, so no gap change there. Adaptive unchanged.
+
+## Hifi 2.72
+- Classic: all progress bars flat square (Now Playing, mini player seek drawable, widgets); Hifi 4x1 widget play button 8dp further right. Adaptive unchanged.
