@@ -2,5 +2,5 @@
 <!-- Hifi 2.69: Classic control icon from his drawing (solid, sharp corners). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:fillType="nonZero" android:pathData="M5.24,5.09 L5.24,18.91 L20.60,11.98 Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillType="nonZero" android:pathData="M5.90,5.09 L5.90,18.91 L19.94,11.98 Z" />
 </vector>

@@ -56,14 +56,17 @@ internal class EqualizerView(context: Context, barColor: Int) : View(context) {
         if (w <= 0f || h <= 0f) return
         val bars = 3
         val gap = w * 0.14f
-        val barW = (w - gap * (bars - 1)) / bars
+        val fullW = (w - gap * (bars - 1)) / bars
+        val classic = UiIcons.classic
+        val barW = if (classic) fullW * 0.78f else fullW   // Hifi 2.73: Classic bars are flat and a little thinner
+        val left0 = if (classic) (w - (barW * bars + gap * (bars - 1))) / 2f else 0f
         val offsets = floatArrayOf(0f, 0.33f, 0.66f)
         for (i in 0 until bars) {
             val level = if (playing) 0.25f + 0.75f * abs(sin((phase + offsets[i]) * Math.PI.toFloat())) else 0.25f
             val barH = h * level
-            val left = i * (barW + gap)
+            val left = left0 + i * (barW + gap)
             rect.set(left, h - barH, left + barW, h)
-            canvas.drawRoundRect(rect, barW / 2f, barW / 2f, paint)
+            if (classic) canvas.drawRect(rect, paint) else canvas.drawRoundRect(rect, barW / 2f, barW / 2f, paint)
         }
     }
 }

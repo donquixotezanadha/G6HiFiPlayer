@@ -723,3 +723,6 @@
 
 ## Hifi 2.72
 - Classic: all progress bars flat square (Now Playing, mini player seek drawable, widgets); Hifi 4x1 widget play button 8dp further right. Adaptive unchanged.
+
+## Hifi 2.73
+- Classic: new play icon from his drawing (shorter triangle, same positions/shifts as 2.72); playing animation (equalizer bars) flat and 22% thinner. Mini player progress is already flat. Adaptive unchanged.
