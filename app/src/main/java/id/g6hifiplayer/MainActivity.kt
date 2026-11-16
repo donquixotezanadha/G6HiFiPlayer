@@ -528,6 +528,17 @@ class MainActivity : Activity() {
             }
             val logoGroup = FrameLayout(this)
             logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
+            // Hifi 2.73 classic 1: "HIFI" under the logo in the default system font (no longer baked into the picture with rounded letters).
+            val splashWord = TextView(this).apply {
+                text = "HIFI"
+                setTextColor(splashInk)
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, splashLogoSide * 0.058f)
+                letterSpacing = 0.4f
+                includeFontPadding = false
+                gravity = Gravity.CENTER
+            }
+            logoGroup.addView(splashWord, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = (splashLogoSide * 0.652f).toInt() })
             splashLogo = logoGroup
             splash.addView(logoGroup, FrameLayout.LayoutParams(-1, -1))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))

@@ -729,3 +729,6 @@
 
 ## Hifi 2.73 classic
 - Pure Classic line built from the combined 2.73 (blur / Adaptive code and the Adaptive-Classic window removed, same method as 2.67b). Classic always on. versionCode 172, versionName "2.73 classic", APK Hifi-2.73-classic.apk.
+
+## Hifi 2.73 classic 1
+- Classic line only: app id id.hifi.player.classic (installs next to the combined app, fresh data); new bar-waveform logo (his logo_4) as launcher icon (plain black on white), notification / 4x2 widget / cover-placeholder silhouettes and splash; splash "HIFI" now a TextView in the default system font (sans-serif-medium, no baked rounded letters). versionCode 173, "2.73 classic 1", APK Hifi-2.73-classic-1.apk.

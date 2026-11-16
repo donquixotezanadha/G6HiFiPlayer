@@ -18,11 +18,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "id.hifi.player"
+        applicationId = "id.hifi.player.classic"
         minSdk = 28
         targetSdk = 35
-        versionCode = 172
-        versionName = "2.73 classic"
+        versionCode = 173
+        versionName = "2.73 classic 1"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
