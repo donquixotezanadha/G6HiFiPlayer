@@ -753,3 +753,6 @@
 
 ## Hifi 2.73 classic 8
 - Classic line only: Now Playing cover another 8dp higher (COVER_RAISE_DP 10 -> 18). versionCode 180.
+
+## Hifi 2.73 classic 9
+- Classic line only: cover lifted 12dp more than classic 8. Classic 8 only moved a few dp (the cover was height-limited, little room above it), so the lift is now real: the bottom edge rises by (what classic 8 lifted + 12dp); when there is no room above (must not go under the status bar) the cover is made that much smaller. versionCode 181.

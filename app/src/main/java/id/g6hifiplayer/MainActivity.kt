@@ -928,9 +928,14 @@ class MainActivity : Activity() {
             // Hifi 2.73 classic 5 (fixed in 6): bigger than 2.73 classic 4 on every screen: less room kept above the title (12dp instead of 26dp,
             // the Hi-Res badge is on the cover now), the title block sits 13dp lower, and the side gap is 16dp instead of 20dp.
             val free = dockTop - dp(12)
-            val side = minOf(playerPanel.width - dp(32), free - dp(4)).coerceAtLeast(0)
+            val side0 = minOf(playerPanel.width - dp(32), free - dp(4)).coerceAtLeast(0)
             val lp = classicCover.layoutParams as FrameLayout.LayoutParams
-            val topMargin = ((free - side) / 2 - dp(COVER_RAISE_DP)).coerceAtLeast(0)   // Hifi 2.73 classic 7: cover sits COVER_RAISE_DP higher (size unchanged)
+            // Hifi 2.73 classic 9: the cover rides COVER_RAISE_DP higher. The room above it is limited (it must not slide under the status bar), so
+            // where that room runs out the rest of the lift is taken from the cover itself (its bottom edge still rises by the full amount).
+            val slack = ((free - side0) / 2).coerceAtLeast(0)
+            val raise = minOf(slack, dp(COVER_RAISE_DP_OLD)) + dp(COVER_RAISE_STEP_DP)   // = what classic 8 really lifted (limited by the room) + 12dp more
+            val side = (side0 - (raise - slack).coerceAtLeast(0)).coerceAtLeast(0)
+            val topMargin = (slack - raise).coerceAtLeast(0)
             if (lp.width != side || lp.height != side || lp.topMargin != topMargin) {
                 lp.width = side; lp.height = side; lp.topMargin = topMargin
                 classicCover.layoutParams = lp
@@ -4344,7 +4349,8 @@ class MainActivity : Activity() {
         private const val SEEK_SIDE_PAD_DP = 20   // Hifi 1.50: 30 -> 20dp: title block and progress bar use the same side gap as the header and the Album content
         private const val DOCK_SIDE_PAD_DP = 30   // transport buttons and info lines keep their old 30dp so they do not move
         private const val HEADER_H_DP = 42
-        private const val COVER_RAISE_DP = 18   // Hifi 2.73 classic 8: Now Playing cover 18dp higher than classic 6 (10 in classic 7 + 8 more)
+        private const val COVER_RAISE_DP_OLD = 18   // classic 8 lift
+        private const val COVER_RAISE_STEP_DP = 12   // Hifi 2.73 classic 9: 12dp more lift on top of classic 8
         private const val META_RAISE_DP = 3   // Hifi 2.73 classic 5: title block 13dp lower (was 16)   // Hifi 1.50: how much higher title / artist / album / logo sit above the progress bar
         private const val STACK_BOTTOM_PAD_DP = 4
         /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
