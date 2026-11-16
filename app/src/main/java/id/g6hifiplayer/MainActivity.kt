@@ -121,7 +121,6 @@ class MainActivity : Activity() {
     private var appliedPlayerSurface: Int? = null
     private val dominantColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
     // Build 1.45 Classic theme: the cover, softened and darkened, behind every page; purple accent, white and grey text.
-    private var darkBackdropBitmap: android.graphics.Bitmap? = null
     private var classicStartBitmap: android.graphics.Bitmap? = null   // Hifi 2.67: last cover from disk, so Classic draws its grey cover from the first splash frame
     private var darkBackdropSource: java.lang.ref.WeakReference<android.graphics.Bitmap>? = null
     private val darkDrawables = mutableListOf<DarkBackdropDrawable>()
@@ -135,11 +134,6 @@ class MainActivity : Activity() {
     private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
     private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9F0.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
     private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0xCCE1E1EC.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
-    /**
-     * Veil over the blurred cover. Hifi 2.22: neutral in both themes (black 70% in Dark, white in Light; Light adds [BackdropBlur.lightVeilAlpha] over a black cover),
-     * never the accent colour: the cover colour shows only in the blur itself, the accent only in surfaces, buttons and progress.
-     */
-    private fun backdropVeil(): Int = if (lightTheme) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()
     private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val ICON_SOFT get() = if (lightTheme) 0xFF60606D.toInt() else 0xFF93939F.toInt()   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
@@ -364,9 +358,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         AudioPathLog.init(this)   // Hifi 1.40
         lightTheme = savedLightTheme
-        classicUi = getPreferences(MODE_PRIVATE).getBoolean("ui_classic", false)
+        classicUi = true   // Hifi 2.67b: pure Classic, no Adaptive / blur any more
         UiIcons.refresh(this)
-        if (noCoverAnim) window.decorView.postDelayed({ noCoverAnim = false }, 2500L)
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
@@ -395,14 +388,14 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         buildingUi = true
-        // Hifi 2.20: the last blurred cover is saved on disk (about 96 px), so the splash and the player draw the real backdrop from the first frame.
-        if (!startupSplashShown && darkBackdropBitmap == null) {
+        // Hifi 2.67: the last cover is saved on disk (max 900 px), so the splash and the player draw the grey cover from the first frame.
+        // Hifi 2.67b: the old blurred backdrop file (last_backdrop.png) is not used any more and is removed.
+        if (!startupSplashShown && classicStartBitmap == null) {
             try {
-                val f = java.io.File(filesDir, "last_backdrop.png")
-                if (f.isFile) darkBackdropBitmap = BitmapFactory.decodeFile(f.absolutePath)
-                // Hifi 2.67: Classic needs the (sharp) last cover for its grey top, not only the blurred 96 px one.
+                val old = java.io.File(filesDir, "last_backdrop.png")
+                if (old.isFile) old.delete()
                 val c = java.io.File(filesDir, "last_cover.jpg")
-                if (classicUi && playerCoverBitmap == null && c.isFile) classicStartBitmap = BitmapFactory.decodeFile(c.absolutePath)
+                if (playerCoverBitmap == null && c.isFile) classicStartBitmap = BitmapFactory.decodeFile(c.absolutePath)
             } catch (_: Throwable) { }
         }
         // Build 3.01: newly-created Now Playing artwork needs its Hi-Res foreground rebound after a theme rebuild.
@@ -468,7 +461,7 @@ class MainActivity : Activity() {
         val themeButtons = buttonArea()
         fillThemeButtons(themeButtons)
         themeCard.addView(themeButtons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
-        themeCard.addView(text("Dark uses a darkened album-art blur. Light is the mirror image: a light album-art blur, dark text, accent from the cover.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
+        themeCard.addView(text("Classic look: plain theme colour with the cover in soft grey at the top. Accent comes from the cover.", 11f, MUTED, false).apply { setPadding(0, dp(8), 0, 0) })
         settingsPanel.addView(themeCard)
         // Build 1.44: the album column option lives here (it used to sit above the Albums grid).
         val columnsCard = card()
@@ -761,7 +754,6 @@ class MainActivity : Activity() {
             contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
             isClickable = true; isFocusable = true
             setOnClickListener { switchThemeAnimated(!lightTheme, themeIconView) }
-            setOnLongClickListener { openUiModeWindow(this); true }   // Hifi 2.58: long press = Adaptive / Classic
             addView(themeIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
         val albumIcon = ImageView(this).apply {
@@ -911,7 +903,7 @@ class MainActivity : Activity() {
         val classicCover = ClassicCoverView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             contentDescription = "Album cover"
-            radiusPx = coverR(10).let { dp(it).toFloat() }   // Hifi 2.62: same corner level as the big cover on the album page (10dp); drawn by the view itself, so it is round from the very first frame
+            radiusPx = 0f   // Hifi 2.67b: no rounded corners on covers (square)
             alpha = 0f
             visibility = View.INVISIBLE
         }
@@ -1065,7 +1057,6 @@ class MainActivity : Activity() {
         albumDark = result.dark
         albumAccentLight = result.lightAccent
         albumTint = result.lightTint
-        darkDrawables.forEach { it.veil = backdropVeil() }
         if (::prevView.isInitialized) prevView.imageTintList = ColorStateList.valueOf(accentColor)   // Hifi 2.31
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(accentColor)
         if (::playView.isInitialized) playView.imageTintList = ColorStateList.valueOf(accentColor)
@@ -1211,7 +1202,6 @@ class MainActivity : Activity() {
         val box = classicCoverBox ?: return
         if (!classicUi || playerCoverBitmap == null || classicSide <= 0 || box.visibility == View.VISIBLE && box.alpha >= 1f) return
         box.animate().cancel()
-        if (noCoverAnim) { box.alpha = 1f; box.translationY = 0f; box.visibility = View.VISIBLE; return }   // Hifi 2.68: no cover animation after a mode switch
         if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = dp(28).toFloat(); box.visibility = View.VISIBLE }
         box.animate().alpha(1f).translationY(0f).setDuration(320L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
     }
@@ -1243,44 +1233,6 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Hifi 2.68: switching Adaptive <-> Classic saves the choice and restarts the screen at once (no cover animation, no snapshot fade). */
-    private fun setClassicUi(enabled: Boolean) {
-        if (classicUi == enabled) return
-        getPreferences(MODE_PRIVATE).edit().putBoolean("ui_classic", enabled).commit()
-        UiIcons.classic = enabled
-        try { G6Widgets.renderAll(this) } catch (_: Throwable) {}
-        noCoverAnim = true
-        val intent = android.content.Intent(this, MainActivity::class.java)
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        finish()
-        startActivity(intent)
-        overridePendingTransition(0, 0)
-    }
-
-    /** Hifi 2.58: small floating window without a title: two choices, the active one filled. */
-    private fun openUiModeWindow(anchor: View?) {
-        val dialog = AlertDialog.Builder(this).create()
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(8))
-            background = floatingBackground()
-        }
-        fun choice(label: String, classic: Boolean) {
-            panel.addView(action(label, classicUi == classic) { dialog.dismiss(); setClassicUi(classic) },
-                LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(8) })
-        }
-        choice("ADAPTIVE", false)
-        choice("CLASSIC", true)
-        dialog.setView(panel)
-        panel.visibility = View.INVISIBLE
-        dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
-        dialog.show()
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.window?.setLayout(minOf(dp(280), floatingWindowWidth()), WindowManager.LayoutParams.WRAP_CONTENT)
-        dialog.window?.setDimAmount(0.55f)
-        popIn(panel, anchor)
-    }
-
     private fun setLightTheme(enabled: Boolean) {
         if (lightTheme == enabled) return
         lightTheme = enabled
@@ -1293,31 +1245,13 @@ class MainActivity : Activity() {
         G6Widgets.renderAll(this)
     }
 
-    /** Cover for the Classic backdrop: scaled to ~96 px and box-blurred (see [BackdropBlur], shared with the blur widget). */
-    private fun softCoverForBackdrop(source: android.graphics.Bitmap): android.graphics.Bitmap? = BackdropBlur.soft(source)
-
-    /** Hifi 2.20: keeps the last blurred cover for the next start (small PNG, written off the main thread; removed when the track has no cover). */
-    private fun saveBackdropToDisk(bitmap: android.graphics.Bitmap?) {
-        val copy = try { bitmap?.takeIf { !it.isRecycled }?.copy(android.graphics.Bitmap.Config.ARGB_8888, false) } catch (_: Throwable) { null }
-        val file = java.io.File(filesDir, "last_backdrop.png")
-        Thread {
-            try {
-                if (copy == null) file.delete()
-                else java.io.FileOutputStream(file).use { copy.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-            } catch (_: Throwable) { }
-        }.start()
-    }
-
     private fun newDarkDrawable(): DarkBackdropDrawable =
-        DarkBackdropDrawable(lightTheme).also { it.classicBitmap = playerCoverBitmap ?: classicStartBitmap; it.bitmap = darkBackdropBitmap; it.veil = backdropVeil(); darkDrawables.add(it) }
+        DarkBackdropDrawable(lightTheme).also { it.classicBitmap = playerCoverBitmap ?: classicStartBitmap; darkDrawables.add(it) }
 
     /** Called with the cover that is on screen (or null when the track has none); repaints every Classic backdrop. */
     private fun updateDarkBackdrop(source: android.graphics.Bitmap?) {
-        if (source != null && source === darkBackdropSource?.get() && darkBackdropBitmap != null) return
+        if (source != null && source === darkBackdropSource?.get()) return
         darkBackdropSource = source?.let { java.lang.ref.WeakReference(it) }
-        darkBackdropBitmap = source?.let { softCoverForBackdrop(it) }
-        darkDrawables.forEach { it.bitmap = darkBackdropBitmap }
-        saveBackdropToDisk(darkBackdropBitmap)
         saveClassicCoverToDisk(source)
     }
 
@@ -1345,19 +1279,13 @@ class MainActivity : Activity() {
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var classicBitmap: android.graphics.Bitmap? = null   // Hifi 2.60: the sharp cover, used by Classic only
             set(value) { field = value; invalidateSelf() }
-        var bitmap: android.graphics.Bitmap? = null
-            set(value) { field = value; tintedVeil = BackdropBlur.veilColor(value, light); invalidateSelf() }
-        private var tintedVeil = if (light) 0xD0FFFFFF.toInt() else 0xD0000000.toInt()   // Hifi 2.50: neutral, tinted by the cover only when it is colourful   // Hifi 2.8: Light veil is stronger over a mostly black cover
-        var veil: Int = 0xB3000000.toInt()
-            set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
         private val classicMask = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN) }
-        private val srcRect = android.graphics.Rect()
 
         override fun draw(canvas: android.graphics.Canvas) {
             val b = bounds
             if (b.width() <= 0 || b.height() <= 0) return
-            if (classicUi) {   // Hifi 2.61: Classic = solid theme colour; the colourless cover with the Now Playing fade sits at the top of every page
+            run {   // Hifi 2.61: Classic = solid theme colour; the colourless cover with the Now Playing fade sits at the top of every page
                 canvas.drawColor(if (light) BackdropBlur.CLASSIC_LIGHT else BackdropBlur.CLASSIC_DARK)
                 classicBitmap?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }?.let { bmp ->
                     val w = b.width().toFloat()
@@ -1371,19 +1299,7 @@ class MainActivity : Activity() {
                     canvas.drawRect(b.left.toFloat(), top, b.left + w, bottom, classicMask)
                     canvas.restoreToCount(save)
                 }
-                return
             }
-            canvas.drawColor(if (light) LIGHT_SURFACE else DARK_SURFACE)
-            bitmap?.takeIf { !it.isRecycled }?.let { bmp ->
-                val scale = maxOf(b.width() / bmp.width.toFloat(), b.height() / bmp.height.toFloat())
-                val sw = (b.width() / scale).toInt().coerceIn(1, bmp.width)
-                val sh = (b.height() / scale).toInt().coerceIn(1, bmp.height)
-                val sx = (bmp.width - sw) / 2
-                val sy = (bmp.height - sh) / 2
-                srcRect.set(sx, sy, sx + sw, sy + sh)
-                canvas.drawBitmap(bmp, srcRect, b, bitmapPaint)
-            }
-            canvas.drawColor(tintedVeil)   // Hifi 1.53: veil 60% -> 70%; Hifi 1.36: veil 50% -> 60% (still one flat layer, no gradient)
         }
 
         override fun setAlpha(alpha: Int) { }
@@ -1501,8 +1417,7 @@ class MainActivity : Activity() {
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            themed { background = shape(ART, coverR(8)) }
-            roundCorners(coverR(8))   // Hifi 1.21: the picture itself is clipped, the background alone did not round it
+            themed { background = shape(ART, 0) }
             contentDescription = "Currently playing artwork"
         }
         mini.addView(queueMiniArt, LinearLayout.LayoutParams(dp(52), dp(52)))
@@ -2013,8 +1928,7 @@ class MainActivity : Activity() {
                 val artSide = minOf((resources.displayMetrics.widthPixels * ALBUM_DETAIL_ART_FRACTION).toInt(), contentWidth)
                 val bigCover = ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, coverR(10))
-                    roundCorners(coverR(10))
+                    background = shape(ART, 0)
                     contentDescription = "Artwork $album"   // Hifi 2.40: no drop shadow under the big cover
                 }
                 applyAlbumHiResBadge(bigCover, entries.map { it.value })
@@ -2095,8 +2009,7 @@ class MainActivity : Activity() {
                         }
                         val otherCover = ImageView(this).apply {
                             scaleType = ImageView.ScaleType.CENTER_CROP
-                            background = shape(ART, coverR(10))
-                            roundCorners(coverR(10))
+                            background = shape(ART, 0)
                             contentDescription = "Artwork $other"
                         }
                         applyAlbumHiResBadge(otherCover, otherEntries.map { it.value })
@@ -2196,8 +2109,7 @@ class MainActivity : Activity() {
                     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
                 }.apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, coverR(10))
-                    roundCorners(coverR(10))
+                    background = shape(ART, 0)
                     contentDescription = "Artwork $album"
                 }
                 applyAlbumHiResBadge(cover, entries.map { it.value })
@@ -2263,8 +2175,7 @@ class MainActivity : Activity() {
             for (level in count - 1 downTo 0) {
                 val view = ImageView(context).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, coverR(10))
-                    roundCorners(coverR(10))
+                    background = shape(ART, 0)
                 }
                 // Hifi 2.39: opacity instead of dim/lighten
                 view.alpha = 1f - 0.20f * level   // Hifi 2.47: steps of 20% (100 / 80 / 60 / 40)
@@ -2395,7 +2306,7 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
         }
-        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, coverR(8)) } }
+        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 0) } }
         applyTrackHiResBadge(cover, t)
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val details = LinearLayout(this).apply {
@@ -3944,8 +3855,7 @@ class MainActivity : Activity() {
                         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
                     }.apply {
                         scaleType = ImageView.ScaleType.CENTER_CROP
-                        background = shape(ART, coverR(8))
-                        roundCorners(coverR(8))
+                        background = shape(ART, 0)
                     }
                     cell.addView(mini, LinearLayout.LayoutParams(cellWidth, cellWidth))
                     cell.addView(text(name, 10f, MUTED, false).apply {
@@ -4061,7 +3971,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (classicUi) (if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E2128.toInt()) else if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.05f) or 0xFF000000.toInt() else mixColors(playerSurface, playerInk, 0.12f)) else albumDark, 16)   // Hifi 2.1: dark = the darkened accent colour of the cover (grey 0xFF1E1E1E without a colour)   // Hifi 1.85: corners 16dp (1.83/1.84: 18dp; 1.36: 24 -> 12dp); the widget cards are 4dp more (20dp)
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E1E1E.toInt(), 16)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4448,10 +4358,9 @@ class MainActivity : Activity() {
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
-        private val DARK_SURFACE get() = if (classicUi) 0xFF0F1114.toInt() else 0xFF000000.toInt()   // Hifi 2.68: Classic Dark base 0F1114
+        private const val DARK_SURFACE = 0xFF0F1114.toInt()   // Hifi 2.73 classic: Classic Dark base
         /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
-        @Volatile private var classicUi = false
-        @Volatile private var noCoverAnim = false   // Hifi 2.68: set by a mode switch, cleared a moment after the new screen is up
+        @Volatile private var classicUi = true
         private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }
