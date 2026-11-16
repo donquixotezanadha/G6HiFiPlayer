@@ -113,6 +113,7 @@ object G6Widgets {
             } else AlbumAccent.NEUTRAL
             storeAccent(prefs, result)
         }
+        BackdropBlur.setTintFromCoverDark(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK))   // Hifi 2.73 classic 14: Classic card / backdrop colours follow the cover tint
         if (light) {
             val tint = prefs.getInt(K_TINT_LIGHT, AlbumAccent.DEFAULT_LIGHT_TINT)
             accentNow = prefs.getInt(K_ACCENT_LIGHT, AlbumAccent.DEFAULT_LIGHT_ACCENT)
@@ -424,7 +425,7 @@ object G6Widgets {
             setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
             setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
-            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) LIGHT_CARD else 0xFF1E2128.toInt()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
+            setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) BackdropBlur.cardLight() else BackdropBlur.windowDark()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             if (isClassicUi(context)) setViewPadding(R.id.w_card, (12 * density).toInt(), (10 * density).toInt(), (14 * density).toInt(), (10 * density).toInt())   // Hifi 2.72: Classic: play button 8dp further right (end padding 22 -> 14dp)
             val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)

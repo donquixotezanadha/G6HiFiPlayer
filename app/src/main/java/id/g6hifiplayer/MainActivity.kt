@@ -360,6 +360,7 @@ class MainActivity : Activity() {
         lightTheme = savedLightTheme
         classicUi = true   // Hifi 2.67b: pure Classic, no Adaptive / blur any more
         UiIcons.refresh(this)
+        getPreferences(MODE_PRIVATE).let { BackdropBlur.restoreTint(it.getFloat("classic_tint_h", 0f), it.getFloat("classic_tint_k", 0f)) }   // Hifi 2.73 classic 14: first frame already has the last cover tint
         albumGridColumns = getPreferences(MODE_PRIVATE).getInt("album_grid_columns", 2).coerceIn(2, 3)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
@@ -1072,6 +1073,12 @@ class MainActivity : Activity() {
      * cover. Pages that are built are re-tinted at once (or when Now Playing is left). Light keeps the old purple and surfaces.
      */
     private fun applyAccent(result: AlbumAccent.Result) {
+        if (BackdropBlur.setTintFromCoverDark(result.dark)) {   // Hifi 2.73 classic 14: backgrounds follow the cover tint
+            val (th, tk) = BackdropBlur.tintState()
+            getPreferences(MODE_PRIVATE).edit().putFloat("classic_tint_h", th).putFloat("classic_tint_k", tk).apply()
+            darkDrawables.forEach { it.invalidateSelf() }
+            tabsPaletteDirty = true
+        }
         if (result.accent == albumAccent && result.dark == albumDark && result.lightAccent == albumAccentLight && result.lightTint == albumTint) return
         albumAccent = result.accent
         albumDark = result.dark
@@ -3997,7 +4004,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E2128.toInt(), 10)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else BackdropBlur.windowDark(), 10)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4387,10 +4394,10 @@ class MainActivity : Activity() {
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
-        private const val DARK_SURFACE = 0xFF0F1114.toInt()   // Hifi 2.73 classic: Classic Dark base
+        private val DARK_SURFACE get() = BackdropBlur.CLASSIC_DARK   // Hifi 2.73 classic 14: Classic Dark base with the thin tint of the cover
         /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
         @Volatile private var classicUi = true
-        private const val LIGHT_SURFACE = 0xFFF8F8FC.toInt()
+        private val LIGHT_SURFACE get() = BackdropBlur.CLASSIC_LIGHT   // Hifi 2.73 classic 14: Light base with the thin tint of the cover
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
     }
 }

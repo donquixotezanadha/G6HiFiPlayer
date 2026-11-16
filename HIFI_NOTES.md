@@ -768,3 +768,6 @@
 
 ## Hifi 2.73 classic 13
 - Classic line only: bigger grey cover background. Player: band = 64% of the page height (was one screen width, ~50%), cover scaled up centre-crop, fade keeps its 40% share so it now ends at the top of the progress bar. Blur widgets: cover band starts at 20% of the widget width (was 40%) so it is visible up to the middle. versionCode 185.
+
+## Hifi 2.73 classic 14
+- Classic line only: the thin cold-blue touch of the backgrounds is replaced by the same thin touch in the cover colour (hue from AlbumAccent.Result.dark; strength follows how colourful the cover is, a grey cover gives a plain grey). Lightness (luminance) and thinness (saturation) of every base colour are unchanged: page Dark 0F1114 / Light F8F8FC, windows + mini player + 4x1 widget Dark 1E2128, widget Light DADADD. The grey cover band takes the tint of the background it lies on (channel gains = background / strongest channel, Overlay-like). The last tint is saved (classic_tint_h/k) so the first frame is tinted. Splash window background (styles.xml) stays static. versionCode 186.
