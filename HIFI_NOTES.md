@@ -741,3 +741,6 @@
 
 ## Hifi 2.73 classic 4
 - Classic line only: stacked album covers are solid (opacity 100% for every cover, both themes) instead of 100/80/60/40; cut-out radius 0 to match the square covers. versionCode 176.
+
+## Hifi 2.73 classic 5
+- Classic line only: bigger Now Playing cover from his preview (even 34dp gap under the status bar and above the title, max 44dp from each side; no room kept for a Hi-Res logo above the title) and the title block 13dp lower (META_RAISE_DP 16 -> 3; progress bar, controls and the rest unchanged). versionCode 177.
