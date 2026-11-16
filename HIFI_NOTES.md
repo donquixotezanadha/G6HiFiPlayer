@@ -711,3 +711,6 @@
 - Base: 2.67. Adaptive is unchanged. All Classic-line changes (2.67b-2.67i) apply only while Classic is active: square covers (apps + widgets, 2x2 stays round), Dark base 0F1114 / windows 1E2128 / blue cover band, centred title/artist/album, Hi-Res badge on the Now Playing cover, sharp thin icons (UiIcons.pick).
 - Switching Adaptive <-> Classic now saves and restarts the screen at once (no cover animation).
 - App icon: the old coloured icon (the black 2.67j icon is only in the Classic line).
+
+## Hifi 2.69
+- Classic-only icon update from his drawings: gear, sun, moon, queue, album (alpha masks in the *_sharp PNGs) and the control icons play, pause, next, previous (solid vectors, app, mini player, notification and all widgets). Adaptive keeps its old icons (UiIcons.pick).

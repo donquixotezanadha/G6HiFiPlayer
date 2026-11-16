@@ -1,13 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hifi 2.69: Classic control icon from his drawing (solid, sharp corners). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.6"
-        android:strokeLineJoin="miter"
-        android:strokeLineCap="butt"
-        android:pathData="M18,5v14l-8,-7zM6,5h2v14h-2z" />
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:fillType="nonZero" android:pathData="M3.09,11.98 L12.09,5.86 L12.09,18.14 Z M12.09,11.98 L20.91,5.86 L20.91,18.14 Z" />
 </vector>
