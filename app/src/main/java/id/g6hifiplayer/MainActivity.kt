@@ -1310,10 +1310,16 @@ class MainActivity : Activity() {
                 classicBitmap?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }?.let { bmp ->
                     val w = b.width().toFloat()
                     val top = b.top.toFloat()
-                    val bottom = top + w * bmp.height / bmp.width
+                    // Hifi 2.73 classic 13: bigger cover band: it reaches down to the top of the progress bar (CLASSIC_BAND_FRACTION of the page height)
+                    // instead of one screen width; the cover is scaled up (centre-crop) and the fade (same share of the band) ends at the progress.
+                    val bandH = (b.height() * CLASSIC_BAND_FRACTION).coerceAtLeast(w)
+                    val bottom = top + bandH
+                    val k = maxOf(w / bmp.width, bandH / bmp.height)
+                    val sw = (w / k).toInt().coerceIn(1, bmp.width); val sh = (bandH / k).toInt().coerceIn(1, bmp.height)
+                    val sx = (bmp.width - sw) / 2; val sy = (bmp.height - sh) / 2
                     val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
                     bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.82f, 0.97f, 0.07f, 0.28f)
-                    canvas.drawBitmap(bmp, null, android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
+                    canvas.drawBitmap(bmp, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
                     classicMask.shader = BackdropBlur.fadeShader(top, bottom, NowPlayingCoverView.BOTTOM_FADE)
                     canvas.drawRect(b.left.toFloat(), top, b.left + w, bottom, classicMask)
@@ -4349,6 +4355,7 @@ class MainActivity : Activity() {
         private const val SEEK_SIDE_PAD_DP = 20   // Hifi 1.50: 30 -> 20dp: title block and progress bar use the same side gap as the header and the Album content
         private const val DOCK_SIDE_PAD_DP = 30   // transport buttons and info lines keep their old 30dp so they do not move
         private const val HEADER_H_DP = 42
+        private const val CLASSIC_BAND_FRACTION = 0.64f   // Hifi 2.73 classic 13: grey cover band height as a share of the page height (reaches the progress bar)
         private const val COVER_RAISE_DP_OLD = 18   // classic 8 lift
         private const val COVER_RAISE_STEP_DP = 12   // Hifi 2.73 classic 9: 12dp more lift on top of classic 8
         private const val META_RAISE_DP = 3   // Hifi 2.73 classic 5: title block 13dp lower (was 16)   // Hifi 1.50: how much higher title / artist / album / logo sit above the progress bar

@@ -765,3 +765,6 @@
 
 ## Hifi 2.73 classic 12
 - Classic line only: mini player touch ripple very faint: card 0x30 (19%) -> 0x0E (5%), play button 0x55 (33%) -> 0x1A (10%). versionCode 184.
+
+## Hifi 2.73 classic 13
+- Classic line only: bigger grey cover background. Player: band = 64% of the page height (was one screen width, ~50%), cover scaled up centre-crop, fade keeps its 40% share so it now ends at the top of the progress bar. Blur widgets: cover band starts at 20% of the widget width (was 40%) so it is visible up to the middle. versionCode 185.

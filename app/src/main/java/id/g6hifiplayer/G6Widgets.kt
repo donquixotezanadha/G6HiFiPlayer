@@ -525,7 +525,7 @@ object G6Widgets {
             val file = File(context.filesDir, ART_FILE)
             val raw = if (file.exists()) try { BitmapFactory.decodeFile(file.absolutePath) } catch (_: Exception) { null } else null
             if (raw != null) {
-                val left = (w * 0.40f)
+                val left = (w * 0.20f)   // Hifi 2.73 classic 13: the cover band starts at 20% (was 40%), so it is clearly visible up to the middle of the widget and fades in towards the right
                 val rw = w - left
                 val k = maxOf(rw / raw.width.toFloat(), h / raw.height.toFloat())
                 val sw = (rw / k).toInt().coerceIn(1, raw.width)
