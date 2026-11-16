@@ -735,3 +735,6 @@
 
 ## Hifi 2.73 classic 2
 - New logo (his logo_5) in launcher / silhouettes / splash; splash HIFI now inside the same square box as the logo (was placed against the full-screen layer, so not under the logo) and a little bolder (weight 600 on API 28+). versionCode 174, APK Hifi-2.73-classic-2.apk.
+
+## Hifi 2.73 classic 3
+- Classic line only: new pause icon (his pause2.png: thicker bars, 90/74/90 of 622). Same sizes as before (0.92 everywhere except the notification). Combined 2.73 keeps the old pause. versionCode 175.
