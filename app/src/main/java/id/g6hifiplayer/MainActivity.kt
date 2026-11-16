@@ -3991,7 +3991,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E1E1E.toInt(), 16)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E2128.toInt(), 8)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)

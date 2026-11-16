@@ -756,3 +756,6 @@
 
 ## Hifi 2.73 classic 9
 - Classic line only: cover lifted 12dp more than classic 8. Classic 8 only moved a few dp (the cover was height-limited, little room above it), so the lift is now real: the bottom edge rises by (what classic 8 lifted + 12dp); when there is no room above (must not go under the status bar) the cover is made that much smaller. versionCode 181.
+
+## Hifi 2.73 classic 10
+- Classic line only: less rounded backgrounds. Floating windows + mini player (floatingBackground) 16 -> 8dp; widget cards (4x1 / 2x2 card_bg, flat blur-widget cards incl. their 9-piece corners) 20 -> 10dp. Rule kept: widgets are twice the window radius. Widget buttons / press shapes unchanged. Also FIXED a regression from the 2.73 classic cherry-pick: Dark window / mini player colour was 1E1E1E again instead of 1E2128 (his 2.67j colour). versionCode 182.
