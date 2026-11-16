@@ -759,3 +759,6 @@
 
 ## Hifi 2.73 classic 10
 - Classic line only: less rounded backgrounds. Floating windows + mini player (floatingBackground) 16 -> 8dp; widget cards (4x1 / 2x2 card_bg, flat blur-widget cards incl. their 9-piece corners) 20 -> 10dp. Rule kept: widgets are twice the window radius. Widget buttons / press shapes unchanged. Also FIXED a regression from the 2.73 classic cherry-pick: Dark window / mini player colour was 1E1E1E again instead of 1E2128 (his 2.67j colour). versionCode 182.
+
+## Hifi 2.73 classic 11
+- Classic line only: a little rounder again. Windows + mini player 8 -> 10dp; widget cards 10 -> 14dp (blur widget 9-piece corners too). Button backgrounds scaled with the same ratio (player x0.625 of the 2.67 values: 24->15, 20->12, 16->10, 14->9, 12->8, 10->6; widget buttons / press shapes x0.7: 24->17, 20->14, 11->8; 2x2 play square 0.28 -> 0.20). versionCode 183.

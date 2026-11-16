@@ -555,7 +555,7 @@ object G6Widgets {
     private fun RemoteViews.setBlurBackground(flat: Bitmap) {
         val w = flat.width; val h = flat.height
         val scale = flat.density / 1000f
-        val c = (10f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
+        val c = (14f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
         fun crop(x: Int, y: Int, cw: Int, ch: Int) = Bitmap.createBitmap(flat, x, y, cw.coerceAtLeast(1), ch.coerceAtLeast(1))
         fun corner(x: Int, y: Int, rect: RectF): Bitmap {
             val src = crop(x, y, c, c)
@@ -628,7 +628,7 @@ object G6Widgets {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.color = color
-        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.28f, size * 0.28f, paint)
+        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.20f, size * 0.20f, paint)
         return bmp
     }
 

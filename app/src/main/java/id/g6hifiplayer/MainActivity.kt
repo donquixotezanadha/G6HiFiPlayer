@@ -1404,7 +1404,7 @@ class MainActivity : Activity() {
          songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
-            themed { setTextColor(WHITE); setHintTextColor(MUTED); background = shape(LINE, 14) }
+            themed { setTextColor(WHITE); setHintTextColor(MUTED); background = shape(LINE, 9) }
             setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             setText(songSearchQuery)
@@ -1473,7 +1473,7 @@ class MainActivity : Activity() {
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x55)), shape(Color.TRANSPARENT, 24), null) }
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x55)), shape(Color.TRANSPARENT, 15), null) }
             setOnClickListener { togglePlayback() }
         }
         mini.addView(queueMiniPlayView, LinearLayout.LayoutParams(dp(44), dp(48)))
@@ -1961,7 +1961,7 @@ class MainActivity : Activity() {
                     isClickable = true; isFocusable = true
                     contentDescription = "Back to albums"
                     themed { imageTintList = ColorStateList.valueOf(WHITE) }   // Hifi 2.10: the arrow follows the theme ink (dark in Light)
-                    themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 20), null) }
+                    themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 12), null) }
                     setOnClickListener {
                         goBackFromAlbum()
                     }
@@ -2016,7 +2016,7 @@ class MainActivity : Activity() {
                             orientation = LinearLayout.VERTICAL
                             gravity = Gravity.CENTER_HORIZONTAL
                             setPadding(dp(4), dp(4), dp(4), dp(6))
-                            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
+                            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                             isClickable = true
                             isFocusable = true
                             contentDescription = "Open album $other"
@@ -2087,7 +2087,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(3), dp(4), dp(3), dp(7))
-                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
+                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album)
@@ -2322,7 +2322,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(if (nested) 18 else 8), dp(8), dp(8), dp(8))
-            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12) }
+            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 8) }
             isClickable = true
             isFocusable = true
         }
@@ -2369,7 +2369,7 @@ class MainActivity : Activity() {
             m.number.setTextColor(if (current) accentColor else MUTED)
             // Build 2.10: the queue's "x" is grey except on the selected track, where it keeps the accent.
             m.action?.setTextColor(if (current) accentColor else ACTION_GREY)
-            m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 12)
+            m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 8)
         }
     }
 
@@ -2460,7 +2460,7 @@ class MainActivity : Activity() {
     }
 
     private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) accentColor else WHITE, selected).apply {
-        setPadding(dp(12), dp(11), dp(12), dp(11)); themed { background = shape(if (selected) LINE else Color.TRANSPARENT, 12) }
+        setPadding(dp(12), dp(11), dp(12), dp(11)); themed { background = shape(if (selected) LINE else Color.TRANSPARENT, 8) }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
     }
@@ -3640,7 +3640,7 @@ class MainActivity : Activity() {
         // Symmetric horizontal insets keep the selected rectangle centered inside
         // each equal-width tab; icon sizing is independent from this background.
         val pill = android.graphics.drawable.InsetDrawable(
-            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 16),
+            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 10),
             dp(16), dp(4), dp(16), dp(4)
         )
         return RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), pill, null)
@@ -3653,7 +3653,7 @@ class MainActivity : Activity() {
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
         gravity = Gravity.CENTER
-        themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 24), null) }
+        themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun addToQueue(index: Int) {
@@ -3828,7 +3828,7 @@ class MainActivity : Activity() {
             val item = text(label, 14f, WHITE, true).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 14), null)   // 2.3: same colour as the unselected buttons in Setting
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 9), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
             }
@@ -3926,7 +3926,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         themed {
             setTextColor(if (primary) BG else WHITE)
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 14), null)
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 9), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3936,7 +3936,7 @@ class MainActivity : Activity() {
         setPadding(dp(4), dp(2), dp(4), dp(8))
         themed {
             setTextColor(WHITE)   // 2.3: both buttons white; they are plain buttons, not a selected state
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 10), null)
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 6), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3991,7 +3991,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E2128.toInt(), 8)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else 0xFF1E2128.toInt(), 10)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)
@@ -4030,7 +4030,7 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))   // Hifi 2.20: a little smaller (was 10dp)
             themed {
                 imageTintList = ColorStateList.valueOf(ICON_SOFT)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 24))
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 15))
             }
             isClickable = true; isFocusable = true
             setOnClickListener { openSettingsWindow() }
