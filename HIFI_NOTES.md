@@ -750,3 +750,6 @@
 
 ## Hifi 2.73 classic 7
 - Classic line only: Now Playing cover 10dp higher (COVER_RAISE_DP = 10, guessed; he will correct), size unchanged. versionCode 179.
+
+## Hifi 2.73 classic 8
+- Classic line only: Now Playing cover another 8dp higher (COVER_RAISE_DP 10 -> 18). versionCode 180.

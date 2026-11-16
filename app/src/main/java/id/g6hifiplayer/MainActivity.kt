@@ -4344,7 +4344,7 @@ class MainActivity : Activity() {
         private const val SEEK_SIDE_PAD_DP = 20   // Hifi 1.50: 30 -> 20dp: title block and progress bar use the same side gap as the header and the Album content
         private const val DOCK_SIDE_PAD_DP = 30   // transport buttons and info lines keep their old 30dp so they do not move
         private const val HEADER_H_DP = 42
-        private const val COVER_RAISE_DP = 10   // Hifi 2.73 classic 7: Now Playing cover 10dp higher
+        private const val COVER_RAISE_DP = 18   // Hifi 2.73 classic 8: Now Playing cover 18dp higher than classic 6 (10 in classic 7 + 8 more)
         private const val META_RAISE_DP = 3   // Hifi 2.73 classic 5: title block 13dp lower (was 16)   // Hifi 1.50: how much higher title / artist / album / logo sit above the progress bar
         private const val STACK_BOTTOM_PAD_DP = 4
         /** Build 2.7: gap between the Now Playing blocks, space above the title, and the grey of the progress track. */
