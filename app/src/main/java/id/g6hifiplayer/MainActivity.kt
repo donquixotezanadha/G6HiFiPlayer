@@ -1430,7 +1430,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
             // Hifi 1.36: same background as the floating windows (Setting, album options), 12dp corners; the Album list fades softly behind it (as in 1.20).
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), floatingBackground(), null) }
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x0E)), floatingBackground(), null) }   // Hifi 2.73 classic 12: very faint touch ripple on the mini player card (was 0x30)
             isClickable = true
             isFocusable = true
             setOnClickListener { showPlayerAnimated() }
@@ -1473,7 +1473,7 @@ class MainActivity : Activity() {
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x55)), shape(Color.TRANSPARENT, 15), null) }
+            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x1A)), shape(Color.TRANSPARENT, 15), null) }   // Hifi 2.73 classic 12: faint (was 0x55)
             setOnClickListener { togglePlayback() }
         }
         mini.addView(queueMiniPlayView, LinearLayout.LayoutParams(dp(44), dp(48)))

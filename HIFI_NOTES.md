@@ -762,3 +762,6 @@
 
 ## Hifi 2.73 classic 11
 - Classic line only: a little rounder again. Windows + mini player 8 -> 10dp; widget cards 10 -> 14dp (blur widget 9-piece corners too). Button backgrounds scaled with the same ratio (player x0.625 of the 2.67 values: 24->15, 20->12, 16->10, 14->9, 12->8, 10->6; widget buttons / press shapes x0.7: 24->17, 20->14, 11->8; 2x2 play square 0.28 -> 0.20). versionCode 183.
+
+## Hifi 2.73 classic 12
+- Classic line only: mini player touch ripple very faint: card 0x30 (19%) -> 0x0E (5%), play button 0x55 (33%) -> 0x1A (10%). versionCode 184.
