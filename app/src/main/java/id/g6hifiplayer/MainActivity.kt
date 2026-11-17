@@ -1325,7 +1325,7 @@ class MainActivity : Activity() {
                     val sw = (w / k).toInt().coerceIn(1, bmp.width); val sh = (bandH / k).toInt().coerceIn(1, bmp.height)
                     val sx = (bmp.width - sw) / 2; val sy = (bmp.height - sh) / 2
                     val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
-                    bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.82f, 0.97f, 0.07f, 0.28f)
+                    bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.75f, 0.97f, 0.07f, 0.28f)
                     canvas.drawBitmap(bmp, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
                     classicMask.shader = BackdropBlur.fadeShader(top, bottom, NowPlayingCoverView.BOTTOM_FADE)
@@ -1369,7 +1369,7 @@ class MainActivity : Activity() {
             val save = canvas.saveLayer(0f, top, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             // Hifi 2.60: Classic = the cover without colour, in a light grey band (Light) or a dark grey band (Dark); the fade stays the same
-            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.classicTone(light, 0.82f, 0.97f, 0.07f, 0.28f) else null
+            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.classicTone(light, 0.75f, 0.97f, 0.07f, 0.28f) else null
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
             // Hifi 1.46: much softer fade: it starts earlier (the lower 50% of the cover) and follows a smootherstep curve with many stops,
             // so there is no visible start or end of the gradient.

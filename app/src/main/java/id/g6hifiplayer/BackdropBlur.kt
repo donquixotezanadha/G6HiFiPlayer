@@ -7,10 +7,10 @@ package id.g6hifiplayer
 internal object BackdropBlur {
     /** Hifi 2.61: Classic UI base colours = the original theme colours (Light 0xFFF8F8FC, Dark 0F1114); since 2.73 classic 14 their thin cold-blue
      *  touch is replaced by the same thin touch in the colour of the cover (see [setTintFromCoverDark]); lightness (luminance) stays exactly the same. */
-    const val CLASSIC_LIGHT_BASE = 0xFFF8F8FC.toInt()
+    const val CLASSIC_LIGHT_BASE = 0xFFF5F5FF.toInt()
     const val CLASSIC_DARK_BASE = 0xFF0F1114.toInt()
     const val CLASSIC_WINDOW_DARK_BASE = 0xFF1E2128.toInt()
-    const val CLASSIC_CARD_LIGHT_BASE = 0xFFDADADD.toInt()
+    const val CLASSIC_CARD_LIGHT_BASE = 0xFFD9D9E1.toInt()
 
     @Volatile private var tintHue = 0f        // hue (0..360) of the cover colour
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)

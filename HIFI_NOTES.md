@@ -774,3 +774,6 @@
 
 ## Hifi 2.73 classic 15
 - Classic line only: system launch window background (styles.xml windowBackground) now equals the flat neutral grey of the initial state: Dark 101014 -> 111111, Light FFFFFF -> F9F9F9, so the flash before the app draws is nearly invisible. Cannot follow the saved cover tint (static theme XML). versionCode 187.
+
+## Hifi 2.73 classic 16
+- Classic line only, Light theme only (Dark untouched): the tint is stronger so it feels as visible as Dark. Light base F8F8FC (saturation ~1.6%) -> F5F5FF (~3.9%), widget card Light DADADD -> D9D9E1 (~3.6%); lightness practically the same. Grey cover band Light low end 0.82 -> 0.75 in the app (max ~15% -> ~24% darker than the base, like Dark ~23%) and 0.72 -> 0.65 in the Blur widgets (same shift). High end unchanged. versionCode 188.
