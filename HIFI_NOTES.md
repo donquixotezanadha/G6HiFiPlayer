@@ -786,3 +786,6 @@
 
 ## Hifi 2.73 classic 19
 - Classic line only: the only coloured element is the PLAYED part of the progress bars (Now Playing, mini player, widgets 4x1 / Blur 4x1 / Blur 4x2 / Text 4x2). It is a gradient from the pure theme colour (Dark white, Light black) at the left to a vivid colour of the cover at the moving end; the gradient always spans the played length. Vivid colour = hue of the cover (taken from AlbumAccent.Result.dark), HSL saturation 0.88, lightness Dark 0.62 / Light 0.45 (protected against merging with the theme). Grey / black-white covers (dark colour has no saturation) -> no accent, plain white/black bar. Unplayed track unchanged (white / black 18%). Mini player bar now a RoundedProgressDrawable (flat, 2dp). Icons, buttons, backgrounds stay pure. versionCode 191.
+
+## Hifi 2.73 classic 20
+- Classic line only: info line verdict colours (BIT-PERFECT green, orange warnings) are the same bright colours in both themes again: green 5BD98C, orange FFA040 (= the orange of LOG AUDIO PATH). The deep Light green 0F7A42 / orange 9E4F00 from 2.57 existed only to protect the Adaptive blur backdrop. versionCode 192.

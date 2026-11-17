@@ -3390,8 +3390,8 @@ class MainActivity : Activity() {
         val device = if (jack) "headset" else "speaker"
         // Hifi 2.57: Light uses deeper green / orange (the bright Dark ones had almost no contrast on the pale Light backdrop);
         // the grey part (headset / speaker) is the same MUTED grey as the rest of the info text in both themes (it was the Dark grey in Light).
-        val green = if (lightTheme) 0xFF0F7A42.toInt() else 0xFF5BD98C.toInt()
-        val orange = if (lightTheme) 0xFF9E4F00.toInt() else 0xFFFFA43A.toInt()
+        val green = 0xFF5BD98C.toInt()   // Hifi 2.73 classic 20: back to the original bright colours in both themes (the deep Light ones were only a protection for the Adaptive backdrop)
+        val orange = 0xFFFFA040.toInt()   // same orange as the unmatched rows of LOG AUDIO PATH
         val grey = MUTED
         // Build 2.0: row 1 = file type + source -> output (no headset / speaker here).
         // Row 2 = route verdict + headset / speaker + a grey note about the data. Both rows are one line and scroll when too long.
