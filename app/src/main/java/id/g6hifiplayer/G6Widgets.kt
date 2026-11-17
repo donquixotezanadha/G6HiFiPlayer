@@ -541,7 +541,7 @@ object G6Widgets {
                 val sy = (raw.height - sh) / 2
                 val layer = canvas.saveLayer(left, 0f, w.toFloat(), h.toFloat(), null)
                 val tone = Paint(Paint.FILTER_BITMAP_FLAG)
-                tone.colorFilter = BackdropBlur.classicTone(light, 0.70f, 1.0f, 0.0f, 0.20f)
+                tone.colorFilter = BackdropBlur.classicTone(light, 0.80f, 1.0f, 0.0f, 0.20f)
                 canvas.drawBitmap(raw, android.graphics.Rect(sx, sy, sx + sw, sy + sh), RectF(left, 0f, w.toFloat(), h.toFloat()), tone)
                 val mask = Paint()
                 mask.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)

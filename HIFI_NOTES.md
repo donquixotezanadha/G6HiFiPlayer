@@ -792,3 +792,6 @@
 
 ## Hifi 2.73 classic 21
 - Classic line only: BIT-PERFECT green in Light 5BD98C -> 1FBF63 (more vivid, a little deeper, readable on pure white); Dark green and all oranges unchanged. versionCode 193.
+
+## Hifi 2.73 classic 22
+- Classic line only: widget cover band in Light made as strong as Dark: low end 0.70 -> 0.80 (max ~30% -> ~20% darker than white, Dark ~20% lighter than black). Player unchanged (Dark ~24% / Light ~25%). versionCode 194.
