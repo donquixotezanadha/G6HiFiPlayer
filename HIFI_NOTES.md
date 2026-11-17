@@ -771,3 +771,6 @@
 
 ## Hifi 2.73 classic 14
 - Classic line only: the thin cold-blue touch of the backgrounds is replaced by the same thin touch in the cover colour (hue from AlbumAccent.Result.dark; strength follows how colourful the cover is, a grey cover gives a plain grey). Lightness (luminance) and thinness (saturation) of every base colour are unchanged: page Dark 0F1114 / Light F8F8FC, windows + mini player + 4x1 widget Dark 1E2128, widget Light DADADD. The grey cover band takes the tint of the background it lies on (channel gains = background / strongest channel, Overlay-like). The last tint is saved (classic_tint_h/k) so the first frame is tinted. Splash window background (styles.xml) stays static. versionCode 186.
+
+## Hifi 2.73 classic 15
+- Classic line only: system launch window background (styles.xml windowBackground) now equals the flat neutral grey of the initial state: Dark 101014 -> 111111, Light FFFFFF -> F9F9F9, so the flash before the app draws is nearly invisible. Cannot follow the saved cover tint (static theme XML). versionCode 187.
