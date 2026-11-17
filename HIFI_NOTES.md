@@ -780,3 +780,6 @@
 
 ## Hifi 2.73 classic 17
 - Classic line only: ALL tinting removed. Backgrounds = pure Dark 000000 / Light FFFFFF (page, splash, system launch window, launcher icon background FFFFFF); windows + mini player + 4x1 widget Dark 1E1E1E, widget card Light DBDBDB (neutral, derived from black/white); progress, play/prev/next, theme/queue/album/gear icons, equalizer bars, ripples, selected rows = pure theme colour (white Dark / black Light) or alpha of it; text greys neutral (Dark A5A5A5, Light 484848, no blue cast); cover band neutral: Dark 0 -> 24% white (app) / 0 -> 20% (widgets), Light 75% -> 100% (app) / 70% -> 100% (widgets). Cover tint code disabled (setTintFromCoverDark no-op). Kept coloured: audio verdict green/orange/red in LOG and info line. versionCode 189.
+
+## Hifi 2.73 classic 18
+- Classic line only: (1) Light theme: option buttons in the album long-press window and Setting (and other LINE surfaces: search field, selected rows, queue buttons) were E1E1E1 = same as the window, so invisible; LINE Light is now black 10% (0x1A000000) so a faint separation shows (Dark unchanged, CC292929). (2) Progress bars 1dp thinner: Now Playing 4 -> 3dp, mini player 3 -> 2dp, widget progress (4x1, Blur 4x1, Blur 4x2, Text 4x2) 4 -> 3dp. versionCode 190.

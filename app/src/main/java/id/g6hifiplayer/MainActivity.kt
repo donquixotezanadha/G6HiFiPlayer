@@ -133,7 +133,7 @@ class MainActivity : Activity() {
     private val hasAlbumTint get() = !classicUi && if (lightTheme) albumTint != AlbumAccent.DEFAULT_LIGHT_TINT else albumDark != AlbumAccent.DEFAULT_DARK
     private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101010.toInt()
     private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9E9.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF191919.toInt()
-    private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0xCCE1E1E1.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292929.toInt()
+    private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0x1A000000) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292929.toInt()
     private val WHITE get() = if (lightTheme) Color.BLACK else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
     private val ICON_SOFT get() = if (lightTheme) Color.BLACK else Color.WHITE   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
@@ -1476,7 +1476,7 @@ class MainActivity : Activity() {
         }
         miniInfo.addView(queueMiniTitle)
         miniInfo.addView(queueMiniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
-        miniInfo.addView(queueMiniProgress, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(7) })
+        miniInfo.addView(queueMiniProgress, LinearLayout.LayoutParams(-1, dp(2)).apply { topMargin = dp(7) })
         mini.addView(miniInfo, LinearLayout.LayoutParams(0, -2, 1f))
         queueMiniPlayView = ImageView(this).apply {
             setPadding(dp(8), dp(8), dp(8), dp(8))
@@ -4375,7 +4375,7 @@ class MainActivity : Activity() {
         /** Build 3.01: unplayed progress track for the Light theme only. */
         private const val LIGHT_PROGRESS_TRACK_GREY = 0x2E000000   // Hifi 2.6: mirror of the Dark track (white 18%): black 18%
         /** Hifi 1.43: progress track thickness (2dp before; 4dp = bolder). */
-        private const val PROGRESS_THICKNESS_DP = 4
+        private const val PROGRESS_THICKNESS_DP = 3
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
         private const val ACTION_GREY = 0xFF8E8E8E.toInt()
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
