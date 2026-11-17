@@ -69,7 +69,7 @@
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textSize="19sp"
-                    android:textColor="#FFE0E0E6" />
+                    android:textColor="#FFE0E0E0" />
             </LinearLayout>
         </LinearLayout>
 
@@ -97,7 +97,7 @@
                     android:layout_weight="1"
                     android:text="0:00"
                     android:textSize="15sp"
-                    android:textColor="#FFE0E0E6" />
+                    android:textColor="#FFE0E0E0" />
 
                 <TextView
                     android:id="@+id/w_duration"
@@ -105,7 +105,7 @@
                     android:layout_height="wrap_content"
                     android:text="0:00"
                     android:textSize="15sp"
-                    android:textColor="#FFE0E0E6" />
+                    android:textColor="#FFE0E0E0" />
             </LinearLayout>
 
             <ImageView

@@ -113,7 +113,11 @@ object G6Widgets {
             } else AlbumAccent.NEUTRAL
             storeAccent(prefs, result)
         }
-        BackdropBlur.setTintFromCoverDark(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK))   // Hifi 2.73 classic 14: Classic card / backdrop colours follow the cover tint
+        // Hifi 2.73 classic 17: no cover tint, accent = pure theme colour, card / button box = neutral grey derived from black / white
+        accentNow = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        cardColorNow = if (light) BackdropBlur.cardLight() else BackdropBlur.windowDark()
+        tintNow = AlbumAccent.DEFAULT_LIGHT_TINT
+        if (true) return
         if (light) {
             val tint = prefs.getInt(K_TINT_LIGHT, AlbumAccent.DEFAULT_LIGHT_TINT)
             accentNow = prefs.getInt(K_ACCENT_LIGHT, AlbumAccent.DEFAULT_LIGHT_ACCENT)
@@ -422,12 +426,12 @@ object G6Widgets {
             setImageViewBitmap(R.id.w_art, cover)
             setTextViewText(R.id.w_title, title)
             setTextViewText(R.id.w_artist, artist)
-            setTextColor(R.id.w_title, if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt())
-            setTextColor(R.id.w_artist, if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt())
+            setTextColor(R.id.w_title, if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt())
+            setTextColor(R.id.w_artist, if (light) 0xFF484848.toInt() else 0xFFA5A5A5.toInt())
             // Hifi 2.62: Classic UI: the card has the mini player / floating window colour (Dark 0xFF1E1E1E, Light 0xFFDADADD), not the cover accent
             setInt(R.id.w_card_bg, "setColorFilter", if (isClassicUi(context)) (if (light) BackdropBlur.cardLight() else BackdropBlur.windowDark()) else cardColorNow)   // Hifi 2.1: darkened accent colour of the cover (Light: grey 0xFFDADADD)
             if (isClassicUi(context)) setViewPadding(R.id.w_card, (12 * density).toInt(), (10 * density).toInt(), (14 * density).toInt(), (10 * density).toInt())   // Hifi 2.72: Classic: play button 8dp further right (end padding 22 -> 14dp)
-            val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+            val iconTint = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
             setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
             setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
             setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 1.85: like the mini player's play button (Hifi 2.1: accent of the cover)
@@ -461,8 +465,8 @@ object G6Widgets {
         setTextViewTextSize(R.id.w_duration, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * scale)
         setViewPadding(R.id.w_gap1, 0, gap, 0, 0)
         setViewPadding(R.id.w_gap2, 0, gap, 0, 0)
-        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        val ink = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
         setViewVisibility(R.id.w_artist, if (hasTrack && artist.isNotEmpty()) View.VISIBLE else View.GONE)
@@ -488,8 +492,8 @@ object G6Widgets {
     private fun buildSimple4x1(
         context: Context, title: String, artist: String, album: String, hasTrack: Boolean, cover: Bitmap, light: Boolean
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_simple_4x1).apply {
-        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        val ink = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
         setImageViewBitmap(R.id.w_art, cover)
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
@@ -535,7 +539,7 @@ object G6Widgets {
                 val sy = (raw.height - sh) / 2
                 val layer = canvas.saveLayer(left, 0f, w.toFloat(), h.toFloat(), null)
                 val tone = Paint(Paint.FILTER_BITMAP_FLAG)
-                tone.colorFilter = BackdropBlur.classicTone(light, 0.65f, 0.95f, 0.08f, 0.28f)
+                tone.colorFilter = BackdropBlur.classicTone(light, 0.70f, 1.0f, 0.0f, 0.20f)
                 canvas.drawBitmap(raw, android.graphics.Rect(sx, sy, sx + sw, sy + sh), RectF(left, 0f, w.toFloat(), h.toFloat()), tone)
                 val mask = Paint()
                 mask.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
@@ -593,8 +597,8 @@ object G6Widgets {
         setTextViewTextSize(R.id.w_duration, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * scale)
         setViewPadding(R.id.w_gap1, 0, gap, 0, 0)
         setViewPadding(R.id.w_gap2, 0, gap, 0, 0)
-        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        val ink = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
         setBlurBackground(background)
         setImageViewBitmap(R.id.w_art, cover)
         setTextViewText(R.id.w_title, title)
@@ -637,8 +641,8 @@ object G6Widgets {
         context: Context, innerHeightDp: Float, title: String, artist: String, hasTrack: Boolean,
         playing: Boolean, position: Int, duration: Int, background: Bitmap, light: Boolean
     ): RemoteViews = RemoteViews(context.packageName, R.layout.g6_widget_blur_4x1).apply {
-        val ink = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
-        val muted = if (light) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+        val ink = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        val muted = if (light) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
         setBlurBackground(background)
         setTextViewText(R.id.w_title, title)
         setTextViewText(R.id.w_artist, artist)
@@ -681,7 +685,7 @@ object G6Widgets {
         syncAccent(context, light)
         val icon = if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s)
         val widget2x2Icon = if (playing) UiIcons.pick(R.drawable.g6_w_ic_pause_2x2) else UiIcons.pick(R.drawable.g6_w_ic_play_2x2)
-        val iconTint = if (light) 0xFF171720.toInt() else 0xFFFFFFFF.toInt()
+        val iconTint = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
         val ids4 = manager.getAppWidgetIds(ComponentName(context, G6Widget4x1Provider::class.java))
         if (ids4.isNotEmpty()) {
             val views = RemoteViews(context.packageName, R.layout.g6_widget_4x1).apply {
@@ -790,11 +794,11 @@ object G6Widgets {
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val light = isLightTheme(context)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (light) 0xFFE9E9F0.toInt() else 0xFF2A2A33.toInt() }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (light) 0xFFE9E9E9.toInt() else 0xFF2A2A2A.toInt() }
         val radius = size * fraction
         canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, paint)
         context.getDrawable(R.drawable.ic_stat_music)?.mutate()?.let { icon ->
-            icon.setTint(if (light) 0xFF484855.toInt() else 0xFF8E8E98.toInt())
+            icon.setTint(if (light) 0xFF484848.toInt() else 0xFF8E8E8E.toInt())
             val pad = (size * 0.14f).toInt()
             icon.setBounds(pad, pad, size - pad, size - pad)
             icon.draw(canvas)

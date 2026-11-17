@@ -70,7 +70,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textSize="10sp"
-                android:textColor="#FFE0E0E6" />
+                android:textColor="#FFE0E0E0" />
 
             <ImageView
                 android:id="@+id/w_progress"

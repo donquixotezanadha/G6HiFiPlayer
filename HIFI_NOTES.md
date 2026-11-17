@@ -777,3 +777,6 @@
 
 ## Hifi 2.73 classic 16
 - Classic line only, Light theme only (Dark untouched): the tint is stronger so it feels as visible as Dark. Light base F8F8FC (saturation ~1.6%) -> F5F5FF (~3.9%), widget card Light DADADD -> D9D9E1 (~3.6%); lightness practically the same. Grey cover band Light low end 0.82 -> 0.75 in the app (max ~15% -> ~24% darker than the base, like Dark ~23%) and 0.72 -> 0.65 in the Blur widgets (same shift). High end unchanged. versionCode 188.
+
+## Hifi 2.73 classic 17
+- Classic line only: ALL tinting removed. Backgrounds = pure Dark 000000 / Light FFFFFF (page, splash, system launch window, launcher icon background FFFFFF); windows + mini player + 4x1 widget Dark 1E1E1E, widget card Light DBDBDB (neutral, derived from black/white); progress, play/prev/next, theme/queue/album/gear icons, equalizer bars, ripples, selected rows = pure theme colour (white Dark / black Light) or alpha of it; text greys neutral (Dark A5A5A5, Light 484848, no blue cast); cover band neutral: Dark 0 -> 24% white (app) / 0 -> 20% (widgets), Light 75% -> 100% (app) / 70% -> 100% (widgets). Cover tint code disabled (setTintFromCoverDark no-op). Kept coloured: audio verdict green/orange/red in LOG and info line. versionCode 189.

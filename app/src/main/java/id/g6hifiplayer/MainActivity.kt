@@ -112,7 +112,7 @@ class MainActivity : Activity() {
     private var albumDark = AlbumAccent.DEFAULT_DARK
     private var albumAccentLight = AlbumAccent.DEFAULT_LIGHT_ACCENT   // Hifi 2.6
     private var albumTint = AlbumAccent.DEFAULT_LIGHT_TINT           // Hifi 2.6: pastel of the cover colour (Light)
-    private val accentColor get() = if (lightTheme) albumAccentLight else albumAccent
+    private val accentColor get() = if (lightTheme) Color.BLACK else Color.WHITE   // Hifi 2.73 classic 17: pure theme colour, no cover accent
     private val accentCache = java.util.concurrent.ConcurrentHashMap<String, AlbumAccent.Result>()
     // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
     // text/button colour with the best contrast on it. This is the default ("Adaptive" in Setting).
@@ -131,13 +131,13 @@ class MainActivity : Activity() {
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     // Hifi 2.2: the dark greys follow the darkened accent of the cover (the old greys stay for covers without colour / no cover).
     private val hasAlbumTint get() = !classicUi && if (lightTheme) albumTint != AlbumAccent.DEFAULT_LIGHT_TINT else albumDark != AlbumAccent.DEFAULT_DARK
-    private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101014.toInt()
-    private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9F0.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF181820.toInt()
-    private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0xCCE1E1EC.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292932.toInt()
-    private val WHITE get() = if (lightTheme) 0xFF171720.toInt() else playerInk
+    private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101010.toInt()
+    private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9E9.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF191919.toInt()
+    private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0xCCE1E1E1.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292929.toInt()
+    private val WHITE get() = if (lightTheme) Color.BLACK else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
-    private val ICON_SOFT get() = if (lightTheme) 0xFF60606D.toInt() else 0xFF93939F.toInt()   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
-    private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
+    private val ICON_SOFT get() = if (lightTheme) Color.BLACK else Color.WHITE   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
+    private val MUTED get() = if (lightTheme) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
     private var buildingUi = false
@@ -520,7 +520,7 @@ class MainActivity : Activity() {
             }
             val splashLogoSide = (resources.displayMetrics.widthPixels * 1.12f).toInt()
             // Hifi 2.52: the splash is the new five-bar logo with "HIFI" under it (rounded letters, wide spacing), a single colour that follows the theme.
-            val splashInk = if (lightTheme) 0xFF111114.toInt() else Color.WHITE
+            val splashInk = if (lightTheme) Color.BLACK else Color.WHITE
             val logo = ImageView(this).apply {
                 setImageResource(R.drawable.ic_splash_wave)
                 scaleType = ImageView.ScaleType.FIT_CENTER
@@ -1023,7 +1023,7 @@ class MainActivity : Activity() {
      * otherwise white. Mid-tone covers therefore get white ink, like the notification.
      */
     private fun inkFor(surface: Int): Int =
-        if (relativeLuminance(surface) > 0.5f) 0xFF14141C.toInt() else Color.WHITE
+        if (relativeLuminance(surface) > 0.5f) Color.BLACK else Color.WHITE
 
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
 
@@ -1325,7 +1325,7 @@ class MainActivity : Activity() {
                     val sw = (w / k).toInt().coerceIn(1, bmp.width); val sh = (bandH / k).toInt().coerceIn(1, bmp.height)
                     val sx = (bmp.width - sw) / 2; val sy = (bmp.height - sh) / 2
                     val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
-                    bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.75f, 0.97f, 0.07f, 0.28f)
+                    bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.75f, 1.0f, 0.0f, 0.24f)
                     canvas.drawBitmap(bmp, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
                     classicMask.shader = BackdropBlur.fadeShader(top, bottom, NowPlayingCoverView.BOTTOM_FADE)
@@ -1369,7 +1369,7 @@ class MainActivity : Activity() {
             val save = canvas.saveLayer(0f, top, w, bottom, null)
             dstRect.set(0f, top, w, bottom)
             // Hifi 2.60: Classic = the cover without colour, in a light grey band (Light) or a dark grey band (Dark); the fade stays the same
-            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.classicTone(light, 0.75f, 0.97f, 0.07f, 0.28f) else null
+            bitmapPaint.colorFilter = if (classicUi) BackdropBlur.classicTone(light, 0.75f, 1.0f, 0.0f, 0.24f) else null
             canvas.drawBitmap(bmp, null, dstRect, bitmapPaint)
             // Hifi 1.46: much softer fade: it starts earlier (the lower 50% of the cover) and follows a smootherstep curve with many stops,
             // so there is no visible start or end of the gradient.
@@ -4371,13 +4371,13 @@ class MainActivity : Activity() {
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
         private const val DARK_PROGRESS_TRACK = 0x2EFFFFFF   // Hifi 2.5: unplayed progress = white at 18% (only the progress bar; other surfaces unchanged)
-        private const val PROGRESS_TRACK_GREY = 0xB35E5E66.toInt()
+        private const val PROGRESS_TRACK_GREY = 0xB35E5E5E.toInt()
         /** Build 3.01: unplayed progress track for the Light theme only. */
         private const val LIGHT_PROGRESS_TRACK_GREY = 0x2E000000   // Hifi 2.6: mirror of the Dark track (white 18%): black 18%
         /** Hifi 1.43: progress track thickness (2dp before; 4dp = bolder). */
         private const val PROGRESS_THICKNESS_DP = 4
         /** Build 2.10: grey of the "+" / "x" buttons in the lists. Build 2.11: the gap above the progress times and the transport hit areas are back to the Build 2.8 values. */
-        private const val ACTION_GREY = 0xFF8E8E98.toInt()
+        private const val ACTION_GREY = 0xFF8E8E8E.toInt()
         private const val PROGRESS_TOP_GAP_DP = DOCK_GAP_DP
         private const val TRANSPORT_SIDE_DP = 56   // Hifi 1.52: 52 -> 56 (icon 32 -> 36dp)
         private const val TRANSPORT_PLAY_DP = 66   // Hifi 1.52: 60 -> 66 (icon 38 -> 44dp)
