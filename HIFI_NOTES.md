@@ -789,3 +789,6 @@
 
 ## Hifi 2.73 classic 20
 - Classic line only: info line verdict colours (BIT-PERFECT green, orange warnings) are the same bright colours in both themes again: green 5BD98C, orange FFA040 (= the orange of LOG AUDIO PATH). The deep Light green 0F7A42 / orange 9E4F00 from 2.57 existed only to protect the Adaptive blur backdrop. versionCode 192.
+
+## Hifi 2.73 classic 21
+- Classic line only: BIT-PERFECT green in Light 5BD98C -> 1FBF63 (more vivid, a little deeper, readable on pure white); Dark green and all oranges unchanged. versionCode 193.
