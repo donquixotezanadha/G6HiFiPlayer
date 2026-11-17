@@ -667,3 +667,6 @@
 
 ## Hifi 2.57c - 2.57b plus the denser veil of 2.66
 - 2.57b (2.57 + log fix) with ONE change: the Adaptive veil of 2.66 (player backdrop and Blur widgets): Light 82% up to 90% over a mostly black cover, Dark 69-82%, fallback 82%. No Classic UI. versionCode 148.
+
+## Hifi 2.78 (Blur line, from 2.57c)
+- Blur line: stacked covers removed: every album is its own cell in the Album grid (grouping by artist disabled). The long-press window therefore has only "Play album" + "Add album to queue" (no "Play entire album", no mini covers). Kept: the "More albums by <artist>" row inside an opened album. Same change as 2.73 classic 23. id id.hifi.player, versionCode 195.

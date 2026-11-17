@@ -1965,7 +1965,8 @@ class MainActivity : Activity() {
 
         // Hifi 2.36: an artist with two or more albums becomes ONE stacked-cover item ("group") that opens that artist's
         // albums; those albums are not listed again in the grid, so the list is shorter.
-        val groupsByArtist = albums.groupBy { albumNames[it]?.first.orEmpty() }.filter { it.key.isNotBlank() && it.value.size >= 2 }
+        // Hifi 2.78: no stacked covers any more: every album is its own cell in the grid (so no "Play entire album" and no mini covers in the long-press window either).
+        val groupsByArtist: Map<String, List<String>> = emptyMap()
         val items: List<Pair<String, List<String>?>> = run {
             val seen = HashSet<String>()
             albums.mapNotNull { a ->
