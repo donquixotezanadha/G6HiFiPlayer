@@ -112,6 +112,7 @@ class MainActivity : Activity() {
     private var albumDark = AlbumAccent.DEFAULT_DARK
     private var albumAccentLight = AlbumAccent.DEFAULT_LIGHT_ACCENT   // Hifi 2.6
     private var albumTint = AlbumAccent.DEFAULT_LIGHT_TINT           // Hifi 2.6: pastel of the cover colour (Light)
+    private val progressEnd: Int? get() = AlbumAccent.vivid(albumDark, lightTheme)   // Hifi 2.73 classic 19
     private val accentColor get() = if (lightTheme) Color.BLACK else Color.WHITE   // Hifi 2.73 classic 17: pure theme colour, no cover accent
     private val accentCache = java.util.concurrent.ConcurrentHashMap<String, AlbumAccent.Result>()
     // Now Playing look (Build 1.41): the surface is the dominant colour of the cover, the ink is the
@@ -637,7 +638,8 @@ class MainActivity : Activity() {
     private class RoundedProgressDrawable(
         private val trackColor: Int,
         private val playedColor: Int,
-        private val thicknessPx: Int
+        private val thicknessPx: Int,
+        private val endColor: Int? = null   // Hifi 2.73 classic 19: played part = gradient from playedColor (pure theme colour) to this vivid cover colour
     ) : android.graphics.drawable.Drawable() {
         private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         private val rect = android.graphics.RectF()
@@ -659,7 +661,9 @@ class MainActivity : Activity() {
                 rect.set(b.left.toFloat(), top, playedRight, bottom)
                 paint.color = playedColor
                 paint.alpha = android.graphics.Color.alpha(playedColor)
+                if (endColor != null && playedRight - b.left > 1f) paint.shader = android.graphics.LinearGradient(b.left.toFloat(), 0f, playedRight, 0f, playedColor, endColor, android.graphics.Shader.TileMode.CLAMP)
                 canvas.drawRoundRect(rect, radius, radius, paint)
+                paint.shader = null
             }
         }
 
@@ -824,7 +828,7 @@ class MainActivity : Activity() {
             max = durationMs.coerceAtLeast(1)
             progress = (player?.currentPosition?.toInt() ?: 0).coerceIn(0, max)
             // Hifi 1.43: no thumb; the track and played segment share the same rounded path, now 4dp thick (was 2dp).
-            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
+            progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP), progressEnd)
             thumb = null
             thumbOffset = 0
             splitTrack = false
@@ -1072,6 +1076,8 @@ class MainActivity : Activity() {
      * Hifi 2.1: switches the accent (progress, playing marks, ripples, play icon of the mini player) and the dark window colour to the ones of the
      * cover. Pages that are built are re-tinted at once (or when Now Playing is left). Light keeps the old purple and surfaces.
      */
+    private fun miniProgressDrawable() = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(2), progressEnd)
+
     private fun applyAccent(result: AlbumAccent.Result) {
         if (BackdropBlur.setTintFromCoverDark(result.dark)) {   // Hifi 2.73 classic 14: backgrounds follow the cover tint
             val (th, tk) = BackdropBlur.tintState()
@@ -1088,9 +1094,10 @@ class MainActivity : Activity() {
         if (::nextView.isInitialized) nextView.imageTintList = ColorStateList.valueOf(accentColor)
         if (::playView.isInitialized) playView.imageTintList = ColorStateList.valueOf(accentColor)
         if (::seek.isInitialized) {
-            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP), progressEnd)
             seek.invalidate()
         }
+        if (::queueMiniProgress.isInitialized) { val m = queueMiniProgress.max; val pr = queueMiniProgress.progress; queueMiniProgress.progressDrawable = miniProgressDrawable(); queueMiniProgress.max = m; queueMiniProgress.progress = pr }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
         if (buildingUi) return
         if (currentPage == "player") tabsPaletteDirty = true else retintPages()
@@ -1125,7 +1132,7 @@ class MainActivity : Activity() {
         albumIconView?.imageTintList = ColorStateList.valueOf(ICON_SOFT)
         if (::seek.isInitialized) {
             // Hifi 1.43: no thumb in both themes; only the rounded progress track is visible.
-            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP))
+            seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP), progressEnd)
             seek.invalidate()
         }
         // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
@@ -1469,10 +1476,7 @@ class MainActivity : Activity() {
         queueMiniProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1
             progress = 0
-            themed {
-                progressTintList = ColorStateList.valueOf(accentColor)
-                progressBackgroundTintList = ColorStateList.valueOf(withAlpha(accentColor, 0x40))
-            }
+            themed { progressDrawable = miniProgressDrawable() }
         }
         miniInfo.addView(queueMiniTitle)
         miniInfo.addView(queueMiniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })

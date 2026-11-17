@@ -100,6 +100,7 @@ object G6Widgets {
     /** Hifi 2.1: accent / card colour in use by the widgets; set from the saved state by [syncAccent] before every draw. */
     @Volatile private var accentNow = AlbumAccent.DEFAULT_ACCENT
     @Volatile private var cardColorNow = AlbumAccent.DEFAULT_DARK
+    @Volatile private var progressEndNow: Int? = null
     @Volatile private var tintNow = AlbumAccent.DEFAULT_LIGHT_TINT   // Hifi 2.6: Light pastel, for the blur widget veil
 
     private fun syncAccent(context: Context, light: Boolean) {
@@ -115,6 +116,7 @@ object G6Widgets {
         }
         // Hifi 2.73 classic 17: no cover tint, accent = pure theme colour, card / button box = neutral grey derived from black / white
         accentNow = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        progressEndNow = AlbumAccent.vivid(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK), light)   // Hifi 2.73 classic 19: vivid end of the played progress
         cardColorNow = if (light) BackdropBlur.cardLight() else BackdropBlur.windowDark()
         tintNow = AlbumAccent.DEFAULT_LIGHT_TINT
         if (true) return
@@ -749,7 +751,9 @@ object G6Widgets {
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
         if (filled > 0f) {
             paint.color = accentNow   // Hifi 2.1: accent of the cover (Light: the old purple)
+            progressEndNow?.let { paint.shader = android.graphics.LinearGradient(0f, 0f, filled, 0f, accentNow, it, Shader.TileMode.CLAMP) }   // Hifi 2.73 classic 19
             canvas.drawRoundRect(RectF(0f, 0f, filled, height.toFloat()), radius, radius, paint)
+            paint.shader = null
         }
         return bitmap
     }

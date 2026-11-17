@@ -783,3 +783,6 @@
 
 ## Hifi 2.73 classic 18
 - Classic line only: (1) Light theme: option buttons in the album long-press window and Setting (and other LINE surfaces: search field, selected rows, queue buttons) were E1E1E1 = same as the window, so invisible; LINE Light is now black 10% (0x1A000000) so a faint separation shows (Dark unchanged, CC292929). (2) Progress bars 1dp thinner: Now Playing 4 -> 3dp, mini player 3 -> 2dp, widget progress (4x1, Blur 4x1, Blur 4x2, Text 4x2) 4 -> 3dp. versionCode 190.
+
+## Hifi 2.73 classic 19
+- Classic line only: the only coloured element is the PLAYED part of the progress bars (Now Playing, mini player, widgets 4x1 / Blur 4x1 / Blur 4x2 / Text 4x2). It is a gradient from the pure theme colour (Dark white, Light black) at the left to a vivid colour of the cover at the moving end; the gradient always spans the played length. Vivid colour = hue of the cover (taken from AlbumAccent.Result.dark), HSL saturation 0.88, lightness Dark 0.62 / Light 0.45 (protected against merging with the theme). Grey / black-white covers (dark colour has no saturation) -> no accent, plain white/black bar. Unplayed track unchanged (white / black 18%). Mini player bar now a RoundedProgressDrawable (flat, 2dp). Icons, buttons, backgrounds stay pure. versionCode 191.

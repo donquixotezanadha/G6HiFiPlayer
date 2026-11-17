@@ -122,6 +122,29 @@ internal object AlbumAccent {
         return Result(accent or 0xFF000000.toInt(), dark or 0xFF000000.toInt(), lightAccent or 0xFF000000.toInt(), lightTint or 0xFF000000.toInt())
     }
 
+    /** Hifi 2.73 classic 19: vivid end colour of the played part of the progress bar (the bar runs from the pure theme colour to this colour).
+     *  Hue comes from the cover ([Result.dark] carries its hue; a grey cover has no saturation there -> null = plain black / white bar).
+     *  Protection against the theme: fixed saturation and a lightness window, Dark L 0.62 (never near black or white), Light L 0.45. */
+    fun vivid(dark: Int, light: Boolean): Int? {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(dark, hsv)
+        if (hsv[1] < 0.2f) return null
+        return hslToColor(hsv[0], 0.88f, if (light) 0.45f else 0.62f)
+    }
+
+    private fun hslToColor(h: Float, s: Float, l: Float): Int {
+        val c = (1f - Math.abs(2f * l - 1f)) * s
+        val hp = (h % 360f) / 60f
+        val x = c * (1f - Math.abs(hp % 2f - 1f))
+        val (r1, g1, b1) = when (hp.toInt()) {
+            0 -> Triple(c, x, 0f); 1 -> Triple(x, c, 0f); 2 -> Triple(0f, c, x)
+            3 -> Triple(0f, x, c); 4 -> Triple(x, 0f, c); else -> Triple(c, 0f, x)
+        }
+        val m = l - c / 2f
+        fun ch(v: Float) = ((v + m) * 255f).toInt().coerceIn(0, 255)
+        return Color.rgb(ch(r1), ch(g1), ch(b1))
+    }
+
     private fun mix(from: Int, to: Int, fraction: Float): Int {
         fun ch(a: Int, b: Int) = (a + (b - a) * fraction).toInt().coerceIn(0, 255)
         return Color.rgb(ch(Color.red(from), Color.red(to)), ch(Color.green(from), Color.green(to)), ch(Color.blue(from), Color.blue(to)))
