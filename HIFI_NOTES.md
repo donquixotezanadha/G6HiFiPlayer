@@ -795,3 +795,6 @@
 
 ## Hifi 2.73 classic 22
 - Classic line only: widget cover band in Light made as strong as Dark: low end 0.70 -> 0.80 (max ~30% -> ~20% darker than white, Dark ~20% lighter than black). Player unchanged (Dark ~24% / Light ~25%). versionCode 194.
+
+## Hifi 2.73 classic 23
+- Classic line only: stacked covers removed: every album is its own cell in the Album grid (grouping by artist disabled: groupsByArtist = empty). Consequence in the long-press window: no "Play entire album" and no mini covers of the artist's other albums (they only existed for stacks). Kept: the "More albums by <artist>" row inside an opened album. The StackedCovers class stays in the code but is unused. versionCode 195.
