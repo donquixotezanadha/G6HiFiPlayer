@@ -99,6 +99,9 @@ class MainActivity : Activity() {
     private var playbackQueue: List<Int> = emptyList()
     private var playbackOrder: List<Int> = emptyList()
     private var selectedAlbum: String? = null
+    private var albumPanelView: View? = null
+    private var animateAlbumOpen = false
+    private var closingAlbum = false
     private val albumBackStack = ArrayList<String>()   // Hifi 2.37: albums opened from inside an album; Back returns to the previous one
     // A dismissed notification stays hidden until the user starts another track.
     private var notificationDismissed = false
@@ -424,7 +427,7 @@ class MainActivity : Activity() {
         pageScroll = scroll
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
-            if (currentPage == "library" && selectedAlbum == null && !restoringScroll) listScrollY = y
+            if (currentPage == "library" && !restoringScroll) listScrollY = y
         }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -1844,129 +1847,6 @@ class MainActivity : Activity() {
         val groupedAlbums = tracks.withIndex().groupBy { it.value.folder }   // Hifi 2.34: one folder = one album
         val (albums, albumNames) = albumOrder(groupedAlbums.mapValues { e -> e.value.map { it.value } })
 
-        selectedAlbum?.let { album ->
-            val entries = groupedAlbums[album].orEmpty().sortedWith(
-                compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
-            )
-            if (entries.isEmpty()) {
-                selectedAlbum = null
-                updateHeaderBack()
-            } else {
-                val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
-                val queueIndices = entries.map { it.index }
-
-                // Hifi 2.73 classic 28 / 2.83: the album cover (top) then the title below it (as before classic 24), back arrow in the header bar.
-                // The cover is built exactly like a cover of the 2-column Album grid: the SAME cell (padding 3 / 4 / 3 / 7dp, square cover, same
-                // Hi-Res logo) inside a row of the same structure. The row is [spacer 1 | cell 2 | spacer 1] with the cell's 3dp side margins, so
-                // the cell gets exactly (row width - 6dp) / 2 = the width of a 2-column grid cell, and it sits in the middle.
-                val coverCell = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(3), dp(4), dp(3), dp(7))
-                }
-                val detailCover = object : ImageView(this) {
-                    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
-                }.apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, 10)
-                    roundCorners(10)
-                    contentDescription = "Artwork $album"
-                }
-                applyAlbumHiResBadge(detailCover, entries.map { it.value })
-                coverCell.addView(detailCover, LinearLayout.LayoutParams(-1, -2))
-                val coverRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                coverRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-                coverRow.addView(coverCell, LinearLayout.LayoutParams(0, -2, 2f).apply { leftMargin = dp(3); rightMargin = dp(3) })
-                coverRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-                albumRows.addView(coverRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
-                loadArtworkInto(detailCover, entries.first().value)
-                albumRows.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
-                    setLines(0); maxLines = 2
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(8), dp(10), dp(8), 0)
-                }, LinearLayout.LayoutParams(-1, -2))
-                albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(8), dp(0), dp(8), dp(12))
-                }, LinearLayout.LayoutParams(-1, -2))
-                val albumActions = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(dp(4), dp(0), dp(4), dp(6))
-                }
-                albumActions.addView(flatAction("PLAY ALBUM", true) {
-                    if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
-                }, LinearLayout.LayoutParams(0, -2, 1f))
-                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-                albumActions.addView(flatAction("ADD TO QUEUE", false) {
-                    addAlbumToQueue(queueIndices, album)
-                }, LinearLayout.LayoutParams(0, -2, 1f))
-                albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
-                entries.forEachIndexed { position, entry -> addNumberedTrackRow(albumRows, entry, position + 1, albumArtist, queueIndices) }
-                updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
-
-                // More albums of the same artist: a row that scrolls sideways when it does not fit on one screen.
-                val moreAlbums = if (albumArtist.isBlank()) emptyList() else albums.filter { other ->
-                    other != album && groupedAlbums[other].orEmpty().any { it.value.artist == albumArtist }
-                }
-                if (moreAlbums.isNotEmpty()) {
-                    albumRows.addView(text("More albums by $albumArtist", 14f, WHITE, true).apply {
-                        maxLines = 1
-                        ellipsize = android.text.TextUtils.TruncateAt.END
-                        setPadding(dp(4), dp(24), dp(4), dp(10))
-                    }, LinearLayout.LayoutParams(-1, -2))
-                    val scroller = HorizontalScrollView(this).apply {
-                        isHorizontalScrollBarEnabled = false
-                        overScrollMode = View.OVER_SCROLL_NEVER
-                    }
-                    // Hifi 2.73 classic 29 / 2.84: laid out like a 3-column grid row (measured on screenshots: cover edge 3dp inside the page margin, 12dp between covers) so three covers fit exactly; more albums scroll
-                    val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(3), 0, dp(3), 0) }
-                    // Hifi 2.73 classic 28 / 2.83: the cover of a 3-column grid cell: the row is as wide as the page content (measured, not guessed), the two 3dp
-                    // margins per side pair give (width - 12dp) / 3 per cell, minus the cell padding 3dp + 3dp.
-                    val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-                    val cardSide = (gridW - dp(12)) / 3 - dp(6)
-                    moreAlbums.forEach { other ->
-                        val otherEntries = groupedAlbums[other].orEmpty()
-                        val card = LinearLayout(this).apply {
-                            orientation = LinearLayout.VERTICAL
-                            gravity = Gravity.CENTER_HORIZONTAL
-                            setPadding(0, dp(4), 0, dp(6))
-                            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
-                            isClickable = true
-                            isFocusable = true
-                            contentDescription = "Open album $other"
-                            setOnClickListener {
-                                albumBackStack.add(album)   // Hifi 2.37: Back returns to this album first
-                                selectedAlbum = other
-                                renderLibrary()
-                                scrollLibraryToTop()
-                            }
-                        }
-                        val otherCover = ImageView(this).apply {
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            background = shape(ART, 10)
-                            roundCorners(10)
-                            contentDescription = "Artwork $other"
-                        }
-                        applyAlbumHiResBadge(otherCover, otherEntries.map { it.value })
-                        card.addView(otherCover, LinearLayout.LayoutParams(cardSide, cardSide))
-                        card.addView(albumLabelView(albumNames[other]?.first.orEmpty(), albumNames[other]?.second ?: other, 12f, 2, false).apply {
-                            setPadding(dp(2), dp(6), dp(2), dp(1))
-                            gravity = Gravity.CENTER_HORIZONTAL
-                        }, LinearLayout.LayoutParams(cardSide, -2))
-                        card.addView(text(otherEntries.size.toString() + " tracks", 10f, MUTED, false).apply {
-                            gravity = Gravity.CENTER_HORIZONTAL
-                        }, LinearLayout.LayoutParams(cardSide, -2))
-                        strip.addView(card, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12) })
-                        otherEntries.firstOrNull()?.let { loadArtworkInto(otherCover, it.value) }
-                    }
-                    scroller.addView(strip)
-                    albumRows.addView(scroller, LinearLayout.LayoutParams(-1, -2))
-                }
-                librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
-                return
-            }
-        }
-
         // Hifi 2.36: an artist with two or more albums becomes ONE stacked-cover item ("group") that opens that artist's
         // albums; those albums are not listed again in the grid, so the list is shorter.
         // Hifi 2.78: no stacked covers any more: every album is its own cell in the grid (so no "Play entire album" and no mini covers in the long-press window either).
@@ -1983,11 +1863,82 @@ class MainActivity : Activity() {
                 }
             }
         }
+        // Hifi 2.73 classic 30 / 2.85: tap an album and its track list opens under that album's row (the rows below slide down);
+        // everything else is dimmed; a small popup with Play album / Add to queue sits in the neighbouring cell.
+        val cols = albumGridColumns
+        val sel = selectedAlbum
+        val selPos = if (sel == null) -1 else items.indexOfFirst { it.first == sel }
+        if (sel != null && selPos < 0) selectedAlbum = null
+        val selRow = if (selPos >= 0) selPos / cols else -1
+        val neighbourPos = if (selPos < 0) -1 else if (selPos % cols == cols - 1) selPos - 1 else selPos + 1
+        val selEntries = if (selPos >= 0) groupedAlbums[sel].orEmpty().sortedWith(
+            compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
+        ) else emptyList()
+        val selIndices = selEntries.map { it.index }
+        val selArtist = selEntries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
+        fun neighbourLp(pos: Int) = LinearLayout.LayoutParams(0, -1, 1f).apply {
+            if (pos % cols != 0) leftMargin = dp(3)
+            if (pos % cols != cols - 1) rightMargin = dp(3)
+            topMargin = dp(4); bottomMargin = dp(7)
+        }
+        fun makePopup(): View {
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                background = floatingBackground()
+                isClickable = true
+            }
+            fun option(label: String, onClick: () -> Unit) {
+                val item = text(label, 13f, WHITE, true).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(dp(4), 0, dp(4), 0)
+                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 9), null)
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { onClick() }
+                }
+                box.addView(item, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(3); bottomMargin = dp(3) })
+            }
+            option("▶  Play album") {
+                if (selIndices.isNotEmpty()) { playTrackAt(selIndices.first(), true, selIndices); showPlayerAnimated() }
+            }
+            option("＋  Add to queue") { addAlbumToQueue(selIndices, sel.orEmpty()) }
+            return box
+        }
+        fun addPanel() {
+            val panel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(4), dp(6), dp(4), dp(6))
+                background = floatingBackground()
+            }
+            selEntries.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, selArtist, selIndices) }
+            val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8); leftMargin = dp(3); rightMargin = dp(3) }
+            albumRows.addView(panel, lp)
+            albumPanelView = panel
+            updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
+            if (animateAlbumOpen) {
+                animateAlbumOpen = false
+                val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
+                panel.measure(View.MeasureSpec.makeMeasureSpec(w - dp(6), View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+                val target = panel.measuredHeight
+                lp.height = 0
+                panel.layoutParams = lp
+                android.animation.ValueAnimator.ofInt(0, target).apply {
+                    duration = 240
+                    addUpdateListener { lp.height = it.animatedValue as Int; panel.layoutParams = lp }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) { lp.height = -2; panel.layoutParams = lp }
+                    })
+                    start()
+                }
+            }
+        }
         var gridRow: LinearLayout? = null
         items.forEachIndexed { position, item ->
             val album = item.first
             val groupKeys = item.second
             if (position % albumGridColumns == 0) {
+                if (position > 0 && position / cols - 1 == selRow) addPanel()
                 gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
                 albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
@@ -2008,25 +1959,14 @@ class MainActivity : Activity() {
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album)
                 setOnClickListener {
-                    albumBackStack.clear()
-                    selectedAlbum = album
-                    renderLibrary()
-                    show("library")
-                    scrollLibraryToTop()
-                }
-                setOnLongClickListener { pressed ->
-                    val (pressArtist, pressAlbum) = albumNames[album] ?: ("" to album)
-                    val every = groupKeys?.flatMap { key ->
-                        groupedAlbums[key].orEmpty().sortedWith(
-                            compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
-                        ).map { it.index }
+                    if (selectedAlbum != null) closeAlbum()   // the open album, or the dimmed area: close
+                    else {
+                        selectedAlbum = album
+                        animateAlbumOpen = true
+                        renderLibrary()
                     }
-                    val others = groupKeys.orEmpty().drop(1).mapNotNull { key ->
-                        groupedAlbums[key]?.firstOrNull()?.let { first -> Triple(key, albumNames[key]?.second ?: key, first.value) }
-                    }
-                    showAlbumOptions(pressAlbum, indices, pressed, albumLabel(pressArtist, pressAlbum), every, others)
-                    true
                 }
+                if (selPos >= 0 && position != selPos) alpha = 0.3f
             }
             // Build 2.4: square cover with rounded corners (the corners were not clipped before).
             val cover: ImageView
@@ -2059,7 +1999,8 @@ class MainActivity : Activity() {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(-1, -2))
-            gridRow?.addView(cell, cellLp)
+            if (position == neighbourPos) gridRow?.addView(makePopup(), neighbourLp(position))
+            else gridRow?.addView(cell, cellLp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
         // Build 2.8: the last row may hold fewer albums than columns. Empty cells of the same weight keep every
@@ -2067,7 +2008,12 @@ class MainActivity : Activity() {
         val lastCount = items.size % albumGridColumns
         if (lastCount != 0) {
             for (position in lastCount until albumGridColumns) {
+                if (position + (items.size - lastCount) == neighbourPos) {
+                    gridRow?.addView(makePopup(), neighbourLp(position))
+                    continue
+                }
                 val filler = View(this)
+                if (selPos >= 0) filler.setOnClickListener { closeAlbum() }
                 val flp = LinearLayout.LayoutParams(0, 1, 1f).apply {
                     if (position != 0) leftMargin = dp(3)
                     if (position != albumGridColumns - 1) rightMargin = dp(3)
@@ -2075,6 +2021,7 @@ class MainActivity : Activity() {
                 gridRow?.addView(filler, flp)
             }
         }
+        if (selRow >= 0 && (items.size - 1) / cols == selRow) addPanel()
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 
@@ -3510,7 +3457,7 @@ class MainActivity : Activity() {
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
         updateHeaderBack()
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
-        if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
+        if (which == "library" && previousPage != "library") restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
         if (which != "player" && tabsPaletteDirty) retintPages()
@@ -4112,9 +4059,27 @@ class MainActivity : Activity() {
     /** Hifi 2.37: Back inside the Album tab goes one step back: the album opened before this one, or the grid at its old scroll. */
     /** Hifi 2.73 classic 25 / 2.80: the back arrow lives in the fixed header bar while an album is open; the "Album" title then sits right after it. */
     private fun updateHeaderBack() {
-        val open = currentPage == "library" && selectedAlbum != null
+        val open = false   // Hifi 2.73 classic 30 / 2.85: no album page any more, so no back arrow
         headerBack?.visibility = if (open) View.VISIBLE else View.GONE
         if (::headerTitle.isInitialized) headerTitle.setPadding(dp(if (open) 0 else 20), 0, dp(8), 0)
+    }
+
+    /** Hifi 2.73 classic 30 / 2.85: close the open album: the list slides up, then the grid is drawn normally again. */
+    private fun closeAlbum() {
+        if (closingAlbum) return
+        val panel = albumPanelView
+        fun finish() { closingAlbum = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
+        if (panel == null || panel.height <= 0 || panel.parent == null) { finish(); return }
+        closingAlbum = true
+        val lp = panel.layoutParams
+        android.animation.ValueAnimator.ofInt(panel.height, 0).apply {
+            duration = 200
+            addUpdateListener { lp.height = it.animatedValue as Int; panel.layoutParams = lp }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) { finish() }
+            })
+            start()
+        }
     }
 
     private fun goBackFromAlbum() {
@@ -4131,7 +4096,7 @@ class MainActivity : Activity() {
 
     override fun onBackPressed() {
         if (currentPage == "library" && selectedAlbum != null) {
-            goBackFromAlbum()
+            closeAlbum()
             return
         }
         if (currentPage != "player") {
