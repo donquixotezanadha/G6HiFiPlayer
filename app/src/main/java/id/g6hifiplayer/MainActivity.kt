@@ -1975,6 +1975,7 @@ class MainActivity : Activity() {
         // Hifi 2.73 classic 30 / 2.85: tap an album and its track list opens under that album's row (the rows below slide down);
         // everything else is dimmed; a small popup with Play album / Add to queue sits in the neighbouring cell.
         val cols = albumGridColumns
+        selectedCellView = null; popupBoxView = null; albumPanelView = null
         val sel = selectedAlbum
         val selPos = if (sel == null) -1 else items.indexOfFirst { it.first == sel }
         if (sel != null && selPos < 0) selectedAlbum = null
@@ -1989,9 +1990,10 @@ class MainActivity : Activity() {
             if (pos % cols != 0) leftMargin = dp(3)
             if (pos % cols != cols - 1) rightMargin = dp(3)
         }
-        fun makePopup(pos: Int): View {
+        fun makePopup(pos: Int, under: View?): View {
             // Hifi 2.73 classic 31 / 2.86: window sized to its text (not the album cell), top level with the cover top, next to the selected album.
             val holder = FrameLayout(this)
+            if (under != null) holder.addView(under, FrameLayout.LayoutParams(-1, -2))   // the neighbouring album stays behind the popup
             val box = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(8))
@@ -2013,6 +2015,7 @@ class MainActivity : Activity() {
             }
             option("＋  Add to queue") { addAlbumToQueue(selIndices, sel.orEmpty()) }
             // Hifi 2.73 classic 32 / 2.87: as wide as the cover of the neighbouring cell (cell width minus its 3dp padding each side)
+            popupBoxView = box
             holder.addView(box, FrameLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); leftMargin = dp(3); rightMargin = dp(3) })
             return holder
         }
@@ -2081,7 +2084,7 @@ class MainActivity : Activity() {
                     if (selectedAlbum == null) { selectedAlbum = album; popupOnly = true; renderLibrary() } else closeAlbum()
                     true
                 }
-                if (selPos >= 0 && position != selPos) foreground = android.graphics.drawable.ColorDrawable(Color.argb(140, 0, 0, 0))   // same dim as the windows (0.55)
+                if (position == selPos) selectedCellView = this
             }
             // Build 2.4: square cover with rounded corners (the corners were not clipped before).
             val cover: ImageView
@@ -2113,7 +2116,7 @@ class MainActivity : Activity() {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(-1, -2))
-            if (position == neighbourPos) gridRow?.addView(makePopup(position), neighbourLp(position))
+            if (position == neighbourPos) gridRow?.addView(makePopup(position, cell), cellLp)
             else gridRow?.addView(cell, cellLp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
@@ -2123,7 +2126,7 @@ class MainActivity : Activity() {
         if (lastCount != 0) {
             for (position in lastCount until albumGridColumns) {
                 if (position + (items.size - lastCount) == neighbourPos) {
-                    gridRow?.addView(makePopup(position), neighbourLp(position))
+                    gridRow?.addView(makePopup(position, null), neighbourLp(position))
                     continue
                 }
                 val filler = View(this)
@@ -2137,6 +2140,7 @@ class MainActivity : Activity() {
         }
         if (selRow >= 0 && (items.size - 1) / cols == selRow) addPanel()
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
+        updateAlbumScrim(selPos >= 0)
     }
 
     /** Hifi 2.34: old saved libraries: "Artist unavailable" becomes "", an album that is a folder name "Artist - Album" is split. */
@@ -4183,15 +4187,60 @@ class MainActivity : Activity() {
     }
 
     /** Hifi 2.73 classic 30 / 2.85: close the open album: the list slides up, then the grid is drawn normally again. */
+    private var selectedCellView: View? = null
+    private var popupBoxView: View? = null
+    private var albumScrim: View? = null
+
+    /**
+     * Hifi 2.73 classic 33 / 2.88: the dim of a normal window (black 55%) over the WHOLE screen except three bright areas: the selected
+     * album cell, its track list and the popup. Draw only (touches go through), so scrolling and taps work as usual.
+     */
+    private inner class AlbumScrim(c: android.content.Context) : View(c) {
+        private val r = android.graphics.Rect()
+        private val limit = android.graphics.Rect()
+        private val loc = IntArray(2)
+        private val me = IntArray(2)
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            if (currentPage != "library") return
+            getLocationOnScreen(me)
+            val hasLimit = pageScroll?.getGlobalVisibleRect(limit) == true
+            canvas.save()
+            for (v in listOf(selectedCellView, albumPanelView, popupBoxView)) {
+                if (v == null || !v.isShown || v.width == 0) continue
+                v.getLocationOnScreen(loc)
+                r.set(loc[0], loc[1], loc[0] + v.width, loc[1] + v.height)
+                if (hasLimit && !r.intersect(limit)) continue
+                r.offset(-me[0], -me[1])
+                canvas.clipOutRect(r)
+            }
+            canvas.drawColor(Color.argb(140, 0, 0, 0))
+            canvas.restore()
+            postInvalidateOnAnimation()
+        }
+    }
+
+    private fun updateAlbumScrim(on: Boolean) {
+        if (!on) {
+            albumScrim?.let { (it.parent as? ViewGroup)?.removeView(it) }
+            albumScrim = null
+            if (::albumRows.isInitialized) { albumRows.setOnClickListener(null); albumRows.isClickable = false }
+            return
+        }
+        albumRows.setOnClickListener { closeAlbum() }   // a tap on the dim between the albums closes too
+        if (albumScrim == null) {
+            val v = AlbumScrim(this)
+            (window.decorView as ViewGroup).addView(v, ViewGroup.LayoutParams(-1, -1))
+            albumScrim = v
+        }
+    }
+
     private fun closeAlbum() {
         if (closingAlbum) return
         val panel = albumPanelView
         fun finish() { closingAlbum = false; popupOnly = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
         if (panel == null || panel.height <= 0 || panel.parent == null) { finish(); return }
         closingAlbum = true
-        for (i in 0 until albumRows.childCount) (albumRows.getChildAt(i) as? ViewGroup)?.let { row ->
-            if (row !== panel) for (j in 0 until row.childCount) row.getChildAt(j).foreground = null   // the dim goes at once, no flash at the end
-        }
+        updateAlbumScrim(false)   // the dim goes at once, no flash at the end
         val lp = panel.layoutParams
         android.animation.ValueAnimator.ofInt(panel.height, 0).apply {
             duration = 260

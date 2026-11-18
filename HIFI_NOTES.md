@@ -825,3 +825,6 @@
 
 ## Hifi 2.73 classic 32
 - popup as wide as the neighbouring cover; slide smoother (starts after the rebuild frame, decelerate 320 ms open, 260 ms close, dim removed at once on close). versionCode 212.
+
+## Hifi 2.73 classic 33
+- real window dim (black 55
