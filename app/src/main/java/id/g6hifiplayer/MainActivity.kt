@@ -1857,13 +1857,24 @@ class MainActivity : Activity() {
 
                 // Hifi 2.73 classic 24 / 2.79: no big cover any more. Title row ("Artist - Album", centred) at the very top; Hifi 2.73 classic 25 / 2.80: the back arrow moved up into the fixed header bar, level with the "Album" title. (old note: the back arrow at the left and the title
                 // ("Artist - Album", centred between symmetric 48dp margins) on the same line, right at the top; everything below moves up.
+                val hiResAlbum = entries.any { (it.value.bitDepth ?: 0) >= 24 }
                 val headerRow = FrameLayout(this)
                 headerRow.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
                     setLines(0); maxLines = 2
-                    gravity = Gravity.CENTER
-                    setPadding(dp(16), dp(4), dp(16), dp(4))
-                }, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL).apply { })
-                headerRow.minimumHeight = dp(40)
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    // Hifi 2.73 classic 26 / 2.81: a Hi-Res album gets the Hi-Res logo at the left of the title (where the back arrow used to be),
+                    // sized to the title text and level with the top of its first line; the side paddings stay equal so the title stays centred.
+                    val side = if (hiResAlbum) dp(40) else dp(16)
+                    setPadding(side, dp(8), side, dp(4))
+                }, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+                if (hiResAlbum) {
+                    headerRow.addView(ImageView(this).apply {
+                        setImageResource(R.drawable.hires_logo)
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                        contentDescription = "Hi-Res"
+                    }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.START).apply { leftMargin = dp(10); topMargin = dp(9) })
+                }
+                headerRow.minimumHeight = dp(40)   // (Hi-Res logo: see above)
                 albumRows.addView(headerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(0) })
                 albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
                     gravity = Gravity.CENTER_HORIZONTAL

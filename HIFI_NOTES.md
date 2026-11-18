@@ -676,3 +676,6 @@
 
 ## Hifi 2.80 (Blur line, from 2.79)
 - Blur line, same change as 2.73 classic 25: back arrow of an opened album moved into the fixed header bar next to the "Album" title and made smaller. versionCode 199.
+
+## Hifi 2.81 (Blur line, from 2.80)
+- Blur line, same change as 2.73 classic 26: Hi-Res logo beside the album title on the opened-album page for Hi-Res albums. versionCode 201.
