@@ -819,3 +819,6 @@
 
 ## Hifi 2.73 classic 30
 - Classic line (same change as Blur 2.85): the album page is gone. Tapping an album opens its track list in place, in a full-width panel under that album's row (rows below slide down, 240 ms; closing slides up). Everything except the selected cover is dimmed (30%); tapping the dim, the same album or Back closes. A popup-styled window in the neighbouring cell (right neighbour for the left column, left neighbour for the right column, also an empty cell) holds Play album / Add to queue. Removed: opened-album page, "More albums by", header back arrow, long-press window (code left unused). No auto-scroll. Designed for 2 columns; 3 columns not tuned. versionCode 208.
+
+## Hifi 2.73 classic 31
+- Classic, same as Blur 2.86: window-style dim (black 55% scrim over the other albums instead of transparency); the track list is plain rows again like the old album page (no window background, no padding); the popup (Play album / Add to queue) is sized to its text, level with the cover top, next to the selected album; long-press shows the popup only (no list). Tracks list still opens on tap.  versionCode 210.

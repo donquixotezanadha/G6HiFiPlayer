@@ -102,6 +102,7 @@ class MainActivity : Activity() {
     private var albumPanelView: View? = null
     private var animateAlbumOpen = false
     private var closingAlbum = false
+    private var popupOnly = false
     private val albumBackStack = ArrayList<String>()   // Hifi 2.37: albums opened from inside an album; Back returns to the previous one
     // A dismissed notification stays hidden until the user starts another track.
     private var notificationDismissed = false
@@ -1977,22 +1978,22 @@ class MainActivity : Activity() {
         val sel = selectedAlbum
         val selPos = if (sel == null) -1 else items.indexOfFirst { it.first == sel }
         if (sel != null && selPos < 0) selectedAlbum = null
-        val selRow = if (selPos >= 0) selPos / cols else -1
+        val selRow = if (selPos >= 0 && !popupOnly) selPos / cols else -1
         val neighbourPos = if (selPos < 0) -1 else if (selPos % cols == cols - 1) selPos - 1 else selPos + 1
         val selEntries = if (selPos >= 0) groupedAlbums[sel].orEmpty().sortedWith(
             compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }
         ) else emptyList()
         val selIndices = selEntries.map { it.index }
         val selArtist = selEntries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
-        fun neighbourLp(pos: Int) = LinearLayout.LayoutParams(0, -1, 1f).apply {
+        fun neighbourLp(pos: Int) = LinearLayout.LayoutParams(0, -2, 1f).apply {
             if (pos % cols != 0) leftMargin = dp(3)
             if (pos % cols != cols - 1) rightMargin = dp(3)
-            topMargin = dp(4); bottomMargin = dp(7)
         }
-        fun makePopup(): View {
+        fun makePopup(pos: Int): View {
+            // Hifi 2.73 classic 31 / 2.86: window sized to its text (not the album cell), top level with the cover top, next to the selected album.
+            val holder = FrameLayout(this)
             val box = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
                 setPadding(dp(8), dp(8), dp(8), dp(8))
                 background = floatingBackground()
                 isClickable = true
@@ -2005,29 +2006,28 @@ class MainActivity : Activity() {
                     isClickable = true; isFocusable = true
                     setOnClickListener { onClick() }
                 }
-                box.addView(item, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(3); bottomMargin = dp(3) })
+                box.addView(item, LinearLayout.LayoutParams(-2, dp(42)).apply { topMargin = dp(3); bottomMargin = dp(3) })
             }
             option("▶  Play album") {
                 if (selIndices.isNotEmpty()) { playTrackAt(selIndices.first(), true, selIndices); showPlayerAnimated() }
             }
             option("＋  Add to queue") { addAlbumToQueue(selIndices, sel.orEmpty()) }
-            return box
+            val g = (if (pos > selPos) Gravity.START else Gravity.END) or Gravity.TOP
+            holder.addView(box, FrameLayout.LayoutParams(-2, -2, g).apply { topMargin = dp(4) })
+            return holder
         }
         fun addPanel() {
-            val panel = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(4), dp(6), dp(4), dp(6))
-                background = floatingBackground()
-            }
-            selEntries.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, selArtist, selIndices) }
-            val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8); leftMargin = dp(3); rightMargin = dp(3) }
+            val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            if (!popupOnly) selEntries.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, selArtist, selIndices) }
+            val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) }
+            if (popupOnly) return
             albumRows.addView(panel, lp)
             albumPanelView = panel
             updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
             if (animateAlbumOpen) {
                 animateAlbumOpen = false
                 val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-                panel.measure(View.MeasureSpec.makeMeasureSpec(w - dp(6), View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+                panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
                 val target = panel.measuredHeight
                 lp.height = 0
                 panel.layoutParams = lp
@@ -2070,11 +2070,16 @@ class MainActivity : Activity() {
                     if (selectedAlbum != null) closeAlbum()   // the open album, or the dimmed area: close
                     else {
                         selectedAlbum = album
+                        popupOnly = false
                         animateAlbumOpen = true
                         renderLibrary()
                     }
                 }
-                if (selPos >= 0 && position != selPos) alpha = 0.3f
+                setOnLongClickListener {
+                    if (selectedAlbum == null) { selectedAlbum = album; popupOnly = true; renderLibrary() } else closeAlbum()
+                    true
+                }
+                if (selPos >= 0 && position != selPos) foreground = android.graphics.drawable.ColorDrawable(Color.argb(140, 0, 0, 0))   // same dim as the windows (0.55)
             }
             // Build 2.4: square cover with rounded corners (the corners were not clipped before).
             val cover: ImageView
@@ -2106,7 +2111,7 @@ class MainActivity : Activity() {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(-1, -2))
-            if (position == neighbourPos) gridRow?.addView(makePopup(), neighbourLp(position))
+            if (position == neighbourPos) gridRow?.addView(makePopup(position), neighbourLp(position))
             else gridRow?.addView(cell, cellLp)
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
@@ -2116,7 +2121,7 @@ class MainActivity : Activity() {
         if (lastCount != 0) {
             for (position in lastCount until albumGridColumns) {
                 if (position + (items.size - lastCount) == neighbourPos) {
-                    gridRow?.addView(makePopup(), neighbourLp(position))
+                    gridRow?.addView(makePopup(position), neighbourLp(position))
                     continue
                 }
                 val filler = View(this)
@@ -4179,7 +4184,7 @@ class MainActivity : Activity() {
     private fun closeAlbum() {
         if (closingAlbum) return
         val panel = albumPanelView
-        fun finish() { closingAlbum = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
+        fun finish() { closingAlbum = false; popupOnly = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
         if (panel == null || panel.height <= 0 || panel.parent == null) { finish(); return }
         closingAlbum = true
         val lp = panel.layoutParams
