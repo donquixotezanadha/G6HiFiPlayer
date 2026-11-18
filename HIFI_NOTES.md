@@ -801,3 +801,6 @@
 
 ## Hifi 2.73 classic 24
 - Classic line only (same change as Blur 2.79): the opened-album page has no big cover any more. The back arrow (40dp) and the title "Artist - Album" (centred between 48dp margins, up to 2 lines) share ONE header row at the very top of the page content; "n tracks", PLAY ALBUM / ADD TO QUEUE, the track list and "More albums by" move up. The Hi-Res badge that sat on the big cover is gone with it (the grid covers keep theirs). The fixed "Album" bar with the gear above stays. versionCode 196.
+
+## Hifi 2.73 classic 25
+- Classic line (same change as Blur 2.80): the back arrow of an opened album moved up into the fixed header bar, at the left of the "Album" title on the same line (title shifts right after it), and the glyph is smaller (about the cap height of the title text, 2dp stroke; was ~19dp tall). It shows only while an album is open (updateHeaderBack). The album's own title row below now only holds the centred "Artist - Album". versionCode 198.
