@@ -694,3 +694,6 @@
 
 ## Hifi 2.90 (Blur line, from 2.89)
 - Blur (from 2.89): bigger covers (grid inset 17 -> 9dp, window padding 12dp); the window grows around the cover AND its label (both stay in place); the two actions have a LINE-coloured separating background (like the old options) and no window background of their own; the track list is the queue list (same rows, queue paddings, scrollbar). versionCode 218.
+
+## Hifi 2.91 (Blur line, from 2.90)
+- Blur (from 2.90): the album window is part of the page (scrolls with it, no dialog, no inner scroll): it takes the place of the tapped album row, cover + label stay at the same spot, actions (50dp buttons, LINE background, top level with the cover) on the free side, full track list under; real dim (55%) over everything else with a bright hole for the window; closes via Back, dim tap or album tap; slide via clip + translate. versionCode 220.

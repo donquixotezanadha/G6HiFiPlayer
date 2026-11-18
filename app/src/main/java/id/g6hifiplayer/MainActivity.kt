@@ -428,7 +428,7 @@ class MainActivity : Activity() {
         pageScroll = scroll
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
-            if (currentPage == "library" && selectedAlbum == null && !restoringScroll) listScrollY = y
+            if (currentPage == "library" && !restoringScroll) listScrollY = y
         }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -1857,15 +1857,32 @@ class MainActivity : Activity() {
                 }
             }
         }
-        fun namedArtistOf(a: String) = (albumNames[a] ?: ("" to a)).first
-        fun namedAlbumOf(a: String) = (albumNames[a] ?: ("" to a)).second
+        // Hifi 2.91: the open album is a window INSIDE the page (it scrolls with the page): it takes the place of the album's row, the cover and its
+        // label stay at exactly the same spot, the free side holds the two actions, the track list is under them; everything else is dimmed.
+        val sel = selectedAlbum
+        val selPos = if (sel == null) -1 else items.indexOfFirst { it.first == sel }
+        if (sel != null && selPos < 0) selectedAlbum = null
+        val selRow = if (selPos >= 0) selPos / albumGridColumns else -1
         var gridRow: LinearLayout? = null
         items.forEachIndexed { position, item ->
             val album = item.first
             val groupKeys = item.second
             if (position % albumGridColumns == 0) {
                 gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+                if (position / albumGridColumns == selRow) {
+                    val pageW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
+                    val side = (pageW - dp(18)) / 2 - dp(6)   // the cover of a grid cell: half of the row minus the cell margin (3dp) and padding (3dp)
+                    val (selArtist, selName) = albumNames[sel.orEmpty()] ?: ("" to sel.orEmpty())
+                    val windowBlock = buildAlbumWindow(sel.orEmpty(), groupedAlbums[sel.orEmpty()].orEmpty(), selPos % albumGridColumns == albumGridColumns - 1, selArtist, selName, side)
+                    albumRows.addView(windowBlock, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = -dp(9); rightMargin = -dp(9); topMargin = -dp(6); bottomMargin = dp(8) })
+                    albumPanelView = windowBlock
+                    updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
+                    if (animateAlbumOpen) {
+                        animateAlbumOpen = false
+                        windowBlock.measure(View.MeasureSpec.makeMeasureSpec(pageW, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+                        slideAlbumWindow(windowBlock, albumRows.indexOfChild(windowBlock), pageW, true)
+                    }
+                } else albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val cellLp = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (position % albumGridColumns != 0) leftMargin = dp(3)
@@ -1884,8 +1901,8 @@ class MainActivity : Activity() {
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album)
                 setOnClickListener {
-                    val coverView = getChildAt(0)
-                    showAlbumWindow(album, entries, coverView, position % albumGridColumns == albumGridColumns - 1, namedArtistOf(album), namedAlbumOf(album))
+                    if (closingAlbum) return@setOnClickListener
+                    if (selectedAlbum != null) closeAlbum() else { selectedAlbum = album; animateAlbumOpen = true; renderLibrary() }
                 }
             }
             // Build 2.4: square cover with rounded corners (the corners were not clipped before).
@@ -1936,6 +1953,7 @@ class MainActivity : Activity() {
             }
         }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
+        updateAlbumScrim(selPos >= 0)
     }
 
     /** Hifi 2.34: old saved libraries: "Artist unavailable" becomes "", an album that is a folder name "Artist - Album" is split. */
@@ -3372,7 +3390,7 @@ class MainActivity : Activity() {
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
         updateHeaderBack()
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
-        if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
+        if (which == "library" && previousPage != "library") restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
         if (which != "player" && tabsPaletteDirty) retintPages()
@@ -3678,28 +3696,17 @@ class MainActivity : Activity() {
         popIn(panel, anchor)
     }
 
-    /**
-     * Hifi 2.89: tapping an album opens ONE floating window (normal window dim): the album cover at exactly the place and size of the
-     * grid cover, "Play album" / "Add to queue" as plain text on the free side (right of a left-column cover, left of a right-column
-     * cover), and the track list under it. The window is moved after it is laid out so the cover really sits over the grid cover.
-     */
-    private fun showAlbumWindow(album: String, entries: List<IndexedValue<Track>>, anchorCover: View, rightColumn: Boolean, artistName: String, albumName: String) {
+    /** Hifi 2.91: the open album's window: [cover + label | actions] (mirrored for the right column) and the full track list under it. */
+    private fun buildAlbumWindow(album: String, entries: List<IndexedValue<Track>>, rightColumn: Boolean, artistName: String, albumName: String, side: Int): LinearLayout {
         val sorted = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
-        if (sorted.isEmpty() || anchorCover.width <= 0) return
         val queueIndices = sorted.map { it.index }
         val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
-        val dialog = AlertDialog.Builder(this).create()
-        // Hifi 2.90: the window grows around the cover AND its label (both stay exactly where they are in the grid); the two actions on the
-        // free side have their own separating background (like the options of the old long-press window); the track list is the queue's list.
-        val padH = dp(12); val padTop = dp(10); val padBottom = dp(8)
-        val panel = LinearLayout(this).apply {
+        val block = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(padH, padTop, padH, padBottom)
-            minimumWidth = floatingWindowWidth()
+            setPadding(dp(12), dp(10), dp(12), dp(8))
             background = floatingBackground()
-            alpha = 0f
+            isClickable = true
         }
-        val side = anchorCover.width
         val cover = object : ImageView(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
         }.apply {
@@ -3709,7 +3716,7 @@ class MainActivity : Activity() {
             contentDescription = "Artwork $album"
         }
         applyAlbumHiResBadge(cover, sorted.map { it.value })
-        loadArtworkInto(cover, sorted.first().value)
+        sorted.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         val coverColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         coverColumn.addView(cover, LinearLayout.LayoutParams(side, side))
         coverColumn.addView(albumLabelView(artistName, albumName, 12f, 2, false).apply {
@@ -3723,76 +3730,108 @@ class MainActivity : Activity() {
                 setPadding(dp(14), 0, dp(10), 0)
                 background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 14), null)
                 isClickable = true; isFocusable = true
-                setOnClickListener { dialog.dismiss(); onClick() }
+                setOnClickListener { onClick() }
             }
-            actions.addView(item, LinearLayout.LayoutParams(-1, 0, 1f).apply { if (!last) bottomMargin = dp(8) })
+            actions.addView(item, LinearLayout.LayoutParams(-1, dp(50)).apply { if (!last) bottomMargin = dp(8) })
         }
-        option("▶  Play album", false) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
+        option("▶  Play album", false) { if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() } }
         option("＋  Add to queue", true) { addAlbumToQueue(queueIndices, album) }
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         if (rightColumn) {
-            head.addView(actions, LinearLayout.LayoutParams(0, side, 1f).apply { rightMargin = dp(12) })
+            head.addView(actions, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(12) })
             head.addView(coverColumn, LinearLayout.LayoutParams(side, -2))
         } else {
             head.addView(coverColumn, LinearLayout.LayoutParams(side, -2))
-            head.addView(actions, LinearLayout.LayoutParams(0, side, 1f).apply { leftMargin = dp(12) })
+            head.addView(actions, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(12) })
         }
-        panel.addView(head, LinearLayout.LayoutParams(-1, -2))
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }   // rows start where the queue's rows start
-        val marksBefore = albumPlayingMarks.size
-        trackRowHook = { dialog.dismiss() }
+        block.addView(head, LinearLayout.LayoutParams(-1, -2))
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(8), dp(4), 0) }
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(list, entry, position + 1, albumArtist, queueIndices) }
-        trackRowHook = null
-        val mine = albumPlayingMarks.drop(marksBefore)
-        updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
-        dialog.setOnDismissListener { albumPlayingMarks.removeAll(mine.toSet()) }
-        val inner = floatingWindowWidth() - 2 * padH
-        head.measure(View.MeasureSpec.makeMeasureSpec(inner, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        list.measure(View.MeasureSpec.makeMeasureSpec(inner, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        val screenH = resources.displayMetrics.heightPixels
-        val margin = dp(28)
-        val headExtra = padTop + head.measuredHeight + dp(8) + padBottom
-        val listH = minOf(list.measuredHeight, screenH - 2 * margin - headExtra)
-        val scroll = ScrollView(this).apply {
-            clipToPadding = false
-            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            isVerticalScrollBarEnabled = true
-            addView(list, ViewGroup.LayoutParams(-1, -2))
+        block.addView(list, LinearLayout.LayoutParams(-1, -2))
+        block.tag = head
+        return block
+    }
+
+    /** Hifi 2.91: opens / closes the window: laid out at full height once, shown through a clip that grows from the cover row; the rows after it are only translated. */
+    private fun slideAlbumWindow(block: View, at: Int, w: Int, opening: Boolean, done: () -> Unit = {}) {
+        val head = block.tag as? View
+        val full = if (block.height > 0) block.height else block.measuredHeight
+        val collapsed = if (head != null) block.paddingTop + head.measuredHeight.coerceAtLeast(head.height) + dp(8) else full
+        val clip = android.graphics.Rect()
+        fun apply(cur: Int) {
+            clip.set(0, 0, w, cur)
+            block.clipBounds = clip
+            val hidden = (full - cur).toFloat()
+            for (i in at + 1 until albumRows.childCount) albumRows.getChildAt(i).translationY = -hidden
         }
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, listH).apply { topMargin = dp(8) })
-        val anchorLoc = IntArray(2); anchorCover.getLocationOnScreen(anchorLoc)
-        val total = headExtra + listH
-        val top = (anchorLoc[1] - padTop).coerceIn(margin, maxOf(margin, screenH - margin - total))
-        dialog.setView(panel)
-        dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
-        dialog.show()
-        dialog.window?.let { w ->
-            w.setBackgroundDrawableResource(android.R.color.transparent)
-            w.setLayout(floatingWindowWidth(), WindowManager.LayoutParams.WRAP_CONTENT)
-            w.setDimAmount(0.55f)
-            val a = w.attributes
-            a.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            a.y = top
-            w.attributes = a
-        }
-        // After the first layout: move the window by the measured difference so the window cover sits exactly over the grid cover.
-        var corrected = false
-        panel.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
-            override fun onGlobalLayout() {
-                if (corrected || panel.width == 0) return
-                corrected = true
-                if (panel.viewTreeObserver.isAlive) panel.viewTreeObserver.removeOnGlobalLayoutListener(this)
-                val here = IntArray(2); cover.getLocationOnScreen(here)
-                val dy = anchorLoc[1] - here[1]
-                val dx = anchorLoc[0] - here[0]
-                dialog.window?.let { w ->
-                    val a = w.attributes
-                    a.y += dy; a.x += dx
-                    w.attributes = a
+        val from = if (opening) collapsed else full
+        val to = if (opening) full else collapsed
+        apply(from)
+        android.animation.ValueAnimator.ofInt(from, to).apply {
+            duration = if (opening) 520 else 420
+            interpolator = if (opening) android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f) else android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+            addUpdateListener { apply(it.animatedValue as Int) }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    block.clipBounds = null
+                    for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
+                    done()
                 }
-                panel.animate().alpha(1f).setDuration(120).start()
+            })
+            handler.post { start() }
+        }
+    }
+
+    private var albumScrim: View? = null
+
+    /** The dim of a normal window (black 55%) over the whole screen except the open album's window. Draw only: touches go through. */
+    private inner class AlbumScrim(c: android.content.Context) : View(c) {
+        private val r = android.graphics.Rect()
+        private val limit = android.graphics.Rect()
+        private val loc = IntArray(2)
+        private val me = IntArray(2)
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            if (currentPage != "library") return
+            getLocationOnScreen(me)
+            val hasLimit = pageScroll?.getGlobalVisibleRect(limit) == true
+            canvas.save()
+            val v = albumPanelView
+            if (v != null && v.isShown && v.width > 0) {
+                v.getLocationOnScreen(loc)
+                val h = v.clipBounds?.height() ?: v.height
+                r.set(loc[0], loc[1], loc[0] + v.width, loc[1] + h)
+                if (!hasLimit || r.intersect(limit)) { r.offset(-me[0], -me[1]); canvas.clipOutRect(r) }
             }
-        })
+            canvas.drawColor(Color.argb(140, 0, 0, 0))
+            canvas.restore()
+            postInvalidateOnAnimation()
+        }
+    }
+
+    private fun updateAlbumScrim(on: Boolean) {
+        if (!on) {
+            albumScrim?.let { (it.parent as? ViewGroup)?.removeView(it) }
+            albumScrim = null
+            if (::albumRows.isInitialized) { albumRows.setOnClickListener(null); albumRows.isClickable = false }
+            return
+        }
+        albumRows.setOnClickListener { closeAlbum() }   // a tap on the dim between the albums closes too
+        if (albumScrim == null) {
+            val v = AlbumScrim(this)
+            (window.decorView as ViewGroup).addView(v, ViewGroup.LayoutParams(-1, -1))
+            albumScrim = v
+        }
+    }
+
+    /** Hifi 2.91: close the open album: dim off at once, the window shrinks to its cover row, then the grid is drawn normally again. */
+    private fun closeAlbum() {
+        if (closingAlbum) return
+        val block = albumPanelView
+        updateAlbumScrim(false)
+        fun finish() { closingAlbum = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
+        if (block == null || block.parent !== albumRows || block.height <= 0) { finish(); return }
+        closingAlbum = true
+        slideAlbumWindow(block, albumRows.indexOfChild(block), block.width, false) { finish() }
     }
 
     private fun flatSection() = LinearLayout(this).apply {
@@ -4106,7 +4145,7 @@ class MainActivity : Activity() {
 
     override fun onBackPressed() {
         if (currentPage == "library" && selectedAlbum != null) {
-            goBackFromAlbum()
+            closeAlbum()
             return
         }
         if (currentPage != "player") {
