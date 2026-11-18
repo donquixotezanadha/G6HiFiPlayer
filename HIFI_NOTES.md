@@ -697,3 +697,6 @@
 
 ## Hifi 2.91 (Blur line, from 2.90)
 - Blur (from 2.90): the album window is part of the page (scrolls with it, no dialog, no inner scroll): it takes the place of the tapped album row, cover + label stay at the same spot, actions (50dp buttons, LINE background, top level with the cover) on the free side, full track list under; real dim (55%) over everything else with a bright hole for the window; closes via Back, dim tap or album tap; slide via clip + translate. versionCode 220.
+
+## Hifi 2.92 (Blur line, from 2.91)
+- Blur (from 2.91): no rebuild. Each grid row sits in a host (same layout as before); tapping an album gives the host the rounded window background, replaces the neighbouring cell by the two actions (measured rect) and adds the track list; the tapped cell is never touched, so cover and label cannot move. Window grows with a rounded outline, dim fades in with a rounded hole, closes with a strongly decelerating ease-out (520 ms). versionCode 222.
