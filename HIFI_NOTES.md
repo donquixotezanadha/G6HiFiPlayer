@@ -670,3 +670,6 @@
 
 ## Hifi 2.78 (Blur line, from 2.57c)
 - Blur line: stacked covers removed: every album is its own cell in the Album grid (grouping by artist disabled). The long-press window therefore has only "Play album" + "Add album to queue" (no "Play entire album", no mini covers). Kept: the "More albums by <artist>" row inside an opened album. Same change as 2.73 classic 23. id id.hifi.player, versionCode 195.
+
+## Hifi 2.79 (Blur line, from 2.78)
+- Blur line, same change as 2.73 classic 24: no big cover on the opened-album page; back arrow and title share one row at the top, content moves up (Hi-Res badge of the big cover gone). versionCode 197.
