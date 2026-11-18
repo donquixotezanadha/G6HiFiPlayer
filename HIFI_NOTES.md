@@ -673,3 +673,6 @@
 
 ## Hifi 2.79 (Blur line, from 2.78)
 - Blur line, same change as 2.73 classic 24: no big cover on the opened-album page; back arrow and title share one row at the top, content moves up (Hi-Res badge of the big cover gone). versionCode 197.
+
+## Hifi 2.80 (Blur line, from 2.79)
+- Blur line, same change as 2.73 classic 25: back arrow of an opened album moved into the fixed header bar next to the "Album" title and made smaller. versionCode 199.

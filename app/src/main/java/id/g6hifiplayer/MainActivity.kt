@@ -240,6 +240,7 @@ class MainActivity : Activity() {
     // Hifi 1.39: slide left on Now Playing goes to Album (the mini player rises from the bottom); slide right on Album, tapping the mini player, Back and play actions slide back to Now Playing.
     private var pageAnimToken = 0   // Hifi 1.39: a newer page slide makes the end action of an older one do nothing
     private var headerGear: View? = null
+    private var headerBack: View? = null   // Hifi 2.73 classic 25 / 2.80
     private var themeIconView: ImageView? = null   // Hifi 2.11: theme / queue / album row under the controls
     private var albumIconView: ImageView? = null
     private var queueRowsSig = Int.MIN_VALUE
@@ -1830,6 +1831,7 @@ class MainActivity : Activity() {
 
     private fun renderLibrary() {
         if (!::albumRows.isInitialized) return
+        updateHeaderBack()
         albumPlayingMarks.clear()
         albumRows.removeAllViews()
         if (tracks.isEmpty()) {
@@ -1848,31 +1850,20 @@ class MainActivity : Activity() {
             )
             if (entries.isEmpty()) {
                 selectedAlbum = null
+                updateHeaderBack()
             } else {
                 val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
                 val queueIndices = entries.map { it.index }
 
-                // Hifi 2.73 classic 24 / 2.79: no big cover any more. The header is one row: the back arrow at the left and the title
+                // Hifi 2.73 classic 24 / 2.79: no big cover any more. Title row ("Artist - Album", centred) at the very top; Hifi 2.73 classic 25 / 2.80: the back arrow moved up into the fixed header bar, level with the "Album" title. (old note: the back arrow at the left and the title
                 // ("Artist - Album", centred between symmetric 48dp margins) on the same line, right at the top; everything below moves up.
                 val headerRow = FrameLayout(this)
                 headerRow.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
                     setLines(0); maxLines = 2
                     gravity = Gravity.CENTER
-                    setPadding(dp(48), dp(4), dp(48), dp(4))
+                    setPadding(dp(16), dp(4), dp(16), dp(4))
                 }, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL).apply { })
-                val backArrow = ImageView(this).apply {
-                    setImageDrawable(backArrowDrawable())
-                    scaleType = ImageView.ScaleType.CENTER
-                    isClickable = true; isFocusable = true
-                    contentDescription = "Back to albums"
-                    themed { imageTintList = ColorStateList.valueOf(WHITE) }   // Hifi 2.10: the arrow follows the theme ink (dark in Light)
-                    themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 12), null) }
-                    setOnClickListener {
-                        goBackFromAlbum()
-                    }
-                }
-                headerRow.addView(backArrow, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER_VERTICAL or Gravity.START))
-                headerRow.minimumHeight = dp(48)
+                headerRow.minimumHeight = dp(40)
                 albumRows.addView(headerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(0) })
                 albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
@@ -3493,6 +3484,7 @@ class MainActivity : Activity() {
         currentPage = which
         if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else ""   // Hifi 1.51: no "Now Playing" title on Now Playing (the icons stay)
         headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
+        updateHeaderBack()
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library" && selectedAlbum == null) restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
@@ -3846,11 +3838,11 @@ class MainActivity : Activity() {
         val bmp = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(2).toFloat() + 0.5f
+            color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = dp(2).toFloat()
             strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
         }
         val path = android.graphics.Path().apply {
-            moveTo(d * 0.60f, d * 0.26f); lineTo(d * 0.36f, d * 0.50f); lineTo(d * 0.60f, d * 0.74f)
+            moveTo(d * 0.58f, d * 0.33f); lineTo(d * 0.42f, d * 0.50f); lineTo(d * 0.58f, d * 0.67f)   // Hifi 2.73 classic 25 / 2.80: smaller, about the size of the header title text
         }
         c.drawPath(path, paint)
         return android.graphics.drawable.BitmapDrawable(resources, bmp)
@@ -3918,6 +3910,20 @@ class MainActivity : Activity() {
             addView(scanProgress, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(3) })
         }
         val titleRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        // Hifi 2.73 classic 25 / 2.80: back arrow of an opened album sits here, level with the "Album" title (only visible while an album is open)
+        headerBack = ImageView(this).apply {
+            setImageDrawable(backArrowDrawable())
+            scaleType = ImageView.ScaleType.CENTER
+            isClickable = true; isFocusable = true
+            contentDescription = "Back to albums"
+            visibility = View.GONE
+            themed {
+                imageTintList = ColorStateList.valueOf(WHITE)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 15))
+            }
+            setOnClickListener { goBackFromAlbum() }
+        }
+        titleRow.addView(headerBack, LinearLayout.LayoutParams(dp(34), dp(HEADER_H_DP)).apply { leftMargin = dp(8) })
         titleRow.addView(headerTitle, LinearLayout.LayoutParams(-2, dp(HEADER_H_DP)))
         titleRow.addView(scanBox, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(12) })
         bar.addView(titleRow, FrameLayout.LayoutParams(-1, dp(HEADER_H_DP), Gravity.START or Gravity.TOP).apply { rightMargin = dp(HEADER_H_DP) + dp(8) })
@@ -4080,6 +4086,13 @@ class MainActivity : Activity() {
     }
 
     /** Hifi 2.37: Back inside the Album tab goes one step back: the album opened before this one, or the grid at its old scroll. */
+    /** Hifi 2.73 classic 25 / 2.80: the back arrow lives in the fixed header bar while an album is open; the "Album" title then sits right after it. */
+    private fun updateHeaderBack() {
+        val open = currentPage == "library" && selectedAlbum != null
+        headerBack?.visibility = if (open) View.VISIBLE else View.GONE
+        if (::headerTitle.isInitialized) headerTitle.setPadding(dp(if (open) 0 else 20), 0, dp(8), 0)
+    }
+
     private fun goBackFromAlbum() {
         if (albumBackStack.isNotEmpty()) {
             selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
