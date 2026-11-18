@@ -822,3 +822,6 @@
 
 ## Hifi 2.73 classic 31
 - Classic, same as Blur 2.86: window-style dim (black 55% scrim over the other albums instead of transparency); the track list is plain rows again like the old album page (no window background, no padding); the popup (Play album / Add to queue) is sized to its text, level with the cover top, next to the selected album; long-press shows the popup only (no list). Tracks list still opens on tap.  versionCode 210.
+
+## Hifi 2.73 classic 32
+- popup as wide as the neighbouring cover; slide smoother (starts after the rebuild frame, decelerate 320 ms open, 260 ms close, dim removed at once on close). versionCode 212.
