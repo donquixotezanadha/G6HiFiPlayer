@@ -1954,14 +1954,14 @@ class MainActivity : Activity() {
         val openAlbum = selectedAlbum?.takeIf { a -> albums.any { it == a } }
         if (openAlbum == null) selectedAlbum = null
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        val coverSide = (gridW - dp(12)) / 3 - dp(6)
+        val coverSide = dp(96)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
         albums.forEach { album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.TOP
-                setPadding(dp(3), dp(5), dp(3), dp(5))
+                setPadding(0, dp(5), 0, dp(5))   // no side padding: the cover starts at the left edge of the floating mini player, the buttons end at its right edge
                 themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true
@@ -1978,15 +1978,16 @@ class MainActivity : Activity() {
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
             item.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
-            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(4), 0) }
+            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0) }
             // Hifi 2.73 classic 38: title level with the cover top, artist, track count, and the two buttons side by side (no long-press needed).
-            texts.addView(text(namedAlbum, 15f, WHITE, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
-            if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(3), 0, 0)
+            texts.addView(text(namedAlbum.ifBlank { album }, 13f, WHITE, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 12f, MUTED, false).apply {
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(2), 0, 0)
             })
-            texts.addView(text(entries.size.toString() + (if (entries.size == 1) " track" else " tracks"), 12f, MUTED, false).apply {
-                setPadding(0, dp(3), 0, 0)
+            texts.addView(text(entries.size.toString() + (if (entries.size == 1) " track" else " tracks"), 11f, MUTED, false).apply {
+                setPadding(0, dp(1), 0, dp(4))
             })
+            texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))   // the buttons sit on the bottom edge of the cover
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
             fun albumButton(label: String, onClick: () -> Unit) = text(label, 11f, WHITE, true).apply {
                 gravity = Gravity.CENTER
@@ -1999,11 +2000,11 @@ class MainActivity : Activity() {
             val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             buttons.addView(albumButton("PLAY ALBUM") {
                 if (rowIndices.isNotEmpty()) { playTrackAt(rowIndices.first(), true, rowIndices); showPlayerAnimated() }
-            }, LinearLayout.LayoutParams(0, dp(34), 1f))
+            }, LinearLayout.LayoutParams(0, dp(28), 1f))
             buttons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-            buttons.addView(albumButton("ADD TO QUEUE") { addAlbumToQueue(rowIndices, album) }, LinearLayout.LayoutParams(0, dp(34), 1f))
-            texts.addView(buttons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
-            item.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+            buttons.addView(albumButton("ADD TO QUEUE") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(0, dp(28), 1f))
+            texts.addView(buttons, LinearLayout.LayoutParams(-1, -2))
+            item.addView(texts, LinearLayout.LayoutParams(0, coverSide, 1f))
             albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
             if (album == openAlbum) openAlbumPanel(album, item, entries, false)
@@ -3520,10 +3521,10 @@ class MainActivity : Activity() {
         persistQueueState()
         renderQueueRows()
         recordDiagnostic("QUEUE_ALBUM_ADDED album=${tracks[index].album} tracks=${albumIndices.size} queueSize=${playbackOrder.size}")
-        Toast.makeText(this, "Album added to queue: ${tracks[index].album}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, tracks[index].album + (if (tracks[index].artist.isBlank()) "" else " - " + tracks[index].artist) + " added to queue", Toast.LENGTH_SHORT).show()
     }
 
-    private fun addAlbumToQueue(indices: List<Int>, album: String) {
+    private fun addAlbumToQueue(indices: List<Int>, album: String, unused: String = "", albumName: String = album, artistName: String = "") {
         val valid = indices.filter { it in tracks.indices }.distinct()
         if (valid.isEmpty()) return
         playbackQueue = (playbackQueue + valid).distinct()
@@ -3533,7 +3534,8 @@ class MainActivity : Activity() {
         persistQueueState()
         renderQueueRows()
         recordDiagnostic("QUEUE_ALBUM_ADDED album=$album tracks=${valid.size} queueSize=${playbackOrder.size}")
-        Toast.makeText(this, "Album added to queue: $album", Toast.LENGTH_SHORT).show()
+        // Hifi 2.73 classic 39: short toast: "Album - Artist added to queue"
+        Toast.makeText(this, (if (artistName.isBlank()) albumName else "$albumName - $artistName") + " added to queue", Toast.LENGTH_SHORT).show()
     }
 
     private fun renderQueueRows() {

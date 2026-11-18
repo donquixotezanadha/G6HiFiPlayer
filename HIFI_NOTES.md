@@ -831,3 +831,13 @@
 
 ## Hifi 2.73 classic 38
 - Classic (from 37): album row right side = title level with the cover top, artist, track count, then PLAY ALBUM / ADD TO QUEUE side by side (background = playing-row highlight colour); the opened list is tracks only. No fade added. versionCode 225.
+
+## Hifi 2.73 classic 39
+- Classic (from 38): cover 96dp (was 99dp), the text column is exactly as tall as the cover (title 13f up to 2 lines, artist 12f, tracks 11f, PLAY ALBUM / ADD TO QUEUE 28dp pinned to the cover's bottom edge, 12dp gap); no side padding so the cover starts and the buttons end at the edges of the floating mini player; empty album name falls back to the folder key; toast of "add to queue" is now "Album - Artist added to queue". versionCode 226.
+
+## ON HOLD: Blur line (decided 19 Nov 06:06)
+- Blur stays at 2.84 (final). Blur experiments 2.85-2.93 (inline dim / floating window) did not give the wanted result and are parked. Classic is the reference design; the Classic changes below are to be carried to Blur LATER, when he says so (Blur keeps rounded covers 10dp and its own colours):
+  1. Album tab as a list instead of the grid (classic 34): small cover, title, artist, track count, PLAY ALBUM / ADD TO QUEUE side by side (button background = playing-row highlight colour), tap row opens the track list (tracks only) under the row, no dim, no column option, no album page / More albums / long-press window / header back arrow (classic 38-39).
+  2. Open/close slide (classic 35-37): panel inserted in place (no rebuild), clip + translate, open 520 ms ease-out, close 560 ms strongly decelerating end.
+  3. Short "add to queue" toast: "Album - Artist added to queue" (old long toast is an OLD BUG in both lines: classic 39 fixes Classic only).
+  4. Ideas not built: light fade + small slide-up of the list contents when opening/closing (like the mini player).
