@@ -844,3 +844,6 @@
 
 ## Hifi 2.73 classic 40
 - Classic (from 39): side gap back as in 38 (3dp item padding, 4dp right text padding), 16dp gap between albums (was 10dp), album title one line with "..." when long, the two buttons only as wide as their text (12dp side padding, left-aligned like the title). versionCode 227. (Carry to Blur later together with the list design.)
+
+## Hifi 2.73 classic 41
+- Classic (from 40): gap between albums 20dp (was 16dp), about the side gap. versionCode 228.

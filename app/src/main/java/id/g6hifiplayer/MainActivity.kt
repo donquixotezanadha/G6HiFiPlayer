@@ -1961,7 +1961,7 @@ class MainActivity : Activity() {
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.TOP
-                setPadding(dp(3), dp(8), dp(3), dp(8))   // Hifi 2.73 classic 40: side gap back as in 38; bigger gap between albums (16dp)
+                setPadding(dp(3), dp(10), dp(3), dp(10))   // Hifi 2.73 classic 41: gap between albums 20dp, about the side gap (16dp page + 3dp)
                 themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true
