@@ -1960,7 +1960,7 @@ class MainActivity : Activity() {
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
+                gravity = Gravity.TOP
                 setPadding(dp(3), dp(5), dp(3), dp(5))
                 themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
@@ -1979,10 +1979,30 @@ class MainActivity : Activity() {
             applyAlbumHiResBadge(cover, entries.map { it.value })
             item.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
             val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(4), 0) }
+            // Hifi 2.73 classic 38: title level with the cover top, artist, track count, and the two buttons side by side (no long-press needed).
             texts.addView(text(namedAlbum, 15f, WHITE, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
             if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(3), 0, 0)
             })
+            texts.addView(text(entries.size.toString() + (if (entries.size == 1) " track" else " tracks"), 12f, MUTED, false).apply {
+                setPadding(0, dp(3), 0, 0)
+            })
+            val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
+            fun albumButton(label: String, onClick: () -> Unit) = text(label, 11f, WHITE, true).apply {
+                gravity = Gravity.CENTER
+                maxLines = 1
+                setPadding(dp(4), 0, dp(4), 0)
+                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(selectedHighlight(), 8), null) }   // same colour as the playing track's row
+                isClickable = true; isFocusable = true
+                setOnClickListener { onClick() }
+            }
+            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            buttons.addView(albumButton("PLAY ALBUM") {
+                if (rowIndices.isNotEmpty()) { playTrackAt(rowIndices.first(), true, rowIndices); showPlayerAnimated() }
+            }, LinearLayout.LayoutParams(0, dp(34), 1f))
+            buttons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+            buttons.addView(albumButton("ADD TO QUEUE") { addAlbumToQueue(rowIndices, album) }, LinearLayout.LayoutParams(0, dp(34), 1f))
+            texts.addView(buttons, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
             item.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
             albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
@@ -4049,13 +4069,7 @@ class MainActivity : Activity() {
         val queueIndices = sorted.map { it.index }
         val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(8), dp(4), dp(6)) }
-        albumActions.addView(flatAction("PLAY ALBUM", true) {
-            if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-        albumActions.addView(flatAction("ADD TO QUEUE", false) { addAlbumToQueue(queueIndices, album) }, LinearLayout.LayoutParams(0, -2, 1f))
-        panel.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
+        panel.setPadding(0, dp(2), 0, 0)   // Hifi 2.73 classic 38: the open list is the tracks only; the two buttons are on the album row
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
         val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
         val at = albumRows.indexOfChild(item) + 1

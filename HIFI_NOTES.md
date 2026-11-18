@@ -828,3 +828,6 @@
 
 ## Hifi 2.73 classic 37
 - Classic (from 36): closing slows down strongly near the end (ease-out path 0.15/0.6/0.2/1, 560 ms) so the list closes gently. versionCode 223.
+
+## Hifi 2.73 classic 38
+- Classic (from 37): album row right side = title level with the cover top, artist, track count, then PLAY ALBUM / ADD TO QUEUE side by side (background = playing-row highlight colour); the opened list is tracks only. No fade added. versionCode 225.
