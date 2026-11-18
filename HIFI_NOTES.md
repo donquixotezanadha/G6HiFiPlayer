@@ -679,3 +679,6 @@
 
 ## Hifi 2.81 (Blur line, from 2.80)
 - Blur line, same change as 2.73 classic 26: Hi-Res logo beside the album title on the opened-album page for Hi-Res albums. versionCode 201.
+
+## Hifi 2.82 (Blur line, from 2.81)
+- Blur line, same change as 2.73 classic 27: Hi-Res logo beside the title removed; album cover back in the opened album at the 2-column grid size with the grid's Hi-Res logo; "More albums by" covers at the 3-column grid size. versionCode 203.
