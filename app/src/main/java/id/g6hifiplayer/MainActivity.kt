@@ -1898,14 +1898,14 @@ class MainActivity : Activity() {
                     isClickable = true; isFocusable = true
                     setOnClickListener { onClick() }
                 }
-                box.addView(item, LinearLayout.LayoutParams(-2, dp(42)).apply { topMargin = dp(3); bottomMargin = dp(3) })
+                box.addView(item, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(3); bottomMargin = dp(3) })
             }
             option("▶  Play album") {
                 if (selIndices.isNotEmpty()) { playTrackAt(selIndices.first(), true, selIndices); showPlayerAnimated() }
             }
             option("＋  Add to queue") { addAlbumToQueue(selIndices, sel.orEmpty()) }
-            val g = (if (pos > selPos) Gravity.START else Gravity.END) or Gravity.TOP
-            holder.addView(box, FrameLayout.LayoutParams(-2, -2, g).apply { topMargin = dp(4) })
+            // Hifi 2.73 classic 32 / 2.87: as wide as the cover of the neighbouring cell (cell width minus its 3dp padding each side)
+            holder.addView(box, FrameLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); leftMargin = dp(3); rightMargin = dp(3) })
             return holder
         }
         fun addPanel() {
@@ -1924,12 +1924,14 @@ class MainActivity : Activity() {
                 lp.height = 0
                 panel.layoutParams = lp
                 android.animation.ValueAnimator.ofInt(0, target).apply {
-                    duration = 240
+                    duration = 320
+                    interpolator = android.view.animation.DecelerateInterpolator(1.6f)
                     addUpdateListener { lp.height = it.animatedValue as Int; panel.layoutParams = lp }
                     addListener(object : android.animation.AnimatorListenerAdapter() {
                         override fun onAnimationEnd(animation: android.animation.Animator) { lp.height = -2; panel.layoutParams = lp }
                     })
-                    start()
+                    // start after the frame that rebuilt the grid, so the first frames of the slide are not lost to that work
+                    handler.post { start() }
                 }
             }
         }
@@ -4076,9 +4078,13 @@ class MainActivity : Activity() {
         fun finish() { closingAlbum = false; popupOnly = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
         if (panel == null || panel.height <= 0 || panel.parent == null) { finish(); return }
         closingAlbum = true
+        for (i in 0 until albumRows.childCount) (albumRows.getChildAt(i) as? ViewGroup)?.let { row ->
+            if (row !== panel) for (j in 0 until row.childCount) row.getChildAt(j).foreground = null   // the dim goes at once, no flash at the end
+        }
         val lp = panel.layoutParams
         android.animation.ValueAnimator.ofInt(panel.height, 0).apply {
-            duration = 200
+            duration = 260
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
             addUpdateListener { lp.height = it.animatedValue as Int; panel.layoutParams = lp }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) { finish() }
