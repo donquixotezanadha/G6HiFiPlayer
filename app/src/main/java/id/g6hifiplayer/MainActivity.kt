@@ -1960,18 +1960,14 @@ class MainActivity : Activity() {
                 val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
                 val queueIndices = entries.map { it.index }
 
-                // Build 2.3: the cover sits in the middle, fairly large; the songs are a plain numbered list below it.
-                val contentWidth = resources.displayMetrics.widthPixels - dp(32)
-                val artSide = minOf((resources.displayMetrics.widthPixels * ALBUM_DETAIL_ART_FRACTION).toInt(), contentWidth)
-                val bigCover = ImageView(this).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, 0)
-                    contentDescription = "Artwork $album"   // Hifi 2.40: no drop shadow under the big cover
-                }
-                applyAlbumHiResBadge(bigCover, entries.map { it.value })
-                // Build 2.2: no "‹ ALBUMS" button any more; a plain left arrow sits at the left of the big cover.
-                val coverRow = FrameLayout(this)
-                coverRow.addView(bigCover, FrameLayout.LayoutParams(artSide, artSide, Gravity.CENTER_HORIZONTAL))
+                // Hifi 2.73 classic 24 / 2.79: no big cover any more. The header is one row: the back arrow at the left and the title
+                // ("Artist - Album", centred between symmetric 48dp margins) on the same line, right at the top; everything below moves up.
+                val headerRow = FrameLayout(this)
+                headerRow.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
+                    setLines(0); maxLines = 2
+                    gravity = Gravity.CENTER
+                    setPadding(dp(48), dp(4), dp(48), dp(4))
+                }, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL).apply { })
                 val backArrow = ImageView(this).apply {
                     setImageDrawable(backArrowDrawable())
                     scaleType = ImageView.ScaleType.CENTER
@@ -1983,18 +1979,12 @@ class MainActivity : Activity() {
                         goBackFromAlbum()
                     }
                 }
-                coverRow.addView(backArrow, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.TOP or Gravity.START))
-                albumRows.addView(coverRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
-                loadBigArtworkInto(bigCover, entries.first().value)
-                // Hifi 2.34: header = "Artist - Album" in the regular weight (it was bold, unlike every other name), the artist is no longer repeated below
-                albumRows.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
-                    setLines(0); maxLines = 2
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(8), dp(16), dp(8), 0)
-                }, LinearLayout.LayoutParams(-1, -2))
+                headerRow.addView(backArrow, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER_VERTICAL or Gravity.START))
+                headerRow.minimumHeight = dp(48)
+                albumRows.addView(headerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(0) })
                 albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(8), dp(3), dp(8), dp(12))
+                    setPadding(dp(8), dp(0), dp(8), dp(12))
                 }, LinearLayout.LayoutParams(-1, -2))
                 val albumActions = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL

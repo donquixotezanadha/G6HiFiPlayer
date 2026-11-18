@@ -798,3 +798,6 @@
 
 ## Hifi 2.73 classic 23
 - Classic line only: stacked covers removed: every album is its own cell in the Album grid (grouping by artist disabled: groupsByArtist = empty). Consequence in the long-press window: no "Play entire album" and no mini covers of the artist's other albums (they only existed for stacks). Kept: the "More albums by <artist>" row inside an opened album. The StackedCovers class stays in the code but is unused. versionCode 195.
+
+## Hifi 2.73 classic 24
+- Classic line only (same change as Blur 2.79): the opened-album page has no big cover any more. The back arrow (40dp) and the title "Artist - Album" (centred between 48dp margins, up to 2 lines) share ONE header row at the very top of the page content; "n tracks", PLAY ALBUM / ADD TO QUEUE, the track list and "More albums by" move up. The Hi-Res badge that sat on the big cover is gone with it (the grid covers keep theirs). The fixed "Album" bar with the gear above stays. versionCode 196.
