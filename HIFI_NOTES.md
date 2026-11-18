@@ -691,3 +691,6 @@
 
 ## Hifi 2.89 (Blur line, from 2.84)
 - Blur: 2 fixed columns (option removed), covers smaller so they line up with the inner edges of the album window; tapping an album opens ONE floating window (normal dim) with the cover over the grid cover, Play album / Add to queue as plain text beside it and the track list under it. Album page, More albums, long-press window and header back arrow removed. versionCode 217.
+
+## Hifi 2.90 (Blur line, from 2.89)
+- Blur (from 2.89): bigger covers (grid inset 17 -> 9dp, window padding 12dp); the window grows around the cover AND its label (both stay in place); the two actions have a LINE-coloured separating background (like the old options) and no window background of their own; the track list is the queue list (same rows, queue paddings, scrollbar). versionCode 218.

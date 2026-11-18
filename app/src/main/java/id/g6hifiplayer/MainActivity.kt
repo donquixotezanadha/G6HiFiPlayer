@@ -1091,7 +1091,7 @@ class MainActivity : Activity() {
         // Hifi 2.4: the "No folder has been scanned yet" / "N tracks" line is gone from the page (kept hidden for the code that sets its text);
         // the scan progress now lives in the header, to the right of the "Album" title (see makeHeaderBar).
         albumScanSummary = text("", 12f, MUTED, false).apply { visibility = View.GONE }
-        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(17), dp(2), dp(17), 0) }   // Hifi 2.89: covers line up with the inner edges of the album window
+        albumRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(9), dp(2), dp(9), 0) }   // Hifi 2.89: covers line up with the inner edges of the album window
         libraryPanel.addView(albumRows, LinearLayout.LayoutParams(-1, -2))
     }
 
@@ -1857,6 +1857,8 @@ class MainActivity : Activity() {
                 }
             }
         }
+        fun namedArtistOf(a: String) = (albumNames[a] ?: ("" to a)).first
+        fun namedAlbumOf(a: String) = (albumNames[a] ?: ("" to a)).second
         var gridRow: LinearLayout? = null
         items.forEachIndexed { position, item ->
             val album = item.first
@@ -1883,7 +1885,7 @@ class MainActivity : Activity() {
                 contentDescription = "Open songs in album " + albumLabel(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album)
                 setOnClickListener {
                     val coverView = getChildAt(0)
-                    showAlbumWindow(album, entries, coverView, position % albumGridColumns == albumGridColumns - 1)
+                    showAlbumWindow(album, entries, coverView, position % albumGridColumns == albumGridColumns - 1, namedArtistOf(album), namedAlbumOf(album))
                 }
             }
             // Build 2.4: square cover with rounded corners (the corners were not clipped before).
@@ -3681,13 +3683,15 @@ class MainActivity : Activity() {
      * grid cover, "Play album" / "Add to queue" as plain text on the free side (right of a left-column cover, left of a right-column
      * cover), and the track list under it. The window is moved after it is laid out so the cover really sits over the grid cover.
      */
-    private fun showAlbumWindow(album: String, entries: List<IndexedValue<Track>>, anchorCover: View, rightColumn: Boolean) {
+    private fun showAlbumWindow(album: String, entries: List<IndexedValue<Track>>, anchorCover: View, rightColumn: Boolean, artistName: String, albumName: String) {
         val sorted = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
         if (sorted.isEmpty() || anchorCover.width <= 0) return
         val queueIndices = sorted.map { it.index }
         val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
         val dialog = AlertDialog.Builder(this).create()
-        val padH = dp(20); val padTop = dp(18); val padBottom = dp(10)
+        // Hifi 2.90: the window grows around the cover AND its label (both stay exactly where they are in the grid); the two actions on the
+        // free side have their own separating background (like the options of the old long-press window); the track list is the queue's list.
+        val padH = dp(12); val padTop = dp(10); val padBottom = dp(8)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padH, padTop, padH, padBottom)
@@ -3706,23 +3710,35 @@ class MainActivity : Activity() {
         }
         applyAlbumHiResBadge(cover, sorted.map { it.value })
         loadArtworkInto(cover, sorted.first().value)
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        actions.addView(flatAction("PLAY ALBUM", true) {
-            dialog.dismiss(); playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated()
-        }.apply { setPadding(dp(4), dp(12), dp(4), dp(12)) }, LinearLayout.LayoutParams(-1, -2))
-        actions.addView(flatAction("ADD TO QUEUE", false) {
-            dialog.dismiss(); addAlbumToQueue(queueIndices, album)
-        }.apply { setPadding(dp(4), dp(12), dp(4), dp(12)) }, LinearLayout.LayoutParams(-1, -2))
+        val coverColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        coverColumn.addView(cover, LinearLayout.LayoutParams(side, side))
+        coverColumn.addView(albumLabelView(artistName, albumName, 12f, 2, false).apply {
+            setPadding(dp(2), dp(7), dp(2), dp(2))
+            gravity = Gravity.CENTER_HORIZONTAL
+        }, LinearLayout.LayoutParams(side, -2))
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun option(label: String, last: Boolean, onClick: () -> Unit) {
+            val item = text(label, 14f, WHITE, true).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(14), 0, dp(10), 0)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 14), null)
+                isClickable = true; isFocusable = true
+                setOnClickListener { dialog.dismiss(); onClick() }
+            }
+            actions.addView(item, LinearLayout.LayoutParams(-1, 0, 1f).apply { if (!last) bottomMargin = dp(8) })
+        }
+        option("▶  Play album", false) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
+        option("＋  Add to queue", true) { addAlbumToQueue(queueIndices, album) }
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         if (rightColumn) {
-            head.addView(actions, LinearLayout.LayoutParams(0, side, 1f))
-            head.addView(cover, LinearLayout.LayoutParams(side, side))
+            head.addView(actions, LinearLayout.LayoutParams(0, side, 1f).apply { rightMargin = dp(12) })
+            head.addView(coverColumn, LinearLayout.LayoutParams(side, -2))
         } else {
-            head.addView(cover, LinearLayout.LayoutParams(side, side))
-            head.addView(actions, LinearLayout.LayoutParams(0, side, 1f))
+            head.addView(coverColumn, LinearLayout.LayoutParams(side, -2))
+            head.addView(actions, LinearLayout.LayoutParams(0, side, 1f).apply { leftMargin = dp(12) })
         }
         panel.addView(head, LinearLayout.LayoutParams(-1, -2))
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }   // rows start where the queue's rows start
         val marksBefore = albumPlayingMarks.size
         trackRowHook = { dialog.dismiss() }
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(list, entry, position + 1, albumArtist, queueIndices) }
@@ -3731,12 +3747,18 @@ class MainActivity : Activity() {
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
         dialog.setOnDismissListener { albumPlayingMarks.removeAll(mine.toSet()) }
         val inner = floatingWindowWidth() - 2 * padH
+        head.measure(View.MeasureSpec.makeMeasureSpec(inner, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
         list.measure(View.MeasureSpec.makeMeasureSpec(inner, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
         val screenH = resources.displayMetrics.heightPixels
         val margin = dp(28)
-        val headExtra = padTop + side + dp(8) + padBottom
+        val headExtra = padTop + head.measuredHeight + dp(8) + padBottom
         val listH = minOf(list.measuredHeight, screenH - 2 * margin - headExtra)
-        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER; addView(list) }
+        val scroll = ScrollView(this).apply {
+            clipToPadding = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = true
+            addView(list, ViewGroup.LayoutParams(-1, -2))
+        }
         panel.addView(scroll, LinearLayout.LayoutParams(-1, listH).apply { topMargin = dp(8) })
         val anchorLoc = IntArray(2); anchorCover.getLocationOnScreen(anchorLoc)
         val total = headExtra + listH
