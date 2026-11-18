@@ -819,3 +819,6 @@
 
 ## Hifi 2.73 classic 34 (from classic 29)
 - Classic: Album tab is a list (small cover = 3-column cover size, album title bold + artist grey beside it), column option removed; tap opens PLAY ALBUM / ADD TO QUEUE + track list under the row, no dim; Back / tap same row closes. Album page, More albums, long-press window and header back arrow removed. versionCode 216.
+
+## Hifi 2.73 classic 35
+- Classic (from classic 34): smoother open/close: the list is inserted in place (no rebuild of all albums), laid out at full height once and revealed by a growing clip while the rows below are only translated (no layout per frame). versionCode 219.

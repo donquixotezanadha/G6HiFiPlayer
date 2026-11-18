@@ -1967,8 +1967,8 @@ class MainActivity : Activity() {
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
-                    if (selectedAlbum == album) closeAlbum()
-                    else { selectedAlbum = album; animateAlbumOpen = true; renderLibrary() }
+                    if (closingAlbum) return@setOnClickListener
+                    if (selectedAlbum == album) closeAlbum() else openAlbumPanel(album, this, entries, true)
                 }
             }
             val cover = ImageView(this).apply {
@@ -1986,40 +1986,7 @@ class MainActivity : Activity() {
             item.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
             albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
-            if (album == openAlbum) {
-                val sorted = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
-                val queueIndices = sorted.map { it.index }
-                val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
-                val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(8), dp(4), dp(6)) }
-                albumActions.addView(flatAction("PLAY ALBUM", true) {
-                    if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
-                }, LinearLayout.LayoutParams(0, -2, 1f))
-                albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-                albumActions.addView(flatAction("ADD TO QUEUE", false) { addAlbumToQueue(queueIndices, album) }, LinearLayout.LayoutParams(0, -2, 1f))
-                panel.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
-                sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
-                val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
-                albumRows.addView(panel, lp)
-                albumPanelView = panel
-                updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
-                if (animateAlbumOpen) {
-                    animateAlbumOpen = false
-                    panel.measure(View.MeasureSpec.makeMeasureSpec(gridW, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-                    val target = panel.measuredHeight
-                    lp.height = 0
-                    panel.layoutParams = lp
-                    android.animation.ValueAnimator.ofInt(0, target).apply {
-                        duration = 320
-                        interpolator = android.view.animation.DecelerateInterpolator(1.6f)
-                        addUpdateListener { lp.height = it.animatedValue as Int; panel.layoutParams = lp }
-                        addListener(object : android.animation.AnimatorListenerAdapter() {
-                            override fun onAnimationEnd(animation: android.animation.Animator) { lp.height = -2; panel.layoutParams = lp }
-                        })
-                        handler.post { start() }
-                    }
-                }
-            }
+            if (album == openAlbum) openAlbumPanel(album, item, entries, false)
         }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
@@ -4065,22 +4032,79 @@ class MainActivity : Activity() {
         if (::headerTitle.isInitialized) headerTitle.setPadding(dp(if (open) 0 else 20), 0, dp(8), 0)
     }
 
-    /** Hifi 2.73 classic 34: close the open album: the list slides up, then the list is drawn again. */
+    /**
+     * Hifi 2.73 classic 35: the list under an album row is inserted in place (the albums are NOT rebuilt). On open the panel is laid out at its full
+     * height at once and revealed by a growing clip while the rows below are only translated (no layout per frame, so the slide stays smooth even
+     * with hundreds of albums); closing is the same backwards, then the panel is removed.
+     */
+    private fun openAlbumPanel(album: String, item: View, entries: List<IndexedValue<Track>>, animate: Boolean) {
+        val old = albumPanelView
+        var shift = 0
+        if (old != null && old.parent === albumRows) {
+            if (albumRows.indexOfChild(old) < albumRows.indexOfChild(item)) shift = old.height
+            albumRows.removeView(old)
+        }
+        selectedAlbum = album
+        val sorted = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
+        val queueIndices = sorted.map { it.index }
+        val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(8), dp(4), dp(6)) }
+        albumActions.addView(flatAction("PLAY ALBUM", true) {
+            if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        albumActions.addView(flatAction("ADD TO QUEUE", false) { addAlbumToQueue(queueIndices, album) }, LinearLayout.LayoutParams(0, -2, 1f))
+        panel.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
+        sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
+        val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
+        val at = albumRows.indexOfChild(item) + 1
+        albumRows.addView(panel, at, lp)
+        albumPanelView = panel
+        updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
+        if (shift > 0) pageScroll?.let { sv -> sv.post { sv.scrollBy(0, -shift) } }
+        if (!animate) return
+        val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
+        panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 320, android.view.animation.DecelerateInterpolator(1.6f)) { }
+    }
+
+    /** f runs from [from] to [to] (0 = closed, 1 = open): the panel is clipped to f * height, the rows after it are shifted up by the hidden part. */
+    private fun slideAlbumPanel(panel: View, at: Int, target: Int, w: Int, from: Float, to: Float, ms: Long, ip: android.animation.TimeInterpolator, done: () -> Unit) {
+        val clip = android.graphics.Rect()
+        fun apply(f: Float) {
+            val cur = (target * f).toInt()
+            clip.set(0, 0, w, cur)
+            panel.clipBounds = clip
+            val hidden = (target - cur).toFloat()
+            for (i in at + 1 until albumRows.childCount) albumRows.getChildAt(i).translationY = -hidden
+        }
+        fun reset() {
+            panel.clipBounds = null
+            for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
+        }
+        apply(from)
+        android.animation.ValueAnimator.ofFloat(from, to).apply {
+            duration = ms
+            interpolator = ip
+            addUpdateListener { apply(it.animatedValue as Float) }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) { reset(); done() }
+            })
+            handler.post { start() }
+        }
+    }
+
+    /** Hifi 2.73 classic 35: close the open album: the list slides up, then it is removed (no rebuild). */
     private fun closeAlbum() {
         if (closingAlbum) return
         val panel = albumPanelView
-        fun finish() { closingAlbum = false; selectedAlbum = null; albumPanelView = null; renderLibrary() }
-        if (panel == null || panel.height <= 0 || panel.parent == null) { finish(); return }
+        if (panel == null || panel.parent !== albumRows || panel.height <= 0) { selectedAlbum = null; albumPanelView = null; return }
         closingAlbum = true
-        val lp = panel.layoutParams
-        android.animation.ValueAnimator.ofInt(panel.height, 0).apply {
-            duration = 260
-            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-            addUpdateListener { lp.height = it.animatedValue as Int; panel.layoutParams = lp }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) { finish() }
-            })
-            start()
+        val at = albumRows.indexOfChild(panel)
+        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 260, android.view.animation.AccelerateDecelerateInterpolator()) {
+            albumRows.removeView(panel)
+            albumPanelView = null; selectedAlbum = null; closingAlbum = false
         }
     }
 
