@@ -813,3 +813,6 @@
 
 ## Hifi 2.73 classic 28
 - Classic line, same change as Blur 2.83: the opened-album cover is built with the SAME cell structure as a 2-column grid cell (padding 3/4/3/7dp, square cover, same Hi-Res logo) in a row [spacer 1 | cell 2 (3dp side margins) | spacer 1], so its size equals the grid cell by construction (the formula-based size of classic 27 was off). Title back BELOW the cover. "More albums by" cover = (measured page width - 12dp) / 3 - 6dp. versionCode 204.
+
+## Hifi 2.73 classic 29
+- Classic line (same change as Blur 2.84): measured on his screenshots: the opened-album cover (554 px) already equals a 2-column grid cover (554 px) and the More albums cover (354 px) equals a 3-column grid cover (355 px); the real difference was the SPACING: More albums had 59 px between covers vs 43 px in the grid and started 4 px too far right, so the third cover was cut off. Strip now laid out like a grid row: cover edge 3dp inside the page margin, 12dp between covers (card side padding 0, margin 12dp), so exactly three covers fit; more scroll sideways. versionCode 206.
