@@ -697,3 +697,6 @@
 
 ## Hifi 2.87 (Blur line, from 2.86)
 - popup as wide as the neighbouring cover; slide smoother (starts after the rebuild frame, decelerate 320 ms open, 260 ms close, dim removed at once on close). versionCode 213.
+
+## Hifi 2.88 (Blur line, from 2.87)
+- real window dim (black 55
