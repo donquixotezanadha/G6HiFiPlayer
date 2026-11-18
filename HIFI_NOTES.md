@@ -804,3 +804,6 @@
 
 ## Hifi 2.73 classic 25
 - Classic line (same change as Blur 2.80): the back arrow of an opened album moved up into the fixed header bar, at the left of the "Album" title on the same line (title shifts right after it), and the glyph is smaller (about the cap height of the title text, 2dp stroke; was ~19dp tall). It shows only while an album is open (updateHeaderBack). The album's own title row below now only holds the centred "Artist - Album". versionCode 198.
+
+## Hifi 2.73 classic 26
+- Classic line (same change as Blur 2.81): a Hi-Res album (any track >= 24-bit) shows the Hi-Res logo (hires_logo.png, 22dp) at the left of the album title row on the opened-album page, level with the top of the title's first line (left margin 10dp, top 9dp; the title keeps equal 40dp side paddings so it stays centred). Non-Hi-Res albums unchanged. versionCode 200.
