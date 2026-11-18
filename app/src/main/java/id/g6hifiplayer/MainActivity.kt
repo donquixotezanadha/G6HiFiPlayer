@@ -1963,28 +1963,35 @@ class MainActivity : Activity() {
                 val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
                 val queueIndices = entries.map { it.index }
 
-                // Hifi 2.73 classic 24 / 2.79: no big cover any more. Title row ("Artist - Album", centred) at the very top; Hifi 2.73 classic 25 / 2.80: the back arrow moved up into the fixed header bar, level with the "Album" title. (old note: the back arrow at the left and the title
-                // ("Artist - Album", centred between symmetric 48dp margins) on the same line, right at the top; everything below moves up.
-                val headerRow = FrameLayout(this)
-                headerRow.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
-                    setLines(0); maxLines = 2
+                // Hifi 2.73 classic 28 / 2.83: the album cover (top) then the title below it (as before classic 24), back arrow in the header bar.
+                // The cover is built exactly like a cover of the 2-column Album grid: the SAME cell (padding 3 / 4 / 3 / 7dp, square cover, same
+                // Hi-Res logo) inside a row of the same structure. The row is [spacer 1 | cell 2 | spacer 1] with the cell's 3dp side margins, so
+                // the cell gets exactly (row width - 6dp) / 2 = the width of a 2-column grid cell, and it sits in the middle.
+                val coverCell = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(16), dp(8), dp(16), dp(4))
-                }, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-                headerRow.minimumHeight = dp(40)
-                albumRows.addView(headerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(0) })
-                // Hifi 2.73 classic 27 / 2.82: the album cover is back inside the opened album, exactly the size of a cover in the 2-column Album grid
-                // (cell = (content width - 6dp margins) / 2, minus the 3dp + 3dp cell padding), with the same Hi-Res logo in the bottom-right corner.
-                val contentW = resources.displayMetrics.widthPixels - dp(32)
-                val coverSide = (contentW - dp(6)) / 2 - dp(6)
-                val detailCover = ImageView(this).apply {
+                    setPadding(dp(3), dp(4), dp(3), dp(7))
+                }
+                val detailCover = object : ImageView(this) {
+                    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
+                }.apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     background = shape(ART, 0)
                     contentDescription = "Artwork $album"
                 }
                 applyAlbumHiResBadge(detailCover, entries.map { it.value })
-                albumRows.addView(detailCover, LinearLayout.LayoutParams(coverSide, coverSide).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(6); bottomMargin = dp(10) })
+                coverCell.addView(detailCover, LinearLayout.LayoutParams(-1, -2))
+                val coverRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
+                coverRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+                coverRow.addView(coverCell, LinearLayout.LayoutParams(0, -2, 2f).apply { leftMargin = dp(3); rightMargin = dp(3) })
+                coverRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+                albumRows.addView(coverRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
                 loadArtworkInto(detailCover, entries.first().value)
+                albumRows.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
+                    setLines(0); maxLines = 2
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    setPadding(dp(8), dp(10), dp(8), 0)
+                }, LinearLayout.LayoutParams(-1, -2))
                 albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
                     setPadding(dp(8), dp(0), dp(8), dp(12))
@@ -2019,7 +2026,10 @@ class MainActivity : Activity() {
                         overScrollMode = View.OVER_SCROLL_NEVER
                     }
                     val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                    val cardSide = (resources.displayMetrics.widthPixels - dp(32) - dp(12)) / 3 - dp(6)   // Hifi 2.73 classic 27 / 2.82: same cover size as the 3-column Album grid (was 112dp)
+                    // Hifi 2.73 classic 28 / 2.83: the cover of a 3-column grid cell: the row is as wide as the page content (measured, not guessed), the two 3dp
+                    // margins per side pair give (width - 12dp) / 3 per cell, minus the cell padding 3dp + 3dp.
+                    val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
+                    val cardSide = (gridW - dp(12)) / 3 - dp(6)
                     moreAlbums.forEach { other ->
                         val otherEntries = groupedAlbums[other].orEmpty()
                         val card = LinearLayout(this).apply {
