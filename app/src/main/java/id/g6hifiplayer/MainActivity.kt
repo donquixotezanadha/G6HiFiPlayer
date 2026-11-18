@@ -1918,7 +1918,8 @@ class MainActivity : Activity() {
                         isHorizontalScrollBarEnabled = false
                         overScrollMode = View.OVER_SCROLL_NEVER
                     }
-                    val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                    // Hifi 2.73 classic 29 / 2.84: laid out like a 3-column grid row (measured on screenshots: cover edge 3dp inside the page margin, 12dp between covers) so three covers fit exactly; more albums scroll
+                    val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(3), 0, dp(3), 0) }
                     // Hifi 2.73 classic 28 / 2.83: the cover of a 3-column grid cell: the row is as wide as the page content (measured, not guessed), the two 3dp
                     // margins per side pair give (width - 12dp) / 3 per cell, minus the cell padding 3dp + 3dp.
                     val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
@@ -1928,7 +1929,7 @@ class MainActivity : Activity() {
                         val card = LinearLayout(this).apply {
                             orientation = LinearLayout.VERTICAL
                             gravity = Gravity.CENTER_HORIZONTAL
-                            setPadding(dp(4), dp(4), dp(4), dp(6))
+                            setPadding(0, dp(4), 0, dp(6))
                             themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 12), null) }
                             isClickable = true
                             isFocusable = true
@@ -1955,7 +1956,7 @@ class MainActivity : Activity() {
                         card.addView(text(otherEntries.size.toString() + " tracks", 10f, MUTED, false).apply {
                             gravity = Gravity.CENTER_HORIZONTAL
                         }, LinearLayout.LayoutParams(cardSide, -2))
-                        strip.addView(card, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8) })
+                        strip.addView(card, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12) })
                         otherEntries.firstOrNull()?.let { loadArtworkInto(otherCover, it.value) }
                     }
                     scroller.addView(strip)
