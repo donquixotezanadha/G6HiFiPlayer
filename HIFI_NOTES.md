@@ -841,3 +841,6 @@
   2. Open/close slide (classic 35-37): panel inserted in place (no rebuild), clip + translate, open 520 ms ease-out, close 560 ms strongly decelerating end.
   3. Short "add to queue" toast: "Album - Artist added to queue" (old long toast is an OLD BUG in both lines: classic 39 fixes Classic only).
   4. Ideas not built: light fade + small slide-up of the list contents when opening/closing (like the mini player).
+
+## Hifi 2.73 classic 40
+- Classic (from 39): side gap back as in 38 (3dp item padding, 4dp right text padding), 16dp gap between albums (was 10dp), album title one line with "..." when long, the two buttons only as wide as their text (12dp side padding, left-aligned like the title). versionCode 227. (Carry to Blur later together with the list design.)
