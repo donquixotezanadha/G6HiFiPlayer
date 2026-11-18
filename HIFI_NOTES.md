@@ -816,3 +816,6 @@
 
 ## Hifi 2.73 classic 29
 - Classic line (same change as Blur 2.84): measured on his screenshots: the opened-album cover (554 px) already equals a 2-column grid cover (554 px) and the More albums cover (354 px) equals a 3-column grid cover (355 px); the real difference was the SPACING: More albums had 59 px between covers vs 43 px in the grid and started 4 px too far right, so the third cover was cut off. Strip now laid out like a grid row: cover edge 3dp inside the page margin, 12dp between covers (card side padding 0, margin 12dp), so exactly three covers fit; more scroll sideways. versionCode 206.
+
+## Hifi 2.73 classic 34 (from classic 29)
+- Classic: Album tab is a list (small cover = 3-column cover size, album title bold + artist grey beside it), column option removed; tap opens PLAY ALBUM / ADD TO QUEUE + track list under the row, no dim; Back / tap same row closes. Album page, More albums, long-press window and header back arrow removed. versionCode 216.
