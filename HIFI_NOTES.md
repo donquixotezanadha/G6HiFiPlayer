@@ -822,3 +822,6 @@
 
 ## Hifi 2.73 classic 35
 - Classic (from classic 34): smoother open/close: the list is inserted in place (no rebuild of all albums), laid out at full height once and revealed by a growing clip while the rows below are only translated (no layout per frame). versionCode 219.
+
+## Hifi 2.73 classic 36
+- Classic (from 35): slower, softer slide: open 520 ms, close 420 ms with ease-in-out path interpolators like the player animations. versionCode 221.

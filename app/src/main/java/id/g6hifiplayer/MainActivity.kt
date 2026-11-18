@@ -4066,7 +4066,7 @@ class MainActivity : Activity() {
         if (!animate) return
         val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 320, android.view.animation.DecelerateInterpolator(1.6f)) { }
+        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 520, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)) { }
     }
 
     /** f runs from [from] to [to] (0 = closed, 1 = open): the panel is clipped to f * height, the rows after it are shifted up by the hidden part. */
@@ -4102,7 +4102,7 @@ class MainActivity : Activity() {
         if (panel == null || panel.parent !== albumRows || panel.height <= 0) { selectedAlbum = null; albumPanelView = null; return }
         closingAlbum = true
         val at = albumRows.indexOfChild(panel)
-        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 260, android.view.animation.AccelerateDecelerateInterpolator()) {
+        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)) {
             albumRows.removeView(panel)
             albumPanelView = null; selectedAlbum = null; closingAlbum = false
         }
