@@ -682,3 +682,6 @@
 
 ## Hifi 2.82 (Blur line, from 2.81)
 - Blur line, same change as 2.73 classic 27: Hi-Res logo beside the title removed; album cover back in the opened album at the 2-column grid size with the grid's Hi-Res logo; "More albums by" covers at the 3-column grid size. versionCode 203.
+
+## Hifi 2.83 (Blur line, from 2.82)
+- Blur line, same change as 2.73 classic 28: the opened-album cover is built with the SAME cell structure as a 2-column grid cell (padding 3/4/3/7dp, square cover, rounded 10dp like the grid, same Hi-Res logo) in a row [spacer 1 | cell 2 (3dp side margins) | spacer 1], so its size equals the grid cell by construction (the formula-based size of 2.82 was off). Title back BELOW the cover (as before 2.79). "More albums by" cover = (measured page width - 12dp) / 3 - 6dp, rounded like the grid. versionCode 205.
