@@ -700,3 +700,6 @@
 
 ## Hifi 2.92 (Blur line, from 2.91)
 - Blur (from 2.91): no rebuild. Each grid row sits in a host (same layout as before); tapping an album gives the host the rounded window background, replaces the neighbouring cell by the two actions (measured rect) and adds the track list; the tapped cell is never touched, so cover and label cannot move. Window grows with a rounded outline, dim fades in with a rounded hole, closes with a strongly decelerating ease-out (520 ms). versionCode 222.
+
+## Hifi 2.93 (Blur line, from 2.92)
+- Blur (from 2.92): a real floating layer above the grid. The tapped cell (same view) is lifted into a layer at its exact position (placeholder keeps the row), a rounded window background grows behind it, the actions sit over the neighbouring cell, the list fades in under it; nothing in the grid moves or is removed (neighbour and rows below are only covered), closing gives the cell back. Page gets extra length only at the bottom if the window needs it. versionCode 224.
