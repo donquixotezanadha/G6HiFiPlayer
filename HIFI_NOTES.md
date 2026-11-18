@@ -807,3 +807,6 @@
 
 ## Hifi 2.73 classic 26
 - Classic line (same change as Blur 2.81): a Hi-Res album (any track >= 24-bit) shows the Hi-Res logo (hires_logo.png, 22dp) at the left of the album title row on the opened-album page, level with the top of the title's first line (left margin 10dp, top 9dp; the title keeps equal 40dp side paddings so it stays centred). Non-Hi-Res albums unchanged. versionCode 200.
+
+## Hifi 2.73 classic 27
+- Classic line (same change as Blur 2.82): the Hi-Res logo beside the album title (classic 26) is removed. The opened-album page has its cover back, centred BELOW the title row: side = (content width - 6dp) / 2 - 6dp = exactly a cover of the 2-column Album grid, with the same Hi-Res logo in the bottom-right corner (same drawable). "More albums by" covers are now the size of the 3-column grid cover ((content width - 12dp) / 3 - 6dp, was 112dp). Fixed sizes, whatever column count is set in Setting. versionCode 202.

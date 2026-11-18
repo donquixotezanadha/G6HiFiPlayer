@@ -1965,25 +1965,26 @@ class MainActivity : Activity() {
 
                 // Hifi 2.73 classic 24 / 2.79: no big cover any more. Title row ("Artist - Album", centred) at the very top; Hifi 2.73 classic 25 / 2.80: the back arrow moved up into the fixed header bar, level with the "Album" title. (old note: the back arrow at the left and the title
                 // ("Artist - Album", centred between symmetric 48dp margins) on the same line, right at the top; everything below moves up.
-                val hiResAlbum = entries.any { (it.value.bitDepth ?: 0) >= 24 }
                 val headerRow = FrameLayout(this)
                 headerRow.addView(albumLabelView(albumNames[album]?.first.orEmpty(), albumNames[album]?.second ?: album, 18f, 2, true).apply {
                     setLines(0); maxLines = 2
                     gravity = Gravity.CENTER_HORIZONTAL
-                    // Hifi 2.73 classic 26 / 2.81: a Hi-Res album gets the Hi-Res logo at the left of the title (where the back arrow used to be),
-                    // sized to the title text and level with the top of its first line; the side paddings stay equal so the title stays centred.
-                    val side = if (hiResAlbum) dp(40) else dp(16)
-                    setPadding(side, dp(8), side, dp(4))
+                    setPadding(dp(16), dp(8), dp(16), dp(4))
                 }, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-                if (hiResAlbum) {
-                    headerRow.addView(ImageView(this).apply {
-                        setImageResource(R.drawable.hires_logo)
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                        contentDescription = "Hi-Res"
-                    }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.START).apply { leftMargin = dp(10); topMargin = dp(9) })
-                }
-                headerRow.minimumHeight = dp(40)   // (Hi-Res logo: see above)
+                headerRow.minimumHeight = dp(40)
                 albumRows.addView(headerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(0) })
+                // Hifi 2.73 classic 27 / 2.82: the album cover is back inside the opened album, exactly the size of a cover in the 2-column Album grid
+                // (cell = (content width - 6dp margins) / 2, minus the 3dp + 3dp cell padding), with the same Hi-Res logo in the bottom-right corner.
+                val contentW = resources.displayMetrics.widthPixels - dp(32)
+                val coverSide = (contentW - dp(6)) / 2 - dp(6)
+                val detailCover = ImageView(this).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    background = shape(ART, 0)
+                    contentDescription = "Artwork $album"
+                }
+                applyAlbumHiResBadge(detailCover, entries.map { it.value })
+                albumRows.addView(detailCover, LinearLayout.LayoutParams(coverSide, coverSide).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(6); bottomMargin = dp(10) })
+                loadArtworkInto(detailCover, entries.first().value)
                 albumRows.addView(text(entries.size.toString() + " tracks", 12f, MUTED, false).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
                     setPadding(dp(8), dp(0), dp(8), dp(12))
@@ -2018,7 +2019,7 @@ class MainActivity : Activity() {
                         overScrollMode = View.OVER_SCROLL_NEVER
                     }
                     val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                    val cardSide = dp(112)
+                    val cardSide = (resources.displayMetrics.widthPixels - dp(32) - dp(12)) / 3 - dp(6)   // Hifi 2.73 classic 27 / 2.82: same cover size as the 3-column Album grid (was 112dp)
                     moreAlbums.forEach { other ->
                         val otherEntries = groupedAlbums[other].orEmpty()
                         val card = LinearLayout(this).apply {
