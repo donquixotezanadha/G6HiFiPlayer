@@ -825,3 +825,6 @@
 
 ## Hifi 2.73 classic 36
 - Classic (from 35): slower, softer slide: open 520 ms, close 420 ms with ease-in-out path interpolators like the player animations. versionCode 221.
+
+## Hifi 2.73 classic 37
+- Classic (from 36): closing slows down strongly near the end (ease-out path 0.15/0.6/0.2/1, 560 ms) so the list closes gently. versionCode 223.

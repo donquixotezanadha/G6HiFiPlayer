@@ -4102,7 +4102,7 @@ class MainActivity : Activity() {
         if (panel == null || panel.parent !== albumRows || panel.height <= 0) { selectedAlbum = null; albumPanelView = null; return }
         closingAlbum = true
         val at = albumRows.indexOfChild(panel)
-        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)) {
+        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 560, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f)) {
             albumRows.removeView(panel)
             albumPanelView = null; selectedAlbum = null; closingAlbum = false
         }
