@@ -1962,7 +1962,7 @@ class MainActivity : Activity() {
         // The 3 dots open the old Play album / Add album to queue window; one tap on the cover area opens the track list under that grid row.
         val colGap = dp(10)
         val cellW = (gridW - colGap) / 2
-        val dotsW = dp(30)
+        val dotsW = dp(18)   // Hifi 2.73 classic 57: narrow column, the marks sit flush with the cell's right edge (same gap as the cover on the left); the cover takes the freed width
         val coverSide = cellW - dp(6) - dotsW
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
@@ -1996,8 +1996,8 @@ class MainActivity : Activity() {
             top.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
             val dots = ImageView(this).apply {
                 setImageResource(R.drawable.ic_more_vert)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setPadding(dp(5), dp(8), dp(5), dp(8))
+                scaleType = ImageView.ScaleType.FIT_END
+                setPadding(dp(15), dp(12), 0, dp(13))
                 themed {
                     background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null)
                     setColorFilter(MUTED)
@@ -2018,7 +2018,6 @@ class MainActivity : Activity() {
             if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
             })
-            texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
             cell.addView(texts, LinearLayout.LayoutParams(coverSide, -2))
             rowTextBlocks.getOrPut(row) { mutableListOf() }.add(texts)
             row.addView(cell, LinearLayout.LayoutParams(cellW, -2).apply { if (position % 2 == 1) leftMargin = colGap })

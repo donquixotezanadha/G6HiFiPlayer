@@ -899,3 +899,7 @@
 
 ## Hifi 2.73 classic 56 (from Classic 55)
 - Closing a list near the bottom of the page: the page scrolls softly to the new bottom limit during the closing (420 ms, closing curve) instead of snapping when the list is removed.
+
+## Hifi 2.73 classic 57 (from Classic 56)
+- Track count removed from under the cover (title + artist only); the opened list header keeps "artist • N tracks".
+- Options column narrowed 30 -> 18dp, 3 squares (3dp, pitch 6dp) flush with the right edge so the right gap equals the left; cover grows by 12dp (cover = cell - 6 - 18). Blur's round 3 dots need their own drawable/size.
