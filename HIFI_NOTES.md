@@ -925,3 +925,7 @@
 
 ## Hifi 2.73 classic 63 (from Classic 62)
 - Queue may hold the same track several times (no duplicate filter): add "+", add album, saved queue, live playlist restore. Pending items are counted per occurrence when lined up into the player; removing an x only removes that row; tapping a duplicate row starts at that row's position. Both rows of a duplicate highlight as playing (by track index).
+
+## Hifi 2.73 classic 64 (from Classic 63)
+- Queue: a duplicated track highlights / animates only on the row that is really playing (k-th occurrence), not on every copy.
+- Queue window: list starts 10dp lower, under CLEAR.

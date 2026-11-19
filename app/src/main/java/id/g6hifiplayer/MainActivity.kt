@@ -2236,15 +2236,24 @@ class MainActivity : Activity() {
         loadArtworkInto(cover, t)
     }
     /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
-    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: View? = null)
+    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: View? = null, val occurrence: Int = -1)
     private val albumPlayingMarks = ArrayList<AlbumRowMark>()
     /** Build 2.5: the queue list uses the same row design as the album list, so it has its own playing marks. */
     private val queuePlayingMarks = ArrayList<AlbumRowMark>()
 
     private fun updateAlbumPlayingMarks(playing: Boolean) {
         if (albumPlayingMarks.isEmpty() && queuePlayingMarks.isEmpty()) return
+        // Hifi 2.73 classic 64: a track queued twice lights up only on the row that is really playing (k-th occurrence in the live playlist)
+        var curOcc = 0
+        if (currentIndex in tracks.indices) {
+            val p = player
+            if (p != null) {
+                val uri = tracks[currentIndex].uri.toString()
+                for (i in 0 until minOf(p.currentMediaItemIndex, p.mediaItemCount)) if (p.getMediaItemAt(i).mediaId == uri) curOcc++
+            }
+        }
         (albumPlayingMarks + queuePlayingMarks).forEach { m ->
-            val current = currentIndex >= 0 && m.index == currentIndex
+            val current = currentIndex >= 0 && m.index == currentIndex && (m.occurrence < 0 || m.occurrence == curOcc)
             m.bars.visibility = if (current) View.VISIBLE else View.INVISIBLE
             m.bars.setBarColor(accentColor)
             m.bars.playing = current && playing
@@ -3645,7 +3654,7 @@ class MainActivity : Activity() {
             }.apply { setColorFilter(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
             row.addView(remove, LinearLayout.LayoutParams(dp(40), dp(36)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2))
-            queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars, remove))
+            queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars, remove, queue.subList(0, position).count { it == trackIndex }))
         }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
     }
@@ -3713,7 +3722,7 @@ class MainActivity : Activity() {
             isVerticalScrollBarEnabled = true
             addView(queueRows, ViewGroup.LayoutParams(-1, -2))
         }
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(10) })   // Hifi 2.73 classic 64: more room under CLEAR
         dialog.setView(panel)
         dialog.setOnDismissListener {
             (queueRows.parent as? ViewGroup)?.removeView(queueRows)
