@@ -1979,30 +1979,29 @@ class MainActivity : Activity() {
             applyAlbumHiResBadge(cover, entries.map { it.value })
             item.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
             val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
-            // Hifi 2.73 classic 38: title level with the cover top, artist, track count, and the two buttons side by side (no long-press needed).
-            texts.addView(text(namedAlbum.ifBlank { album }, 13f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })   // one line, "..." when long
-            if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 12f, MUTED, false).apply {
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(2), 0, 0)
+            // Hifi 2.73 classic 44: title (bigger), "artist • N tracks" on one line, then two plain glyph buttons (the ▶ and ＋ of the old long-press window),
+            // left-aligned with the text and pinned to the bottom edge of the cover; no button backgrounds.
+            texts.addView(text(namedAlbum.ifBlank { album }, 15f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
+            texts.addView(text(if (namedArtist.isNotBlank()) "$namedArtist • $trackText" else trackText, 13f, MUTED, false).apply {
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
             })
-            texts.addView(text(entries.size.toString() + (if (entries.size == 1) " track" else " tracks"), 11f, MUTED, false).apply {
-                setPadding(0, dp(1), 0, dp(4))
-            })
-            texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))   // the buttons sit on the bottom edge of the cover
+            texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
-            fun albumButton(label: String, onClick: () -> Unit) = text(label, 11f, WHITE, true).apply {
-                gravity = Gravity.CENTER
-                maxLines = 1
-                setPadding(dp(12), 0, dp(12), 0)
-                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(selectedHighlight(), 8), null) }   // same colour as the playing track's row
+            fun albumGlyph(glyph: String, description: String, onClick: () -> Unit) = text(glyph, 22f, WHITE, true).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 0, dp(8), 0)
+                includeFontPadding = false
+                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null) }
+                contentDescription = description
                 isClickable = true; isFocusable = true
                 setOnClickListener { onClick() }
             }
             val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            buttons.addView(albumButton("PLAY ALBUM") {
+            buttons.addView(albumGlyph("▶", "Play album") {
                 if (rowIndices.isNotEmpty()) { playTrackAt(rowIndices.first(), true, rowIndices); showPlayerAnimated() }
-            }, LinearLayout.LayoutParams(-2, dp(28)))
-            buttons.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
-            buttons.addView(albumButton("ADD TO QUEUE") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(-2, dp(28)))
+            }, LinearLayout.LayoutParams(dp(44), dp(36)))
+            buttons.addView(albumGlyph("＋", "Add album to queue") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(dp(44), dp(36)))
             texts.addView(buttons, LinearLayout.LayoutParams(-1, -2))
             item.addView(texts, LinearLayout.LayoutParams(0, coverSide, 1f))
             albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))

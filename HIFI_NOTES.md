@@ -856,3 +856,6 @@
 
 ## NOTE for every future Classic -> Blur carry-over (19 Nov)
 - Classic and Blur have DIFFERENT rounded corners and must always be kept that way: Classic = square covers (0dp), Blur = rounded covers (10dp, shape(ART, 10) + roundCorners(10)), plus each line's own colours/blur. Never copy a Classic corner value into Blur (or the reverse); check every cover, button and box radius per line when porting.
+
+## Hifi 2.73 classic 44
+- Classic (from 43): lighter album row: title 15f, one line "artist • N tracks" 13f, then two plain glyph buttons ▶ (play album) and ＋ (add to queue), 22f, 44x36dp touch areas, left-aligned with the text, pinned to the cover bottom, no background (ripple only). Carry to Blur later (own rounded values). versionCode 231.
