@@ -892,3 +892,7 @@
 ## Hifi 2.73 classic 54 (from Classic 53)
 - Opened list now starts 20dp under the cover (same as the gap between albums) instead of 8dp.
 - Options button: Classic uses 3 small SQUARES (vertical) instead of dots. The small round 3 dots (ic_more_vert from classic 52/53: circles r=2.2 at y=5.5/12/18.5 in a 24 viewport) are meant for BLUR later.
+
+## Hifi 2.73 classic 55 (from Classic 54)
+- Options squares smaller (4.4 -> 3.4 in the 24 viewport), same centres, so more spacing between them.
+- Opening an album also scrolls the page so that album's cover row is at the top edge, animated with the same 420 ms / curve as the opening (no scroll on close).

@@ -4124,11 +4124,33 @@ class MainActivity : Activity() {
         albumRows.addView(panel, at, lp)
         albumPanelView = panel
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
-        if (shift > 0) pageScroll?.let { sv -> sv.post { sv.scrollBy(0, -shift) } }
+        if (shift > 0 && !animate) pageScroll?.let { sv -> sv.post { sv.scrollBy(0, -shift) } }
         if (!animate) { blocks.forEach { it.alpha = 0f }; return }
         val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
         slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f), { }, overlap, blocks)
+        // Hifi 2.73 classic 55: the page scrolls up with the opening so the opened album's cover row sits at the top edge; same 420 ms and curve as the opening.
+        pageScroll?.let { sv ->
+            val sh = shift
+            sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+                override fun onPreDraw(): Boolean {
+                    if (sv.viewTreeObserver.isAlive) sv.viewTreeObserver.removeOnPreDrawListener(this)
+                    var top = 0
+                    var v: View = item
+                    while (v.parent !== sv && v.parent is View) { top += v.top; v = v.parent as View }
+                    top += v.top
+                    val start = (sv.scrollY - sh).coerceAtLeast(0)
+                    sv.scrollTo(0, start)
+                    android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 420
+                        interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
+                        addUpdateListener { sv.scrollTo(0, (start + (top - start) * (it.animatedValue as Float)).toInt()) }
+                        start()
+                    }
+                    return true
+                }
+            })
+        }
     }
 
     /** f runs from [from] to [to] (0 = closed, 1 = open): the panel is clipped to f * height, the rows after it are shifted up by the hidden part. */
