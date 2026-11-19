@@ -4107,6 +4107,25 @@ class MainActivity : Activity() {
             header.addView(text(title, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; includeFontPadding = false })
             if (sub.isNotBlank()) header.addView(text(sub, 13f, MUTED, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; setPadding(0, dp(3), 0, 0) })
             panel.addView(header, LinearLayout.LayoutParams(-1, -2))
+            // Hifi 2.73 classic 59: the same two buttons as the 3-dot window (same height, rounded box, icon + bold text), side by side under the title.
+            fun headerButton(icon: Int, label: String, onClick: () -> Unit) = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(dp(10), 0, dp(10), 0)
+                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 9), null)
+                addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
+                addView(text(label, 14f, WHITE, true).apply { setPadding(dp(8), 0, 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+                isClickable = true; isFocusable = true
+                contentDescription = label
+                setOnClickListener { onClick() }
+            }
+            val headerButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            headerButtons.addView(headerButton(R.drawable.ic_play_outline, "Play album") {
+                if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
+            }, LinearLayout.LayoutParams(0, dp(50), 1f))
+            headerButtons.addView(headerButton(R.drawable.ic_plus, "Add to queue") { addAlbumToQueue(queueIndices, album, "", title, albumArtist) },
+                LinearLayout.LayoutParams(0, dp(50), 1f).apply { leftMargin = dp(8) })
+            panel.addView(headerButtons, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
         }
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
         val blocks = rowTextBlocks[item].orEmpty()

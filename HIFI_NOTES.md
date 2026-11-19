@@ -906,3 +906,6 @@
 
 ## Hifi 2.73 classic 58 (from Classic 57)
 - Middle gap between the two album columns 10dp -> 24dp (outer left/right edges unchanged); cover is 7dp smaller (cover = (width - 24 - 6 - ... )/2 style: cell = (grid - 24)/2, cover = cell - 6 - 18).
+
+## Hifi 2.73 classic 59 (from Classic 58)
+- Opened list: two buttons "Play album" / "Add to queue" (same look as the 3-dot window options: 50dp, rounded LINE box, 14dp icon + 14f bold text) side by side under the header title, above the tracks. Blur: use Blur's own rounded values when porting.
