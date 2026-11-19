@@ -4071,7 +4071,8 @@ class MainActivity : Activity() {
         val queueIndices = sorted.map { it.index }
         val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        panel.setPadding(0, dp(2), 0, 0)   // Hifi 2.73 classic 38: the open list is the tracks only; the two buttons are on the album row
+        panel.setPadding(dp(12), dp(8), dp(12), dp(8))   // Hifi 2.73 classic 42: the track list sits on the same box as the queue (window colour, rounded) with the queue's row spacing
+        panel.themed { background = floatingBackground() }
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
         val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
         val at = albumRows.indexOfChild(item) + 1
@@ -4082,7 +4083,7 @@ class MainActivity : Activity() {
         if (!animate) return
         val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 520, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)) { }
+        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)) { }
     }
 
     /** f runs from [from] to [to] (0 = closed, 1 = open): the panel is clipped to f * height, the rows after it are shifted up by the hidden part. */
@@ -4118,7 +4119,7 @@ class MainActivity : Activity() {
         if (panel == null || panel.parent !== albumRows || panel.height <= 0) { selectedAlbum = null; albumPanelView = null; return }
         closingAlbum = true
         val at = albumRows.indexOfChild(panel)
-        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 560, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f)) {
+        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f)) {
             albumRows.removeView(panel)
             albumPanelView = null; selectedAlbum = null; closingAlbum = false
         }

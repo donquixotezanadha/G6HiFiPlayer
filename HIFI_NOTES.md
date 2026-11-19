@@ -847,3 +847,6 @@
 
 ## Hifi 2.73 classic 41
 - Classic (from 40): gap between albums 20dp (was 16dp), about the side gap. versionCode 228.
+
+## Hifi 2.73 classic 42
+- Classic (from 41): list slide 420 ms open and close (between 320/260 and 520/560), same ease curves; the open track list sits on a queue-style box (floatingBackground, 12dp side / 8dp top-bottom padding). versionCode 229.
