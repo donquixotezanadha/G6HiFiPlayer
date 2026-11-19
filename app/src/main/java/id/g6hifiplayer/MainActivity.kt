@@ -1954,7 +1954,7 @@ class MainActivity : Activity() {
         val openAlbum = selectedAlbum?.takeIf { a -> albums.any { it == a } }
         if (openAlbum == null) selectedAlbum = null
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        val coverSide = dp(110)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
+        val coverSide = dp(102)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
         albums.forEach { album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
@@ -1981,7 +1981,7 @@ class MainActivity : Activity() {
             val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
             // Hifi 2.73 classic 44: title (bigger), "artist • N tracks" on one line, then two plain glyph buttons (the ▶ and ＋ of the old long-press window),
             // left-aligned with the text and pinned to the bottom edge of the cover; no button backgrounds.
-            texts.addView(text(namedAlbum.ifBlank { album }, 15f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            texts.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
             val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
             if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
@@ -1989,23 +1989,23 @@ class MainActivity : Activity() {
             texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
             texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
-            fun albumGlyph(glyph: String, description: String, onClick: () -> Unit) = text(glyph, 22f, WHITE, true).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 0, dp(8), 0)
-                includeFontPadding = false
+            fun albumGlyph(icon: Int, description: String, onClick: () -> Unit) = ImageView(this).apply {
+                setImageResource(icon)
+                scaleType = ImageView.ScaleType.FIT_START
+                setPadding(0, dp(10), dp(20), dp(10))
                 themed {
                     background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null)
-                    setTextColor(MUTED)   // Hifi 2.73 classic 46: the same grey as the artist / track count
+                    setColorFilter(MUTED)   // Hifi 2.73 classic 48: his own icons, same grey as the artist / track count
                 }
                 contentDescription = description
                 isClickable = true; isFocusable = true
                 setOnClickListener { onClick() }
             }
             val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            buttons.addView(albumGlyph("▶", "Play album") {
+            buttons.addView(albumGlyph(R.drawable.ic_play_outline, "Play album") {
                 if (rowIndices.isNotEmpty()) { playTrackAt(rowIndices.first(), true, rowIndices); showPlayerAnimated() }
             }, LinearLayout.LayoutParams(dp(44), dp(36)))
-            buttons.addView(albumGlyph("＋", "Add album to queue") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(dp(44), dp(36)))
+            buttons.addView(albumGlyph(R.drawable.ic_plus, "Add album to queue") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(dp(44), dp(36)))
             texts.addView(buttons, LinearLayout.LayoutParams(-1, -2))
             item.addView(texts, LinearLayout.LayoutParams(0, coverSide, 1f))
             albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))
@@ -2196,7 +2196,7 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
+        val addQueue = iconImageAction(R.drawable.ic_plus) { addToQueue(entry.index) }.apply { contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.folder == t.folder }.map { it.index }
@@ -2207,7 +2207,7 @@ class MainActivity : Activity() {
         loadArtworkInto(cover, t)
     }
     /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
-    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: TextView? = null)
+    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: View? = null)
     private val albumPlayingMarks = ArrayList<AlbumRowMark>()
     /** Build 2.5: the queue list uses the same row design as the album list, so it has its own playing marks. */
     private val queuePlayingMarks = ArrayList<AlbumRowMark>()
@@ -2222,7 +2222,7 @@ class MainActivity : Activity() {
             m.title.setTextColor(if (current) accentColor else WHITE)
             m.number.setTextColor(if (current) accentColor else MUTED)
             // Build 2.10: the queue's "x" is grey except on the selected track, where it keeps the accent.
-            m.action?.setTextColor(if (current) accentColor else ACTION_GREY)
+            (m.action as? ImageView)?.setColorFilter(if (current) accentColor else ACTION_GREY)
             m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 8)
         }
     }
@@ -2256,7 +2256,7 @@ class MainActivity : Activity() {
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
         val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
         row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
-        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
+        val addQueue = iconImageAction(R.drawable.ic_plus) { addToQueue(entry.index) }.apply { contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(36)))
         val rowHook = trackRowHook
         row.setOnClickListener {
@@ -3513,6 +3513,15 @@ class MainActivity : Activity() {
         themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
+    /** Hifi 2.73 classic 48: icon button using one of the user's own icons (add to queue "+", queue remove "x"). */
+    private fun iconImageAction(icon: Int, click: () -> Unit) = ImageView(this).apply {
+        setImageResource(icon)
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
+        setColorFilter(ACTION_GREY)
+        isClickable = true; isFocusable = true; setOnClickListener { click() }
+    }
     private fun addToQueue(index: Int) {
         if (index !in tracks.indices) return
         val albumIndices = tracks.withIndex()
@@ -3579,10 +3588,10 @@ class MainActivity : Activity() {
             row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
             val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
             row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
-            val remove = iconAction("×") {
+            val remove = iconImageAction(R.drawable.ic_x) {
                 if (trackIndex == currentIndex) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
                 else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }
-            }.apply { textSize = 22f; setTextColor(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
+            }.apply { setColorFilter(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
             row.addView(remove, LinearLayout.LayoutParams(dp(40), dp(36)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2))
             queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars, remove))

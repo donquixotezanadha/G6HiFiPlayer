@@ -865,3 +865,9 @@
 
 ## Hifi 2.73 classic 46
 - Classic (from 45): track count back on its own line under the artist (13f); the play and add-to-queue glyphs use the grey of the artist/track text (MUTED). versionCode 233.
+
+## Hifi 2.73 classic 48 (built from Classic 46; Classic 47 discarded)
+- Album row cover 110dp -> 102dp, title 15f bold -> 14f regular.
+- Equalizer (Classic): 4 bars / 4 dots instead of 3, thinner lines, similar total width.
+- User's own icons (res/drawable-nodpi ic_x, ic_play_outline, ic_plus, tinted) only for: album-row play / add-to-queue, track-row "+", queue remove. Now Playing, mini player, widgets, notification unchanged.
+- To port to Blur later: use Blur's own rounded values/colours.
