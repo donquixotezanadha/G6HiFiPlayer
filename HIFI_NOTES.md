@@ -874,3 +874,6 @@
 
 ## Hifi 2.73 classic 49 (from Classic 48)
 - Album cover 102dp -> 106dp; title 14f bold again; the new icons ~70% of their size (album buttons ~11dp, row "+" / queue x ~11dp).
+
+## Hifi 2.73 classic 50 (from Classic 49)
+- New icons raised to ~80% of original size (~13dp) from 70%. Everything else as classic 49.
