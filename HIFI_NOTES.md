@@ -850,3 +850,6 @@
 
 ## Hifi 2.73 classic 42
 - Classic (from 41): list slide 420 ms open and close (between 320/260 and 520/560), same ease curves; the open track list sits on a queue-style box (floatingBackground, 12dp side / 8dp top-bottom padding). versionCode 229.
+
+## Hifi 2.73 classic 43
+- Classic (from 42): thin fade + 10dp slide-up of the list rows on open/close (alpha = (f-0.1)/0.5 clamped, rows lifted by (1-f)*10dp), like the mini player. (Carry to Blur later with the list design.) versionCode 230.

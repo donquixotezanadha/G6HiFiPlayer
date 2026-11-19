@@ -4095,8 +4095,15 @@ class MainActivity : Activity() {
             panel.clipBounds = clip
             val hidden = (target - cur).toFloat()
             for (i in at + 1 until albumRows.childCount) albumRows.getChildAt(i).translationY = -hidden
+            // Hifi 2.73 classic 43: thin fade + small slide-up of the rows, like the mini player; the fade starts a little after the height starts
+            // moving and (on closing) is gone a little before the height reaches zero.
+            panel.alpha = ((f - 0.1f) / 0.5f).coerceIn(0f, 1f)
+            val lift = (1f - f) * dp(10)
+            if (panel is ViewGroup) for (j in 0 until panel.childCount) panel.getChildAt(j).translationY = lift
         }
         fun reset() {
+            panel.alpha = 1f
+            if (panel is ViewGroup) for (j in 0 until panel.childCount) panel.getChildAt(j).translationY = 0f
             panel.clipBounds = null
             for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
         }
