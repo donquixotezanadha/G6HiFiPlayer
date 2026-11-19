@@ -877,3 +877,6 @@
 
 ## Hifi 2.73 classic 50 (from Classic 49)
 - New icons raised to ~80% of original size (~13dp) from 70%. Everything else as classic 49.
+
+## Hifi 2.73 classic 51 (from Classic 50)
+- New icons set to 75% (~12dp). Note: in Blur these buttons are NOT replaced, so keep Blur's original glyph buttons when porting.

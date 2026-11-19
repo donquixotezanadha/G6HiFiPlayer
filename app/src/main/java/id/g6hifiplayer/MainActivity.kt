@@ -1992,7 +1992,7 @@ class MainActivity : Activity() {
             fun albumGlyph(icon: Int, description: String, onClick: () -> Unit) = ImageView(this).apply {
                 setImageResource(icon)
                 scaleType = ImageView.ScaleType.FIT_START
-                setPadding(0, dp(11), dp(20), dp(12))
+                setPadding(0, dp(12), dp(20), dp(12))
                 themed {
                     background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null)
                     setColorFilter(MUTED)   // Hifi 2.73 classic 48: his own icons, same grey as the artist / track count
@@ -3517,7 +3517,7 @@ class MainActivity : Activity() {
     private fun iconImageAction(icon: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(icon)
         scaleType = ImageView.ScaleType.FIT_CENTER
-        setPadding(dp(13), dp(10), dp(14), dp(10))
+        setPadding(dp(14), dp(10), dp(14), dp(10))
         themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
         setColorFilter(ACTION_GREY)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
