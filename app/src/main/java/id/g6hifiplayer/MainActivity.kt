@@ -105,6 +105,8 @@ class MainActivity : Activity() {
     private var albumPanelOverlap = 0   // Hifi 2.73 classic 53: how far the open list reaches up over the title block under the cover
     private var albumPanelRow: View? = null
     private var albumDimView: AlbumDimView? = null
+    private var albumPanelGap = 0            // Hifi 2.73 classic 66: bottom margin of the open list box (room so the page can scroll the cover to the top edge)
+    private var pageScrollLocked = false     // the page does not scroll by hand while a list is open (only the list box scrolls)
     private val albumCovers = HashMap<String, View>()
     private val rowTextBlocks = HashMap<View, MutableList<View>>()   // grid row -> the title / artist / track-count blocks under its covers
     private var animateAlbumOpen = false
@@ -440,7 +442,10 @@ class MainActivity : Activity() {
         // Three-tab navigation: removing Songs reduces page-switch rebuild work.
         // Equal weights keep the existing icon size and center each remaining hit target.
         // Hifi 1.4: no bottom bar. Pages are switched by swiping; the nav views stay created (unattached) so existing state code is untouched.
-        val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
+        val scroll = object : ScrollView(this@MainActivity) {
+            override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = if (pageScrollLocked) false else super.onInterceptTouchEvent(ev)
+            override fun onTouchEvent(ev: MotionEvent): Boolean = if (pageScrollLocked) false else super.onTouchEvent(ev)
+        }.apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
         pageScroll = scroll
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
@@ -1959,7 +1964,7 @@ class MainActivity : Activity() {
         albumPlayingMarks.clear()
         albumRows.removeAllViews()
         rowTextBlocks.clear(); albumPanelRow = null; albumCovers.clear()
-        albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }
+        albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }; pageScrollLocked = false; albumPanelGap = dp(6)
         if (tracks.isEmpty()) {
             if (libraryNeedsFolder) {
                 val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(80), dp(8), dp(24)) }
@@ -2273,7 +2278,6 @@ class MainActivity : Activity() {
             rectOf(cover, null, limit)?.let { out.add(it to 0f) }
             val p = panel
             rectOf(p, p?.clipBounds?.bottom, limit)?.let { out.add(it to dp(10).toFloat()) }
-            rectOf(queueMiniHost?.getChildAt(0))?.let { out.add(it to dp(10).toFloat()) }
             return out
         }
         override fun onDraw(canvas: Canvas) {
@@ -4240,7 +4244,16 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams(0, dp(50), 1f).apply { leftMargin = dp(8) })
             panel.addView(headerButtons, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
         }
-        sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
+        // Hifi 2.73 classic 66: the tracks scroll inside the box; the box is as high as its content, at most down to just above the mini player.
+        val tracksBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        sorted.forEachIndexed { position, entry -> addNumberedTrackRow(tracksBox, entry, position + 1, albumArtist, queueIndices) }
+        val tracksScroll = ScrollView(this).apply {
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = true
+            isFillViewport = false
+            addView(tracksBox, ViewGroup.LayoutParams(-1, -2))
+        }
+        panel.addView(tracksScroll, LinearLayout.LayoutParams(-1, -2))
         val blocks = rowTextBlocks[item].orEmpty()
         var textsH = 0
         blocks.forEach { b ->
@@ -4251,16 +4264,27 @@ class MainActivity : Activity() {
         albumPanelOverlap = overlap
         albumPanelRow = item
         albumDimView?.let { it.cover = albumCovers[album]; it.panel = panel; if (!animate) it.amount = 1f }
-        val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6); topMargin = -overlap }
+        pageScrollLocked = true
+        val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
+        panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+        val naturalH = panel.measuredHeight
+        val svH = pageScroll?.height?.takeIf { it > 0 } ?: (resources.displayMetrics.heightPixels - headerInset)
+        val miniH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
+        val coverH = albumCovers[album]?.height?.takeIf { it > 0 } ?: dp(128)
+        val avail = (svH - miniH - dp(8) - (dp(10) + coverH + dp(20))).coerceAtLeast(dp(160))
+        val panelH = minOf(naturalH, avail)
+        // room under the box so the page can scroll the cover row to the very top even when this is the last album
+        val rowH = if (item.height > 0) item.height else dp(10) + coverH + textsH + dp(10)
+        albumPanelGap = maxOf(dp(6), svH - (rowH - overlap) - panelH - bottomInsetPx)
+        val lp = LinearLayout.LayoutParams(-1, if (naturalH > avail) avail else -2).apply { bottomMargin = albumPanelGap; topMargin = -overlap }
+        if (naturalH > avail) tracksScroll.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
         val at = albumRows.indexOfChild(item) + 1
         albumRows.addView(panel, at, lp)
         albumPanelView = panel
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
         if (shift > 0 && !animate) pageScroll?.let { sv -> sv.post { sv.scrollBy(0, -shift) } }
         if (!animate) { blocks.forEach { it.alpha = 0f }; return }
-        val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f), { }, overlap, blocks)
+        slideAlbumPanel(panel, at, panelH + albumPanelGap, w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f), { }, overlap, blocks)
         // Hifi 2.73 classic 55: the page scrolls up with the opening so the opened album's cover row sits at the top edge; same 420 ms and curve as the opening.
         pageScroll?.let { sv ->
             val sh = shift
@@ -4332,7 +4356,7 @@ class MainActivity : Activity() {
         albumPanelRow?.let { r -> rowTextBlocks[r]?.forEach { it.alpha = 1f } }
         for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
         albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
-        albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }
+        albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }; pageScrollLocked = false; albumPanelGap = dp(6)
     }
 
     /** Hifi 2.73 classic 35: close the open album: the list slides up, then it is removed (no rebuild). */
@@ -4348,7 +4372,7 @@ class MainActivity : Activity() {
         pageScroll?.let { sv ->
             val child = sv.getChildAt(0)
             if (child != null) {
-                val net = panel.height + dp(6) - albumPanelOverlap
+                val net = panel.height + albumPanelGap - albumPanelOverlap
                 val finalMax = maxOf(0, child.height - net + sv.paddingTop + sv.paddingBottom - sv.height)
                 val start = sv.scrollY
                 if (start > finalMax) {
@@ -4361,10 +4385,10 @@ class MainActivity : Activity() {
                 }
             }
         }
-        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f), {
+        slideAlbumPanel(panel, at, panel.height + albumPanelGap, panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f), {
             albumRows.removeView(panel)
             albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
-            albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }
+            albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }; pageScrollLocked = false; albumPanelGap = dp(6)
         }, albumPanelOverlap, closeTexts)
     }
 

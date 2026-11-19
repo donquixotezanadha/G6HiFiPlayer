@@ -932,3 +932,7 @@
 
 ## Hifi 2.73 classic 65 (from Classic 64, which is the checkpoint) - dim experiment
 - Open album list dims the whole window (55%, same as floating windows) via one overlay (AlbumDimView on the stage) with bright holes for the opened cover (square), the list box (10dp radius) and the mini player (10dp). Holes are read live from the views each draw (follow open animation, page scroll, closing). Touch inside a hole goes to the page; touch on the dark area closes the list. Blur: use its own radii when porting.
+
+## Hifi 2.73 classic 66 (from Classic 65) - dim experiment 2: fixed box
+- Same dim as 65 but the mini player is dimmed too (no hole): bright = opened cover + list box only.
+- List box is a fixed box: header + buttons stay, the tracks scroll inside; its height = content, at most down to 8dp above the mini player. The page itself does not scroll by hand while a list is open (it scrolls the cover to the top on opening); the box bottom margin adds room so this works even for the last album.
