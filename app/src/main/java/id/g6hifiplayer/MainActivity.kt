@@ -2259,7 +2259,8 @@ class MainActivity : Activity() {
         var cover: View? = null
         var panel: View? = null
         private val dimPaint = Paint().apply { color = Color.BLACK }
-        private val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) }
+        private val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT) }
+        private val srcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC) }
         private val ol = IntArray(2)
         private val l = IntArray(2)
         private fun rectOf(v: View?, clipBottom: Int? = null, limit: RectF? = null): RectF? {
@@ -2269,6 +2270,11 @@ class MainActivity : Activity() {
             val r = RectF(x, y, x + v.width, y + (clipBottom ?: v.height))
             if (limit != null && !r.intersect(limit)) return null
             return if (r.width() > 0f && r.height() > 0f) r else null
+        }
+        /** Hifi 2.73 classic 67: how bright each hole is: the list box follows its own fade, so the light area never runs ahead of the list. */
+        private fun holeStrength(r: Pair<RectF, Float>): Int {
+            val p = panel
+            return if (p != null && r.second > 0f) (p.alpha * 255f).toInt().coerceIn(0, 255) else 255
         }
         private fun holes(): List<Pair<RectF, Float>> {
             getLocationInWindow(ol)
@@ -2285,7 +2291,9 @@ class MainActivity : Activity() {
             val layer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
             dimPaint.alpha = (amount * 0.55f * 255f).toInt().coerceIn(0, 255)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
-            for ((r, radius) in holes()) canvas.drawRoundRect(r, radius, radius, clearPaint)
+            for (h in holes()) { clearPaint.alpha = holeStrength(h); canvas.drawRoundRect(h.first, h.second, h.second, clearPaint) }
+            // the mini player stays dimmed even where the list box reaches behind it
+            rectOf(queueMiniHost?.getChildAt(0))?.let { m -> srcPaint.alpha = dimPaint.alpha; canvas.drawRoundRect(m, dp(10).toFloat(), dp(10).toFloat(), srcPaint) }
             canvas.restoreToCount(layer)
         }
         private var downOutside = false
@@ -4271,13 +4279,25 @@ class MainActivity : Activity() {
         val svH = pageScroll?.height?.takeIf { it > 0 } ?: (resources.displayMetrics.heightPixels - headerInset)
         val miniH = queueMiniHost?.height?.takeIf { it > 0 } ?: (dp(76) + bottomInsetPx)
         val coverH = albumCovers[album]?.height?.takeIf { it > 0 } ?: dp(128)
-        val avail = (svH - miniH - dp(8) - (dp(10) + coverH + dp(20))).coerceAtLeast(dp(160))
-        val panelH = minOf(naturalH, avail)
+        val topUsed = dp(10) + coverH + dp(20)
+        val clearH = (svH - miniH - dp(8) - topUsed).coerceAtLeast(dp(160))          // down to just above the mini player
+        val fullH = (svH - bottomInsetPx - dp(8) - topUsed).coerceAtLeast(dp(160))   // Hifi 2.73 classic 67: down to the bottom edge of the mini player (it covers the box, it does not remove it)
+        var contentH = naturalH
+        var avail = clearH
+        if (naturalH > clearH) {
+            val cardH = (miniH - bottomInsetPx - dp(8)).coerceAtLeast(0)
+            tracksBox.setPadding(0, 0, 0, cardH + dp(8))   // the last track can scroll clear of the mini player
+            panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+            contentH = panel.measuredHeight
+            avail = fullH
+        }
+        val naturalH2 = contentH
+        val panelH = minOf(naturalH2, avail)
         // room under the box so the page can scroll the cover row to the very top even when this is the last album
         val rowH = if (item.height > 0) item.height else dp(10) + coverH + textsH + dp(10)
         albumPanelGap = maxOf(dp(6), svH - (rowH - overlap) - panelH - bottomInsetPx)
-        val lp = LinearLayout.LayoutParams(-1, if (naturalH > avail) avail else -2).apply { bottomMargin = albumPanelGap; topMargin = -overlap }
-        if (naturalH > avail) tracksScroll.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+        val lp = LinearLayout.LayoutParams(-1, if (naturalH2 > avail) avail else -2).apply { bottomMargin = albumPanelGap; topMargin = -overlap }
+        if (naturalH2 > avail) tracksScroll.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
         val at = albumRows.indexOfChild(item) + 1
         albumRows.addView(panel, at, lp)
         albumPanelView = panel

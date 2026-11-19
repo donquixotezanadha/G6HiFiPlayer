@@ -936,3 +936,7 @@
 ## Hifi 2.73 classic 66 (from Classic 65) - dim experiment 2: fixed box
 - Same dim as 65 but the mini player is dimmed too (no hole): bright = opened cover + list box only.
 - List box is a fixed box: header + buttons stay, the tracks scroll inside; its height = content, at most down to 8dp above the mini player. The page itself does not scroll by hand while a list is open (it scrolls the cover to the top on opening); the box bottom margin adds room so this works even for the last album.
+
+## Hifi 2.73 classic 67 (from Classic 66, the chosen dim variant)
+- Bright hole of the list box now follows the list's own fade (DST_OUT with the panel alpha), so the light area does not run ahead of the list while it fades/slides in.
+- Long lists: the box reaches down to the bottom edge of the mini player (the mini player stays in front, dimmed, covering the lower part); tracks get bottom padding = mini card height + 8dp so the last track scrolls clear. Short lists still end above the mini player.
