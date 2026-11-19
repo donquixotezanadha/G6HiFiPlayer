@@ -922,3 +922,6 @@
 
 ## Hifi 2.73 classic 62 (from Classic 61)
 - "+" on a track adds only that track to the queue (was its whole album); toast "Title - Artist added to queue", stays in place.
+
+## Hifi 2.73 classic 63 (from Classic 62)
+- Queue may hold the same track several times (no duplicate filter): add "+", add album, saved queue, live playlist restore. Pending items are counted per occurrence when lined up into the player; removing an x only removes that row; tapping a duplicate row starts at that row's position. Both rows of a duplicate highlight as playing (by track index).

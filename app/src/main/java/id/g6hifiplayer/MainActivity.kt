@@ -1642,7 +1642,7 @@ class MainActivity : Activity() {
                 val item = live.getMediaItemAt(position)
                 val uri = item.localConfiguration?.uri
                 library.indexOfFirst { it.uri == uri || it.uri.toString() == item.mediaId }.takeIf { it >= 0 }
-            }.distinct()
+            }
             val currentItem = live.currentMediaItem
             val currentUri = currentItem?.localConfiguration?.uri
             val restoredIndex = library.indexOfFirst { it.uri == currentUri || it.uri.toString() == currentItem?.mediaId }
@@ -1737,7 +1737,7 @@ class MainActivity : Activity() {
                 val array = root.optJSONArray(name) ?: return emptyList()
                 val out = ArrayList<Int>(array.length())
                 for (i in 0 until array.length()) byUri[array.optString(i)]?.let { out.add(it) }
-                return out.distinct()
+                return out
             }
             SavedQueue(mapped("queue"), mapped("order"))
         } catch (e: Exception) { recordDiagnostic("QUEUE_STATE_READ_FAILED", e); null }
@@ -2365,7 +2365,16 @@ class MainActivity : Activity() {
             tracks.forEachIndexed { i, t -> byUri[t.uri.toString()] = i }
             val inPlayer = (0 until count).mapNotNull { i -> byUri[exo.getMediaItemAt(i).mediaId] }
             val inPlayerSet = inPlayer.toHashSet()
-            val pending = playbackOrder.filter { it in tracks.indices && it !in inPlayerSet }
+            // Hifi 2.73 classic 63: the same track can be queued twice: count occurrences instead of using a set
+            val playerCounts = HashMap<Int, Int>()
+            inPlayer.forEach { playerCounts[it] = (playerCounts[it] ?: 0) + 1 }
+            val seen = HashMap<Int, Int>()
+            val pending = playbackOrder.filter { i ->
+                if (i !in tracks.indices) return@filter false
+                val n = seen[i] ?: 0
+                seen[i] = n + 1
+                n >= (playerCounts[i] ?: 0)
+            }
             val toAdd: List<Int>
             val queuedByUser = pending.isNotEmpty()
             if (queuedByUser) {
@@ -2529,14 +2538,14 @@ class MainActivity : Activity() {
         exo.addListener(listener)
     }
 
-    private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null, asAlbum: Boolean? = null) {
+    private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null, asAlbum: Boolean? = null, startAt: Int? = null) {
         if (index !in tracks.indices) return
         if (asAlbum != null) {   // Hifi 2.73 classic 61: only "Play album" lines up the next album at the end; one track does not
             autoNextAlbum = asAlbum
             try { getPreferences(MODE_PRIVATE).edit().putBoolean("auto_next_album", asAlbum).apply() } catch (_: Exception) { }
         }
         startPlaybackKeepAlive()
-        val requestedOrder = queue?.filter { it in tracks.indices }?.distinct().orEmpty()
+        val requestedOrder = queue?.filter { it in tracks.indices }.orEmpty()   // Hifi 2.73 classic 63: a queue may hold the same track more than once
         if (requestedOrder.isNotEmpty() && index in requestedOrder) {
             playbackOrder = requestedOrder
             playbackQueue = requestedOrder
@@ -2594,7 +2603,7 @@ class MainActivity : Activity() {
                         .build())
                     .build()
             }
-            val startPosition = playbackOrder.indexOf(index).coerceAtLeast(0)
+            val startPosition = (startAt?.takeIf { it in playbackOrder.indices && playbackOrder[it] == index } ?: playbackOrder.indexOf(index)).coerceAtLeast(0)
             exo.setMediaItems(items, startPosition, 0L)
             exo.prepare()
             recordDiagnostic("PLAYBACK_QUEUE_SUBMITTED serviceOwned=true items=" + items.size + " startIndex=" + startPosition + " gapless=Media3-playlist")
@@ -3568,7 +3577,7 @@ class MainActivity : Activity() {
     private fun addToQueue(index: Int) {
         if (index !in tracks.indices) return
         // Hifi 2.73 classic 62: "+" on a track adds only that track (it used to add its whole album); the page stays, a toast confirms.
-        playbackQueue = (playbackQueue + index).distinct()
+        playbackQueue = playbackQueue + index   // Hifi 2.73 classic 63: the same track may be queued several times
         // The visible queue and the sequence used by STATE_ENDED/Next must be identical.
         playbackOrder = playbackQueue.toList()
         persistQueueState()
@@ -3581,7 +3590,7 @@ class MainActivity : Activity() {
     private fun addAlbumToQueue(indices: List<Int>, album: String, unused: String = "", albumName: String = album, artistName: String = "") {
         val valid = indices.filter { it in tracks.indices }.distinct()
         if (valid.isEmpty()) return
-        playbackQueue = (playbackQueue + valid).distinct()
+        playbackQueue = playbackQueue + valid   // Hifi 2.73 classic 63: duplicates allowed
         // Keep queue display and playback traversal in sync; otherwise playback can stop at
         // the end of the original album even though another album is visibly queued.
         playbackOrder = playbackQueue.toList()
@@ -3609,7 +3618,7 @@ class MainActivity : Activity() {
                 setPadding(dp(4), dp(5), dp(4), dp(5))
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { playTrackAt(trackIndex, true, playbackQueue); queueDialog?.dismiss(); if (currentPage != "player") showPlayerAnimated() }   // Hifi 1.37: back to Now Playing at once
+                setOnClickListener { playTrackAt(trackIndex, true, playbackQueue, null, position); queueDialog?.dismiss(); if (currentPage != "player") showPlayerAnimated() }   // Hifi 1.37: back to Now Playing at once
             }
             val numberView = text((position + 1).toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
             row.addView(numberView, LinearLayout.LayoutParams(dp(34), -2))
@@ -3631,8 +3640,8 @@ class MainActivity : Activity() {
             val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
             row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
             val remove = iconImageAction(R.drawable.ic_x) {
-                if (trackIndex == currentIndex) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
-                else { playbackQueue = playbackQueue.filter { it != trackIndex }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }
+                if (trackIndex == currentIndex && queue.indexOf(currentIndex) == position) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
+                else { playbackQueue = queue.toMutableList().also { it.removeAt(position) }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }   // Hifi 2.73 classic 63: only this row
             }.apply { setColorFilter(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
             row.addView(remove, LinearLayout.LayoutParams(dp(40), dp(36)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2))
