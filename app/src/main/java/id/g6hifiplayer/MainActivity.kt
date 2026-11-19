@@ -1951,6 +1951,7 @@ class MainActivity : Activity() {
 
         // Hifi 2.73 classic 34: the Album tab is a LIST: small cover (the size of a 3-column grid cover) with the album title and the artist beside it.
         // Tapping an album opens PLAY ALBUM / ADD TO QUEUE and the track list under that row (rows below slide down); no dim.
+        flippedInfo = null; flippedOptions = null; handler.removeCallbacks(flipTimeout)
         val openAlbum = selectedAlbum?.takeIf { a -> albums.any { it == a } }
         if (openAlbum == null) selectedAlbum = null
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
@@ -1966,8 +1967,18 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
+                // Hifi 2.73 classic 47: press bounce: the row shrinks a little while pressed and springs back (no haptic)
+                setOnTouchListener { v, ev ->
+                    when (ev.actionMasked) {
+                        android.view.MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(90).setInterpolator(null).start()
+                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                            v.animate().scaleX(1f).scaleY(1f).setDuration(280).setInterpolator(android.view.animation.OvershootInterpolator(2.4f)).start()
+                    }
+                    false
+                }
                 setOnClickListener {
                     if (closingAlbum) return@setOnClickListener
+                    if (flippedOptions != null) { unflipAlbum(true); return@setOnClickListener }
                     if (selectedAlbum == album) closeAlbum() else openAlbumPanel(album, this, entries, true)
                 }
             }
@@ -1979,34 +1990,39 @@ class MainActivity : Activity() {
             applyAlbumHiResBadge(cover, entries.map { it.value })
             item.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
             val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
-            // Hifi 2.73 classic 44: title (bigger), "artist • N tracks" on one line, then two plain glyph buttons (the ▶ and ＋ of the old long-press window),
-            // left-aligned with the text and pinned to the bottom edge of the cover; no button backgrounds.
-            texts.addView(text(namedAlbum.ifBlank { album }, 15f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            // Hifi 2.73 classic 47: the row shows title, artist and track count only. Long press flips the title + artist block over to "Play album" /
+            // "Add to queue" (plain text, stacked, left-aligned); the open list shows PLAY ALBUM / ADD TO QUEUE on top again.
             val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
-            if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
+            val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
+            val infoBlock = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            infoBlock.addView(text(namedAlbum.ifBlank { album }, 15f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            if (namedArtist.isNotBlank()) infoBlock.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
             })
-            texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
-            texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))
-            val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
-            fun albumGlyph(glyph: String, description: String, onClick: () -> Unit) = text(glyph, 22f, WHITE, true).apply {
+            val optionsBlock = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+            fun optionText(label: String, onClick: () -> Unit) = text(label, 14f, WHITE, true).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 0, dp(8), 0)
                 includeFontPadding = false
-                themed {
-                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null)
-                    setTextColor(MUTED)   // Hifi 2.73 classic 46: the same grey as the artist / track count
-                }
-                contentDescription = description
+                setPadding(0, 0, dp(16), 0)
+                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true; isFocusable = true
                 setOnClickListener { onClick() }
             }
-            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            buttons.addView(albumGlyph("▶", "Play album") {
+            optionsBlock.addView(optionText("Play album") {
+                unflipAlbum(false)
                 if (rowIndices.isNotEmpty()) { playTrackAt(rowIndices.first(), true, rowIndices); showPlayerAnimated() }
-            }, LinearLayout.LayoutParams(dp(44), dp(36)))
-            buttons.addView(albumGlyph("＋", "Add album to queue") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(dp(44), dp(36)))
-            texts.addView(buttons, LinearLayout.LayoutParams(-1, -2))
+            }, LinearLayout.LayoutParams(-2, 0, 1f))
+            optionsBlock.addView(optionText("Add to queue") {
+                unflipAlbum(true)
+                addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist)
+            }, LinearLayout.LayoutParams(-2, 0, 1f))
+            val header = FrameLayout(this)
+            header.addView(infoBlock, FrameLayout.LayoutParams(-1, -2))
+            header.addView(optionsBlock, FrameLayout.LayoutParams(-2, -1))
+            texts.addView(header, LinearLayout.LayoutParams(-1, dp(46)))
+            texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
+            item.isHapticFeedbackEnabled = false
+            item.setOnLongClickListener { flipAlbumOptions(infoBlock, optionsBlock); true }
             item.addView(texts, LinearLayout.LayoutParams(0, coverSide, 1f))
             albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
@@ -4062,6 +4078,46 @@ class MainActivity : Activity() {
      * height at once and revealed by a growing clip while the rows below are only translated (no layout per frame, so the slide stays smooth even
      * with hundreds of albums); closing is the same backwards, then the panel is removed.
      */
+    private var flippedInfo: View? = null
+    private var flippedOptions: View? = null
+    private val flipTimeout = Runnable { unflipAlbum(true) }
+
+    /** Hifi 2.73 classic 47: the title + artist block turns over (rotationX) and shows the two options in its place; one row at a time, back after 4 s. */
+    private fun flipAlbumOptions(info: View, options: View) {
+        unflipAlbum(false)
+        val cd = 8000f * resources.displayMetrics.density
+        info.cameraDistance = cd; options.cameraDistance = cd
+        options.visibility = View.VISIBLE
+        options.rotationX = -90f
+        flippedInfo = info; flippedOptions = options
+        info.animate().rotationX(90f).setDuration(130).withEndAction {
+            info.visibility = View.INVISIBLE
+            options.animate().rotationX(0f).setDuration(130).start()
+        }.start()
+        handler.removeCallbacks(flipTimeout)
+        handler.postDelayed(flipTimeout, 4000)
+    }
+
+    private fun unflipAlbum(animate: Boolean) {
+        val info = flippedInfo ?: return
+        val options = flippedOptions ?: return
+        flippedInfo = null; flippedOptions = null
+        handler.removeCallbacks(flipTimeout)
+        info.animate().cancel(); options.animate().cancel()
+        if (!animate) {
+            options.visibility = View.GONE; options.rotationX = 0f
+            info.visibility = View.VISIBLE; info.rotationX = 0f
+            return
+        }
+        options.animate().rotationX(90f).setDuration(130).withEndAction {
+            options.visibility = View.GONE
+            options.rotationX = 0f
+            info.visibility = View.VISIBLE
+            info.rotationX = -90f
+            info.animate().rotationX(0f).setDuration(130).start()
+        }.start()
+    }
+
     private fun openAlbumPanel(album: String, item: View, entries: List<IndexedValue<Track>>, animate: Boolean) {
         val old = albumPanelView
         var shift = 0
@@ -4076,6 +4132,15 @@ class MainActivity : Activity() {
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         panel.setPadding(dp(12), dp(8), dp(12), dp(8))   // Hifi 2.73 classic 42: the track list sits on the same box as the queue (window colour, rounded) with the queue's row spacing
         panel.themed { background = floatingBackground() }
+        val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
+        albumActions.addView(flatAction("PLAY ALBUM", true) {
+            if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        albumActions.addView(flatAction("ADD TO QUEUE", false) {
+            addAlbumToQueue(queueIndices, album, "", entries.firstOrNull()?.value?.album ?: album, entries.firstOrNull()?.value?.artist.orEmpty())
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        panel.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
         val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
         val at = albumRows.indexOfChild(item) + 1
@@ -4148,6 +4213,10 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
+        if (currentPage == "library" && flippedOptions != null) {
+            unflipAlbum(true)
+            return
+        }
         if (currentPage == "library" && selectedAlbum != null) {
             closeAlbum()
             return

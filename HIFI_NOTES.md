@@ -865,3 +865,6 @@
 
 ## Hifi 2.73 classic 46
 - Classic (from 45): track count back on its own line under the artist (13f); the play and add-to-queue glyphs use the grey of the artist/track text (MUTED). versionCode 233.
+
+## Hifi 2.73 classic 47
+- Classic (from 46): album row = title, artist, track count only (no glyph buttons). Long press flips (rotationX, 130+130 ms) the title+artist block into two stacked plain text options "Play album" / "Add to queue" (transparent, text-width, left-aligned); back after choosing, tap on the row, Back, another long press, or 4 s. No haptic; press bounce instead (row scales to 0.97 while pressed, springs back with overshoot). The open list shows PLAY ALBUM / ADD TO QUEUE on top again. Carry to Blur later (own rounded values). versionCode 234.
