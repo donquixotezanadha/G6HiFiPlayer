@@ -929,3 +929,6 @@
 ## Hifi 2.73 classic 64 (from Classic 63)
 - Queue: a duplicated track highlights / animates only on the row that is really playing (k-th occurrence), not on every copy.
 - Queue window: list starts 10dp lower, under CLEAR.
+
+## Hifi 2.73 classic 65 (from Classic 64, which is the checkpoint) - dim experiment
+- Open album list dims the whole window (55%, same as floating windows) via one overlay (AlbumDimView on the stage) with bright holes for the opened cover (square), the list box (10dp radius) and the mini player (10dp). Holes are read live from the views each draw (follow open animation, page scroll, closing). Touch inside a hole goes to the page; touch on the dark area closes the list. Blur: use its own radii when porting.

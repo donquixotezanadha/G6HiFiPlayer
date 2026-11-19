@@ -18,6 +18,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -103,6 +104,8 @@ class MainActivity : Activity() {
     private var albumPanelView: View? = null
     private var albumPanelOverlap = 0   // Hifi 2.73 classic 53: how far the open list reaches up over the title block under the cover
     private var albumPanelRow: View? = null
+    private var albumDimView: AlbumDimView? = null
+    private val albumCovers = HashMap<String, View>()
     private val rowTextBlocks = HashMap<View, MutableList<View>>()   // grid row -> the title / artist / track-count blocks under its covers
     private var animateAlbumOpen = false
     private var closingAlbum = false
@@ -442,6 +445,7 @@ class MainActivity : Activity() {
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
             if (currentPage == "library" && !restoringScroll) listScrollY = y
+            albumDimView?.invalidate()
         }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -506,6 +510,7 @@ class MainActivity : Activity() {
         coverView.topInset = 0   // Hifi 1.49: cover and fade go up to the very top edge (behind the status bar)
         stage.addView(coverView, FrameLayout.LayoutParams(-1, -1))
         stage.addView(root, FrameLayout.LayoutParams(-1, -1))
+        albumDimView = AlbumDimView(this).also { stage.addView(it, FrameLayout.LayoutParams(-1, -1)) }
         // Build 1.55: in Classic the page draws behind the (transparent) Android navigation bar; the app's own bottom bar
         // is lifted by the real bar height so its buttons stay tappable.
         stage.setOnApplyWindowInsetsListener { _, insets ->
@@ -1953,7 +1958,8 @@ class MainActivity : Activity() {
         updateHeaderBack()
         albumPlayingMarks.clear()
         albumRows.removeAllViews()
-        rowTextBlocks.clear(); albumPanelRow = null
+        rowTextBlocks.clear(); albumPanelRow = null; albumCovers.clear()
+        albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }
         if (tracks.isEmpty()) {
             if (libraryNeedsFolder) {
                 val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(80), dp(8), dp(24)) }
@@ -2010,6 +2016,7 @@ class MainActivity : Activity() {
                 contentDescription = "Artwork $album"
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
+            albumCovers[album] = cover
             top.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
             val dots = ImageView(this).apply {
                 setImageResource(R.drawable.ic_more_vert)
@@ -2236,6 +2243,63 @@ class MainActivity : Activity() {
         loadArtworkInto(cover, t)
     }
     /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
+    /**
+     * Hifi 2.73 classic 65: dim for the open album list. One dark layer over the whole window (55%, like every floating window) with bright holes for the
+     * opened album's cover, the list box and the mini player. The holes are read from the real views on every draw, so they follow the opening, the page
+     * scroll and the closing. A touch inside a hole goes to the page; a touch on the dark area closes the list.
+     */
+    private inner class AlbumDimView(context: Context) : View(context) {
+        var amount = 0f
+            set(value) { field = value.coerceIn(0f, 1f); invalidate() }
+        var cover: View? = null
+        var panel: View? = null
+        private val dimPaint = Paint().apply { color = Color.BLACK }
+        private val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) }
+        private val ol = IntArray(2)
+        private val l = IntArray(2)
+        private fun rectOf(v: View?, clipBottom: Int? = null, limit: RectF? = null): RectF? {
+            if (v == null || !v.isShown || v.width <= 0) return null
+            v.getLocationInWindow(l)
+            val x = (l[0] - ol[0]).toFloat(); val y = (l[1] - ol[1]).toFloat()
+            val r = RectF(x, y, x + v.width, y + (clipBottom ?: v.height))
+            if (limit != null && !r.intersect(limit)) return null
+            return if (r.width() > 0f && r.height() > 0f) r else null
+        }
+        private fun holes(): List<Pair<RectF, Float>> {
+            getLocationInWindow(ol)
+            val out = ArrayList<Pair<RectF, Float>>(3)
+            val sv = pageScroll
+            val limit = sv?.let { rectOf(it) }
+            rectOf(cover, null, limit)?.let { out.add(it to 0f) }
+            val p = panel
+            rectOf(p, p?.clipBounds?.bottom, limit)?.let { out.add(it to dp(10).toFloat()) }
+            rectOf(queueMiniHost?.getChildAt(0))?.let { out.add(it to dp(10).toFloat()) }
+            return out
+        }
+        override fun onDraw(canvas: Canvas) {
+            if (amount <= 0.001f) return
+            val layer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+            dimPaint.alpha = (amount * 0.55f * 255f).toInt().coerceIn(0, 255)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
+            for ((r, radius) in holes()) canvas.drawRoundRect(r, radius, radius, clearPaint)
+            canvas.restoreToCount(layer)
+        }
+        private var downOutside = false
+        override fun onTouchEvent(e: MotionEvent): Boolean {
+            if (amount < 0.05f) return false
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+                val inside = holes().any { (r, _) -> r.contains(e.x, e.y) }
+                if (inside) return false
+                downOutside = true
+                return true
+            }
+            if (!downOutside) return false
+            if (e.actionMasked == MotionEvent.ACTION_UP) { downOutside = false; if (selectedAlbum != null) closeAlbum() }
+            if (e.actionMasked == MotionEvent.ACTION_CANCEL) downOutside = false
+            return true
+        }
+    }
+
     private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: View? = null, val occurrence: Int = -1)
     private val albumPlayingMarks = ArrayList<AlbumRowMark>()
     /** Build 2.5: the queue list uses the same row design as the album list, so it has its own playing marks. */
@@ -4186,6 +4250,7 @@ class MainActivity : Activity() {
         val overlap = if (blocks.isEmpty()) 0 else (textsH + dp(10) - dp(20)).coerceAtLeast(0)   // texts start at the cover's bottom edge; the row has 10dp bottom padding, the list starts 8dp under the cover
         albumPanelOverlap = overlap
         albumPanelRow = item
+        albumDimView?.let { it.cover = albumCovers[album]; it.panel = panel; if (!animate) it.amount = 1f }
         val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6); topMargin = -overlap }
         val at = albumRows.indexOfChild(item) + 1
         albumRows.addView(panel, at, lp)
@@ -4233,6 +4298,7 @@ class MainActivity : Activity() {
             // once the list has gone about 60% of the way up.
             val ta = if (opening) 1f - (f / 0.3f).coerceIn(0f, 1f) else ((0.4f - f) / 0.4f).coerceIn(0f, 1f)
             for (t in texts) t.alpha = ta
+            albumDimView?.amount = f
             for (i in at + 1 until albumRows.childCount) albumRows.getChildAt(i).translationY = -hidden
             // Hifi 2.73 classic 43: thin fade + small slide-up of the rows, like the mini player; the fade starts a little after the height starts
             // moving and (on closing) is gone a little before the height reaches zero.
@@ -4266,6 +4332,7 @@ class MainActivity : Activity() {
         albumPanelRow?.let { r -> rowTextBlocks[r]?.forEach { it.alpha = 1f } }
         for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
         albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
+        albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }
     }
 
     /** Hifi 2.73 classic 35: close the open album: the list slides up, then it is removed (no rebuild). */
@@ -4297,6 +4364,7 @@ class MainActivity : Activity() {
         slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f), {
             albumRows.removeView(panel)
             albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
+            albumDimView?.let { it.amount = 0f; it.cover = null; it.panel = null }
         }, albumPanelOverlap, closeTexts)
     }
 
