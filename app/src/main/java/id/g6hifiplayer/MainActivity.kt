@@ -1954,63 +1954,71 @@ class MainActivity : Activity() {
         val openAlbum = selectedAlbum?.takeIf { a -> albums.any { it == a } }
         if (openAlbum == null) selectedAlbum = null
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        val coverSide = dp(106)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
-        albums.forEach { album ->
+        // Hifi 2.73 classic 52: the Album tab is a 2-column GRID again: cover (with a 3-dot button on its right) and the title / artist / track count below it.
+        // The 3 dots open the old Play album / Add album to queue window; one tap on the cover area opens the track list under that grid row.
+        val colGap = dp(10)
+        val cellW = (gridW - colGap) / 2
+        val dotsW = dp(30)
+        val coverSide = cellW - dp(6) - dotsW
+        var gridRow: LinearLayout? = null
+        albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
-            val item = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.TOP
-                setPadding(dp(3), dp(13), dp(3), dp(13))   // Hifi 2.73 classic 45: gap 26dp. Before: classic 41: gap between albums 20dp, about the side gap (16dp page + 3dp)
+            if (position % 2 == 0) {
+                gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
+                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2))
+            }
+            val row = gridRow!!
+            val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(3), dp(10), dp(3), dp(10))
                 themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
                     if (closingAlbum) return@setOnClickListener
-                    if (selectedAlbum == album) closeAlbum() else openAlbumPanel(album, this, entries, true)
+                    if (selectedAlbum == album) closeAlbum() else openAlbumPanel(album, row, entries, true)
                 }
             }
+            val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
             val cover = ImageView(this).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
-            item.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
-            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
-            // Hifi 2.73 classic 44: title (bigger), "artist • N tracks" on one line, then two plain glyph buttons (the ▶ and ＋ of the old long-press window),
-            // left-aligned with the text and pinned to the bottom edge of the cover; no button backgrounds.
-            texts.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            top.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
+            val dots = ImageView(this).apply {
+                setImageResource(R.drawable.ic_more_vert)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(5), dp(8), dp(5), dp(8))
+                themed {
+                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null)
+                    setColorFilter(MUTED)
+                }
+                contentDescription = "Options for album " + albumLabel(namedArtist, namedAlbum)
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    showAlbumOptions(namedAlbum.ifBlank { album }, rowIndices, this, albumLabel(namedArtist, namedAlbum.ifBlank { album }), null, emptyList()) {
+                        addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist)
+                    }
+                }
+            }
+            top.addView(dots, LinearLayout.LayoutParams(dotsW, dp(40)).apply { leftMargin = dp(0) })
+            cell.addView(top, LinearLayout.LayoutParams(-2, -2))
             val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
+            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
+            texts.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
             if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
             })
             texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
-            texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))
-            val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
-            fun albumGlyph(icon: Int, description: String, onClick: () -> Unit) = ImageView(this).apply {
-                setImageResource(icon)
-                scaleType = ImageView.ScaleType.FIT_START
-                setPadding(0, dp(12), dp(20), dp(12))
-                themed {
-                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null)
-                    setColorFilter(MUTED)   // Hifi 2.73 classic 48: his own icons, same grey as the artist / track count
-                }
-                contentDescription = description
-                isClickable = true; isFocusable = true
-                setOnClickListener { onClick() }
-            }
-            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            buttons.addView(albumGlyph(R.drawable.ic_play_outline, "Play album") {
-                if (rowIndices.isNotEmpty()) { playTrackAt(rowIndices.first(), true, rowIndices); showPlayerAnimated() }
-            }, LinearLayout.LayoutParams(dp(44), dp(36)))
-            buttons.addView(albumGlyph(R.drawable.ic_plus, "Add album to queue") { addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist) }, LinearLayout.LayoutParams(dp(44), dp(36)))
-            texts.addView(buttons, LinearLayout.LayoutParams(-1, -2))
-            item.addView(texts, LinearLayout.LayoutParams(0, coverSide, 1f))
-            albumRows.addView(item, LinearLayout.LayoutParams(-1, -2))
+            cell.addView(texts, LinearLayout.LayoutParams(coverSide, -2))
+            row.addView(cell, LinearLayout.LayoutParams(cellW, -2).apply { if (position % 2 == 1) leftMargin = colGap })
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
-            if (album == openAlbum) openAlbumPanel(album, item, entries, false)
+            if (album == openAlbum) openAlbumPanel(album, row, entries, false)
         }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
@@ -3679,7 +3687,7 @@ class MainActivity : Activity() {
     }
 
     private fun showAlbumOptions(album: String, indices: List<Int>, anchor: View? = null, label: String = album, allIndices: List<Int>? = null,
-                                 others: List<Triple<String, String, Track>> = emptyList()) {
+                                 others: List<Triple<String, String, Track>> = emptyList(), onAddToQueue: (() -> Unit)? = null) {
         val dialog = AlertDialog.Builder(this).create()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -3691,10 +3699,13 @@ class MainActivity : Activity() {
             setPadding(dp(2), dp(2), dp(2), dp(14)); maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        fun option(label: String, onClick: () -> Unit) {
-            val item = text(label, 14f, WHITE, true).apply {
+        fun option(icon: Int, label: String, onClick: () -> Unit) {
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
+                addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))   // Hifi 2.73 classic 52: his own icons
+                addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
                 background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 9), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
@@ -3703,13 +3714,13 @@ class MainActivity : Activity() {
         }
         // Hifi 2.41: "Play album" (the album the press is on); for a stack of several albums an extra "Play entire album"
         // plays every album of that artist in grid order.
-        option("▶  Play album") {
+        option(R.drawable.ic_play_outline, "Play album") {
             if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); showPlayerAnimated() }
         }
         if (allIndices != null && allIndices.isNotEmpty()) {
-            option("▶  Play entire album") { playTrackAt(allIndices.first(), true, allIndices); showPlayerAnimated() }
+            option(R.drawable.ic_play_outline, "Play entire album") { playTrackAt(allIndices.first(), true, allIndices); showPlayerAnimated() }
         }
-        option("＋  Add album to queue") { addAlbumToQueue(indices, album) }
+        option(R.drawable.ic_plus, "Add album to queue") { if (onAddToQueue != null) onAddToQueue() else addAlbumToQueue(indices, album) }
         // Hifi 2.42: the artist's other albums as mini covers, 3 per row with the same left/right edges as the buttons; more
         // than 3 simply add rows (the window grows, it never scrolls). Tapping one opens that album directly, so Back goes
         // straight to the grid.

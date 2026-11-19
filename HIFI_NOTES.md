@@ -880,3 +880,8 @@
 
 ## Hifi 2.73 classic 51 (from Classic 50)
 - New icons set to 75% (~12dp). Note: in Blur these buttons are NOT replaced, so keep Blur's original glyph buttons when porting.
+
+## Hifi 2.73 classic 52 (from Classic 51) - experiment: 2-column grid
+- Album tab = 2-column grid: cover + 3-dot button on its right, title / artist / track count below the cover. Cover = cell width - dots column (~124dp).
+- 3 dots open the old Play album / Add album to queue window (with the new icons); one tap on the cell opens the track list under the grid row (list unchanged). No selected-album marker yet.
+- Classic 51 (list view, icons 75%) stays the safe comparison build.
