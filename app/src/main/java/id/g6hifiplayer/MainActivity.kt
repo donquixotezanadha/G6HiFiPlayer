@@ -1954,14 +1954,14 @@ class MainActivity : Activity() {
         val openAlbum = selectedAlbum?.takeIf { a -> albums.any { it == a } }
         if (openAlbum == null) selectedAlbum = null
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        val coverSide = dp(96)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
+        val coverSide = dp(110)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
         albums.forEach { album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.TOP
-                setPadding(dp(3), dp(10), dp(3), dp(10))   // Hifi 2.73 classic 41: gap between albums 20dp, about the side gap (16dp page + 3dp)
+                setPadding(dp(3), dp(13), dp(3), dp(13))   // Hifi 2.73 classic 45: gap 26dp. Before: classic 41: gap between albums 20dp, about the side gap (16dp page + 3dp)
                 themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true

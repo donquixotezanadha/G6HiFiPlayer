@@ -859,3 +859,6 @@
 
 ## Hifi 2.73 classic 44
 - Classic (from 43): lighter album row: title 15f, one line "artist • N tracks" 13f, then two plain glyph buttons ▶ (play album) and ＋ (add to queue), 22f, 44x36dp touch areas, left-aligned with the text, pinned to the cover bottom, no background (ripple only). Carry to Blur later (own rounded values). versionCode 231.
+
+## Hifi 2.73 classic 45
+- Classic (from 44): cover 110dp (was 96dp; title/artist line use the remaining width, still ellipsized inside the side gap), gap between albums 26dp (was 20dp). Nothing else changed. versionCode 232.
