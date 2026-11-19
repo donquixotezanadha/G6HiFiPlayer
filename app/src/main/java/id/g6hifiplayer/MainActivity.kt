@@ -101,6 +101,9 @@ class MainActivity : Activity() {
     private var selectedAlbum: String? = null
     private var trackRowHook: (() -> Unit)? = null
     private var albumPanelView: View? = null
+    private var albumPanelOverlap = 0   // Hifi 2.73 classic 53: how far the open list reaches up over the title block under the cover
+    private var albumPanelRow: View? = null
+    private val rowTextBlocks = HashMap<View, MutableList<View>>()   // grid row -> the title / artist / track-count blocks under its covers
     private var animateAlbumOpen = false
     private var closingAlbum = false
     private val albumBackStack = ArrayList<String>()   // Hifi 2.37: albums opened from inside an album; Back returns to the previous one
@@ -1939,6 +1942,7 @@ class MainActivity : Activity() {
         updateHeaderBack()
         albumPlayingMarks.clear()
         albumRows.removeAllViews()
+        rowTextBlocks.clear(); albumPanelRow = null
         if (tracks.isEmpty()) {
             albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
             return
@@ -1979,7 +1983,7 @@ class MainActivity : Activity() {
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
                     if (closingAlbum) return@setOnClickListener
-                    if (selectedAlbum == album) closeAlbum() else openAlbumPanel(album, row, entries, true)
+                    if (selectedAlbum == album) closeAlbum() else openAlbumPanel(album, row, entries, true, namedAlbum.ifBlank { album }, listOfNotNull(namedArtist.ifBlank { null }, entries.size.toString() + (if (entries.size == 1) " track" else " tracks")).joinToString(" • "))
                 }
             }
             val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
@@ -2016,9 +2020,10 @@ class MainActivity : Activity() {
             })
             texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
             cell.addView(texts, LinearLayout.LayoutParams(coverSide, -2))
+            rowTextBlocks.getOrPut(row) { mutableListOf() }.add(texts)
             row.addView(cell, LinearLayout.LayoutParams(cellW, -2).apply { if (position % 2 == 1) leftMargin = colGap })
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
-            if (album == openAlbum) openAlbumPanel(album, row, entries, false)
+            if (album == openAlbum) openAlbumPanel(album, row, entries, false, namedAlbum.ifBlank { album }, listOfNotNull(namedArtist.ifBlank { null }, entries.size.toString() + (if (entries.size == 1) " track" else " tracks")).joinToString(" • "))
         }
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
@@ -4082,13 +4087,14 @@ class MainActivity : Activity() {
      * height at once and revealed by a growing clip while the rows below are only translated (no layout per frame, so the slide stays smooth even
      * with hundreds of albums); closing is the same backwards, then the panel is removed.
      */
-    private fun openAlbumPanel(album: String, item: View, entries: List<IndexedValue<Track>>, animate: Boolean) {
+    private fun openAlbumPanel(album: String, item: View, entries: List<IndexedValue<Track>>, animate: Boolean, title: String = "", sub: String = "") {
         val old = albumPanelView
         var shift = 0
         if (old != null && old.parent === albumRows) {
-            if (albumRows.indexOfChild(old) < albumRows.indexOfChild(item)) shift = old.height
+            if (albumRows.indexOfChild(old) < albumRows.indexOfChild(item)) shift = old.height - albumPanelOverlap
             albumRows.removeView(old)
         }
+        albumPanelRow?.let { r -> rowTextBlocks[r]?.forEach { it.alpha = 1f } }   // the previous album's title block comes back at once
         selectedAlbum = album
         val sorted = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
         val queueIndices = sorted.map { it.index }
@@ -4096,27 +4102,48 @@ class MainActivity : Activity() {
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         panel.setPadding(dp(12), dp(8), dp(12), dp(8))   // Hifi 2.73 classic 42: the track list sits on the same box as the queue (window colour, rounded) with the queue's row spacing
         panel.themed { background = floatingBackground() }
+        // Hifi 2.73 classic 53: the list starts right under the covers and replaces the title blocks there: centred title + artist / track count on top.
+        if (title.isNotBlank()) {
+            val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(8), dp(8), dp(10)) }
+            header.addView(text(title, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; includeFontPadding = false })
+            if (sub.isNotBlank()) header.addView(text(sub, 13f, MUTED, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; setPadding(0, dp(3), 0, 0) })
+            panel.addView(header, LinearLayout.LayoutParams(-1, -2))
+        }
         sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
-        val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
+        val blocks = rowTextBlocks[item].orEmpty()
+        var textsH = 0
+        blocks.forEach { b ->
+            b.measure(View.MeasureSpec.makeMeasureSpec(if (b.width > 0) b.width else (b.layoutParams?.width ?: 0), View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+            textsH = maxOf(textsH, b.measuredHeight)
+        }
+        val overlap = if (blocks.isEmpty()) 0 else (textsH + dp(2)).coerceAtLeast(0)   // texts start at the cover's bottom edge; the row has 10dp bottom padding, the list starts 8dp under the cover
+        albumPanelOverlap = overlap
+        albumPanelRow = item
+        val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6); topMargin = -overlap }
         val at = albumRows.indexOfChild(item) + 1
         albumRows.addView(panel, at, lp)
         albumPanelView = panel
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
         if (shift > 0) pageScroll?.let { sv -> sv.post { sv.scrollBy(0, -shift) } }
-        if (!animate) return
+        if (!animate) { blocks.forEach { it.alpha = 0f }; return }
         val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)) { }
+        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f), { }, overlap, blocks)
     }
 
     /** f runs from [from] to [to] (0 = closed, 1 = open): the panel is clipped to f * height, the rows after it are shifted up by the hidden part. */
-    private fun slideAlbumPanel(panel: View, at: Int, target: Int, w: Int, from: Float, to: Float, ms: Long, ip: android.animation.TimeInterpolator, done: () -> Unit) {
+    private fun slideAlbumPanel(panel: View, at: Int, target: Int, w: Int, from: Float, to: Float, ms: Long, ip: android.animation.TimeInterpolator, done: () -> Unit, overlap: Int = 0, texts: List<View> = emptyList()) {
+        val opening = to > from
         val clip = android.graphics.Rect()
         fun apply(f: Float) {
             val cur = (target * f).toInt()
             clip.set(0, 0, w, cur)
             panel.clipBounds = clip
-            val hidden = (target - cur).toFloat()
+            val hidden = (target - overlap - maxOf(0, cur - overlap)).toFloat()
+            // Hifi 2.73 classic 53: the title blocks under the covers fade out quickly while the list opens; on closing they only start to come back
+            // once the list has gone about 60% of the way up.
+            val ta = if (opening) 1f - (f / 0.3f).coerceIn(0f, 1f) else ((0.4f - f) / 0.4f).coerceIn(0f, 1f)
+            for (t in texts) t.alpha = ta
             for (i in at + 1 until albumRows.childCount) albumRows.getChildAt(i).translationY = -hidden
             // Hifi 2.73 classic 43: thin fade + small slide-up of the rows, like the mini player; the fade starts a little after the height starts
             // moving and (on closing) is gone a little before the height reaches zero.
@@ -4128,6 +4155,7 @@ class MainActivity : Activity() {
             panel.alpha = 1f
             if (panel is ViewGroup) for (j in 0 until panel.childCount) panel.getChildAt(j).translationY = 0f
             panel.clipBounds = null
+            for (t in texts) t.alpha = if (to >= 1f) 0f else 1f
             for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
         }
         apply(from)
@@ -4149,10 +4177,11 @@ class MainActivity : Activity() {
         if (panel == null || panel.parent !== albumRows || panel.height <= 0) { selectedAlbum = null; albumPanelView = null; return }
         closingAlbum = true
         val at = albumRows.indexOfChild(panel)
-        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f)) {
+        val closeTexts = albumPanelRow?.let { rowTextBlocks[it] }.orEmpty()
+        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f), {
             albumRows.removeView(panel)
-            albumPanelView = null; selectedAlbum = null; closingAlbum = false
-        }
+            albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
+        }, albumPanelOverlap, closeTexts)
     }
 
     private fun goBackFromAlbum() {

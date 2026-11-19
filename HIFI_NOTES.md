@@ -885,3 +885,6 @@
 - Album tab = 2-column grid: cover + 3-dot button on its right, title / artist / track count below the cover. Cover = cell width - dots column (~124dp).
 - 3 dots open the old Play album / Add album to queue window (with the new icons); one tap on the cell opens the track list under the grid row (list unchanged). No selected-album marker yet.
 - Classic 51 (list view, icons 75%) stays the safe comparison build.
+
+## Hifi 2.73 classic 53 (from Classic 52)
+- Opened album list now starts directly under the covers (negative top margin), covering the title/artist/track-count blocks of that grid row; those blocks fade out in the first 30% of opening and fade back in only after the list is ~60% closed (420 ms). Header inside the list: centred title + "artist • N tracks" (doubles as open-album marker).
