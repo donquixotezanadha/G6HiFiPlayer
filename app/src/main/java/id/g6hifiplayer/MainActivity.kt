@@ -1983,16 +1983,20 @@ class MainActivity : Activity() {
             // left-aligned with the text and pinned to the bottom edge of the cover; no button backgrounds.
             texts.addView(text(namedAlbum.ifBlank { album }, 15f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
             val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
-            texts.addView(text(if (namedArtist.isNotBlank()) "$namedArtist • $trackText" else trackText, 13f, MUTED, false).apply {
+            if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
             })
+            texts.addView(text(trackText, 13f, MUTED, false).apply { setPadding(0, dp(2), 0, 0) })
             texts.addView(View(this), LinearLayout.LayoutParams(-1, 0, 1f))
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
             fun albumGlyph(glyph: String, description: String, onClick: () -> Unit) = text(glyph, 22f, WHITE, true).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, 0, dp(8), 0)
                 includeFontPadding = false
-                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null) }
+                themed {
+                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null)
+                    setTextColor(MUTED)   // Hifi 2.73 classic 46: the same grey as the artist / track count
+                }
                 contentDescription = description
                 isClickable = true; isFocusable = true
                 setOnClickListener { onClick() }

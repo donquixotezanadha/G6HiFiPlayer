@@ -862,3 +862,6 @@
 
 ## Hifi 2.73 classic 45
 - Classic (from 44): cover 110dp (was 96dp; title/artist line use the remaining width, still ellipsized inside the side gap), gap between albums 26dp (was 20dp). Nothing else changed. versionCode 232.
+
+## Hifi 2.73 classic 46
+- Classic (from 45): track count back on its own line under the artist (13f); the play and add-to-queue glyphs use the grey of the artist/track text (MUTED). versionCode 233.
