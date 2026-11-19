@@ -247,6 +247,7 @@ class MainActivity : Activity() {
     private var headerInset = 0
     /** Hifi 2.73 classic 60: "Choose music folder" lives on the empty Album page: first start (no folder yet) or a folder with no playable songs. */
     private var libraryNeedsFolder = false
+    private var autoNextAlbum = true   // Hifi 2.73 classic 61: the next album follows only after "Play album"; saved in preferences
     private var headerBack: View? = null   // Hifi 2.73 classic 25 / 2.80
     private var themeIconView: ImageView? = null   // Hifi 2.11: theme / queue / album row under the controls
     private var albumIconView: ImageView? = null
@@ -376,6 +377,7 @@ class MainActivity : Activity() {
         getPreferences(MODE_PRIVATE).let { BackdropBlur.restoreTint(it.getFloat("classic_tint_h", 0f), it.getFloat("classic_tint_k", 0f)) }   // Hifi 2.73 classic 14: first frame already has the last cover tint
         albumGridColumns = 2   // Hifi 2.73 classic 34 / 2.89: the column option is gone
         libraryNeedsFolder = getPreferences(MODE_PRIVATE).getString("music_tree_uri", null) == null
+        autoNextAlbum = getPreferences(MODE_PRIVATE).getBoolean("auto_next_album", true)
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
         // Fully transparent status bar; icon colour follows the page ink.
@@ -2288,9 +2290,8 @@ class MainActivity : Activity() {
         val rowHook = trackRowHook
         row.setOnClickListener {
             rowHook?.invoke()
-            val albumOrder = tracks.withIndex().filter { it.value.folder == t.folder }.map { it.index }
-            playTrackAt(entry.index, true, albumOrder.ifEmpty { queueIndices })
-            showPlayerAnimated()
+            // Hifi 2.73 classic 61: one tapped track plays alone (queue = that track only), stays in the list, and stops at its end (no next album).
+            playTrackAt(entry.index, true, listOf(entry.index), false)
         }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2))
         albumPlayingMarks.add(AlbumRowMark(entry.index, row, numberView, titleView, bars))
@@ -2370,6 +2371,7 @@ class MainActivity : Activity() {
             if (queuedByUser) {
                 toAdd = pending
             } else {
+                if (!autoNextAlbum) return -1   // a single track was played: nothing follows unless the user queued something
                 val lastAlbum = tracks.getOrNull(inPlayer.lastOrNull() ?: return -1)?.folder ?: return -1
                 val albums = albumOrder(tracks.groupBy { it.folder }).first   // Hifi 2.34: same order as the Album grid (artist A-Z, album A-Z)
                 val position = albums.indexOf(lastAlbum)
@@ -2527,8 +2529,12 @@ class MainActivity : Activity() {
         exo.addListener(listener)
     }
 
-    private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null) {
+    private fun playTrackAt(index: Int, autoplay: Boolean, queue: List<Int>? = null, asAlbum: Boolean? = null) {
         if (index !in tracks.indices) return
+        if (asAlbum != null) {   // Hifi 2.73 classic 61: only "Play album" lines up the next album at the end; one track does not
+            autoNextAlbum = asAlbum
+            try { getPreferences(MODE_PRIVATE).edit().putBoolean("auto_next_album", asAlbum).apply() } catch (_: Exception) { }
+        }
         startPlaybackKeepAlive()
         val requestedOrder = queue?.filter { it in tracks.indices }?.distinct().orEmpty()
         if (requestedOrder.isNotEmpty() && index in requestedOrder) {
@@ -3744,10 +3750,10 @@ class MainActivity : Activity() {
         // Hifi 2.41: "Play album" (the album the press is on); for a stack of several albums an extra "Play entire album"
         // plays every album of that artist in grid order.
         option(R.drawable.ic_play_outline, "Play album") {
-            if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices); showPlayerAnimated() }
+            if (indices.isNotEmpty()) { playTrackAt(indices.first(), true, indices, true); showPlayerAnimated() }
         }
         if (allIndices != null && allIndices.isNotEmpty()) {
-            option(R.drawable.ic_play_outline, "Play entire album") { playTrackAt(allIndices.first(), true, allIndices); showPlayerAnimated() }
+            option(R.drawable.ic_play_outline, "Play entire album") { playTrackAt(allIndices.first(), true, allIndices, true); showPlayerAnimated() }
         }
         option(R.drawable.ic_plus, "Add album to queue") { if (onAddToQueue != null) onAddToQueue() else addAlbumToQueue(indices, album) }
         // Hifi 2.42: the artist's other albums as mini covers, 3 per row with the same left/right edges as the buttons; more
@@ -4144,7 +4150,10 @@ class MainActivity : Activity() {
             }
             val headerButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             headerButtons.addView(headerButton(R.drawable.ic_play_outline, "Play album") {
-                if (queueIndices.isNotEmpty()) { playTrackAt(queueIndices.first(), true, queueIndices); showPlayerAnimated() }
+                if (queueIndices.isNotEmpty()) {
+                    playTrackAt(queueIndices.first(), true, queueIndices, true); showPlayerAnimated()
+                    handler.postDelayed({ closeAlbumInstant() }, 130L)   // Hifi 2.73 classic 61: the list is closed once Now Playing is up
+                }
             }, LinearLayout.LayoutParams(0, dp(50), 1f))
             headerButtons.addView(headerButton(R.drawable.ic_plus, "Add to queue") { addAlbumToQueue(queueIndices, album, "", title, albumArtist) },
                 LinearLayout.LayoutParams(0, dp(50), 1f).apply { leftMargin = dp(8) })
@@ -4231,6 +4240,15 @@ class MainActivity : Activity() {
             })
             handler.post { start() }
         }
+    }
+
+    /** Hifi 2.73 classic 61: close the open list without animation (used while the page is already fading to Now Playing). */
+    private fun closeAlbumInstant() {
+        val panel = albumPanelView
+        if (panel != null && panel.parent === albumRows) albumRows.removeView(panel)
+        albumPanelRow?.let { r -> rowTextBlocks[r]?.forEach { it.alpha = 1f } }
+        for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
+        albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
     }
 
     /** Hifi 2.73 classic 35: close the open album: the list slides up, then it is removed (no rebuild). */

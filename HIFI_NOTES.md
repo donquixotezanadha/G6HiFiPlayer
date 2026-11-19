@@ -914,3 +914,8 @@
 - Album tab has no header and no gear: covers start right under the status bar (header bar only opens while a folder scan shows its progress).
 - Gear / MD5 log window hidden for now (openSettingsWindow kept; to be moved to Now Playing later). Its window is now only "LOG AUDIO PATH", same size/position as the queue window (80% height, centred).
 - "CHOOSE MUSIC FOLDER" removed from Setting; it shows on the empty Album page (first start with no folder, or a scan that finds no songs / background scan finds the folder empty while nothing is playing).
+
+## Hifi 2.73 classic 61 (from Classic 60) - behaviour
+- Play album (3-dot window or list buttons) -> Now Playing as before; from the list buttons the list is also closed (instantly, after the page fade starts). Add to queue stays on the Album page with the toast.
+- Tapping one track in the list: plays only that track (queue = that track), stays on the list, no Now Playing; nothing follows when it ends (no repeat/shuffle by design).
+- Next album is lined up automatically only after "Play album" (flag autoNextAlbum, saved in prefs "auto_next_album"); user-queued items still play after a single track.
