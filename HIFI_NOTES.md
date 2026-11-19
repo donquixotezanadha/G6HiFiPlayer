@@ -853,3 +853,6 @@
 
 ## Hifi 2.73 classic 43
 - Classic (from 42): thin fade + 10dp slide-up of the list rows on open/close (alpha = (f-0.1)/0.5 clamped, rows lifted by (1-f)*10dp), like the mini player. (Carry to Blur later with the list design.) versionCode 230.
+
+## NOTE for every future Classic -> Blur carry-over (19 Nov)
+- Classic and Blur have DIFFERENT rounded corners and must always be kept that way: Classic = square covers (0dp), Blur = rounded covers (10dp, shape(ART, 10) + roundCorners(10)), plus each line's own colours/blur. Never copy a Classic corner value into Blur (or the reverse); check every cover, button and box radius per line when porting.
