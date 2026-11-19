@@ -4200,6 +4200,24 @@ class MainActivity : Activity() {
         closingAlbum = true
         val at = albumRows.indexOfChild(panel)
         val closeTexts = albumPanelRow?.let { rowTextBlocks[it] }.orEmpty()
+        // Hifi 2.73 classic 56: when the page is scrolled near the bottom, closing shrinks the scroll range; instead of the page snapping back when the list
+        // is removed, scroll gently to the final limit during the closing, with the same 420 ms and curve.
+        pageScroll?.let { sv ->
+            val child = sv.getChildAt(0)
+            if (child != null) {
+                val net = panel.height + dp(6) - albumPanelOverlap
+                val finalMax = maxOf(0, child.height - net + sv.paddingTop + sv.paddingBottom - sv.height)
+                val start = sv.scrollY
+                if (start > finalMax) {
+                    android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 420
+                        interpolator = android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f)
+                        addUpdateListener { sv.scrollTo(0, (start + (finalMax - start) * (it.animatedValue as Float)).toInt()) }
+                        start()
+                    }
+                }
+            }
+        }
         slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f), {
             albumRows.removeView(panel)
             albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false

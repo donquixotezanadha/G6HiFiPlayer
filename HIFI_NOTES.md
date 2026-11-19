@@ -896,3 +896,6 @@
 ## Hifi 2.73 classic 55 (from Classic 54)
 - Options squares smaller (4.4 -> 3.4 in the 24 viewport), same centres, so more spacing between them.
 - Opening an album also scrolls the page so that album's cover row is at the top edge, animated with the same 420 ms / curve as the opening (no scroll on close).
+
+## Hifi 2.73 classic 56 (from Classic 55)
+- Closing a list near the bottom of the page: the page scrolls softly to the new bottom limit during the closing (420 ms, closing curve) instead of snapping when the list is removed.
