@@ -1960,7 +1960,7 @@ class MainActivity : Activity() {
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         // Hifi 2.73 classic 52: the Album tab is a 2-column GRID again: cover (with a 3-dot button on its right) and the title / artist / track count below it.
         // The 3 dots open the old Play album / Add album to queue window; one tap on the cover area opens the track list under that grid row.
-        val colGap = dp(10)
+        val colGap = dp(24)   // Hifi 2.73 classic 58: wider middle gap (was 10dp), outer edges unchanged, cover shrinks to make room
         val cellW = (gridW - colGap) / 2
         val dotsW = dp(18)   // Hifi 2.73 classic 57: narrow column, the marks sit flush with the cell's right edge (same gap as the cover on the left); the cover takes the freed width
         val coverSide = cellW - dp(6) - dotsW

@@ -903,3 +903,6 @@
 ## Hifi 2.73 classic 57 (from Classic 56)
 - Track count removed from under the cover (title + artist only); the opened list header keeps "artist • N tracks".
 - Options column narrowed 30 -> 18dp, 3 squares (3dp, pitch 6dp) flush with the right edge so the right gap equals the left; cover grows by 12dp (cover = cell - 6 - 18). Blur's round 3 dots need their own drawable/size.
+
+## Hifi 2.73 classic 58 (from Classic 57)
+- Middle gap between the two album columns 10dp -> 24dp (outer left/right edges unchanged); cover is 7dp smaller (cover = (width - 24 - 6 - ... )/2 style: cell = (grid - 24)/2, cover = cell - 6 - 18).
