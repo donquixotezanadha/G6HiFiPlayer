@@ -888,3 +888,7 @@
 
 ## Hifi 2.73 classic 53 (from Classic 52)
 - Opened album list now starts directly under the covers (negative top margin), covering the title/artist/track-count blocks of that grid row; those blocks fade out in the first 30% of opening and fade back in only after the list is ~60% closed (420 ms). Header inside the list: centred title + "artist • N tracks" (doubles as open-album marker).
+
+## Hifi 2.73 classic 54 (from Classic 53)
+- Opened list now starts 20dp under the cover (same as the gap between albums) instead of 8dp.
+- Options button: Classic uses 3 small SQUARES (vertical) instead of dots. The small round 3 dots (ic_more_vert from classic 52/53: circles r=2.2 at y=5.5/12/18.5 in a 24 viewport) are meant for BLUR later.

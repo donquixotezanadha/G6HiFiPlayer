@@ -4116,7 +4116,7 @@ class MainActivity : Activity() {
             b.measure(View.MeasureSpec.makeMeasureSpec(if (b.width > 0) b.width else (b.layoutParams?.width ?: 0), View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
             textsH = maxOf(textsH, b.measuredHeight)
         }
-        val overlap = if (blocks.isEmpty()) 0 else (textsH + dp(2)).coerceAtLeast(0)   // texts start at the cover's bottom edge; the row has 10dp bottom padding, the list starts 8dp under the cover
+        val overlap = if (blocks.isEmpty()) 0 else (textsH + dp(10) - dp(20)).coerceAtLeast(0)   // texts start at the cover's bottom edge; the row has 10dp bottom padding, the list starts 8dp under the cover
         albumPanelOverlap = overlap
         albumPanelRow = item
         val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6); topMargin = -overlap }
