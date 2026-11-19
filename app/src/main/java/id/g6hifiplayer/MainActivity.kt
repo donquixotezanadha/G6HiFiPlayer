@@ -726,6 +726,12 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, dp(4))
             visibility = View.VISIBLE
         }
+        // Hifi 2.73 classic 68: the audio path log (MD5) opens with a long press on the two info lines of Now Playing: no extra button, no extra icon.
+        // Same window as the queue (80% height, centred, same animation and dim).
+        for (v in listOf(audioInfoInline, audioStatusInline)) {
+            v.isLongClickable = true
+            v.setOnLongClickListener { openSettingsWindow(audioInfoInline); true }
+        }
         // Hifi 1.41: the title is always exactly one line (a long title is cut with "..." at the queue button), the same padding as when a track
         // starts, and the artist is one line too, so the cover size and the positions of title, queue button and the rest never move.
         titleView = text("", 19f, WHITE, true).apply {
@@ -4028,7 +4034,7 @@ class MainActivity : Activity() {
     }
 
     /** Hifi 2.73 classic 60: the window of the (hidden) gear shows only the audio path log, same size and position as the queue window (80% height, centred). */
-    private fun openSettingsWindow() {
+    private fun openSettingsWindow(anchor: View? = null) {
         val dialog = AlertDialog.Builder(this).create()
         val windowH = (resources.displayMetrics.heightPixels * 0.8f).toInt()
         val panel = LinearLayout(this).apply {
@@ -4048,7 +4054,7 @@ class MainActivity : Activity() {
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.window?.setLayout(floatingWindowWidth(), windowH)
         dialog.window?.setDimAmount(0.55f)
-        popIn(panel, null)
+        popIn(panel, anchor)
     }
 
     /** Album -> Now Playing (tapping the mini player, Back, play actions): a quick fade (Hifi 2.15; the sideways slide and the swipe gesture are gone). */

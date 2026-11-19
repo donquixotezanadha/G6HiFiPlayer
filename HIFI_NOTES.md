@@ -929,3 +929,6 @@
 ## Hifi 2.73 classic 64 (from Classic 63)
 - Queue: a duplicated track highlights / animates only on the row that is really playing (k-th occurrence), not on every copy.
 - Queue window: list starts 10dp lower, under CLEAR.
+
+## Hifi 2.73 classic 68 (from Classic 64; dim experiments 65-67 dropped)
+- Audio path log (MD5): long press on the two info lines of Now Playing (format line + bit-perfect status line) opens the log window. No extra icon, no extra info. Window = same size / position / animation / dim as the queue window, only the list of log entries (touching an entry shows its detail). The gear stays hidden. Blur: same placement when ported.
