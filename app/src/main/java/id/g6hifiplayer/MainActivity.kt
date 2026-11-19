@@ -1954,7 +1954,7 @@ class MainActivity : Activity() {
         val openAlbum = selectedAlbum?.takeIf { a -> albums.any { it == a } }
         if (openAlbum == null) selectedAlbum = null
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        val coverSide = dp(102)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
+        val coverSide = dp(106)   // Hifi 2.73 classic 39: a little smaller than the 3-column cover (99dp); the text column is exactly as tall
         albums.forEach { album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
@@ -1981,7 +1981,7 @@ class MainActivity : Activity() {
             val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
             // Hifi 2.73 classic 44: title (bigger), "artist • N tracks" on one line, then two plain glyph buttons (the ▶ and ＋ of the old long-press window),
             // left-aligned with the text and pinned to the bottom edge of the cover; no button backgrounds.
-            texts.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            texts.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
             val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
             if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
@@ -1992,7 +1992,7 @@ class MainActivity : Activity() {
             fun albumGlyph(icon: Int, description: String, onClick: () -> Unit) = ImageView(this).apply {
                 setImageResource(icon)
                 scaleType = ImageView.ScaleType.FIT_START
-                setPadding(0, dp(10), dp(20), dp(10))
+                setPadding(0, dp(12), dp(20), dp(13))
                 themed {
                     background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 8), null)
                     setColorFilter(MUTED)   // Hifi 2.73 classic 48: his own icons, same grey as the artist / track count
@@ -3517,7 +3517,7 @@ class MainActivity : Activity() {
     private fun iconImageAction(icon: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(icon)
         scaleType = ImageView.ScaleType.FIT_CENTER
-        setPadding(dp(12), dp(10), dp(12), dp(10))
+        setPadding(dp(14), dp(10), dp(15), dp(10))
         themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
         setColorFilter(ACTION_GREY)
         isClickable = true; isFocusable = true; setOnClickListener { click() }

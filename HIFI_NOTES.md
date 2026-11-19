@@ -871,3 +871,6 @@
 - Equalizer (Classic): 4 bars / 4 dots instead of 3, thinner lines, similar total width.
 - User's own icons (res/drawable-nodpi ic_x, ic_play_outline, ic_plus, tinted) only for: album-row play / add-to-queue, track-row "+", queue remove. Now Playing, mini player, widgets, notification unchanged.
 - To port to Blur later: use Blur's own rounded values/colours.
+
+## Hifi 2.73 classic 49 (from Classic 48)
+- Album cover 102dp -> 106dp; title 14f bold again; the new icons ~70% of their size (album buttons ~11dp, row "+" / queue x ~11dp).
