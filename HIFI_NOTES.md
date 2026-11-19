@@ -909,3 +909,8 @@
 
 ## Hifi 2.73 classic 59 (from Classic 58)
 - Opened list: two buttons "Play album" / "Add to queue" (same look as the 3-dot window options: 50dp, rounded LINE box, 14dp icon + 14f bold text) side by side under the header title, above the tracks. Blur: use Blur's own rounded values when porting.
+
+## Hifi 2.73 classic 60 (from Classic 59)
+- Album tab has no header and no gear: covers start right under the status bar (header bar only opens while a folder scan shows its progress).
+- Gear / MD5 log window hidden for now (openSettingsWindow kept; to be moved to Now Playing later). Its window is now only "LOG AUDIO PATH", same size/position as the queue window (80% height, centred).
+- "CHOOSE MUSIC FOLDER" removed from Setting; it shows on the empty Album page (first start with no folder, or a scan that finds no songs / background scan finds the folder empty while nothing is playing).

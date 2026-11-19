@@ -243,6 +243,10 @@ class MainActivity : Activity() {
     // Hifi 1.39: slide left on Now Playing goes to Album (the mini player rises from the bottom); slide right on Album, tapping the mini player, Back and play actions slide back to Now Playing.
     private var pageAnimToken = 0   // Hifi 1.39: a newer page slide makes the end action of an older one do nothing
     private var headerGear: View? = null
+    private var headerBar: View? = null
+    private var headerInset = 0
+    /** Hifi 2.73 classic 60: "Choose music folder" lives on the empty Album page: first start (no folder yet) or a folder with no playable songs. */
+    private var libraryNeedsFolder = false
     private var headerBack: View? = null   // Hifi 2.73 classic 25 / 2.80
     private var themeIconView: ImageView? = null   // Hifi 2.11: theme / queue / album row under the controls
     private var albumIconView: ImageView? = null
@@ -371,6 +375,7 @@ class MainActivity : Activity() {
         UiIcons.refresh(this)
         getPreferences(MODE_PRIVATE).let { BackdropBlur.restoreTint(it.getFloat("classic_tint_h", 0f), it.getFloat("classic_tint_k", 0f)) }   // Hifi 2.73 classic 14: first frame already has the last cover tint
         albumGridColumns = 2   // Hifi 2.73 classic 34 / 2.89: the column option is gone
+        libraryNeedsFolder = getPreferences(MODE_PRIVATE).getString("music_tree_uri", null) == null
         playerSurface = if (lightTheme) LIGHT_SURFACE else DARK_SURFACE
         playerInk = if (lightTheme) Color.BLACK else Color.WHITE
         // Fully transparent status bar; icon colour follows the page ink.
@@ -1797,11 +1802,13 @@ class MainActivity : Activity() {
         // Scanning is a library workflow: move to Albums first so progress and newly found art are visible.
         show("library")
         scanGeneration++
+        libraryNeedsFolder = false
         recordDiagnostic("SCAN_START uri=$uri")
         librarySummary.text = "Scanning folders and subfolders…"
         albumScanSummary.text = "Scanning folders and subfolders…"
         statusView.text = "Scanning music library…"
         scanProgress.visibility = View.VISIBLE; scanProgressText.visibility = View.VISIBLE
+        updateHeaderHeight()
         scanProgressText.text = "Starting scan…"
         Thread {
             val found = mutableListOf<Track>()
@@ -1819,6 +1826,7 @@ class MainActivity : Activity() {
                 tracks = sorted
                 currentIndex = previousCurrentUri?.let { u -> sorted.indexOfFirst { it.uri == u } } ?: -1
                 selectedAlbum = null; albumBackStack.clear()
+                libraryNeedsFolder = sorted.isEmpty()
                 // Tracks marked "no cover" earlier get another chance now that the folders were read again.
                 noArtworkTracks.clear()
                 Thread({ saveLibraryCache(uri, sorted) }, "g6-library-cache-save").start()
@@ -1828,6 +1836,7 @@ class MainActivity : Activity() {
                     statusView.text = "Failed to render library: " + e.javaClass.simpleName
                 }
                 scanProgress.visibility = View.GONE; scanProgressText.visibility = View.GONE
+                updateHeaderHeight()
                 librarySummary.text = when {
                     error != null -> "Failed to scan folder: " + error
                     sorted.isEmpty() -> "No audio files found. Choose a Music folder containing tracks."
@@ -1944,7 +1953,13 @@ class MainActivity : Activity() {
         albumRows.removeAllViews()
         rowTextBlocks.clear(); albumPanelRow = null
         if (tracks.isEmpty()) {
-            albumRows.addView(text("Your album grid will appear here after scanning a music folder in Settings.", 13f, MUTED, false))
+            if (libraryNeedsFolder) {
+                val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(80), dp(8), dp(24)) }
+                box.addView(text("No music to play yet", 16f, WHITE, true).apply { gravity = Gravity.CENTER })
+                box.addView(text("Choose the folder that holds your music. It is scanned automatically from then on.", 13f, MUTED, false).apply { gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(18)) })
+                box.addView(action("CHOOSE MUSIC FOLDER", true) { pickFolder() }, LinearLayout.LayoutParams(-1, dp(46)))
+                albumRows.addView(box, LinearLayout.LayoutParams(-1, -2))
+            }
             return
         }
 
@@ -2986,7 +3001,16 @@ class MainActivity : Activity() {
                 try { DocumentFile.fromTreeUri(this, treeUri)?.let { scanDirectory(it, found, mutableMapOf(), 0, count, known) } }
                 catch (e: Exception) { failed = true; recordDiagnostic("BG_SCAN_FAILED", e) }
                 // A failed or empty read never replaces a good saved library.
-                if (failed || found.isEmpty()) return@Thread
+                if (failed) return@Thread
+                if (found.isEmpty()) {
+                    // Hifi 2.73 classic 60: the folder no longer holds songs (moved / deleted): offer the folder picker, but never wipe anything while music is playing.
+                    handler.post {
+                        if (isFinishing || generation != scanGeneration) return@post
+                        val playing = try { player?.isPlaying == true } catch (_: Exception) { false }
+                        if (!playing && tracks.isNotEmpty()) { tracks = emptyList(); currentIndex = -1; libraryNeedsFolder = true; renderLibrary() }
+                    }
+                    return@Thread
+                }
                 val sorted = synchronized(found) { found.toList() }.sortedWith(compareBy<Track> { it.folder.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
                 val oldSignature = tracks.map { it.uri.toString() + "|" + (it.coverUri?.toString() ?: "") }.toSet()
                 val newSignature = sorted.map { it.uri.toString() + "|" + (it.coverUri?.toString() ?: "") }.toSet()
@@ -3460,8 +3484,9 @@ class MainActivity : Activity() {
     private fun show(which: String) {
         val previousPage = currentPage
         currentPage = which
-        if (::headerTitle.isInitialized) headerTitle.text = if (which == "library") "Album" else ""   // Hifi 1.51: no "Now Playing" title on Now Playing (the icons stay)
-        headerGear?.visibility = if (which == "library") View.VISIBLE else View.GONE
+        if (::headerTitle.isInitialized) headerTitle.text = ""   // Hifi 1.51: no "Now Playing" title on Now Playing (the icons stay)
+        headerGear?.visibility = View.GONE   // Hifi 2.73 classic 60: the gear (MD5 log) is hidden for now
+        updateHeaderHeight()
         updateHeaderBack()
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library") restoreListScroll()
@@ -3882,6 +3907,7 @@ class MainActivity : Activity() {
     private fun makeHeaderBar(statusInset: Int): FrameLayout {
         // The bar's own top padding is the status-bar inset; children are NOT offset again (that clipped them in 1.4).
         val bar = FrameLayout(this).apply { setPadding(0, statusInset, 0, 0); setBackgroundColor(Color.TRANSPARENT) }
+        headerBar = bar; headerInset = statusInset
         headerTitle = pageHeader("Now Playing", 20).apply { textSize = 20f }
         // Hifi 2.4: scan progress (small text + thin bar) to the right of the title, as long as the space up to the settings icon.
         scanProgressText = text("", 10f, MUTED, false).apply {
@@ -3978,39 +4004,28 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Hifi 2.73 classic 60: the window of the (hidden) gear shows only the audio path log, same size and position as the queue window (80% height, centred). */
     private fun openSettingsWindow() {
         val dialog = AlertDialog.Builder(this).create()
+        val windowH = (resources.displayMetrics.heightPixels * 0.8f).toInt()
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(18))
+            setPadding(dp(16), dp(10), dp(16), dp(8))
             minimumWidth = floatingWindowWidth()
+            minimumHeight = windowH
             background = floatingBackground()
         }
-        if (currentPage == "library") {
-            panel.addView(text("MUSIC LIBRARY SCAN", 12f, MUTED, true))
-            panel.addView(action("CHOOSE MUSIC FOLDER", true) { dialog.dismiss(); pickFolder() },
-                LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(10) })
-            val previous = if (::librarySummary.isInitialized) librarySummary.text else "No folder has been scanned yet."
-            librarySummary = text(previous.toString(), 12f, MUTED, false).apply { setPadding(0, dp(10), 0, 0) }
-            panel.addView(librarySummary)
-            panel.addView(text("LOG AUDIO PATH", 12f, MUTED, true).apply { setPadding(0, dp(18), 0, 0) })
-            panel.addView(audioPathLogView(), LinearLayout.LayoutParams(-1, dp(220)).apply { topMargin = dp(10) })
-        }
+        panel.addView(text("LOG AUDIO PATH", 12f, MUTED, true).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), 0, 0, 0) },
+            LinearLayout.LayoutParams(-1, dp(38)))
+        panel.addView(audioPathLogView(), LinearLayout.LayoutParams(-1, 0, 1f))
         dialog.setView(panel)
         panel.visibility = View.INVISIBLE
         dialog.window?.setWindowAnimations(R.style.G6WindowAnim)
         dialog.show()
-        dialog.window?.let { w ->
-            w.setBackgroundDrawableResource(android.R.color.transparent)
-            w.setDimAmount(0.45f)
-            w.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-            w.setLayout(floatingWindowWidth(), WindowManager.LayoutParams.WRAP_CONTENT)
-            val lp = w.attributes
-            val statusInset = resources.getIdentifier("status_bar_height", "dimen", "android").let { id -> if (id > 0) resources.getDimensionPixelSize(id) else dp(24) }
-            lp.y = statusInset + dp(HEADER_H_DP); lp.x = 0
-            w.attributes = lp
-        }
-        popIn(panel, headerGear)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setLayout(floatingWindowWidth(), windowH)
+        dialog.window?.setDimAmount(0.55f)
+        popIn(panel, null)
     }
 
     /** Album -> Now Playing (tapping the mini player, Back, play actions): a quick fade (Hifi 2.15; the sideways slide and the swipe gesture are gone). */
@@ -4075,6 +4090,14 @@ class MainActivity : Activity() {
 
     /** Hifi 2.37: Back inside the Album tab goes one step back: the album opened before this one, or the grid at its old scroll. */
     /** Hifi 2.73 classic 25 / 2.80: the back arrow lives in the fixed header bar while an album is open; the "Album" title then sits right after it. */
+    /** Hifi 2.73 classic 60: the Album page has no header (the covers start right under the status bar); the bar only opens while the folder scan shows its progress. */
+    private fun updateHeaderHeight() {
+        val bar = headerBar ?: return
+        val scanning = ::scanProgress.isInitialized && scanProgress.visibility == View.VISIBLE
+        val h = headerInset + if (currentPage == "library" && !scanning) 0 else dp(HEADER_H_DP)
+        val lp = bar.layoutParams ?: return
+        if (lp.height != h) { lp.height = h; bar.layoutParams = lp }
+    }
     private fun updateHeaderBack() {
         val open = false   // Hifi 2.73 classic 34 / 2.89: no album page, no back arrow
         headerBack?.visibility = if (open) View.VISIBLE else View.GONE
