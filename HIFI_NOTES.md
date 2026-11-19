@@ -919,3 +919,6 @@
 - Play album (3-dot window or list buttons) -> Now Playing as before; from the list buttons the list is also closed (instantly, after the page fade starts). Add to queue stays on the Album page with the toast.
 - Tapping one track in the list: plays only that track (queue = that track), stays on the list, no Now Playing; nothing follows when it ends (no repeat/shuffle by design).
 - Next album is lined up automatically only after "Play album" (flag autoNextAlbum, saved in prefs "auto_next_album"); user-queued items still play after a single track.
+
+## Hifi 2.73 classic 62 (from Classic 61)
+- "+" on a track adds only that track to the queue (was its whole album); toast "Title - Artist added to queue", stays in place.

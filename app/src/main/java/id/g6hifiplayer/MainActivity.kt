@@ -3567,16 +3567,15 @@ class MainActivity : Activity() {
     }
     private fun addToQueue(index: Int) {
         if (index !in tracks.indices) return
-        val albumIndices = tracks.withIndex()
-            .filter { it.value.folder == tracks[index].folder }
-            .map { it.index }
-        playbackQueue = (playbackQueue + albumIndices.ifEmpty { listOf(index) }).distinct()
+        // Hifi 2.73 classic 62: "+" on a track adds only that track (it used to add its whole album); the page stays, a toast confirms.
+        playbackQueue = (playbackQueue + index).distinct()
         // The visible queue and the sequence used by STATE_ENDED/Next must be identical.
         playbackOrder = playbackQueue.toList()
         persistQueueState()
         renderQueueRows()
-        recordDiagnostic("QUEUE_ALBUM_ADDED album=${tracks[index].album} tracks=${albumIndices.size} queueSize=${playbackOrder.size}")
-        Toast.makeText(this, tracks[index].album + (if (tracks[index].artist.isBlank()) "" else " - " + tracks[index].artist) + " added to queue", Toast.LENGTH_SHORT).show()
+        recordDiagnostic("QUEUE_TRACK_ADDED track=${tracks[index].title} queueSize=${playbackOrder.size}")
+        val t = tracks[index]
+        Toast.makeText(this, t.title + (if (t.artist.isBlank()) "" else " - " + t.artist) + " added to queue", Toast.LENGTH_SHORT).show()
     }
 
     private fun addAlbumToQueue(indices: List<Int>, album: String, unused: String = "", albumName: String = album, artistName: String = "") {
