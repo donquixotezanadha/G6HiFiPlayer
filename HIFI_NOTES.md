@@ -952,3 +952,6 @@
 
 ## Hifi 2.73 classic 74 (from Classic 73)
 - Widget ripples lowered from 20% to 10% (#1AFFFFFF dark / #1A000000 light) so they match the in-app bare icon ripples (10%) in both themes.
+
+## Hifi 2.73 classic 75 (from Classic 74)
+- Widget 4x2 (Gradient and Text): the play button is shifted 8dp left with a negative margin, which put its left part in the parent's padding where it was clipped (ripple cut on the left). The parent now has clipToPadding="false"; positions/sizes unchanged. Same fix applies to both themes (layout only).

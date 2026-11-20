@@ -24,7 +24,8 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="8dp"
-        android:paddingBottom="8dp">
+        android:paddingBottom="8dp"
+        android:clipToPadding="false">
 
         <FrameLayout
             android:layout_width="match_parent"

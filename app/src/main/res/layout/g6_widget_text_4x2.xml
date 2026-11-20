@@ -10,6 +10,7 @@
     android:paddingEnd="20dp"
     android:paddingTop="8dp"
     android:paddingBottom="8dp"
+    android:clipToPadding="false"
     android:background="@android:color/transparent">
 
     <FrameLayout
