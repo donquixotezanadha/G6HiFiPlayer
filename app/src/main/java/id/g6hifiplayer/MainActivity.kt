@@ -2019,7 +2019,7 @@ class MainActivity : Activity() {
             val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
             val queueIndices = entries.map { it.index }
             val pageW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-            val gridCover = (pageW - dp(25) * 2 - dp(22)) / 2 - dp(6)   // Hifi 2.73 classic 80: exactly the size of a cover in the Album grid
+            val gridCover = (pageW - dp(14)) / 2 - dp(6)   // Hifi 2.73 classic 80: exactly the size of a cover in the Album grid
             val bigCover = ImageView(this).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
@@ -2062,27 +2062,30 @@ class MainActivity : Activity() {
             return
         }
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        // Hifi 2.73 classic 52: the Album tab is a 2-column GRID again: cover (with a 3-dot button on its right) and the title / artist / track count below it.
-        // The 3 dots open the old Play album / Add album to queue window; one tap on the cover area opens the track list under that grid row.
-        val colGap = dp(22)   // Hifi 2.73 classic 80: left gap = middle gap = right gap (28dp seen from cover to cover / screen edge)
-        // (old: classic 58: wider middle gap (was 10dp), outer edges unchanged, cover shrinks to make room
-        val outerGap = dp(25)   // Hifi 2.73 classic 78/80: space left and right of the grid; with the cell's 3dp padding the three gaps look equal
-        val cellW = (gridW - 2 * outerGap - colGap) / 2
+        // Hifi 2.73 classic 81: the OLD 2-column grid of classic 29 again (square cover, centred "Artist - Album" label of two lines, no title block);
+        // only the gap between the left and right album is wider (14dp margins + 6dp padding = 20dp, was 12dp), the page edges are unchanged, so the covers are a little smaller.
+        // The 3 marks (Play album / Add album to queue) sit at the right end of the label; a long press on the cell opens the same window.
+        val midMargin = dp(7)
         val dotsW = dp(18)
-        val coverSide = cellW - dp(6)
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
             if (position % 2 == 0) {
                 gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2))
+                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val row = gridRow!!
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
+            val openOptions = { anchor: View ->
+                showAlbumOptions(namedAlbum.ifBlank { album }, rowIndices, anchor, albumLabel(namedArtist, namedAlbum.ifBlank { album }), null, emptyList()) {
+                    addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist)
+                }
+            }
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(3), dp(10), dp(3), dp(10))
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(dp(3), dp(4), dp(3), dp(7))
                 themed { background = RippleDrawable(rippleTint(0x25), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true
@@ -2093,17 +2096,17 @@ class MainActivity : Activity() {
                     renderLibrary()
                     scrollLibraryToTop()
                 }
+                setOnLongClickListener { v -> openOptions(v); true }
             }
-            val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-            val cover = ImageView(this).apply {
+            val cover = object : ImageView(this) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
+            }.apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
-            top.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
-            cell.addView(top, LinearLayout.LayoutParams(-2, -2))
-            val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
+            cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             val dots = ImageView(this).apply {
                 setImageResource(R.drawable.ic_more_vert)
                 scaleType = ImageView.ScaleType.FIT_END
@@ -2114,26 +2117,20 @@ class MainActivity : Activity() {
                 }
                 contentDescription = "Options for album " + albumLabel(namedArtist, namedAlbum)
                 isClickable = true; isFocusable = true
-                setOnClickListener {
-                    showAlbumOptions(namedAlbum.ifBlank { album }, rowIndices, this, albumLabel(namedArtist, namedAlbum.ifBlank { album }), null, emptyList()) {
-                        addAlbumToQueue(rowIndices, album, "", namedAlbum.ifBlank { album }, namedArtist)
-                    }
-                }
+                setOnClickListener { openOptions(this) }
             }
-            val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            titles.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
-            if (namedArtist.isNotBlank()) titles.addView(text(namedArtist, 13f, MUTED, false).apply {
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
-            })
-            // Hifi 2.73 classic 78: the 3 marks sit at the right end of the title / artist block under the cover (was top right of the cover)
-            val texts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(4), 0, 0) }
-            texts.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
-            texts.addView(dots, LinearLayout.LayoutParams(dotsW, dp(40)))
-            cell.addView(texts, LinearLayout.LayoutParams(coverSide, -2))
-            rowTextBlocks.getOrPut(row) { mutableListOf() }.add(texts)
-            row.addView(cell, LinearLayout.LayoutParams(cellW, -2).apply { if (position % 2 == 1) leftMargin = colGap })
+            val labelRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            labelRow.addView(albumLabelView(namedArtist, namedAlbum, 12f, 2, false).apply {
+                setPadding(dp(2), dp(7), dp(2), dp(2))
+                gravity = Gravity.CENTER_HORIZONTAL
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            labelRow.addView(dots, LinearLayout.LayoutParams(dotsW, dp(40)))
+            cell.addView(labelRow, LinearLayout.LayoutParams(-1, -2))
+            row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { if (position % 2 == 0) rightMargin = midMargin else leftMargin = midMargin })
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }
         }
+        // an odd last row keeps the same cover size: an empty cell of the same weight
+        if (albums.size % 2 == 1) gridRow?.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { leftMargin = midMargin })
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 

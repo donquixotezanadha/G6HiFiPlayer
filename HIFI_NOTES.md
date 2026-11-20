@@ -975,3 +975,8 @@
 ## Hifi 2.73 classic 80 (from classic 79)
 - Album grid: left gap = middle gap = right gap (28dp from cover to cover / screen edge).
 - The cover on the album page is exactly the size of a grid cover, centred (not full width).
+
+## Hifi 2.73 classic 81 (from classic 80)
+- Album grid back to the OLD classic 29 look: square cover, centred "Artist - Album" label (2 lines, artist solid / album grey), no bold title block. Middle gap between the two albums 20dp (was 12dp), page edges unchanged, so covers are a little smaller.
+- 3 marks stay at the right end of the label; long press on the cell also opens Play album / Add album to queue.
+- Album page cover = exactly a grid cover.
