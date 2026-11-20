@@ -946,3 +946,6 @@
 
 ## Hifi 2.73 classic 72 (from Classic 71) - fix
 - Icons grew after a theme switch (classic 69-71): the inset round ripple mask reports its insets as padding and setBackground applied them to the view, replacing the padding that sizes the icon. circleRipple() now restores the view's own padding after setting the background. (Keep this in mind for any ripple with an InsetDrawable mask.)
+
+## Hifi 2.73 classic 73 (from Classic 72)
+- Bare icon ripples (Now Playing controls, 3 dock icons, "+" and x row buttons, 10% accent) now use the Dark strength in Light too (the Light doubling was removed for these only). Everything with a background keeps its theme-aware values; rows keep the Light doubling. Widget ripples were already equal in both themes (20% white / 20% black), unchanged.

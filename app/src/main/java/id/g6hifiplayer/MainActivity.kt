@@ -1081,7 +1081,8 @@ class MainActivity : Activity() {
             // the inset mask reports its insets as padding, and setting a background applies that padding to the view: keep the view's own padding
             // (it is what sizes the icon inside the button), otherwise the icons grow.
             val pl = paddingLeft; val pt = paddingTop; val pr = paddingRight; val pb = paddingBottom
-            background = RippleDrawable(rippleTint(alpha), null, mask)
+            // Hifi 2.73 classic 73: bare icons (controls, dock, + and x) use the same strength in Light as in Dark (no Light doubling): the Light strength was too much for them
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, alpha)), null, mask)
             setPadding(pl, pt, pr, pb)
         }
         themed { make() }
