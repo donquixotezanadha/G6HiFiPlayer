@@ -940,3 +940,6 @@
 - Icon ripples are now bounded with a centred round mask (always a clean circle, never cut by the view/parent; fixes the cut album/queue dock ripples).
 - All app ripples use rippleTint(base): Light theme gets about 2x the alpha (cap 0x70) because the old values were too faint on light surfaces (Play album / Add to queue etc.).
 - Widgets (Classic): XML ripples via setBackgroundResource, dark (#33FFFFFF) / light (#33000000): 4x1 play (round), 2x2 play (14dp rounded box, replaces the pressed pill), text 4x2 play (round) and open-player icon (pill). Cover / whole-widget taps have no feedback (RemoteViews cannot draw a ripple over an image). Blur widgets untouched.
+
+## Hifi 2.73 classic 71 (from Classic 70)
+- The "Blur" widgets in the Classic build are Classic widgets with a gradient look (name only): ripples added like the other widgets (4x2: round, 4x1: rounded play square), and the widget picker names are now "Hifi Gradient 4x1 / 4x2" (labels only; class and file names still say Blur).

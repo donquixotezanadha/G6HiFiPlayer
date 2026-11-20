@@ -622,6 +622,7 @@ object G6Widgets {
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
             light
         ))
+        setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_w_rip_oval_l else R.drawable.g6_w_rip_oval_d)   // Hifi 2.73 classic 71: same soft ripple as the other widgets
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetBlur4x2Provider::class.java, 4701, "toggle"))
         setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4702))
     }
@@ -669,6 +670,7 @@ object G6Widgets {
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
             light
         ))
+        setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_w_rip_sq_l else R.drawable.g6_w_rip_sq_d)   // Hifi 2.73 classic 71: ripple on the rounded play square
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetBlur4x1Provider::class.java, 4601, "toggle"))
         setOnClickPendingIntent(R.id.w_play_bg, actionIntent(context, G6WidgetBlur4x1Provider::class.java, 4601, "toggle"))
         setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 4602))
