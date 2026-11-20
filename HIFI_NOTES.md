@@ -998,3 +998,7 @@
 ## Hifi 2.73 classic 86 (from classic 85)
 - "Add album to queue" is now just "Add to queue" in the 3-dot window and on the album page.
 - Album page buttons: two equal halves (8dp gap), icon + text centred, 50dp / 9dp corners like the window options, SOLID floating-window colour (floatingColor()) instead of the translucent box, ripple kept.
+
+## Hifi 2.73 classic 88 (from classic 86; 87 dropped)
+- Classic 87 (album page with its own cover backdrop) was dropped: it made the backdrop blink when switching tabs. 88 is built from 86.
+- Dark theme ripple of bare icons / text without a background: 14% -> 12% (0x24 -> 0x1F), also the dark widget ripples (g6_w_rip_*_d.xml #1FFFFFFF). Light theme and ripples with a background unchanged.

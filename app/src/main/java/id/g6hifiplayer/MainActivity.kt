@@ -1079,7 +1079,7 @@ class MainActivity : Activity() {
             val pl = paddingLeft; val pt = paddingTop; val pr = paddingRight; val pb = paddingBottom
             // Hifi 2.73 classic 73: bare icons (controls, dock, + and x) use the same strength in Light as in Dark (no Light doubling): the Light strength was too much for them
             // Hifi 2.73 classic 76: in Light the accent reads stronger on bare icons, so they get 6% (0x0F); Dark keeps its value
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, if (lightTheme) 0x0D else 0x24)), null, mask)   // Hifi 2.73 classic 77: bare icons: Dark 14%, Light 5%
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, if (lightTheme) 0x0D else 0x1F)), null, mask)   // Hifi 2.73 classic 77: bare icons: Dark 12%, Light 5%
             setPadding(pl, pt, pr, pb)
         }
         themed { make() }
