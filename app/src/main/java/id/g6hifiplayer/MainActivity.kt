@@ -2057,17 +2057,17 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(8), 0, dp(8), dp(12))
             }, LinearLayout.LayoutParams(-1, -2))
-            val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), 0, dp(4), dp(6)) }
+            val albumActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(4), 0, dp(4), dp(10)) }
             albumActions.addView(flatAction("PLAY ALBUM", true) {
                 if (queueIndices.isNotEmpty()) {
                     playTrackAt(queueIndices.first(), true, queueIndices, true); showPlayerAnimated()
                     handler.postDelayed({ goBackFromAlbum() }, 130L)   // the grid is back once Now Playing is up
                 }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+            }, LinearLayout.LayoutParams(-2, -2))
+            albumActions.addView(View(this), LinearLayout.LayoutParams(dp(12), 1))
             albumActions.addView(flatAction("ADD TO QUEUE", false) {
                 addAlbumToQueue(queueIndices, album, "", albumNames[album]?.second ?: album, albumArtist)
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-2, -2))
             albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
             entries.forEachIndexed { position, entry -> addNumberedTrackRow(albumRows, entry, position + 1, albumArtist, queueIndices) }
             updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
@@ -3966,11 +3966,11 @@ class MainActivity : Activity() {
     }
     /** Build 2.2: album page buttons without a background box: larger text, accent colour for the main one. */
     private fun flatAction(label: String, primary: Boolean, click: () -> Unit) = text(label, 15f, WHITE, true).apply {
-        gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
-        setPadding(dp(4), dp(2), dp(4), dp(8))
+        gravity = Gravity.CENTER
+        setPadding(dp(18), dp(10), dp(18), dp(10))   // Hifi 2.73 classic 84: the box hugs the text
         themed {
             setTextColor(WHITE)   // 2.3: both buttons white; they are plain buttons, not a selected state
-            background = RippleDrawable(rippleTint(0x30), shape(Color.TRANSPARENT, 6), null)
+            background = RippleDrawable(rippleTint(0x30), shape(selectedHighlight(), 8), null)   // Hifi 2.73 classic 84: the same translucent box as the selected track, with a ripple
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }

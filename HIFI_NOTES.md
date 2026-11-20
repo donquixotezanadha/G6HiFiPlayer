@@ -988,3 +988,6 @@
 
 ## Hifi 2.73 classic 83 (from classic 82)
 - Long press on an album removed (the 3 dots own the options window). The 3-dot touch area is bigger (28 x 44dp, reaches 10dp into the label); the marks stay in place.
+
+## Hifi 2.73 classic 84 (from classic 83)
+- Album page PLAY ALBUM / ADD TO QUEUE: translucent box like the selected track (accent 0x33, 8dp round) with ripple; the box hugs the text (18dp / 10dp padding), the two buttons are centred with a 12dp gap.
