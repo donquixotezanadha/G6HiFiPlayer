@@ -980,3 +980,8 @@
 - Album grid back to the OLD classic 29 look: square cover, centred "Artist - Album" label (2 lines, artist solid / album grey), no bold title block. Middle gap between the two albums 20dp (was 12dp), page edges unchanged, so covers are a little smaller.
 - 3 marks stay at the right end of the label; long press on the cell also opens Play album / Add album to queue.
 - Album page cover = exactly a grid cover.
+
+## Hifi 2.73 classic 82 (from classic 81)
+- Removed the dead code of the old slide-down list (openAlbumPanel, slideAlbumPanel, closeAlbum, closeAlbumInstant, panel state).
+- Scroll position: the opened album page now remembers its own position (albumPageScrollY) and returns to it after Now Playing (before, the grid position was applied to it). A background re-scan re-render keeps the current scroll instead of jumping to the top.
+- Album page cover = grid cover size +30% (they were equal before).

@@ -100,12 +100,7 @@ class MainActivity : Activity() {
     private var playbackOrder: List<Int> = emptyList()
     private var selectedAlbum: String? = null
     private var trackRowHook: (() -> Unit)? = null
-    private var albumPanelView: View? = null
-    private var albumPanelOverlap = 0   // Hifi 2.73 classic 53: how far the open list reaches up over the title block under the cover
-    private var albumPanelRow: View? = null
-    private val rowTextBlocks = HashMap<View, MutableList<View>>()   // grid row -> the title / artist / track-count blocks under its covers
     private var animateAlbumOpen = false
-    private var closingAlbum = false
     private val albumBackStack = ArrayList<String>()   // Hifi 2.37: albums opened from inside an album; Back returns to the previous one
     // A dismissed notification stays hidden until the user starts another track.
     private var notificationDismissed = false
@@ -254,6 +249,7 @@ class MainActivity : Activity() {
     private var queueRowsSig = Int.MIN_VALUE
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
+    private var albumPageScrollY = 0   // Hifi 2.73 classic 82: where the opened album page was, so it stays there after Now Playing
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
     private var scrollFadeHost: EdgeCutLayout? = null
@@ -441,7 +437,7 @@ class MainActivity : Activity() {
         pageScroll = scroll
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
-            if (currentPage == "library" && selectedAlbum == null && !restoringScroll) listScrollY = y
+            if (currentPage == "library" && !restoringScroll) { if (selectedAlbum == null) listScrollY = y else albumPageScrollY = y }
         }
         // Build 1.55: Now Playing is exactly as tall as the visible page, so the controls dock always sits at the bottom
         // (Adaptive and Classic). The old fixed "screen height - 150dp" guess could leave the dock at the top in Classic.
@@ -1915,7 +1911,7 @@ class MainActivity : Activity() {
                                 tracks = partial.sortedWith(compareBy<Track> { it.folder.lowercase(Locale.ROOT) }.thenBy { it.trackNumber }.thenBy { it.title.lowercase(Locale.ROOT) })
                                 currentIndex = previousUri?.let { uri -> tracks.indexOfFirst { it.uri == uri } } ?: -1
                                 remapPlaybackLists(previousTracks, tracks)
-                                renderLibrary()
+                                renderLibrary(true)
                                 albumScanSummary.text = tracks.size.toString() + " tracks found so far • " + tracks.map { it.folder }.distinct().size + " albums"
                                 librarySummary.text = albumScanSummary.text
                             }
@@ -1985,12 +1981,29 @@ class MainActivity : Activity() {
         return Track(uri, title, artist, album, coverUri, trackNumber, year, bitDepth)
     }
 
+    /** Hifi 2.73 classic 82: a rebuild done in the background (library re-scan) keeps the page where it was instead of jumping to the top. */
+    private fun renderLibrary(keepScroll: Boolean) {
+        val sv = pageScroll
+        val y = if (keepScroll && sv != null) sv.scrollY else 0
+        renderLibrary()
+        if (keepScroll && sv != null && y > 0) {
+            restoringScroll = true
+            sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+                override fun onPreDraw(): Boolean {
+                    if (sv.viewTreeObserver.isAlive) sv.viewTreeObserver.removeOnPreDrawListener(this)
+                    sv.scrollTo(0, y)
+                    restoringScroll = false
+                    return true
+                }
+            })
+        }
+    }
+
     private fun renderLibrary() {
         if (!::albumRows.isInitialized) return
         updateHeaderBack()
         albumPlayingMarks.clear()
         albumRows.removeAllViews()
-        rowTextBlocks.clear(); albumPanelRow = null
         if (tracks.isEmpty()) {
             if (libraryNeedsFolder) {
                 val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(80), dp(8), dp(24)) }
@@ -2019,7 +2032,7 @@ class MainActivity : Activity() {
             val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
             val queueIndices = entries.map { it.index }
             val pageW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-            val gridCover = (pageW - dp(14)) / 2 - dp(6)   // Hifi 2.73 classic 80: exactly the size of a cover in the Album grid
+            val gridCover = ((pageW - dp(14)) / 2 - dp(6)) * 13 / 10   // Hifi 2.73 classic 82: the grid cover size + 30% (classic 80/81: exactly the grid size)
             val bigCover = ImageView(this).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
@@ -2093,6 +2106,7 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     albumBackStack.clear()
                     selectedAlbum = album
+                    albumPageScrollY = 0
                     renderLibrary()
                     scrollLibraryToTop()
                 }
@@ -2423,7 +2437,7 @@ class MainActivity : Activity() {
     /** Puts the Album list back where it was (after layout, so the saved offset is not clamped by the old content height). */
     private fun restoreListScroll() {
         val sv = pageScroll ?: return
-        val y = listScrollY
+        val y = if (selectedAlbum != null) albumPageScrollY else listScrollY
         restoringScroll = true
         sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
             override fun onPreDraw(): Boolean {
@@ -3138,7 +3152,7 @@ class MainActivity : Activity() {
                     currentIndex = previousCurrentUri?.let { u -> sorted.indexOfFirst { it.uri == u } } ?: -1
                     noArtworkTracks.clear()
                     Thread({ saveLibraryCache(treeUri, sorted) }, "g6-library-cache-save").start()
-                    try { renderLibrary() } catch (e: Throwable) { recordDiagnostic("BG_LIBRARY_RENDER_FAILED", e) }
+                    try { renderLibrary(true) } catch (e: Throwable) { recordDiagnostic("BG_LIBRARY_RENDER_FAILED", e) }
                     librarySummary.text = sorted.size.toString() + " tracks • " + sorted.map { it.folder }.distinct().size + " albums"
                     albumScanSummary.text = librarySummary.text
                     recordDiagnostic("BG_SCAN_UPDATED tracks=" + sorted.size)
@@ -4217,196 +4231,6 @@ class MainActivity : Activity() {
         val open = false   // Hifi 2.73 classic 34 / 2.89: no album page, no back arrow
         headerBack?.visibility = if (open) View.VISIBLE else View.GONE
         if (::headerTitle.isInitialized) headerTitle.setPadding(dp(if (open) 0 else 20), 0, dp(8), 0)
-    }
-
-    /**
-     * Hifi 2.73 classic 35: the list under an album row is inserted in place (the albums are NOT rebuilt). On open the panel is laid out at its full
-     * height at once and revealed by a growing clip while the rows below are only translated (no layout per frame, so the slide stays smooth even
-     * with hundreds of albums); closing is the same backwards, then the panel is removed.
-     */
-    private fun openAlbumPanel(album: String, item: View, entries: List<IndexedValue<Track>>, animate: Boolean, title: String = "", sub: String = "") {
-        val old = albumPanelView
-        var shift = 0
-        if (old != null && old.parent === albumRows) {
-            if (albumRows.indexOfChild(old) < albumRows.indexOfChild(item)) shift = old.height - albumPanelOverlap
-            albumRows.removeView(old)
-        }
-        albumPanelRow?.let { r -> rowTextBlocks[r]?.forEach { it.alpha = 1f } }   // the previous album's title block comes back at once
-        selectedAlbum = album
-        val sorted = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
-        val queueIndices = sorted.map { it.index }
-        val albumArtist = sorted.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
-        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        panel.setPadding(dp(12), dp(8), dp(12), dp(8))   // Hifi 2.73 classic 42: the track list sits on the same box as the queue (window colour, rounded) with the queue's row spacing
-        panel.themed { background = floatingBackground() }
-        // Hifi 2.73 classic 53: the list starts right under the covers and replaces the title blocks there: centred title + artist / track count on top.
-        if (title.isNotBlank()) {
-            // Hifi 2.73 classic 78: a big square cover (the width of the window, like Now Playing) with the HI-RES badge, at the top of the list.
-            val bigSide = (if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)) - dp(24)
-            val big = ImageView(this).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                background = shape(ART, 0)
-                contentDescription = "Artwork $album"
-            }
-            applyAlbumHiResBadge(big, entries.map { it.value })
-            panel.addView(big, LinearLayout.LayoutParams(bigSide, bigSide).apply { topMargin = dp(4); bottomMargin = dp(6) })
-            entries.firstOrNull()?.value?.let { first ->
-                loadArtworkInto(big, first)
-                val tag = big.tag
-                artworkExecutor.execute {
-                    val full = decodePlayerArtwork(first)
-                    if (full != null) handler.post { if (big.tag == tag) big.setImageBitmap(full) }
-                }
-            }
-            val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(8), dp(8), dp(10)) }
-            header.addView(text(title, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; includeFontPadding = false })
-            if (sub.isNotBlank()) header.addView(text(sub, 13f, MUTED, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; setPadding(0, dp(3), 0, 0) })
-            panel.addView(header, LinearLayout.LayoutParams(-1, -2))
-            // Hifi 2.73 classic 59: the same two buttons as the 3-dot window (same height, rounded box, icon + bold text), side by side under the title.
-            fun headerButton(icon: Int, label: String, onClick: () -> Unit) = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
-                setPadding(dp(10), 0, dp(10), 0)
-                background = RippleDrawable(rippleTint(0x30), shape(LINE, 9), null)
-                addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
-                addView(text(label, 14f, WHITE, true).apply { setPadding(dp(8), 0, 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-                isClickable = true; isFocusable = true
-                contentDescription = label
-                setOnClickListener { onClick() }
-            }
-            val headerButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            headerButtons.addView(headerButton(R.drawable.ic_play_outline, "Play album") {
-                if (queueIndices.isNotEmpty()) {
-                    playTrackAt(queueIndices.first(), true, queueIndices, true); showPlayerAnimated()
-                    handler.postDelayed({ closeAlbumInstant() }, 130L)   // Hifi 2.73 classic 61: the list is closed once Now Playing is up
-                }
-            }, LinearLayout.LayoutParams(0, dp(50), 1f))
-            headerButtons.addView(headerButton(R.drawable.ic_plus, "Add to queue") { addAlbumToQueue(queueIndices, album, "", title, albumArtist) },
-                LinearLayout.LayoutParams(0, dp(50), 1f).apply { leftMargin = dp(8) })
-            panel.addView(headerButtons, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
-        }
-        sorted.forEachIndexed { position, entry -> addNumberedTrackRow(panel, entry, position + 1, albumArtist, queueIndices) }
-        val blocks = rowTextBlocks[item].orEmpty()
-        var textsH = 0
-        blocks.forEach { b ->
-            b.measure(View.MeasureSpec.makeMeasureSpec(if (b.width > 0) b.width else (b.layoutParams?.width ?: 0), View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-            textsH = maxOf(textsH, b.measuredHeight)
-        }
-        val overlap = if (blocks.isEmpty()) 0 else (textsH + dp(10) - dp(20)).coerceAtLeast(0)   // texts start at the cover's bottom edge; the row has 10dp bottom padding, the list starts 8dp under the cover
-        albumPanelOverlap = overlap
-        albumPanelRow = item
-        val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6); topMargin = -overlap }
-        val at = albumRows.indexOfChild(item) + 1
-        albumRows.addView(panel, at, lp)
-        albumPanelView = panel
-        updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
-        if (shift > 0 && !animate) pageScroll?.let { sv -> sv.post { sv.scrollBy(0, -shift) } }
-        if (!animate) { blocks.forEach { it.alpha = 0f }; return }
-        val w = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
-        panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-        slideAlbumPanel(panel, at, panel.measuredHeight + dp(6), w, 0f, 1f, 420, android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f), { }, overlap, blocks)
-        // Hifi 2.73 classic 55: the page scrolls up with the opening so the opened album's cover row sits at the top edge; same 420 ms and curve as the opening.
-        pageScroll?.let { sv ->
-            val sh = shift
-            sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
-                override fun onPreDraw(): Boolean {
-                    if (sv.viewTreeObserver.isAlive) sv.viewTreeObserver.removeOnPreDrawListener(this)
-                    var top = 0
-                    var v: View = item
-                    while (v.parent !== sv && v.parent is View) { top += v.top; v = v.parent as View }
-                    top += v.top
-                    val start = (sv.scrollY - sh).coerceAtLeast(0)
-                    sv.scrollTo(0, start)
-                    android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 420
-                        interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
-                        addUpdateListener { sv.scrollTo(0, (start + (top - start) * (it.animatedValue as Float)).toInt()) }
-                        start()
-                    }
-                    return true
-                }
-            })
-        }
-    }
-
-    /** f runs from [from] to [to] (0 = closed, 1 = open): the panel is clipped to f * height, the rows after it are shifted up by the hidden part. */
-    private fun slideAlbumPanel(panel: View, at: Int, target: Int, w: Int, from: Float, to: Float, ms: Long, ip: android.animation.TimeInterpolator, done: () -> Unit, overlap: Int = 0, texts: List<View> = emptyList()) {
-        val opening = to > from
-        val clip = android.graphics.Rect()
-        fun apply(f: Float) {
-            val cur = (target * f).toInt()
-            clip.set(0, 0, w, cur)
-            panel.clipBounds = clip
-            val hidden = (target - overlap - maxOf(0, cur - overlap)).toFloat()
-            // Hifi 2.73 classic 53: the title blocks under the covers fade out quickly while the list opens; on closing they only start to come back
-            // once the list has gone about 60% of the way up.
-            val ta = if (opening) 1f - (f / 0.3f).coerceIn(0f, 1f) else ((0.4f - f) / 0.4f).coerceIn(0f, 1f)
-            for (t in texts) t.alpha = ta
-            for (i in at + 1 until albumRows.childCount) albumRows.getChildAt(i).translationY = -hidden
-            // Hifi 2.73 classic 43: thin fade + small slide-up of the rows, like the mini player; the fade starts a little after the height starts
-            // moving and (on closing) is gone a little before the height reaches zero.
-            panel.alpha = ((f - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val lift = (1f - f) * dp(10)
-            if (panel is ViewGroup) for (j in 0 until panel.childCount) panel.getChildAt(j).translationY = lift
-        }
-        fun reset() {
-            panel.alpha = 1f
-            if (panel is ViewGroup) for (j in 0 until panel.childCount) panel.getChildAt(j).translationY = 0f
-            panel.clipBounds = null
-            for (t in texts) t.alpha = if (to >= 1f) 0f else 1f
-            for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
-        }
-        apply(from)
-        android.animation.ValueAnimator.ofFloat(from, to).apply {
-            duration = ms
-            interpolator = ip
-            addUpdateListener { apply(it.animatedValue as Float) }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) { reset(); done() }
-            })
-            handler.post { start() }
-        }
-    }
-
-    /** Hifi 2.73 classic 61: close the open list without animation (used while the page is already fading to Now Playing). */
-    private fun closeAlbumInstant() {
-        val panel = albumPanelView
-        if (panel != null && panel.parent === albumRows) albumRows.removeView(panel)
-        albumPanelRow?.let { r -> rowTextBlocks[r]?.forEach { it.alpha = 1f } }
-        for (i in 0 until albumRows.childCount) albumRows.getChildAt(i).translationY = 0f
-        albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
-    }
-
-    /** Hifi 2.73 classic 35: close the open album: the list slides up, then it is removed (no rebuild). */
-    private fun closeAlbum() {
-        if (closingAlbum) return
-        val panel = albumPanelView
-        if (panel == null || panel.parent !== albumRows || panel.height <= 0) { selectedAlbum = null; albumPanelView = null; return }
-        closingAlbum = true
-        val at = albumRows.indexOfChild(panel)
-        val closeTexts = albumPanelRow?.let { rowTextBlocks[it] }.orEmpty()
-        // Hifi 2.73 classic 56: when the page is scrolled near the bottom, closing shrinks the scroll range; instead of the page snapping back when the list
-        // is removed, scroll gently to the final limit during the closing, with the same 420 ms and curve.
-        pageScroll?.let { sv ->
-            val child = sv.getChildAt(0)
-            if (child != null) {
-                val net = panel.height + dp(6) - albumPanelOverlap
-                val finalMax = maxOf(0, child.height - net + sv.paddingTop + sv.paddingBottom - sv.height)
-                val start = sv.scrollY
-                if (start > finalMax) {
-                    android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 420
-                        interpolator = android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f)
-                        addUpdateListener { sv.scrollTo(0, (start + (finalMax - start) * (it.animatedValue as Float)).toInt()) }
-                        start()
-                    }
-                }
-            }
-        }
-        slideAlbumPanel(panel, at, panel.height + dp(6), panel.width, 1f, 0f, 420, android.view.animation.PathInterpolator(0.15f, 0.6f, 0.2f, 1f), {
-            albumRows.removeView(panel)
-            albumPanelView = null; albumPanelRow = null; albumPanelOverlap = 0; selectedAlbum = null; closingAlbum = false
-        }, albumPanelOverlap, closeTexts)
     }
 
     private fun goBackFromAlbum() {
