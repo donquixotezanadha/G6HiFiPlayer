@@ -1082,7 +1082,8 @@ class MainActivity : Activity() {
             // (it is what sizes the icon inside the button), otherwise the icons grow.
             val pl = paddingLeft; val pt = paddingTop; val pr = paddingRight; val pb = paddingBottom
             // Hifi 2.73 classic 73: bare icons (controls, dock, + and x) use the same strength in Light as in Dark (no Light doubling): the Light strength was too much for them
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, alpha)), null, mask)
+            // Hifi 2.73 classic 76: in Light the accent reads stronger on bare icons, so they get 6% (0x0F); Dark keeps its value
+            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, if (lightTheme) 0x0F else alpha)), null, mask)
             setPadding(pl, pt, pr, pb)
         }
         themed { make() }

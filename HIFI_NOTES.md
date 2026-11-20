@@ -955,3 +955,6 @@
 
 ## Hifi 2.73 classic 75 (from Classic 74)
 - Widget 4x2 (Gradient and Text): the play button is shifted 8dp left with a negative margin, which put its left part in the parent's padding where it was clipped (ripple cut on the left). The parent now has clipToPadding="false"; positions/sizes unchanged. Same fix applies to both themes (layout only).
+
+## Hifi 2.73 classic 76 (from Classic 75)
+- Light theme only: bare icon ripples (controls, dock, + and x) 10% -> 6% (0x0F), and the Light widget ripples #1A000000 -> #0F000000 (6%). Dark theme, ripples with a background and track rows are untouched.
