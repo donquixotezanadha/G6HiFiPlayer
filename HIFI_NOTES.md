@@ -949,3 +949,6 @@
 
 ## Hifi 2.73 classic 73 (from Classic 72)
 - Bare icon ripples (Now Playing controls, 3 dock icons, "+" and x row buttons, 10% accent) now use the Dark strength in Light too (the Light doubling was removed for these only). Everything with a background keeps its theme-aware values; rows keep the Light doubling. Widget ripples were already equal in both themes (20% white / 20% black), unchanged.
+
+## Hifi 2.73 classic 74 (from Classic 73)
+- Widget ripples lowered from 20% to 10% (#1AFFFFFF dark / #1A000000 light) so they match the in-app bare icon ripples (10%) in both themes.
