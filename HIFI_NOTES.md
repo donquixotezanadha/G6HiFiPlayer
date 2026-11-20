@@ -943,3 +943,6 @@
 
 ## Hifi 2.73 classic 71 (from Classic 70)
 - The "Blur" widgets in the Classic build are Classic widgets with a gradient look (name only): ripples added like the other widgets (4x2: round, 4x1: rounded play square), and the widget picker names are now "Hifi Gradient 4x1 / 4x2" (labels only; class and file names still say Blur).
+
+## Hifi 2.73 classic 72 (from Classic 71) - fix
+- Icons grew after a theme switch (classic 69-71): the inset round ripple mask reports its insets as padding and setBackground applied them to the view, replacing the padding that sizes the icon. circleRipple() now restores the view's own padding after setting the background. (Keep this in mind for any ripple with an InsetDrawable mask.)
