@@ -256,6 +256,8 @@ class MainActivity : Activity() {
     private var playerTitleRow: View? = null
     private var playerCoverView: NowPlayingCoverView? = null   // Hifi 1.43: the clear cover behind the Now Playing page (and its header)
     private var playerCoverBitmap: android.graphics.Bitmap? = null
+    private var stageBackdrop: DarkBackdropDrawable? = null   // Hifi 2.73 classic 87: the page backdrop behind every page; the opened album page gives it that album's own cover
+
     private var classicCoverBox: ImageView? = null   // Hifi 2.61: Classic only: rounded square cover (in colour) in the free space above the title
     private var hiResLogoView: ImageView? = null      // Hifi 1.44: Hi-Res logo above the queue button
     private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
@@ -495,7 +497,7 @@ class MainActivity : Activity() {
         root.addView(makeHeaderBar(statusBarInset), LinearLayout.LayoutParams(-1, statusBarInset + dp(HEADER_H_DP)))
         root.addView(contentStage, LinearLayout.LayoutParams(-1, 0, 1f))
         val stage = FrameLayout(this).apply { setBackgroundColor(if (lightTheme) LIGHT_SURFACE else DARK_SURFACE) }
-        stage.addView(View(this).apply { background = newDarkDrawable() }, FrameLayout.LayoutParams(-1, -1))
+        stage.addView(View(this).apply { background = newDarkDrawable().also { stageBackdrop = it } }, FrameLayout.LayoutParams(-1, -1))
         // Hifi 1.43: Now Playing only: the cover itself, sharp, fills the top half of the screen behind the header and fades into the blurred backdrop.
         val coverView = NowPlayingCoverView(this).apply { light = lightTheme; bitmap = playerCoverBitmap; visibility = View.GONE }
         playerCoverView = coverView
@@ -1354,6 +1356,8 @@ class MainActivity : Activity() {
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var classicBitmap: android.graphics.Bitmap? = null   // Hifi 2.60: the sharp cover, used by Classic only
             set(value) { field = value; invalidateSelf() }
+        var overrideBitmap: android.graphics.Bitmap? = null   // Hifi 2.73 classic 87: while an album page is open, that album's own cover (same fade) instead of the playing one
+            set(value) { field = value; invalidateSelf() }
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
         private val classicMask = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN) }
 
@@ -1362,7 +1366,7 @@ class MainActivity : Activity() {
             if (b.width() <= 0 || b.height() <= 0) return
             run {   // Hifi 2.61: Classic = solid theme colour; the colourless cover with the Now Playing fade sits at the top of every page
                 canvas.drawColor(if (light) BackdropBlur.CLASSIC_LIGHT else BackdropBlur.CLASSIC_DARK)
-                classicBitmap?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }?.let { bmp ->
+                (overrideBitmap ?: classicBitmap)?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }?.let { bmp ->
                     val w = b.width().toFloat()
                     val top = b.top.toFloat()
                     // Hifi 2.73 classic 13: bigger cover band: it reaches down to the top of the progress bar (CLASSIC_BAND_FRACTION of the page height)
@@ -1999,8 +2003,23 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Hifi 2.73 classic 87: the opened album page fades its OWN cover into the backdrop; every other page (grid, Now Playing, Setting) keeps the playing cover. */
+    private fun syncAlbumBackdrop() {
+        val d = stageBackdrop ?: return
+        val album = selectedAlbum
+        if (currentPage != "library" || album == null) { d.overrideBitmap = null; return }
+        val first = tracks.firstOrNull { it.folder == album } ?: run { d.overrideBitmap = null; return }
+        val cached = playerArtworkCache.get(first.uri.toString())?.takeIf { !it.isRecycled }
+        if (cached != null) { d.overrideBitmap = cached; return }
+        artworkExecutor.execute {
+            val full = decodePlayerArtwork(first)
+            handler.post { if (full != null && selectedAlbum == album && currentPage == "library") stageBackdrop?.overrideBitmap = full }
+        }
+    }
+
     private fun renderLibrary() {
         if (!::albumRows.isInitialized) return
+        syncAlbumBackdrop()
         updateHeaderBack()
         albumPlayingMarks.clear()
         albumRows.removeAllViews()
@@ -3615,6 +3634,7 @@ class MainActivity : Activity() {
         headerGear?.visibility = View.GONE   // Hifi 2.73 classic 60: the gear (MD5 log) is hidden for now
         updateHeaderHeight()
         updateHeaderBack()
+        syncAlbumBackdrop()
         queueMiniHost?.visibility = if (which == "library") View.VISIBLE else View.GONE   // the mini player only lives on Album
         if (which == "library" && previousPage != "library") restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.

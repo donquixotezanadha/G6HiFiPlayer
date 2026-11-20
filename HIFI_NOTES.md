@@ -998,3 +998,8 @@
 ## Hifi 2.73 classic 86 (from classic 85)
 - "Add album to queue" is now just "Add to queue" in the 3-dot window and on the album page.
 - Album page buttons: two equal halves (8dp gap), icon + text centred, 50dp / 9dp corners like the window options, SOLID floating-window colour (floatingColor()) instead of the translucent box, ripple kept.
+
+## Hifi 2.73 classic 87 (from classic 86) - experiment
+- Grid model declared FINAL in classic 86 (all choices accepted: label "Artist - Album", 3 dots narrowing the label).
+- Only the opened album page changes its backdrop: the page's own cover is faded behind it with the same band / fade as Now Playing and the Album tab (DarkBackdropDrawable.overrideBitmap, set by syncAlbumBackdrop()). Grid, Now Playing, Setting and widgets keep the playing cover.
+- If the album has no cover the playing cover stays behind the page (not handled specially).
