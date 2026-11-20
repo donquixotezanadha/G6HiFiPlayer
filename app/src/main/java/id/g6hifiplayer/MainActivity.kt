@@ -2077,7 +2077,7 @@ class MainActivity : Activity() {
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         // Hifi 2.73 classic 81: the OLD 2-column grid of classic 29 again (square cover, centred "Artist - Album" label of two lines, no title block);
         // only the gap between the left and right album is wider (14dp margins + 6dp padding = 20dp, was 12dp), the page edges are unchanged, so the covers are a little smaller.
-        // The 3 marks (Play album / Add album to queue) sit at the right end of the label; a long press on the cell opens the same window.
+        // The 3 marks (Play album / Add album to queue) sit at the right end of the label; classic 83: no long press any more.
         val midMargin = dp(7)
         val dotsW = dp(18)
         var gridRow: LinearLayout? = null
@@ -2110,7 +2110,6 @@ class MainActivity : Activity() {
                     renderLibrary()
                     scrollLibraryToTop()
                 }
-                setOnLongClickListener { v -> openOptions(v); true }
             }
             val cover = object : ImageView(this) {
                 override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
@@ -2124,7 +2123,7 @@ class MainActivity : Activity() {
             val dots = ImageView(this).apply {
                 setImageResource(R.drawable.ic_more_vert)
                 scaleType = ImageView.ScaleType.FIT_END
-                setPadding(dp(15), dp(12), 0, dp(13))
+                setPadding(dp(25), dp(14), 0, dp(15))   // Hifi 2.73 classic 83: bigger touch area (28 x 44dp, reaching 10dp into the label); the 3 marks stay where they were
                 themed {
                     background = RippleDrawable(rippleTint(0x30), shape(Color.TRANSPARENT, 15), null)
                     setColorFilter(MUTED)
@@ -2138,7 +2137,7 @@ class MainActivity : Activity() {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            labelRow.addView(dots, LinearLayout.LayoutParams(dotsW, dp(40)))
+            labelRow.addView(dots, LinearLayout.LayoutParams(dp(28), dp(44)).apply { leftMargin = -dp(10) })
             cell.addView(labelRow, LinearLayout.LayoutParams(-1, -2))
             row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { if (position % 2 == 0) rightMargin = midMargin else leftMargin = midMargin })
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }

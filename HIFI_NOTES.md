@@ -985,3 +985,6 @@
 - Removed the dead code of the old slide-down list (openAlbumPanel, slideAlbumPanel, closeAlbum, closeAlbumInstant, panel state).
 - Scroll position: the opened album page now remembers its own position (albumPageScrollY) and returns to it after Now Playing (before, the grid position was applied to it). A background re-scan re-render keeps the current scroll instead of jumping to the top.
 - Album page cover = grid cover size +30% (they were equal before).
+
+## Hifi 2.73 classic 83 (from classic 82)
+- Long press on an album removed (the 3 dots own the options window). The 3-dot touch area is bigger (28 x 44dp, reaches 10dp into the label); the marks stay in place.
