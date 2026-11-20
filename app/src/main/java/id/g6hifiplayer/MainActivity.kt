@@ -256,6 +256,7 @@ class MainActivity : Activity() {
     private var playerTitleRow: View? = null
     private var playerCoverView: NowPlayingCoverView? = null   // Hifi 1.43: the clear cover behind the Now Playing page (and its header)
     private var playerCoverBitmap: android.graphics.Bitmap? = null
+    private val albumDots = ArrayList<View>()   // Hifi 2.73 classic 89: the 3-dot buttons of the Album grid (round touch area, centred on the marks, reaching ~10dp beyond the cell edge)
     private var classicCoverBox: ImageView? = null   // Hifi 2.61: Classic only: rounded square cover (in colour) in the free space above the title
     private var hiResLogoView: ImageView? = null      // Hifi 1.44: Hi-Res logo above the queue button
     private var queueButton: ImageView? = null      // Hifi 1.37: the 3-line queue button next to the title
@@ -454,7 +455,34 @@ class MainActivity : Activity() {
             // Keep Now Playing swipe gestures on the artwork surface without stealing control touches.
             minimumHeight = (resources.displayMetrics.heightPixels - dp(150)).coerceAtLeast(dp(500))
         }
-        libraryPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // Hifi 2.73 classic 89: the 3-dot buttons of the Album grid react 10dp beyond their drawn area to the right as well (also over the page margin and the gap between albums);
+        // the panel catches such a touch before the cells do and hands the whole gesture to the dots. Nothing is drawn differently.
+        libraryPanel = object : LinearLayout(this) {
+            private var dotsTarget: View? = null
+            override fun onInterceptTouchEvent(ev: android.view.MotionEvent): Boolean {
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN && selectedAlbum == null) {
+                    val loc = IntArray(2)
+                    val hit = albumDots.firstOrNull { d ->
+                        if (!d.isShown) return@firstOrNull false
+                        d.getLocationOnScreen(loc)
+                        ev.rawX >= loc[0] && ev.rawX <= loc[0] + d.width - dp(8) && ev.rawY >= loc[1] && ev.rawY <= loc[1] + d.height
+                    }
+                    if (hit != null) { dotsTarget = hit; return true }
+                }
+                return super.onInterceptTouchEvent(ev)
+            }
+            override fun onTouchEvent(ev: android.view.MotionEvent): Boolean {
+                val target = dotsTarget ?: return super.onTouchEvent(ev)
+                val loc = IntArray(2)
+                target.getLocationOnScreen(loc)
+                val copy = android.view.MotionEvent.obtain(ev)
+                copy.setLocation((ev.rawX - loc[0]).coerceIn(0f, (target.width - 1).toFloat()), (ev.rawY - loc[1]).coerceIn(0f, (target.height - 1).toFloat()))
+                target.dispatchTouchEvent(copy)
+                copy.recycle()
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_UP || ev.actionMasked == android.view.MotionEvent.ACTION_CANCEL) dotsTarget = null
+                return true
+            }
+        }.apply { orientation = LinearLayout.VERTICAL }
         songsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         makePlayerPanel(); makeLibraryPanel(); makeSongsPanel(); makeMiniPlayer()
@@ -2081,6 +2109,8 @@ class MainActivity : Activity() {
         val midMargin = dp(7)
         val dotsW = dp(18)
         var gridRow: LinearLayout? = null
+        albumDots.clear()
+        albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
@@ -2122,12 +2152,13 @@ class MainActivity : Activity() {
             cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             val dots = ImageView(this).apply {
                 setImageResource(R.drawable.ic_more_vert)
-                scaleType = ImageView.ScaleType.FIT_END
-                setPadding(dp(25), dp(14), 0, dp(15))   // Hifi 2.73 classic 83: bigger touch area (28 x 44dp, reaching 10dp into the label); the 3 marks stay where they were
-                themed {
-                    background = RippleDrawable(rippleTint(0x30), shape(Color.TRANSPARENT, 15), null)
-                    setColorFilter(MUTED)
-                }
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                // Hifi 2.73 classic 89: the button is 40 x 44dp and CENTRED on the 3 marks (the marks keep their place and size: a 3 x 15dp box), so the ripple is a perfect circle
+                // (38dp) around them; the touch area reaches ~10dp beyond the cell edge to the right and ~20dp to the left. Nothing else is drawn differently.
+                val padSide = dp(40) - dp(3)
+                setPadding(padSide / 2, dp(14), padSide - padSide / 2, dp(15))
+                themed { setColorFilter(MUTED) }
+                circleRipple()
                 contentDescription = "Options for album " + albumLabel(namedArtist, namedAlbum)
                 isClickable = true; isFocusable = true
                 setOnClickListener { openOptions(this) }
@@ -2137,7 +2168,12 @@ class MainActivity : Activity() {
                 setPadding(dp(2), dp(7), dp(2), dp(2))
                 gravity = Gravity.CENTER_HORIZONTAL
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            labelRow.addView(dots, LinearLayout.LayoutParams(dp(28), dp(44)).apply { leftMargin = -dp(10) })
+            labelRow.addView(dots, LinearLayout.LayoutParams(dp(40), dp(44)).apply {
+                rightMargin = -(dp(20) - dp(3) / 2)   // the marks' centre stays 1.5dp inside the label row's right edge
+                leftMargin = -dp(22) - rightMargin    // the button takes only 18dp of layout space, like before, so the label keeps its width
+            })
+            albumDots.add(dots)
+            for (g in listOf<ViewGroup>(labelRow, cell, row)) { g.clipChildren = false; g.clipToPadding = false }   // the ripple may reach into the gap / page margin
             cell.addView(labelRow, LinearLayout.LayoutParams(-1, -2))
             row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { if (position % 2 == 0) rightMargin = midMargin else leftMargin = midMargin })
             entries.firstOrNull()?.let { loadArtworkInto(cover, it.value) }

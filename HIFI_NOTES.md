@@ -1002,3 +1002,8 @@
 ## Hifi 2.73 classic 88 (from classic 86; 87 dropped)
 - Classic 87 (album page with its own cover backdrop) was dropped: it made the backdrop blink when switching tabs. 88 is built from 86.
 - Dark theme ripple of bare icons / text without a background: 14% -> 12% (0x24 -> 0x1F), also the dark widget ripples (g6_w_rip_*_d.xml #1FFFFFFF). Light theme and ripples with a background unchanged.
+
+## Hifi 2.73 classic 89 (from classic 88)
+- Album grid 3 dots: nothing is drawn differently. The button is now 40 x 44dp centred on the marks (they keep their 3 x 15dp box and place), the ripple is a perfect circle (circleRipple, 38dp) around them, the touch area reaches ~10dp past the cell edge to the right (into the gap / page margin) and ~20dp to the left. Layout space stays 18dp so the label width is unchanged.
+- The page margin is outside the grid, so LibraryPanel (custom LinearLayout) intercepts a down inside the dots' extended rect (albumDots) and forwards the gesture to the dots (coordinates clamped). Empty gaps open nothing; cover + label areas unchanged.
+- clipChildren/clipToPadding off on labelRow, cell, row, albumRows and libraryPanel so the ripple is not cut.
