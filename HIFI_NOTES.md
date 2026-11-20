@@ -958,3 +958,6 @@
 
 ## Hifi 2.73 classic 76 (from Classic 75)
 - Light theme only: bare icon ripples (controls, dock, + and x) 10% -> 6% (0x0F), and the Light widget ripples #1A000000 -> #0F000000 (6%). Dark theme, ripples with a background and track rows are untouched.
+
+## Hifi 2.73 classic 77 (from Classic 76)
+- Bare icon ripples (controls, dock, + and x) and widget ripples: Dark 14% (0x24 / #24FFFFFF), Light 5% (0x0D / #0D000000). Ripples with a background and track rows untouched. Reason for the theme difference: the Light accent is near black, so it reads stronger on light surfaces.
