@@ -249,6 +249,7 @@ class MainActivity : Activity() {
     private var queueRowsSig = Int.MIN_VALUE
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
+    private var albumSwapToken = 0   // Hifi 2.73 classic 90: cancels an unfinished grid <-> album fade
     private var albumPageScrollY = 0   // Hifi 2.73 classic 82: where the opened album page was, so it stays there after Now Playing
     private var restoringScroll = false
     private var queueMiniHost: FrameLayout? = null
@@ -428,9 +429,9 @@ class MainActivity : Activity() {
             clipToPadding = false
         }
         navPlayer = navButton("Player", "Player") { show("player") }
-        navLibrary = navButton("Albums", "Albums") { show("library") }
+        navLibrary = navButton("Albums", "Albums") { slideToPage("library") }
         navSongs = navButton("Songs", "Songs") { show("songs") }
-        navFile = navButton("Setting", "Setting") { show("settings") }
+        navFile = navButton("Setting", "Setting") { slideToPage("settings") }
         // Three-tab navigation: removing Songs reduces page-switch rebuild work.
         // Equal weights keep the existing icon size and center each remaining hit target.
         // Hifi 1.4: no bottom bar. Pages are switched by swiping; the nav views stay created (unattached) so existing state code is untouched.
@@ -2055,6 +2056,7 @@ class MainActivity : Activity() {
         // Hifi 2.73 classic 78: tapping a cover opens the old album PAGE (as in classic 29, no slide-down list): a big cover (window width, HI-RES badge), the title,
         // PLAY ALBUM / ADD TO QUEUE and the tracks. No "more albums", no header; the system Back returns to the grid at its old scroll.
         if (openAlbum != null) {
+            albumRows.clipChildren = true; albumRows.clipToPadding = true; libraryPanel.clipChildren = true; libraryPanel.clipToPadding = true   // Hifi 2.73 classic 90: only the grid needs unclipped parents (the 3-dot ripple)
             val album = openAlbum
             val entries = groupedAlbums[album].orEmpty().sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) })
             val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
@@ -2062,6 +2064,7 @@ class MainActivity : Activity() {
             val pageW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
             val gridCover = ((pageW - dp(14)) / 2 - dp(6)) * 13 / 10   // Hifi 2.73 classic 82: the grid cover size + 30% (classic 80/81: exactly the grid size)
             val bigCover = ImageView(this).apply {
+                clipToOutline = true; outlineProvider = android.view.ViewOutlineProvider.BOUNDS
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
@@ -2089,7 +2092,7 @@ class MainActivity : Activity() {
             albumActions.addView(flatAction("Play album", true) {
                 if (queueIndices.isNotEmpty()) {
                     playTrackAt(queueIndices.first(), true, queueIndices, true); showPlayerAnimated()
-                    handler.postDelayed({ goBackFromAlbum() }, 130L)   // the grid is back once Now Playing is up
+                    handler.postDelayed({ goBackFromAlbum(false) }, 130L)   // the grid is back once Now Playing is up
                 }
             }, LinearLayout.LayoutParams(0, dp(50), 1f))
             albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
@@ -2135,15 +2138,18 @@ class MainActivity : Activity() {
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
                     albumBackStack.clear()
-                    selectedAlbum = album
-                    albumPageScrollY = 0
-                    renderLibrary()
-                    scrollLibraryToTop()
+                    swapAlbumView(true) {
+                        selectedAlbum = album
+                        albumPageScrollY = 0
+                        renderLibrary()
+                        scrollLibraryToTop()
+                    }
                 }
             }
             val cover = object : ImageView(this) {
                 override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
             }.apply {
+                clipToOutline = true; outlineProvider = android.view.ViewOutlineProvider.BOUNDS   // Hifi 2.73 classic 90: a centre-cropped cover never draws outside its square, whatever the parents clip
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
@@ -4206,7 +4212,11 @@ class MainActivity : Activity() {
      * Hifi 2.15: page change = fade out (100 ms) -> switch -> fade in (160 ms). The only motion kept is the mini player of the Album page: it
      * rises from the bottom with a soft overshoot when the Album opens and sinks when Now Playing comes back.
      */
-    private fun slidePageTo(toLibrary: Boolean) {
+    private fun slidePageTo(toLibrary: Boolean) = slideToPage(if (toLibrary) "library" else "player")
+
+    /** Hifi 2.73 classic 90: every tab change (Albums / Setting included) fades the same way, not only Now Playing <-> Albums. */
+    private fun slideToPage(target: String) {
+        val toLibrary = target == "library"
         val v = pageContentView
         val token = ++pageAnimToken
         v?.animate()?.cancel()
@@ -4215,10 +4225,9 @@ class MainActivity : Activity() {
         v?.let { it.translationX = 0f; it.alpha = 1f; it.translationY = 0f }
         playerCoverView?.alpha = 1f
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
-        val target = if (toLibrary) "library" else "player"
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
-        if (!toLibrary && mini != null && mini.visibility == View.VISIBLE) {
+        if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
             mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(110L)
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
         }
@@ -4275,15 +4284,34 @@ class MainActivity : Activity() {
         if (::headerTitle.isInitialized) headerTitle.setPadding(dp(if (open) 0 else 20), 0, dp(8), 0)
     }
 
-    private fun goBackFromAlbum() {
-        if (albumBackStack.isNotEmpty()) {
-            selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
-            renderLibrary()
-            scrollLibraryToTop()
-        } else {
-            selectedAlbum = null
-            renderLibrary()
-            restoreListScroll()
+    /**
+     * Hifi 2.73 classic 90: grid <-> album page uses the same quick fade as the page changes (fade out 100 ms -> switch -> fade in 160 ms).
+     * [animate] = false switches at once (Play album: the page is already behind Now Playing).
+     */
+    private fun swapAlbumView(animate: Boolean, switch: () -> Unit) {
+        val v = albumRows
+        v.animate().cancel()
+        val token = ++albumSwapToken
+        if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
+        v.animate().alpha(0f).setDuration(100L).withEndAction {
+            if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
+            switch()
+            v.alpha = 0f
+            v.animate().alpha(1f).setDuration(160L).start()
+        }.start()
+    }
+
+    private fun goBackFromAlbum(animate: Boolean = true) {
+        swapAlbumView(animate) {
+            if (albumBackStack.isNotEmpty()) {
+                selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
+                renderLibrary()
+                scrollLibraryToTop()
+            } else {
+                selectedAlbum = null
+                renderLibrary()
+                restoreListScroll()
+            }
         }
     }
 

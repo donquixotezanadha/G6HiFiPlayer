@@ -1007,3 +1007,8 @@
 - Album grid 3 dots: nothing is drawn differently. The button is now 40 x 44dp centred on the marks (they keep their 3 x 15dp box and place), the ripple is a perfect circle (circleRipple, 38dp) around them, the touch area reaches ~10dp past the cell edge to the right (into the gap / page margin) and ~20dp to the left. Layout space stays 18dp so the label width is unchanged.
 - The page margin is outside the grid, so LibraryPanel (custom LinearLayout) intercepts a down inside the dots' extended rect (albumDots) and forwards the gesture to the dots (coordinates clamped). Empty gaps open nothing; cover + label areas unchanged.
 - clipChildren/clipToPadding off on labelRow, cell, row, albumRows and libraryPanel so the ripple is not cut.
+
+## Hifi 2.73 classic 90 (from classic 89)
+- BUG fix: in 89 covers that are not square (e.g. a CD-case cover) were drawn outside their square, in the grid and on the album page. Cause: 89 turned clipChildren off on the grid parents for the 3-dot ripple, and a centre-crop ImageView relies on its parent's clipping. Now the covers clip themselves (clipToOutline / BOUNDS), and the album page restores clipChildren/clipToPadding (only the grid keeps them off).
+- Animation: opening an album and going back to the grid use the same quick fade as the page changes (fade out 100 ms -> switch -> fade in 160 ms) via swapAlbumView(); Play album returns to the grid at once (it is behind Now Playing).
+- The tabs Albums and Setting now fade like Now Playing <-> Albums (slideToPage(target)); before they switched without any animation.
