@@ -2015,9 +2015,10 @@ class MainActivity : Activity() {
         // Hifi 2.73 classic 52: the Album tab is a 2-column GRID again: cover (with a 3-dot button on its right) and the title / artist / track count below it.
         // The 3 dots open the old Play album / Add album to queue window; one tap on the cover area opens the track list under that grid row.
         val colGap = dp(24)   // Hifi 2.73 classic 58: wider middle gap (was 10dp), outer edges unchanged, cover shrinks to make room
-        val cellW = (gridW - colGap) / 2
-        val dotsW = dp(18)   // Hifi 2.73 classic 57: narrow column, the marks sit flush with the cell's right edge (same gap as the cover on the left); the cover takes the freed width
-        val coverSide = cellW - dp(6) - dotsW
+        val outerGap = dp(26)   // Hifi 2.73 classic 78: extra space left and right of the whole grid (middle gap unchanged), so the covers are smaller and no longer touch the screen edges
+        val cellW = (gridW - 2 * outerGap - colGap) / 2
+        val dotsW = dp(18)
+        val coverSide = cellW - dp(6)
         var gridRow: LinearLayout? = null
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
@@ -2048,6 +2049,8 @@ class MainActivity : Activity() {
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
             top.addView(cover, LinearLayout.LayoutParams(coverSide, coverSide))
+            cell.addView(top, LinearLayout.LayoutParams(-2, -2))
+            val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
             val dots = ImageView(this).apply {
                 setImageResource(R.drawable.ic_more_vert)
                 scaleType = ImageView.ScaleType.FIT_END
@@ -2064,14 +2067,15 @@ class MainActivity : Activity() {
                     }
                 }
             }
-            top.addView(dots, LinearLayout.LayoutParams(dotsW, dp(40)).apply { leftMargin = dp(0) })
-            cell.addView(top, LinearLayout.LayoutParams(-2, -2))
-            val trackText = entries.size.toString() + (if (entries.size == 1) " track" else " tracks")
-            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
-            texts.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
-            if (namedArtist.isNotBlank()) texts.addView(text(namedArtist, 13f, MUTED, false).apply {
+            val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            titles.addView(text(namedAlbum.ifBlank { album }, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false })
+            if (namedArtist.isNotBlank()) titles.addView(text(namedArtist, 13f, MUTED, false).apply {
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0)
             })
+            // Hifi 2.73 classic 78: the 3 marks sit at the right end of the title / artist block under the cover (was top right of the cover)
+            val texts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(4), 0, 0) }
+            texts.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
+            texts.addView(dots, LinearLayout.LayoutParams(dotsW, dp(40)))
             cell.addView(texts, LinearLayout.LayoutParams(coverSide, -2))
             rowTextBlocks.getOrPut(row) { mutableListOf() }.add(texts)
             row.addView(cell, LinearLayout.LayoutParams(cellW, -2).apply { if (position % 2 == 1) leftMargin = colGap })
@@ -4188,6 +4192,23 @@ class MainActivity : Activity() {
         panel.themed { background = floatingBackground() }
         // Hifi 2.73 classic 53: the list starts right under the covers and replaces the title blocks there: centred title + artist / track count on top.
         if (title.isNotBlank()) {
+            // Hifi 2.73 classic 78: a big square cover (the width of the window, like Now Playing) with the HI-RES badge, at the top of the list.
+            val bigSide = (if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)) - dp(24)
+            val big = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                background = shape(ART, 0)
+                contentDescription = "Artwork $album"
+            }
+            applyAlbumHiResBadge(big, entries.map { it.value })
+            panel.addView(big, LinearLayout.LayoutParams(bigSide, bigSide).apply { topMargin = dp(4); bottomMargin = dp(6) })
+            entries.firstOrNull()?.value?.let { first ->
+                loadArtworkInto(big, first)
+                val tag = big.tag
+                artworkExecutor.execute {
+                    val full = decodePlayerArtwork(first)
+                    if (full != null) handler.post { if (big.tag == tag) big.setImageBitmap(full) }
+                }
+            }
             val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(8), dp(8), dp(10)) }
             header.addView(text(title, 14f, WHITE, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; includeFontPadding = false })
             if (sub.isNotBlank()) header.addView(text(sub, 13f, MUTED, false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER; setPadding(0, dp(3), 0, 0) })

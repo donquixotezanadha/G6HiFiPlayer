@@ -961,3 +961,8 @@
 
 ## Hifi 2.73 classic 77 (from Classic 76)
 - Bare icon ripples (controls, dock, + and x) and widget ripples: Dark 14% (0x24 / #24FFFFFF), Light 5% (0x0D / #0D000000). Ripples with a background and track rows untouched. Reason for the theme difference: the Light accent is near black, so it reads stronger on light surfaces.
+
+## Hifi 2.73 classic 78 (from classic 77)
+- Album list: a big square cover (window width, with HI-RES badge) at the top of the opened list.
+- The 3 marks moved from the top right of the cover to the right end of the title / artist block under the cover (still open Play album / Add album to queue). No long press.
+- 2-column covers smaller: extra 26dp space left and right of the grid, middle gap unchanged.
