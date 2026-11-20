@@ -2063,11 +2063,11 @@ class MainActivity : Activity() {
                     playTrackAt(queueIndices.first(), true, queueIndices, true); showPlayerAnimated()
                     handler.postDelayed({ goBackFromAlbum() }, 130L)   // the grid is back once Now Playing is up
                 }
-            }, LinearLayout.LayoutParams(-2, dp(50)))
-            albumActions.addView(View(this), LinearLayout.LayoutParams(dp(12), 1))
-            albumActions.addView(flatAction("Add album to queue", false) {
+            }, LinearLayout.LayoutParams(0, dp(50), 1f))
+            albumActions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+            albumActions.addView(flatAction("Add to queue", false) {
                 addAlbumToQueue(queueIndices, album, "", albumNames[album]?.second ?: album, albumArtist)
-            }, LinearLayout.LayoutParams(-2, dp(50)))
+            }, LinearLayout.LayoutParams(0, dp(50), 1f))
             albumRows.addView(albumActions, LinearLayout.LayoutParams(-1, -2))
             entries.forEachIndexed { position, entry -> addNumberedTrackRow(albumRows, entry, position + 1, albumArtist, queueIndices) }
             updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
@@ -3876,7 +3876,7 @@ class MainActivity : Activity() {
         if (allIndices != null && allIndices.isNotEmpty()) {
             option(R.drawable.ic_play_outline, "Play entire album") { playTrackAt(allIndices.first(), true, allIndices, true); showPlayerAnimated() }
         }
-        option(R.drawable.ic_plus, "Add album to queue") { if (onAddToQueue != null) onAddToQueue() else addAlbumToQueue(indices, album) }
+        option(R.drawable.ic_plus, "Add to queue") { if (onAddToQueue != null) onAddToQueue() else addAlbumToQueue(indices, album) }
         // Hifi 2.42: the artist's other albums as mini covers, 3 per row with the same left/right edges as the buttons; more
         // than 3 simply add rows (the window grows, it never scrolls). Tapping one opens that album directly, so Back goes
         // straight to the grid.
@@ -3965,14 +3965,14 @@ class MainActivity : Activity() {
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     /** Build 2.2: album page buttons without a background box: larger text, accent colour for the main one. */
-    /** Hifi 2.73 classic 85: the same icon (14dp), text (14sp bold, 12dp gap) and height (50dp) as the options in the 3-dot window; only the box is as long as its content, translucent like the selected track, with a ripple. */
+    /** Hifi 2.73 classic 85/86: the same icon (14dp), text (14sp bold, 12dp gap), height (50dp) and corners as the options in the 3-dot window; two equal halves, content centred, solid floating-window colour, ripple. */
     private fun flatAction(label: String, primary: Boolean, click: () -> Unit): View {
         val icon = if (primary) R.drawable.ic_play_outline else R.drawable.ic_plus
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), 0, dp(10), 0)
-            themed { background = RippleDrawable(rippleTint(0x30), shape(selectedHighlight(), 8), null) }
+            gravity = Gravity.CENTER
+            setPadding(dp(10), 0, dp(10), 0)
+            themed { background = RippleDrawable(rippleTint(0x30), shape(floatingColor(), 9), null) }   // Hifi 2.73 classic 86: solid floating-window colour, same 9dp corners as the 3-dot options
             addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
             addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
             isClickable = true; isFocusable = true
@@ -4031,6 +4031,7 @@ class MainActivity : Activity() {
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
+    private fun floatingColor() = if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else BackdropBlur.windowDark()   // Hifi 2.73 classic 86: the solid colour of the floating windows / mini player
     private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else BackdropBlur.windowDark(), 10)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */

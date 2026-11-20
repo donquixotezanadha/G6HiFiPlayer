@@ -994,3 +994,7 @@
 
 ## Hifi 2.73 classic 85 (from classic 84)
 - Album page buttons now match the options in the 3-dot window: same icons (play outline / plus, 14dp), text 14sp bold with 12dp gap, height 50dp, labels "Play album" / "Add album to queue"; the box hugs its content, translucent + ripple (as 84).
+
+## Hifi 2.73 classic 86 (from classic 85)
+- "Add album to queue" is now just "Add to queue" in the 3-dot window and on the album page.
+- Album page buttons: two equal halves (8dp gap), icon + text centred, 50dp / 9dp corners like the window options, SOLID floating-window colour (floatingColor()) instead of the translucent box, ripple kept.
