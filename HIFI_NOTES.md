@@ -932,3 +932,6 @@
 
 ## Hifi 2.73 classic 68 (from Classic 64; dim experiments 65-67 dropped)
 - Audio path log (MD5): long press on the two info lines of Now Playing (format line + bit-perfect status line) opens the log window. No extra icon, no extra info. Window = same size / position / animation / dim as the queue window, only the list of log entries (touching an entry shows its detail). The gear stays hidden. Blur: same placement when ported.
+
+## Hifi 2.73 classic 69 (from Classic 68) - touch feedback
+- One soft ripple style (accent, alpha 0x1A, as the mini player's play button): round ripple (radius = half of the smaller side) for icons: Now Playing prev/play/next (glow removed, tiny press scale kept), queue / theme / album dock buttons, "+" and x row buttons; full-width rounded ripple (foreground, 8dp) on track rows (album list, queue window, Songs) and log rows. Existing ripples (album cells 0x25, 3 squares, window options, buttons, mini player 0x0E) unchanged. Blur: same helpers, own radii.

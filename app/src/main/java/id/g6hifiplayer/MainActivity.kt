@@ -771,6 +771,7 @@ class MainActivity : Activity() {
             contentDescription = "Queue"
             isClickable = true; isFocusable = true
             setOnClickListener { openQueueWindow() }
+            circleRipple()
             addView(queueIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))   // Hifi 1.55: icon 22 -> 24dp, the 56 x 40dp touch area is unchanged
         }
         // Hifi 2.11: theme - queue - album in one row under the controls: same size (24dp), style (filled) and colour. The theme icon shows
@@ -786,6 +787,7 @@ class MainActivity : Activity() {
             contentDescription = if (lightTheme) "Light theme (tap for Dark)" else "Dark theme (tap for Light)"
             isClickable = true; isFocusable = true
             setOnClickListener { switchThemeAnimated(!lightTheme, themeIconView) }
+            circleRipple()
             addView(themeIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
         val albumIcon = ImageView(this).apply {
@@ -799,6 +801,7 @@ class MainActivity : Activity() {
             contentDescription = "Albums"
             isClickable = true; isFocusable = true
             setOnClickListener { slidePageTo(true) }
+            circleRipple()
             addView(albumIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
         val iconRow = LinearLayout(this).apply {
@@ -1059,6 +1062,26 @@ class MainActivity : Activity() {
         return this
     }
 
+    /**
+     * Hifi 2.73 classic 69: the one soft touch feedback of the app (same softness as the mini player's play button): a round ripple for icons
+     * (radius = half of the smaller side, centred) and a full-width rounded ripple on rows / text areas. Colours follow the accent.
+     */
+    private fun View.circleRipple(alpha: Int = 0x1A): View {
+        fun make() {
+            val r = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, alpha)), null, null)
+            val rad = minOf(width, height) / 2
+            if (rad > 0) r.radius = rad
+            background = r
+        }
+        themed { make() }
+        addOnLayoutChangeListener { v, l, t, r, b, ol, ot, orr, ob -> if ((r - l) != (orr - ol) || (b - t) != (ob - ot)) make() }
+        return this
+    }
+    private fun View.rowRipple(radiusDp: Int = 8, alpha: Int = 0x1A): View {
+        themed { foreground = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, alpha)), null, shape(Color.WHITE, radiusDp)) }
+        return this
+    }
+
     /** Re-applies every themed colour (backgrounds, ripples, text) of the pages that are built. */
     private fun retintPages() {
         tabsPaletteDirty = false
@@ -1149,13 +1172,8 @@ class MainActivity : Activity() {
             seek.progressDrawable = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(PROGRESS_THICKNESS_DP), progressEnd)
             seek.invalidate()
         }
-        // Build 3.01: keep the existing glow geometry, alpha stops and animation; only switch its ink for Light.
-        if (::prevView.isInitialized) prevView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
-        if (::playView.isInitialized) {
-            playView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
-            syncPlaybackIcon()
-        }
-        if (::nextView.isInitialized) nextView.background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat(), lightTheme)
+        // Hifi 2.73 classic 69: the glow of the controls is gone; the round ripple recolours itself with the theme.
+        if (::playView.isInitialized) syncPlaybackIcon()
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
         if (buildingUi) return
         refreshNav()
@@ -2214,6 +2232,7 @@ class MainActivity : Activity() {
             themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 8) }
             isClickable = true
             isFocusable = true
+            rowRipple()
         }
         val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 0) } }
         applyTrackHiResBadge(cover, t)
@@ -2279,6 +2298,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(5))
             isClickable = true
             isFocusable = true
+            rowRipple()
         }
         val numberView = text(number.toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
         row.addView(numberView, LinearLayout.LayoutParams(dp(34), -2))
@@ -2722,18 +2742,16 @@ class MainActivity : Activity() {
         contentDescription = description
         scaleType = ImageView.ScaleType.FIT_CENTER
         setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp))
-        background = GlowDrawable(dp(GLOW_EXTRA_DP).toFloat())
+        circleRipple()
         isClickable = true; isFocusable = true
         setOnClickListener { click() }
         setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    (v.background as? GlowDrawable)?.glowTo(1f, 120L)
                     v.animate().cancel()
                     v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(110).start()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    (v.background as? GlowDrawable)?.fadeOut(520L)
                     v.animate().cancel()
                     v.animate().scaleX(1f).scaleY(1f).setDuration(280)
                         .setInterpolator(DecelerateInterpolator(1.4f)).start()
@@ -3577,7 +3595,7 @@ class MainActivity : Activity() {
     }
     private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
         gravity = Gravity.CENTER
-        themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
+        circleRipple()
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     /** Hifi 2.73 classic 48: icon button using one of the user's own icons (add to queue "+", queue remove "x"). */
@@ -3585,7 +3603,7 @@ class MainActivity : Activity() {
         setImageResource(icon)
         scaleType = ImageView.ScaleType.FIT_CENTER
         setPadding(dp(14), dp(10), dp(14), dp(10))
-        themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null) }
+        circleRipple()
         setColorFilter(ACTION_GREY)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3633,6 +3651,7 @@ class MainActivity : Activity() {
                 setPadding(dp(4), dp(5), dp(4), dp(5))
                 isClickable = true
                 isFocusable = true
+                rowRipple()
                 setOnClickListener { playTrackAt(trackIndex, true, playbackQueue, null, position); queueDialog?.dismiss(); if (currentPage != "player") showPlayerAnimated() }   // Hifi 1.37: back to Now Playing at once
             }
             val numberView = text((position + 1).toString(), 13f, MUTED, false).apply { gravity = Gravity.CENTER }
@@ -4023,6 +4042,7 @@ class MainActivity : Activity() {
                 val more = text(e.detail, 11f, MUTED, false).apply { visibility = View.GONE; setPadding(0, 0, 0, dp(6)) }
                 list.addView(more, LinearLayout.LayoutParams(-1, -2))
                 row.isClickable = true
+                row.rowRipple()
                 row.setOnClickListener { more.visibility = if (more.visibility == View.GONE) View.VISIBLE else View.GONE }
             }
         }
