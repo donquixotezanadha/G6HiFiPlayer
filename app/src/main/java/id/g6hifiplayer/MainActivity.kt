@@ -1066,19 +1066,26 @@ class MainActivity : Activity() {
      * Hifi 2.73 classic 69: the one soft touch feedback of the app (same softness as the mini player's play button): a round ripple for icons
      * (radius = half of the smaller side, centred) and a full-width rounded ripple on rows / text areas. Colours follow the accent.
      */
+    /** Hifi 2.73 classic 70: ripple colour = accent; the Light theme needs about twice the strength to be seen on the light surfaces. */
+    private fun rippleTint(alpha: Int): ColorStateList =
+        ColorStateList.valueOf(withAlpha(accentColor, if (lightTheme) (alpha * 2).coerceAtMost(0x70) else alpha))
     private fun View.circleRipple(alpha: Int = 0x1A): View {
         fun make() {
-            val r = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, alpha)), null, null)
-            val rad = minOf(width, height) / 2
-            if (rad > 0) r.radius = rad
-            background = r
+            // a bounded ripple with a centred round mask: always a clean circle, whatever the touch point, never cut by the view or its parent
+            val d = minOf(width, height) - dp(2)
+            val mask = if (d > 0) {
+                val oval = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.WHITE) }
+                val ih = ((width - d) / 2).coerceAtLeast(0); val iv = ((height - d) / 2).coerceAtLeast(0)
+                android.graphics.drawable.InsetDrawable(oval, ih, iv, ih, iv)
+            } else null
+            background = RippleDrawable(rippleTint(alpha), null, mask)
         }
         themed { make() }
         addOnLayoutChangeListener { v, l, t, r, b, ol, ot, orr, ob -> if ((r - l) != (orr - ol) || (b - t) != (ob - ot)) make() }
         return this
     }
     private fun View.rowRipple(radiusDp: Int = 8, alpha: Int = 0x1A): View {
-        themed { foreground = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, alpha)), null, shape(Color.WHITE, radiusDp)) }
+        themed { foreground = RippleDrawable(rippleTint(alpha), null, shape(Color.WHITE, radiusDp)) }
         return this
     }
 
@@ -1482,7 +1489,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
             // Hifi 1.36: same background as the floating windows (Setting, album options), 12dp corners; the Album list fades softly behind it (as in 1.20).
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x0E)), floatingBackground(), null) }   // Hifi 2.73 classic 12: very faint touch ripple on the mini player card (was 0x30)
+            themed { background = RippleDrawable(rippleTint(0x0E), floatingBackground(), null) }   // Hifi 2.73 classic 12: very faint touch ripple on the mini player card (was 0x30)
             isClickable = true
             isFocusable = true
             setOnClickListener { showPlayerAnimated() }
@@ -1522,7 +1529,7 @@ class MainActivity : Activity() {
             contentDescription = if (player?.isPlaying == true) "Pause" else "Play"
             isClickable = true
             isFocusable = true
-            themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x1A)), shape(Color.TRANSPARENT, 15), null) }   // Hifi 2.73 classic 12: faint (was 0x55)
+            themed { background = RippleDrawable(rippleTint(0x1A), shape(Color.TRANSPARENT, 15), null) }   // Hifi 2.73 classic 12: faint (was 0x55)
             setOnClickListener { togglePlayback() }
         }
         mini.addView(queueMiniPlayView, LinearLayout.LayoutParams(dp(44), dp(48)))
@@ -2018,7 +2025,7 @@ class MainActivity : Activity() {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(3), dp(10), dp(3), dp(10))
-                themed { background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x25)), shape(Color.TRANSPARENT, 8), null) }
+                themed { background = RippleDrawable(rippleTint(0x25), shape(Color.TRANSPARENT, 8), null) }
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
@@ -2040,7 +2047,7 @@ class MainActivity : Activity() {
                 scaleType = ImageView.ScaleType.FIT_END
                 setPadding(dp(15), dp(12), 0, dp(13))
                 themed {
-                    background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 15), null)
+                    background = RippleDrawable(rippleTint(0x30), shape(Color.TRANSPARENT, 15), null)
                     setColorFilter(MUTED)
                 }
                 contentDescription = "Options for album " + albumLabel(namedArtist, namedAlbum)
@@ -3585,7 +3592,7 @@ class MainActivity : Activity() {
             shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 10),
             dp(16), dp(4), dp(16), dp(4)
         )
-        return RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), pill, null)
+        return RippleDrawable(rippleTint(0x30), pill, null)
     }
     private fun selectedHighlight(): Int = withAlpha(accentColor, 0x33)
 
@@ -3783,7 +3790,7 @@ class MainActivity : Activity() {
                 setPadding(dp(14), 0, dp(10), 0)
                 addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))   // Hifi 2.73 classic 52: his own icons
                 addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 9), null)   // 2.3: same colour as the unselected buttons in Setting
+                background = RippleDrawable(rippleTint(0x30), shape(LINE, 9), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
             }
@@ -3881,7 +3888,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         themed {
             setTextColor(if (primary) BG else WHITE)
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 9), null)
+            background = RippleDrawable(rippleTint(0x30), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 9), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3891,7 +3898,7 @@ class MainActivity : Activity() {
         setPadding(dp(4), dp(2), dp(4), dp(8))
         themed {
             setTextColor(WHITE)   // 2.3: both buttons white; they are plain buttons, not a selected state
-            background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(Color.TRANSPARENT, 6), null)
+            background = RippleDrawable(rippleTint(0x30), shape(Color.TRANSPARENT, 6), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3985,7 +3992,7 @@ class MainActivity : Activity() {
             visibility = View.GONE
             themed {
                 imageTintList = ColorStateList.valueOf(WHITE)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 15))
+                background = RippleDrawable(rippleTint(0x30), null, shape(Color.WHITE, 15))
             }
             setOnClickListener { goBackFromAlbum() }
         }
@@ -4000,7 +4007,7 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))   // Hifi 2.20: a little smaller (was 10dp)
             themed {
                 imageTintList = ColorStateList.valueOf(ICON_SOFT)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), null, shape(Color.WHITE, 15))
+                background = RippleDrawable(rippleTint(0x30), null, shape(Color.WHITE, 15))
             }
             isClickable = true; isFocusable = true
             setOnClickListener { openSettingsWindow() }
@@ -4184,7 +4191,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
                 setPadding(dp(10), 0, dp(10), 0)
-                background = RippleDrawable(ColorStateList.valueOf(withAlpha(accentColor, 0x30)), shape(LINE, 9), null)
+                background = RippleDrawable(rippleTint(0x30), shape(LINE, 9), null)
                 addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
                 addView(text(label, 14f, WHITE, true).apply { setPadding(dp(8), 0, 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 isClickable = true; isFocusable = true

@@ -438,6 +438,7 @@ object G6Widgets {
             setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.ic_pause_s) else UiIcons.pick(R.drawable.ic_play_s))
             setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 1.85: like the mini player's play button (Hifi 2.1: accent of the cover)
             setImageViewBitmap(R.id.w_progress, progressBitmap(if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0, light))
+            setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_w_rip_52x56_l else R.drawable.g6_w_rip_52x56_d)   // Hifi 2.73 classic 70: soft round touch ripple
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget4x1Provider::class.java, 4202, "toggle"))
             setOnClickPendingIntent(R.id.w_art, openPlayerIntent(context, 4204))   // Hifi 1.87: only the cover opens Now Playing
         }
@@ -449,6 +450,7 @@ object G6Widgets {
             setImageViewResource(R.id.w_play, if (playing) UiIcons.pick(R.drawable.g6_w_ic_pause_2x2) else UiIcons.pick(R.drawable.g6_w_ic_play_2x2))
             setInt(R.id.w_play_bg, "setColorFilter", cardColorNow)   // Hifi 2.1: button box = darkened accent colour of the cover
             setInt(R.id.w_play, "setColorFilter", accentNow)   // Hifi 2.31: every widget control uses the accent like the mini player
+            setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_w_rip_round14_l else R.drawable.g6_w_rip_round14_d)   // Hifi 2.73 classic 70: ripple instead of the pressed pill
             setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6Widget2x2Provider::class.java, 2202, "toggle"))
             setOnClickPendingIntent(R.id.w_root, openAppIntent(context, 2204))
         }
@@ -486,6 +488,8 @@ object G6Widgets {
             if (duration > 0) ((position.coerceAtLeast(0).toLong() * 100L) / duration.toLong()).toInt().coerceIn(0, 100) else 0,
             light
         ))
+        setInt(R.id.w_open_player, "setBackgroundResource", if (light) R.drawable.g6_w_rip_pill_l else R.drawable.g6_w_rip_pill_d)   // Hifi 2.73 classic 70
+        setInt(R.id.w_play, "setBackgroundResource", if (light) R.drawable.g6_w_rip_oval_l else R.drawable.g6_w_rip_oval_d)
         setOnClickPendingIntent(R.id.w_open_player, openPlayerIntent(context, 4301))
         setOnClickPendingIntent(R.id.w_play, actionIntent(context, G6WidgetText4x2Provider::class.java, 4302, "toggle"))
     }

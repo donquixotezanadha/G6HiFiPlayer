@@ -935,3 +935,8 @@
 
 ## Hifi 2.73 classic 69 (from Classic 68) - touch feedback
 - One soft ripple style (accent, alpha 0x1A, as the mini player's play button): round ripple (radius = half of the smaller side) for icons: Now Playing prev/play/next (glow removed, tiny press scale kept), queue / theme / album dock buttons, "+" and x row buttons; full-width rounded ripple (foreground, 8dp) on track rows (album list, queue window, Songs) and log rows. Existing ripples (album cells 0x25, 3 squares, window options, buttons, mini player 0x0E) unchanged. Blur: same helpers, own radii.
+
+## Hifi 2.73 classic 70 (from Classic 69) - ripple consistency
+- Icon ripples are now bounded with a centred round mask (always a clean circle, never cut by the view/parent; fixes the cut album/queue dock ripples).
+- All app ripples use rippleTint(base): Light theme gets about 2x the alpha (cap 0x70) because the old values were too faint on light surfaces (Play album / Add to queue etc.).
+- Widgets (Classic): XML ripples via setBackgroundResource, dark (#33FFFFFF) / light (#33000000): 4x1 play (round), 2x2 play (14dp rounded box, replaces the pressed pill), text 4x2 play (round) and open-player icon (pill). Cover / whole-widget taps have no feedback (RemoteViews cannot draw a ripple over an image). Blur widgets untouched.
