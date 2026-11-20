@@ -1,0 +1,8 @@
+# Hifi 2.73 classic 91: baseline profile. Everything of the app (classes, methods) is pre-compiled ahead of time so the first start / first page switch is not slowed down by
+# the interpreter / JIT warm-up. Wildcards: all methods of all classes of the app, plus the player library.
+HSPLid/g6hifiplayer/**;->**(**)**
+Lid/g6hifiplayer/**;
+HSPLandroidx/media3/exoplayer/**;->**(**)**
+Landroidx/media3/exoplayer/**;
+HSPLandroidx/media3/common/**;->**(**)**
+Landroidx/media3/common/**;

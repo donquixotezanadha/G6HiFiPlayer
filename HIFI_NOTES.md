@@ -1012,3 +1012,8 @@
 - BUG fix: in 89 covers that are not square (e.g. a CD-case cover) were drawn outside their square, in the grid and on the album page. Cause: 89 turned clipChildren off on the grid parents for the 3-dot ripple, and a centre-crop ImageView relies on its parent's clipping. Now the covers clip themselves (clipToOutline / BOUNDS), and the album page restores clipChildren/clipToPadding (only the grid keeps them off).
 - Animation: opening an album and going back to the grid use the same quick fade as the page changes (fade out 100 ms -> switch -> fade in 160 ms) via swapAlbumView(); Play album returns to the grid at once (it is behind Now Playing).
 - The tabs Albums and Setting now fade like Now Playing <-> Albums (slideToPage(target)); before they switched without any animation.
+
+## Hifi 2.73 classic 91 (from classic 90) - speed + cleanup, no visual change
+- Baseline profile (app/src/main/baseline-prof.txt + androidx.profileinstaller): the app's classes/methods are compiled ahead of time by Android (API 28+, takes effect after the system's background optimisation), for a faster first start and first page switch.
+- warmUpArtwork(): at start the saved thumbnails of the first 16 albums are read into the memory cache and the current cover is decoded once, on the artwork threads.
+- Dead code removed (nothing drawn changes): the unattached bottom-bar leftovers (nav buttons, navState, navBackground, refreshNav, iconAction, rowButton), GlowDrawable (old glow, replaced by ripples), StackedCovers, loadBigArtworkInto, relativeLuminance, inkFor, CARD, coverR and some unused constants/variables. Blur-only values were not touched; the Gradient/Blur widget class stays (it is in use, only the label was renamed).

@@ -100,7 +100,6 @@ class MainActivity : Activity() {
     private var playbackOrder: List<Int> = emptyList()
     private var selectedAlbum: String? = null
     private var trackRowHook: (() -> Unit)? = null
-    private var animateAlbumOpen = false
     private val albumBackStack = ArrayList<String>()   // Hifi 2.37: albums opened from inside an album; Back returns to the previous one
     // A dismissed notification stays hidden until the user starts another track.
     private var notificationDismissed = false
@@ -134,7 +133,6 @@ class MainActivity : Activity() {
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     // Hifi 2.2: the dark greys follow the darkened accent of the cover (the old greys stay for covers without colour / no cover).
     private val hasAlbumTint get() = !classicUi && if (lightTheme) albumTint != AlbumAccent.DEFAULT_LIGHT_TINT else albumDark != AlbumAccent.DEFAULT_DARK
-    private val CARD get() = if (lightTheme) (if (hasAlbumTint) withAlpha(albumTint, 0xCC) else 0xCCFFFFFF.toInt()) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.BLACK, 0.35f), 0xCC) else 0xCC101010.toInt()
     private val ART get() = if (lightTheme) (if (hasAlbumTint) mixColors(albumTint, Color.BLACK, 0.06f) or 0xFF000000.toInt() else 0xFFE9E9E9.toInt()) else if (hasAlbumTint) mixColors(albumDark, Color.BLACK, 0.20f) or 0xFF000000.toInt() else 0xFF191919.toInt()
     private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0x1A000000) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292929.toInt()
     private val WHITE get() = if (lightTheme) Color.BLACK else playerInk
@@ -209,16 +207,12 @@ class MainActivity : Activity() {
     private var songSearchQuery = ""
     private lateinit var settingsPanel: LinearLayout
     private lateinit var queueRows: LinearLayout
-    private lateinit var navPlayer: FrameLayout
-    private lateinit var navLibrary: FrameLayout
-    private lateinit var navSongs: FrameLayout
     private lateinit var queueMiniArt: ImageView
     private lateinit var queueMiniTitle: TextView
     private lateinit var queueMiniArtist: TextView
     private lateinit var queueMiniProgress: ProgressBar
     private lateinit var queueMiniPlayView: ImageView
     private var currentPage = "player"
-    private lateinit var navFile: FrameLayout
     private lateinit var titleView: TextView
     private lateinit var artistView: TextView
     private lateinit var albumView: TextView
@@ -264,7 +258,6 @@ class MainActivity : Activity() {
     private var queueDialog: AlertDialog? = null     // Hifi 1.37: the queue is a floating window
     private var bottomInsetPx = 0   // Hifi 1.18: real navigation-bar height, kept for the docked mini player
     private lateinit var albumRows: LinearLayout
-    private lateinit var trackRows: LinearLayout
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val handler = Handler(Looper.getMainLooper())
     private var lastDepthVerdict = 0
@@ -419,22 +412,6 @@ class MainActivity : Activity() {
         // Classic theme: the page is transparent and the softened cover is drawn behind it (see DarkBackdropDrawable).
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.TRANSPARENT) }
         pageRoot = root
-        // The bottom bar has no background of its own: it shows the same surface as the page above it.
-        val nav = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(5), 0, dp(5))
-            setBackgroundColor(Color.TRANSPARENT)
-            clipChildren = false
-            clipToPadding = false
-        }
-        navPlayer = navButton("Player", "Player") { show("player") }
-        navLibrary = navButton("Albums", "Albums") { slideToPage("library") }
-        navSongs = navButton("Songs", "Songs") { show("songs") }
-        navFile = navButton("Setting", "Setting") { slideToPage("settings") }
-        // Three-tab navigation: removing Songs reduces page-switch rebuild work.
-        // Equal weights keep the existing icon size and center each remaining hit target.
-        // Hifi 1.4: no bottom bar. Pages are switched by swiping; the nav views stay created (unattached) so existing state code is untouched.
         val scroll = ScrollView(this).apply { clipToPadding = false; isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER }
         pageScroll = scroll
         // Hifi 1.9: remember where the Album list was, so Back from an opened album (or returning from Now Playing) lands there.
@@ -613,6 +590,29 @@ class MainActivity : Activity() {
         stage.requestApplyInsets()
         buildingUi = false
         show("player"); renderLibrary(); restoreNowPlayingMetadata(); updateHiResBadges()
+        warmUpArtwork()
+    }
+
+    /**
+     * Hifi 2.73 classic 91: warm-up at start. While the splash / Now Playing shows, the saved thumbnails of the first albums are read from disk into the
+     * memory cache (and the cover of the current track is decoded once), so the first switch to Albums does not have to read them while it fades in.
+     * Runs on the artwork threads, never on the UI thread; it only fills caches, nothing is drawn.
+     */
+    private fun warmUpArtwork() {
+        val list = tracks
+        if (list.isEmpty()) return
+        val firsts = list.distinctBy { it.folder }.take(16)
+        val current = list.getOrNull(currentIndex)
+        artworkExecutor.execute {
+            try {
+                for (t in firsts) {
+                    if (isFinishing) return@execute
+                    val key = "thumb:" + t.uri.toString()
+                    if (bitmapArtworkCache.get(key) == null) loadThumbFromDisk(t)?.let { bitmapArtworkCache.put(key, it) }
+                }
+                current?.let { decodePlayerArtwork(it) }
+            } catch (_: Throwable) { }
+        }
     }
 
 
@@ -1055,21 +1055,11 @@ class MainActivity : Activity() {
         return color
     }
 
-    private fun relativeLuminance(color: Int): Float {
-        fun channel(value: Int): Float {
-            val s = value / 255f
-            return if (s <= 0.03928f) s / 12.92f else Math.pow(((s + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
-        }
-        return 0.2126f * channel(Color.red(color)) + 0.7152f * channel(Color.green(color)) + 0.0722f * channel(Color.blue(color))
-    }
-
     /**
      * Same light/dark rule as the Android media notification (ContrastColorUtil.isColorLight):
      * the surface counts as light only when its luminance is above 0.5; then the ink is near-black,
      * otherwise white. Mid-tone covers therefore get white ink, like the notification.
      */
-    private fun inkFor(surface: Int): Int =
-        if (relativeLuminance(surface) > 0.5f) Color.BLACK else Color.WHITE
 
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
 
@@ -1128,14 +1118,6 @@ class MainActivity : Activity() {
             if (!view.isAttachedToWindow) continue
             blocks.forEach { it(view) }
         }
-        refreshNav()
-    }
-
-    private fun refreshNav() {
-        if (!::navPlayer.isInitialized || !::navLibrary.isInitialized || !::navFile.isInitialized) return
-        navState(navPlayer, currentPage == "player")
-        navState(navLibrary, currentPage == "library")
-        navState(navFile, currentPage == "settings" || currentPage == "audio" || currentPage == "file")
     }
 
     /** Status/navigation bars follow the page surface so no black strip is left at the bottom. */
@@ -1214,7 +1196,6 @@ class MainActivity : Activity() {
         if (::playView.isInitialized) syncPlaybackIcon()
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
         if (buildingUi) return
-        refreshNav()
         if (currentPage == "player") tabsPaletteDirty = true else retintPages()
     }
 
@@ -2105,12 +2086,10 @@ class MainActivity : Activity() {
             librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
             return
         }
-        val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         // Hifi 2.73 classic 81: the OLD 2-column grid of classic 29 again (square cover, centred "Artist - Album" label of two lines, no title block);
         // only the gap between the left and right album is wider (14dp margins + 6dp padding = 20dp, was 12dp), the page edges are unchanged, so the covers are a little smaller.
         // The 3 marks (Play album / Add album to queue) sit at the right end of the label; classic 83: no long press any more.
         val midMargin = dp(7)
-        val dotsW = dp(18)
         var gridRow: LinearLayout? = null
         albumDots.clear()
         albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
@@ -2205,72 +2184,6 @@ class MainActivity : Activity() {
 
     /** Hifi 2.34: the one name shown for an album everywhere in the Album tab: "Artist - Album" (just the album without an artist). */
     private fun albumLabel(artist: String, album: String) = if (artist.isBlank()) album else "$artist - $album"
-
-    /**
-     * Hifi 2.36: stacked covers for an artist with several albums. All covers have the same size (90% of the box, so
-     * the whole stack stays inside the same square a single album uses). The front cover sits at the bottom left and
-     * the others move up and to the right, closer together step by step, each a little darker. 2, 3 or 4 covers.
-     */
-    private inner class StackedCovers(context: android.content.Context, private val count: Int) : FrameLayout(context) {
-        private val covers = ArrayList<ImageView>()
-        private val offsets: FloatArray = when (count) {
-            2 -> floatArrayOf(0f, 0.10f)
-            3 -> floatArrayOf(0f, 0.06f, 0.10f)
-            else -> floatArrayOf(0f, 0.05f, 0.085f, 0.10f)
-        }
-        init {
-            // children are added from the back to the front, so the front cover is drawn last
-            for (level in count - 1 downTo 0) {
-                val view = ImageView(context).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = shape(ART, 0)
-                }
-                // Hifi 2.39: opacity instead of dim/lighten
-                view.alpha = 1f   // Hifi 2.73 classic 4: solid covers in both themes (the stepped opacity 100 / 80 / 60 / 40 of 2.47 is gone)
-                covers.add(0, view)
-                addView(view)
-            }
-        }
-        fun coverAt(level: Int): ImageView = covers[level.coerceIn(0, covers.size - 1)]
-        /**
-         * Hifi 2.39: each cover is drawn only where no cover in front of it sits, so its fading opacity shows just its
-         * visible rim (no see-through overlap of the stack).
-         */
-        override fun dispatchDraw(canvas: android.graphics.Canvas) {
-            val radius = 0f   // Hifi 2.73 classic 4: square covers, so the cut-out matches the front cover exactly
-            val now = drawingTime
-            for (level in covers.size - 1 downTo 0) {
-                val child = covers[level]
-                canvas.save()
-                if (level > 0) {
-                    val hole = android.graphics.Path()
-                    for (front in 0 until level) {
-                        val f = covers[front]
-                        hole.addRoundRect(f.left.toFloat(), f.top.toFloat(), f.right.toFloat(), f.bottom.toFloat(), radius, radius, android.graphics.Path.Direction.CW)
-                    }
-                    canvas.clipOutPath(hole)
-                }
-                drawChild(canvas, child, now)
-                canvas.restore()
-            }
-        }
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val w = MeasureSpec.getSize(widthMeasureSpec)
-            val side = MeasureSpec.makeMeasureSpec((w * 0.90f).toInt(), MeasureSpec.EXACTLY)
-            for (child in covers) child.measure(side, side)
-            setMeasuredDimension(w, w)
-        }
-        override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-            val w = r - l
-            val side = (w * 0.90f).toInt()
-            covers.forEachIndexed { level, child ->
-                val shift = (w * offsets[level]).toInt()
-                val left = shift
-                val top = w - side - shift
-                child.layout(left, top, left + side, top + side)
-            }
-        }
-    }
 
     /** Hifi 2.34: a regular-weight "Artist - Album" label, artist in solid ink and album in grey (or all solid). Follows the theme. */
     private fun albumLabelView(artist: String, album: String, size: Float, lines: Int, allSolid: Boolean) = text("", size, WHITE, false).apply {
@@ -2453,26 +2366,7 @@ class MainActivity : Activity() {
         albumPlayingMarks.add(AlbumRowMark(entry.index, row, numberView, titleView, bars))
     }
 
-    /** Large cover for the opened-album page: the saved grid cover shows at once, the sharper one replaces it when decoded. */
-    private fun loadBigArtworkInto(target: ImageView, track: Track) {
-        val key = "big:" + track.uri.toString()
-        target.setTag(key)
-        val cached = bitmapArtworkCache.get(key)
-        if (cached != null && !cached.isRecycled) {
-            target.setImageBitmap(cached)
-            return
-        }
-        bitmapArtworkCache.get("thumb:" + track.uri.toString())?.takeIf { !it.isRecycled }?.let { target.setImageBitmap(it) }
-        artworkExecutor.execute {
-            val bitmap = try { readArtworkBytes(track)?.let { decodeArtwork(it, 800, android.graphics.Bitmap.Config.RGB_565) } } catch (_: Throwable) { null }
-            if (bitmap != null) bitmapArtworkCache.put(key, bitmap)
-            handler.post {
-                if (isFinishing) return@post
-                if (bitmap != null) { if (target.getTag() == key) target.setImageBitmap(bitmap) }
-                else { target.setTag(null); loadArtworkInto(target, track) }
-            }
-        }
-    }
+
 
     /** The album pages live inside the page ScrollView; after opening another album it must start at the top. */
     /** Puts the Album list back where it was (after layout, so the saved offset is not clamped by the old content height). */
@@ -2499,11 +2393,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun rowButton(label: String, selected: Boolean, click: () -> Unit) = text(label, 13f, if (selected) accentColor else WHITE, selected).apply {
-        setPadding(dp(12), dp(11), dp(12), dp(11)); themed { background = shape(if (selected) LINE else Color.TRANSPARENT, 8) }
-        isClickable = true; isFocusable = true; setOnClickListener { click() }
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) }
-    }
+
 
 
 
@@ -2797,63 +2687,6 @@ class MainActivity : Activity() {
             queueMiniPlayView.contentDescription = if (playing) "Pause" else "Play"
             queueMiniPlayView.imageTintList = ColorStateList.valueOf(accentColor)
         }
-    }
-
-    /**
-     * Build 2.9: soft light behind a button instead of the circular ripple. A radial white gradient that is brightest in
-     * the centre and fades to fully transparent at the edge (so no ring or hard circle is ever visible). It fades in
-     * quickly on touch and fades out slowly on release.
-     */
-    private class GlowDrawable(private val extraPx: Float = 0f, private val light: Boolean = false) : android.graphics.drawable.Drawable() {
-        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        private var glow = 0f
-        private var baseAlpha = 255
-        private var animator: android.animation.ValueAnimator? = null
-
-        fun glowTo(target: Float, durationMs: Long) {
-            animator?.cancel()
-            val a = android.animation.ValueAnimator.ofFloat(glow, target)
-            a.duration = durationMs
-            a.interpolator = DecelerateInterpolator()
-            a.addUpdateListener { glow = it.animatedValue as Float; invalidateSelf() }
-            animator = a
-            a.start()
-        }
-
-        /** Build 2.12: on release the light first jumps to (at least) a clearly visible level, then fades out slowly, so even a quick tap shows it. */
-        fun fadeOut(durationMs: Long) {
-            if (glow < 0.85f) glow = 0.85f
-            glowTo(0f, durationMs)
-        }
-
-        /** Build 2.12: the light is as big as the button plus a little margin (extraPx), instead of fading out under the icon.
-         *  Build 2.15: glow radius cut to 50%; Build 2.16: raised to 75% (GLOW_SIZE_SCALE); shape, opacity and animation unchanged. */
-        private fun radius(b: android.graphics.Rect): Float =
-            ((minOf(b.width(), b.height()) / 2f + extraPx) * GLOW_SIZE_SCALE).coerceAtLeast(1f)
-
-        override fun onBoundsChange(bounds: android.graphics.Rect) {
-            paint.shader = android.graphics.RadialGradient(
-                bounds.exactCenterX(), bounds.exactCenterY(), radius(bounds),
-                // Build 2.14: peak opacity 30% (was 50%: 0x80); the other stops scaled by the same factor (0.6).
-                if (light) intArrayOf(0x4D000000, 0x3D000000, 0x1D000000, 0x00000000)
-                else intArrayOf(0x4DFFFFFF, 0x3DFFFFFF, 0x1DFFFFFF, 0x00FFFFFF),
-                floatArrayOf(0f, 0.55f, 0.82f, 1f),
-                android.graphics.Shader.TileMode.CLAMP
-            )
-        }
-
-        override fun draw(canvas: android.graphics.Canvas) {
-            if (glow <= 0.01f) return
-            val b = bounds
-            if (b.width() <= 0 || b.height() <= 0) return
-            paint.alpha = (glow * baseAlpha).toInt().coerceIn(0, 255)
-            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius(b), paint)
-        }
-
-        override fun setAlpha(alpha: Int) { baseAlpha = alpha.coerceIn(0, 255); invalidateSelf() }
-        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { paint.colorFilter = colorFilter; invalidateSelf() }
-        @Suppress("DEPRECATION")
-        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
     }
 
     /** Build 2.9: white icon button with a soft glow on touch and a tiny press (scale down, smooth return). */
@@ -3667,9 +3500,6 @@ class MainActivity : Activity() {
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
         songsPanel.visibility = if (which == "songs") View.VISIBLE else View.GONE
         settingsPanel.visibility = if (which == "settings" || which == "audio" || which == "file") View.VISIBLE else View.GONE
-        navState(navPlayer, which == "player")
-        navState(navLibrary, which == "library")
-        navState(navFile, which == "settings" || which == "audio" || which == "file")
         updateBottomFade()
     }
 
@@ -3683,42 +3513,8 @@ class MainActivity : Activity() {
         scrollFadeHost?.configureFade(currentPage == "library", hostH + dp(24), bottomInsetPx / 2)   // Hifi 1.81: fully gone at the middle of the navigation bar (1.80: at the bottom edge; 1.79: middle of the mini player card)
     }
 
-    private fun navButton(label: String, description: String, click: () -> Unit) = FrameLayout(this).apply {
-        contentDescription = description
-        // Preserve Build 78 equal-width hit targets and the centered selection pill;
-        // replace only the icon content with a centered text label.
-        clipChildren = false
-        clipToPadding = false
-        val tabLabel = text(label, 13f, MUTED, true).apply {
-            gravity = Gravity.CENTER
-            textAlignment = View.TEXT_ALIGNMENT_CENTER
-            maxLines = 1
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        addView(tabLabel, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
-        background = navBackground(false)
-        isClickable = true; isFocusable = true; setOnClickListener { click() }
-    }
-    private fun navBackground(selected: Boolean): RippleDrawable {
-        // Symmetric horizontal insets keep the selected rectangle centered inside
-        // each equal-width tab; icon sizing is independent from this background.
-        val pill = android.graphics.drawable.InsetDrawable(
-            shape(if (selected) selectedHighlight() else Color.TRANSPARENT, 10),
-            dp(16), dp(4), dp(16), dp(4)
-        )
-        return RippleDrawable(rippleTint(0x30), pill, null)
-    }
     private fun selectedHighlight(): Int = withAlpha(accentColor, 0x33)
 
-    private fun navState(view: FrameLayout, selected: Boolean) {
-        (view.getChildAt(0) as? TextView)?.setTextColor(if (selected) accentColor else MUTED)
-        view.background = navBackground(selected)
-    }
-    private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
-        gravity = Gravity.CENTER
-        circleRipple()
-        isClickable = true; isFocusable = true; setOnClickListener { click() }
-    }
     /** Hifi 2.73 classic 48: icon button using one of the user's own icons (add to queue "+", queue remove "x"). */
     private fun iconImageAction(icon: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(icon)
@@ -4041,7 +3837,6 @@ class MainActivity : Activity() {
 
     /** Build 2.4: clips a view (an album cover) to rounded corners, whatever its background is. */
     /** Hifi 2.68: covers are square in Classic only. */
-    private fun coverR(r: Int) = if (classicUi) 0 else r
     private fun View.roundCorners(radiusDp: Int) {
         clipToOutline = true
         outlineProvider = object : android.view.ViewOutlineProvider() {
@@ -4479,7 +4274,6 @@ class MainActivity : Activity() {
         private const val DOCK_GAP_DP = 14
         private const val DOCK_TOP_PAD_DP = 14
         private const val DARK_PROGRESS_TRACK = 0x2EFFFFFF   // Hifi 2.5: unplayed progress = white at 18% (only the progress bar; other surfaces unchanged)
-        private const val PROGRESS_TRACK_GREY = 0xB35E5E5E.toInt()
         /** Build 3.01: unplayed progress track for the Light theme only. */
         private const val LIGHT_PROGRESS_TRACK_GREY = 0x2E000000   // Hifi 2.6: mirror of the Dark track (white 18%): black 18%
         /** Hifi 1.43: progress track thickness (2dp before; 4dp = bolder). */
@@ -4494,11 +4288,8 @@ class MainActivity : Activity() {
         /** Build 2.13: padding around the previous/next icons inside their 52dp area -> icon 32dp (2.12 and 2.11: 0 -> 52dp). */
         private const val SIDE_ICON_PAD_DP = 10
         /** Build 2.12: how far the touch glow reaches beyond the button edge (the transport row has 6dp spare above and below). */
-        private const val GLOW_EXTRA_DP = 5
         /** Build 2.15: glow size factor (1.0 = size of 2.14). */
-        private const val GLOW_SIZE_SCALE = 0.75f
         /** Build 2.3: size of the cover on the opened-album page (share of the screen width). */
-        private const val ALBUM_DETAIL_ART_FRACTION = 0.66f
         private const val THUMB_PX = 512
         private const val PREWARM_ALBUMS = 48
         /** Classic theme page colour (the original black). */
