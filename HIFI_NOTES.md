@@ -971,3 +971,7 @@
 - The slide-down list is gone: tapping a cover opens the old album PAGE (classic 29 layout): big cover (window width, HI-RES badge), title, "N tracks", PLAY ALBUM / ADD TO QUEUE (transparent background), tracks. No "more albums", no header.
 - System Back returns to the grid at the old scroll. Play album returns to the grid once Now Playing is up.
 - Grid unchanged from 78 (3 dots beside the title, smaller covers).
+
+## Hifi 2.73 classic 80 (from classic 79)
+- Album grid: left gap = middle gap = right gap (28dp from cover to cover / screen edge).
+- The cover on the album page is exactly the size of a grid cover, centred (not full width).

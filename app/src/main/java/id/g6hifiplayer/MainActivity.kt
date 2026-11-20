@@ -2019,13 +2019,14 @@ class MainActivity : Activity() {
             val albumArtist = entries.groupingBy { it.value.artist }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
             val queueIndices = entries.map { it.index }
             val pageW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
+            val gridCover = (pageW - dp(25) * 2 - dp(22)) / 2 - dp(6)   // Hifi 2.73 classic 80: exactly the size of a cover in the Album grid
             val bigCover = ImageView(this).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
             }
             applyAlbumHiResBadge(bigCover, entries.map { it.value })
-            albumRows.addView(bigCover, LinearLayout.LayoutParams(pageW, pageW).apply { topMargin = dp(4) })
+            albumRows.addView(bigCover, LinearLayout.LayoutParams(gridCover, gridCover).apply { topMargin = dp(4); gravity = Gravity.CENTER_HORIZONTAL })
             entries.firstOrNull()?.value?.let { first ->
                 loadArtworkInto(bigCover, first)
                 val tag = bigCover.tag
@@ -2063,8 +2064,9 @@ class MainActivity : Activity() {
         val gridW = if (albumRows.width > 0) albumRows.width else resources.displayMetrics.widthPixels - dp(32)
         // Hifi 2.73 classic 52: the Album tab is a 2-column GRID again: cover (with a 3-dot button on its right) and the title / artist / track count below it.
         // The 3 dots open the old Play album / Add album to queue window; one tap on the cover area opens the track list under that grid row.
-        val colGap = dp(24)   // Hifi 2.73 classic 58: wider middle gap (was 10dp), outer edges unchanged, cover shrinks to make room
-        val outerGap = dp(26)   // Hifi 2.73 classic 78: extra space left and right of the whole grid (middle gap unchanged), so the covers are smaller and no longer touch the screen edges
+        val colGap = dp(22)   // Hifi 2.73 classic 80: left gap = middle gap = right gap (28dp seen from cover to cover / screen edge)
+        // (old: classic 58: wider middle gap (was 10dp), outer edges unchanged, cover shrinks to make room
+        val outerGap = dp(25)   // Hifi 2.73 classic 78/80: space left and right of the grid; with the cell's 3dp padding the three gaps look equal
         val cellW = (gridW - 2 * outerGap - colGap) / 2
         val dotsW = dp(18)
         val coverSide = cellW - dp(6)
