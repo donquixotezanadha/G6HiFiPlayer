@@ -966,3 +966,8 @@
 - Album list: a big square cover (window width, with HI-RES badge) at the top of the opened list.
 - The 3 marks moved from the top right of the cover to the right end of the title / artist block under the cover (still open Play album / Add album to queue). No long press.
 - 2-column covers smaller: extra 26dp space left and right of the grid, middle gap unchanged.
+
+## Hifi 2.73 classic 79 (from classic 78)
+- The slide-down list is gone: tapping a cover opens the old album PAGE (classic 29 layout): big cover (window width, HI-RES badge), title, "N tracks", PLAY ALBUM / ADD TO QUEUE (transparent background), tracks. No "more albums", no header.
+- System Back returns to the grid at the old scroll. Play album returns to the grid once Now Playing is up.
+- Grid unchanged from 78 (3 dots beside the title, smaller covers).
