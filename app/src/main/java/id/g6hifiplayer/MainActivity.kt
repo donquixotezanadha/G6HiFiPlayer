@@ -4088,12 +4088,10 @@ class MainActivity : Activity() {
         v.animate().cancel()
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
-        v.animate().alpha(0f).setDuration(60L).withEndAction {
-            if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
-            switch()
-            v.alpha = 0f
-            v.animate().alpha(1f).setDuration(140L).start()
-        }.start()
+        // Hifi 2.73 classic 99: no fade-out of the old view (it only left a lingering shadow before the new one): the new view is built at once, hidden, and fades in
+        v.alpha = 0f
+        switch()
+        v.animate().alpha(1f).setDuration(140L).start()
     }
 
     private fun goBackFromAlbum(animate: Boolean = true) {

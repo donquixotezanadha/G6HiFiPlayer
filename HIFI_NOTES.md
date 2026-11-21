@@ -1021,3 +1021,6 @@
 ## Hifi 2.73 classic 92 (from classic 91) - faster animations
 - Page change and grid <-> album page fade: out 100 -> 60 ms, in 160 -> 140 ms (total 260 -> 200 ms; the empty gap in the middle is much shorter). Cover of Now Playing follows.
 - Everything else a little shorter (about -15%): floating window 220 -> 180 ms; mini player down 110 -> 90, up 440 -> 380; press feedback 110 -> 90 and 280 -> 240; play/pause 520 -> 440 and rotate 420 -> 360 (delay 120 -> 100); Classic cover band 320 -> 280; splash 500 -> 440 and 640 -> 560.
+
+## Hifi 2.73 classic 99 (versionCode 286): from Classic 92, album tab swap without fade-out
+Only change vs 92: swapAlbumView (grid <-> album page) no longer fades the old view out for 60 ms; the new content is built at once (hidden) and fades in 140 ms. Everything else = Classic 92 (profile, warm-up, durations).
