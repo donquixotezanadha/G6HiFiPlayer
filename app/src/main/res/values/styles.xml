@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Hifi 2.73 classic 15: window backgrounds = flat neutral grey of the initial state (Dark 000000, Light FFFFFF) so the pre-draw flash is nearly invisible. -->
     <!-- Suppress Android's separate launch preview; MainActivity draws the single theme-aware splash. -->
     <style name="Theme.G6HiFiPlayer" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowDisablePreview">true</item>
@@ -12,7 +11,7 @@
 
     <style name="Theme.G6HiFiPlayer.Dark" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowDisablePreview">true</item>
-        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:windowBackground">#FF101014</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#7C4DFF</item>

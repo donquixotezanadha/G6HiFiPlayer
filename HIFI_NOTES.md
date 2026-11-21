@@ -1021,3 +1021,8 @@
 ## Hifi 2.73 classic 92 (from classic 91) - faster animations
 - Page change and grid <-> album page fade: out 100 -> 60 ms, in 160 -> 140 ms (total 260 -> 200 ms; the empty gap in the middle is much shorter). Cover of Now Playing follows.
 - Everything else a little shorter (about -15%): floating window 220 -> 180 ms; mini player down 110 -> 90, up 440 -> 380; press feedback 110 -> 90 and 280 -> 240; play/pause 520 -> 440 and rotate 420 -> 360 (delay 120 -> 100); Classic cover band 320 -> 280; splash 500 -> 440 and 640 -> 560.
+
+## Hifi 3.0 blur 1 (NEW Blur line: Classic 92 base + Blur look; Blur 2.84 is the look reference)
+- Plan (his decisions): everything functional / structural = Classic 92. Kept from Blur: logo + splash + launcher icon; roundness (player, floating windows, widgets, covers); Now Playing fully Blur (big fading blurred cover, progress thickness, colours, icons); accent colouring everywhere; Blur's own icons incl. play / plus; ROUND 3 dots. No "More albums". Auto scan as Classic 92.
+- Order: 1 identity -> 2 round + background -> 3 Now Playing -> 4 accent -> 5 icons + round dots.
+- Build 1 (this): new app id id.hifi.player.blur (installs next to Blur 2.84 and Classic), versionName "3.0 blur 1", versionCode 300. Blur launcher icon (ic_launcher_fg, ic_launcher_background), Blur splash (ic_splash_wave + the Blur splash code, without the HIFI word box of Classic), Blur launch-window background (styles.xml 101014), widget labels back to "Hifi Blur 4x1 / 4x2". Everything else is still Classic 92.

@@ -18,11 +18,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "id.hifi.player.classic"
+        applicationId = "id.hifi.player.blur"
         minSdk = 28
         targetSdk = 35
-        versionCode = 279
-        versionName = "2.73 classic 92"
+        versionCode = 300
+        versionName = "3.0 blur 1"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

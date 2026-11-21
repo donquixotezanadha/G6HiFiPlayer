@@ -531,7 +531,7 @@ class MainActivity : Activity() {
             }
             val splashLogoSide = (resources.displayMetrics.widthPixels * 1.12f).toInt()
             // Hifi 2.52: the splash is the new five-bar logo with "HIFI" under it (rounded letters, wide spacing), a single colour that follows the theme.
-            val splashInk = if (lightTheme) Color.BLACK else Color.WHITE
+            val splashInk = if (lightTheme) 0xFF111114.toInt() else Color.WHITE
             val logo = ImageView(this).apply {
                 setImageResource(R.drawable.ic_splash_wave)
                 scaleType = ImageView.ScaleType.FIT_CENTER
@@ -539,20 +539,7 @@ class MainActivity : Activity() {
                 setColorFilter(splashInk, android.graphics.PorterDuff.Mode.SRC_IN)   // Hifi 2.52: one colour = the theme ink (white in Dark, near-black in Light)
             }
             val logoGroup = FrameLayout(this)
-            val logoBox = FrameLayout(this)   // Hifi 2.73 classic 2: logo and word share one square box, so "HIFI" always sits under the logo
-            logoBox.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
-            logoGroup.addView(logoBox, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
-            // Hifi 2.73 classic 1: "HIFI" under the logo in the default system font (no longer baked into the picture with rounded letters).
-            val splashWord = TextView(this).apply {
-                text = "HIFI"
-                setTextColor(splashInk)
-                typeface = if (android.os.Build.VERSION.SDK_INT >= 28) android.graphics.Typeface.create(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL), 600, false) else android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)   // a little bolder than medium
-                setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, splashLogoSide * 0.058f)
-                letterSpacing = 0.4f
-                includeFontPadding = false
-                gravity = Gravity.CENTER
-            }
-            logoBox.addView(splashWord, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = (splashLogoSide * 0.652f).toInt() })
+            logoGroup.addView(logo, FrameLayout.LayoutParams(splashLogoSide, splashLogoSide, Gravity.CENTER))
             splashLogo = logoGroup
             splash.addView(logoGroup, FrameLayout.LayoutParams(-1, -1))
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
