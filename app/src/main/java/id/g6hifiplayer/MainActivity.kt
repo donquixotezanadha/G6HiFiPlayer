@@ -253,6 +253,7 @@ class MainActivity : Activity() {
     private var flySnap: ImageView? = null   // Hifi 2.73 classic 95: picture of the page that is left (it shrinks toward the cover place while it fades)
     private var flyIncoming: View? = null   // the page that comes in (it grows from the cover place while it fades in)
     private var flyGrow = false
+    private var flyShrink = true   // the left page shrinks toward the cover (going back) or only fades (opening)
     private var albumSwapToken = 0   // Hifi 2.73 classic 90: cancels an unfinished grid <-> album fade
     private var albumPageScrollY = 0   // Hifi 2.73 classic 82: where the opened album page was, so it stays there after Now Playing
     private var restoringScroll = false
@@ -2133,12 +2134,13 @@ class MainActivity : Activity() {
                     if (gc != null) {
                         // Hifi 2.73 classic 103: if the cover view has no picture yet (still loading), use the cached thumbnail so the flight never silently drops out
                         val d = gc.drawable ?: entries.firstOrNull()?.value?.let { bitmapArtworkCache.get("thumb:" + it.uri.toString()) }?.takeIf { !it.isRecycled }?.let { android.graphics.drawable.BitmapDrawable(resources, it) }
-                        flyBegin(d, viewRect(gc), badge = gc.foreground != null)
+                        flyBegin(d, viewRect(gc), pageScroll, gc, gc.foreground != null, shrink = false)
                     } else recordDiagnostic("FLY_SKIP open no_grid_cover")
                     swapAlbumView(true) {
                         selectedAlbum = album
                         albumPageScrollY = 0
                         renderLibrary()
+                        pageScroll?.scrollTo(0, 0)   // Hifi 2.73 classic 106: at once, so the album cover is measured at its real place (the posted reset came after the first measure and sent the flight off screen)
                         scrollLibraryToTop()
                         albumBigCover?.let { flyLand(it, albumRows, grow = true) }
                     }
@@ -4215,7 +4217,8 @@ class MainActivity : Activity() {
      * Hifi 2.73 classic 93: ONE cover moves between the pages (grid -> album page -> Now Playing and back): [flyBegin] puts a copy of the cover over the
      * source at once, the pages fade behind it, then [flyLand] moves it (position and size) to the cover of the next page, which stays hidden until it arrives.
      */
-    private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect, outgoing: View? = null, hide: View? = null, badge: Boolean = false) {
+    private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect, outgoing: View? = null, hide: View? = null, badge: Boolean = false, shrink: Boolean = true) {
+        flyShrink = shrink
         safeScrollAnim?.let { safeScrollAnim = null; it.cancel() }
         endFly()
         val decor = window.decorView as? ViewGroup ?: return
@@ -4293,8 +4296,11 @@ class MainActivity : Activity() {
                         it.rw = (from.width() * overlay.scaleX).toInt(); it.rh = (from.height() * overlay.scaleY).toInt()
                         it.invalidate()
                     }
-                    snap?.let { it.scaleX = 1f - 0.45f * t; it.scaleY = it.scaleX; it.alpha = (1f - t * 1.6f).coerceIn(0f, 1f) }
-                    inc?.let { if (flyGrow) { it.scaleX = 0.6f + 0.4f * t; it.scaleY = it.scaleX }; it.alpha = (t * 1.6f).coerceIn(0f, 1f) }
+                    // Hifi 2.73 classic 106: the pages cross-fade over most of the flight (smoothstep on the linear progress); the old fast-start curve emptied the left page in ~60 ms ("zap")
+                    val prog = (u.animatedValue as Float)
+                    fun ss(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3f - 2f * c) }
+                    snap?.let { if (flyShrink) { it.scaleX = 1f - 0.45f * t; it.scaleY = it.scaleX }; it.alpha = 1f - ss((prog - 0.1f) / 0.7f) }
+                    inc?.let { if (flyGrow) { it.scaleX = 0.6f + 0.4f * t; it.scaleY = it.scaleX }; it.alpha = ss(prog / 0.6f) }
                 }
                 a.addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
