@@ -1038,3 +1038,6 @@ BLUR NOTE for build 5: raise progress thickness (player + widgets) to the old Bl
 ## Hifi 2.73 classic 97 (versionCode 284): centred return + deceleration
 Cover flight: no bounce; quick start then a long smooth deceleration (PathInterpolator 0.05/0.7/0.1/1, 380 ms). Opening an album stores the grid scroll so that album sits in the MIDDLE of the screen; Back returns there (not hidden by the mini player, shorter flight), like Poweramp.
 SAFE BASES for Classic animation: Classic 90 (fade 100/160) or Classic 92 (shortened, preferred). 93-97 = cover-flight experiments.
+
+## Hifi 2.73 classic 98 (versionCode 285): cover flight only for the album tab
+Now Playing <-> album page transitions are back to Classic 92 (plain fades, no flying cover, no page grow/shrink). The flight stays only for grid <-> album page. The end of the flight hands over without a gap (real cover shown first, the copy leaves 48 ms later) to stop the occasional blink.

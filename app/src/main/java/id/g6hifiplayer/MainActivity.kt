@@ -4043,13 +4043,8 @@ class MainActivity : Activity() {
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
-        // Hifi 2.73 classic 93: the album's cover flies between the album page and Now Playing (the same cover, only its place and size change)
-        var flying = false
-        if (currentPage == "library" && target == "player" && selectedAlbum != null) {
-            albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it)); flying = flyOverlay != null }
-        } else if (currentPage == "player" && target == "library" && selectedAlbum != null) {
-            classicCoverBox?.takeIf { it.width > 0 && it.isShown && it.alpha > 0.5f }?.let { flyBegin(it.drawable, viewRect(it), v, it); flying = flyOverlay != null }
-        }
+        // Hifi 2.73 classic 98: Now Playing changes as in Classic 92 (plain fades); the cover flight is only for the album grid <-> album page
+        val flying = false
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
             mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L)
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
@@ -4238,7 +4233,17 @@ class MainActivity : Activity() {
                     inc?.let { if (flyGrow) { it.scaleX = 0.6f + 0.4f * t; it.scaleY = it.scaleX }; it.alpha = (t * 1.6f).coerceIn(0f, 1f) }
                 }
                 a.addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: android.animation.Animator) { if (flyOverlay === overlay) { flyAnim = null; endFly() } }
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        if (flyOverlay !== overlay) return
+                        flyAnim = null
+                        // hand-off without a gap: the real cover appears first, the copy leaves two frames later (both show the same picture, so nothing blinks)
+                        val d = flyDst
+                        if (d != null && d.width > 0) {
+                            d.alpha = 1f
+                            flyDst = null
+                            overlay.postDelayed({ if (flyOverlay === overlay) endFly() }, 48L)
+                        } else endFly()
+                    }
                 })
                 flyAnim = a
                 a.start()
