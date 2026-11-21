@@ -1027,3 +1027,6 @@ Only change vs 92: swapAlbumView (grid <-> album page) no longer fades the old v
 
 ## Hifi 2.73 classic 100 (versionCode 287): safe-zone return (from Classic 99)
 Back to the grid: the opened album returns to its ORIGINAL position; only if its cell would be under the floating mini player (safe bottom = top of the mini player - 12dp) the list scrolls up just enough, smoothly (320 ms decelerate), to bring it into the safe area. Base = Classic 99 (no fade-out of the old view).
+
+## Hifi 2.73 classic 101 (versionCode 288): album swap with a real motion
+From Classic 100 (safe-zone scroll approved). 99/100 had no visible motion between albums (instant). Now the new view rises 22dp into place while fading in, 260 ms decelerate; the old view still disappears at once (no shadow). NOTE: a leftover visual from the Now Playing -> album transition is still to be fixed later.

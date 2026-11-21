@@ -4088,13 +4088,14 @@ class MainActivity : Activity() {
      */
     private fun swapAlbumView(animate: Boolean, switch: () -> Unit) {
         val v = albumRows
-        v.animate().cancel()
+        v.animate().cancel(); v.translationY = 0f
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
         // Hifi 2.73 classic 99: no fade-out of the old view (it only left a lingering shadow before the new one): the new view is built at once, hidden, and fades in
         v.alpha = 0f
+        v.translationY = dp(22).toFloat()   // Hifi 2.73 classic 101: a real motion again: the new view rises 22dp into place while it fades in
         switch()
-        v.animate().alpha(1f).setDuration(140L).start()
+        v.animate().alpha(1f).translationY(0f).setDuration(260L).setInterpolator(android.view.animation.DecelerateInterpolator(1.8f)).withEndAction { v.translationY = 0f }.start()
     }
 
     /**
