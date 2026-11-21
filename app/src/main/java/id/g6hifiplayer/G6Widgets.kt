@@ -67,7 +67,7 @@ object G6Widgets {
     private const val THUMB_PX = 400
     private const val PLACEHOLDER_PX = 256
     /** Corner radius of the 4x1 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
-    private const val CORNER_FRACTION = 0f   // Hifi 2.67b: square cover (no rounded corners) on the 4x1
+    private const val CORNER_FRACTION = 0.12f   // Hifi 2.67b: square cover (no rounded corners) on the 4x1
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
     private const val LEGACY_ACCENT = 0xFF6662C6.toInt()   // Hifi 2.1: only the Light widgets keep the old purple
@@ -566,7 +566,7 @@ object G6Widgets {
     private fun RemoteViews.setBlurBackground(flat: Bitmap) {
         val w = flat.width; val h = flat.height
         val scale = flat.density / 1000f
-        val c = (14f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
+        val c = (20f * scale).toInt().coerceIn(4, minOf(w, h) / 2 - 1)
         fun crop(x: Int, y: Int, cw: Int, ch: Int) = Bitmap.createBitmap(flat, x, y, cw.coerceAtLeast(1), ch.coerceAtLeast(1))
         fun corner(x: Int, y: Int, rect: RectF): Bitmap {
             val src = crop(x, y, c, c)
@@ -751,7 +751,7 @@ object G6Widgets {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val radius = if (UiIcons.classic) 0f else height / 2f   // Hifi 2.72: flat square progress bar in Classic
+        val radius = height / 2f   // Hifi 2.72: flat square progress bar in Classic
         paint.color = if (light) 0x2E000000 else unplayedTrackColour()   // Hifi 2.4: unplayed part = colour of the selected track row in the app
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())

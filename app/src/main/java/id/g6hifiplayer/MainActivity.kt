@@ -1462,7 +1462,7 @@ class MainActivity : Activity() {
          songSearchInput = EditText(this).apply {
             hint = "Search songs, artists, albums"
             textSize = 14f
-            themed { setTextColor(WHITE); setHintTextColor(MUTED); background = shape(LINE, 9) }
+            themed { setTextColor(WHITE); setHintTextColor(MUTED); background = shape(LINE, 14) }
             setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             setText(songSearchQuery)
@@ -1495,7 +1495,8 @@ class MainActivity : Activity() {
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            themed { background = shape(ART, 0) }
+            themed { background = shape(ART, 8) }
+            roundCorners(8)
             contentDescription = "Currently playing artwork"
         }
         mini.addView(queueMiniArt, LinearLayout.LayoutParams(dp(52), dp(52)))
@@ -2034,7 +2035,8 @@ class MainActivity : Activity() {
             val bigCover = ImageView(this).apply {
                 clipToOutline = true; outlineProvider = android.view.ViewOutlineProvider.BOUNDS
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                background = shape(ART, 0)
+                background = shape(ART, 10)
+                roundCorners(10)
                 contentDescription = "Artwork $album"
             }
             applyAlbumHiResBadge(bigCover, entries.map { it.value })
@@ -2098,7 +2100,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(3), dp(4), dp(3), dp(7))
-                themed { background = RippleDrawable(rippleTint(0x25), shape(Color.TRANSPARENT, 8), null) }
+                themed { background = RippleDrawable(rippleTint(0x25), shape(Color.TRANSPARENT, 12), null) }
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
@@ -2117,7 +2119,8 @@ class MainActivity : Activity() {
             }.apply {
                 clipToOutline = true; outlineProvider = android.view.ViewOutlineProvider.BOUNDS   // Hifi 2.73 classic 90: a centre-cropped cover never draws outside its square, whatever the parents clip
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                background = shape(ART, 0)
+                background = shape(ART, 10)
+                roundCorners(10)
                 contentDescription = "Artwork $album"
             }
             applyAlbumHiResBadge(cover, entries.map { it.value })
@@ -2250,12 +2253,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(if (nested) 18 else 8), dp(8), dp(8), dp(8))
-            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 8) }
+            themed { background = shape(if (entry.index == currentIndex) selectedHighlight() else Color.TRANSPARENT, 12) }
             isClickable = true
             isFocusable = true
             rowRipple()
         }
-        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 0) } }
+        val cover = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; themed { background = shape(ART, 8) } }
         applyTrackHiResBadge(cover, t)
         row.addView(cover, LinearLayout.LayoutParams(dp(54), dp(54)))
         val details = LinearLayout(this).apply {
@@ -2307,7 +2310,7 @@ class MainActivity : Activity() {
             m.number.setTextColor(if (current) accentColor else MUTED)
             // Build 2.10: the queue's "x" is grey except on the selected track, where it keeps the accent.
             (m.action as? ImageView)?.setColorFilter(if (current) accentColor else ACTION_GREY)
-            m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 8)
+            m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 12)
         }
     }
 
@@ -3687,7 +3690,7 @@ class MainActivity : Activity() {
                 setPadding(dp(14), 0, dp(10), 0)
                 addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))   // Hifi 2.73 classic 52: his own icons
                 addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
-                background = RippleDrawable(rippleTint(0x30), shape(LINE, 9), null)   // 2.3: same colour as the unselected buttons in Setting
+                background = RippleDrawable(rippleTint(0x30), shape(LINE, 14), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
             }
@@ -3734,7 +3737,8 @@ class MainActivity : Activity() {
                         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
                     }.apply {
                         scaleType = ImageView.ScaleType.CENTER_CROP
-                        background = shape(ART, 0)
+                        background = shape(ART, 8)
+                        roundCorners(8)
                     }
                     cell.addView(mini, LinearLayout.LayoutParams(cellWidth, cellWidth))
                     cell.addView(text(name, 10f, MUTED, false).apply {
@@ -3785,7 +3789,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         themed {
             setTextColor(if (primary) BG else WHITE)
-            background = RippleDrawable(rippleTint(0x30), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 9), null)
+            background = RippleDrawable(rippleTint(0x30), shape(if (primary) withAlpha(accentColor, 0xCC) else LINE, 14), null)
         }
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
@@ -3797,7 +3801,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(dp(10), 0, dp(10), 0)
-            themed { background = RippleDrawable(rippleTint(0x30), shape(floatingColor(), 9), null) }   // Hifi 2.73 classic 86: solid floating-window colour, same 9dp corners as the 3-dot options
+            themed { background = RippleDrawable(rippleTint(0x30), shape(floatingColor(), 14), null) }   // Hifi 2.73 classic 86: solid floating-window colour, same 9dp corners as the 3-dot options
             addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
             addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
             isClickable = true; isFocusable = true
@@ -3856,7 +3860,7 @@ class MainActivity : Activity() {
      * mixed 12% toward the ink colour, solid, 24dp corners. It follows the theme because callers re-apply it through themed {}.
      */
     private fun floatingColor() = if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else BackdropBlur.windowDark()   // Hifi 2.73 classic 86: the solid colour of the floating windows / mini player
-    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else BackdropBlur.windowDark(), 10)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
+    private fun floatingBackground() = shape(if (lightTheme) mixColors(playerSurface, playerInk, 0.12f) else BackdropBlur.windowDark(), 16)   // Hifi 2.67b: Classic colours only; window corners stay 16dp
 
     /** Hifi 1.23: floating windows (Setting, long-press on an album) are as wide as the mini player card: screen minus 16dp on each side. */
     private fun floatingWindowWidth() = resources.displayMetrics.widthPixels - dp(32)

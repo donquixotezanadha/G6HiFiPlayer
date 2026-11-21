@@ -1026,3 +1026,6 @@
 - Plan (his decisions): everything functional / structural = Classic 92. Kept from Blur: logo + splash + launcher icon; roundness (player, floating windows, widgets, covers); Now Playing fully Blur (big fading blurred cover, progress thickness, colours, icons); accent colouring everywhere; Blur's own icons incl. play / plus; ROUND 3 dots. No "More albums". Auto scan as Classic 92.
 - Order: 1 identity -> 2 round + background -> 3 Now Playing -> 4 accent -> 5 icons + round dots.
 - Build 1 (this): new app id id.hifi.player.blur (installs next to Blur 2.84 and Classic), versionName "3.0 blur 1", versionCode 300. Blur launcher icon (ic_launcher_fg, ic_launcher_background), Blur splash (ic_splash_wave + the Blur splash code, without the HIFI word box of Classic), Blur launch-window background (styles.xml 101014), widget labels back to "Hifi Blur 4x1 / 4x2". Everything else is still Classic 92.
+
+## Hifi 3.0 blur 2 (versionCode 301)
+Blur silhouette (ic_stat_music / _wide), Blur roundness: covers 10 (mini/row 8), buttons/search 14, row highlights 12, floating windows 16, widget buttons 24/11, widget card 20, blur card corners 20, 4x1 cover corner 0.12, round 4x1 progress. Structure stays Classic 92. Background (blurred cover) moves to build 3 with Now Playing.
