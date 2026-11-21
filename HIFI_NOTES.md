@@ -1035,3 +1035,6 @@ classicUi=false (Blur paths): blurred cover backdrop + veil (BackdropBlur.kt = B
 
 ## Hifi 3.0 blur 4 (versionCode 303): accent colouring in the widgets
 App palette already came with build 3. Widgets now use the Blur look again: blurred cover background with veil, accent of the cover on controls / progress / play square, card colour from the cover (Light grey), Blur text colours (171720 / 484855 / A4A4B2), rounded covers on Simple 4x1 / Text 4x2 / Blur 4x2 (0.16), placeholder colours, play square radius 0.28. No gradient on the widget progress. Classic ripples and clips kept. Icons stay Classic until build 5.
+
+## Hifi 3.0 blur 5 (versionCode 304): Blur icons, round 3 dots, progress thickness
+UiIcons.classic = false: Blur's rounded icons for transport, play/pause (app, widgets, notification), gear/sun/moon/queue/album, 3-bar equalizer. "+" / "x" in the lists and the Play album / Add to queue buttons use Blur's text glyphs (+, x, play triangle, plus sign) instead of Classic's own icon images. 3 dots are round. Progress thickness back to the Blur values: mini player 3dp, widgets 4dp (player was 4dp since build 3). Animations stay as Classic 92 (no cover flight in Blur).

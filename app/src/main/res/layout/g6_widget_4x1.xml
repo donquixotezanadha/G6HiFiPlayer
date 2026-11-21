@@ -70,12 +70,12 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textSize="10sp"
-                android:textColor="#FFE0E0E0" />
+                android:textColor="#FFE0E0E6" />
 
             <ImageView
                 android:id="@+id/w_progress"
                 android:layout_width="match_parent"
-                android:layout_height="3dp"
+                android:layout_height="4dp"
                 android:layout_marginTop="7dp"
                 android:scaleType="fitXY"
                 android:contentDescription="Track progress" />

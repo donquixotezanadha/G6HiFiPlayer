@@ -809,7 +809,7 @@ class MainActivity : Activity() {
             setImageResource(UiIcons.pick(R.drawable.ic_row_album))
             imageTintList = ColorStateList.valueOf(ICON_SOFT)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            scaleY = 1f   // Hifi 2.70: Classic icon is already drawn the right way (no flip); Adaptive keeps the flip. Hifi 2.49: flipped top-bottom once, so the diagonal runs bottom-left to top-right like the stacked covers in the Album tab
+            scaleY = -1f   // Hifi 3.0 blur 5: the rounded Blur icon is flipped as before (Hifi 2.70: Classic icon is already drawn the right way (no flip); Adaptive keeps the flip. Hifi 2.49: flipped top-bottom once, so the diagonal runs bottom-left to top-right like the stacked covers in the Album tab
         }
         albumIconView = albumIcon
         val albumBtn = FrameLayout(this).apply {
@@ -1123,7 +1123,7 @@ class MainActivity : Activity() {
      * Hifi 2.1: switches the accent (progress, playing marks, ripples, play icon of the mini player) and the dark window colour to the ones of the
      * cover. Pages that are built are re-tinted at once (or when Now Playing is left). Light keeps the old purple and surfaces.
      */
-    private fun miniProgressDrawable() = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(2), progressEnd)
+    private fun miniProgressDrawable() = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(3), progressEnd)
 
     private fun applyAccent(result: AlbumAccent.Result) {
         if (BackdropBlur.setTintFromCoverDark(result.dark)) {   // Hifi 2.73 classic 14: backgrounds follow the cover tint
@@ -1516,7 +1516,7 @@ class MainActivity : Activity() {
         }
         miniInfo.addView(queueMiniTitle)
         miniInfo.addView(queueMiniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
-        miniInfo.addView(queueMiniProgress, LinearLayout.LayoutParams(-1, dp(2)).apply { topMargin = dp(7) })
+        miniInfo.addView(queueMiniProgress, LinearLayout.LayoutParams(-1, dp(3)).apply { topMargin = dp(7) })
         mini.addView(miniInfo, LinearLayout.LayoutParams(0, -2, 1f))
         queueMiniPlayView = ImageView(this).apply {
             setPadding(dp(8), dp(8), dp(8), dp(8))
@@ -2271,7 +2271,7 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-        val addQueue = iconImageAction(R.drawable.ic_plus) { addToQueue(entry.index) }.apply { contentDescription = "Add ${t.title} to queue" }
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(44)))
         row.setOnClickListener {
             val albumOrder = tracks.withIndex().filter { it.value.folder == t.folder }.map { it.index }
@@ -2282,7 +2282,7 @@ class MainActivity : Activity() {
         loadArtworkInto(cover, t)
     }
     /** Build 2.3/2.4: one song of the opened album: number, title, a grey line with file type + year (+ artist when it differs), playing bars on the right. */
-    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: View? = null, val occurrence: Int = -1)
+    private class AlbumRowMark(val index: Int, val row: View, val number: TextView, val title: TextView, val bars: EqualizerView, val action: TextView? = null, val occurrence: Int = -1)
     private val albumPlayingMarks = ArrayList<AlbumRowMark>()
     /** Build 2.5: the queue list uses the same row design as the album list, so it has its own playing marks. */
     private val queuePlayingMarks = ArrayList<AlbumRowMark>()
@@ -2306,7 +2306,7 @@ class MainActivity : Activity() {
             m.title.setTextColor(if (current) accentColor else WHITE)
             m.number.setTextColor(if (current) accentColor else MUTED)
             // Build 2.10: the queue's "x" is grey except on the selected track, where it keeps the accent.
-            (m.action as? ImageView)?.setColorFilter(if (current) accentColor else ACTION_GREY)
+            m.action?.setTextColor(if (current) accentColor else ACTION_GREY)
             m.row.background = shape(if (current) selectedHighlight() else Color.TRANSPARENT, 12)
         }
     }
@@ -2341,7 +2341,7 @@ class MainActivity : Activity() {
         row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
         val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
         row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
-        val addQueue = iconImageAction(R.drawable.ic_plus) { addToQueue(entry.index) }.apply { contentDescription = "Add ${t.title} to queue" }
+        val addQueue = iconAction("+") { addToQueue(entry.index) }.apply { textSize = 22f; setTextColor(ACTION_GREY); contentDescription = "Add ${t.title} to queue" }
         row.addView(addQueue, LinearLayout.LayoutParams(dp(40), dp(36)))
         val rowHook = trackRowHook
         row.setOnClickListener {
@@ -3500,13 +3500,10 @@ class MainActivity : Activity() {
 
     private fun selectedHighlight(): Int = withAlpha(accentColor, 0x33)
 
-    /** Hifi 2.73 classic 48: icon button using one of the user's own icons (add to queue "+", queue remove "x"). */
-    private fun iconImageAction(icon: Int, click: () -> Unit) = ImageView(this).apply {
-        setImageResource(icon)
-        scaleType = ImageView.ScaleType.FIT_CENTER
-        setPadding(dp(14), dp(10), dp(14), dp(10))
+    /** Hifi 3.0 blur 5: Blur's own text glyph buttons ("+" and "x") in the lists. */
+    private fun iconAction(label: String, click: () -> Unit) = text(label, 20f, WHITE, true).apply {
+        gravity = Gravity.CENTER
         circleRipple()
-        setColorFilter(ACTION_GREY)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
     }
     private fun addToQueue(index: Int) {
@@ -3575,10 +3572,10 @@ class MainActivity : Activity() {
             row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
             val bars = EqualizerView(this, accentColor).apply { visibility = View.INVISIBLE }
             row.addView(bars, LinearLayout.LayoutParams(dp(16), dp(14)).apply { rightMargin = dp(2) })
-            val remove = iconImageAction(R.drawable.ic_x) {
+            val remove = iconAction("×") {
                 if (trackIndex == currentIndex && queue.indexOf(currentIndex) == position) Toast.makeText(this, "The currently playing track cannot be removed from the active queue.", Toast.LENGTH_SHORT).show()
                 else { playbackQueue = queue.toMutableList().also { it.removeAt(position) }; playbackOrder = playbackQueue; persistQueueState(); renderQueueRows() }   // Hifi 2.73 classic 63: only this row
-            }.apply { setColorFilter(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
+            }.apply { textSize = 22f; setTextColor(if (trackIndex == currentIndex) accentColor else ACTION_GREY); contentDescription = "Remove ${track.title} from queue" }
             row.addView(remove, LinearLayout.LayoutParams(dp(40), dp(36)))
             queueRows.addView(row, LinearLayout.LayoutParams(-1, -2))
             queuePlayingMarks.add(AlbumRowMark(trackIndex, row, numberView, titleView, bars, remove, queue.subList(0, position).count { it == trackIndex }))
@@ -3683,8 +3680,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
-                addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))   // Hifi 2.73 classic 52: his own icons
-                addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
+                addView(text((if (icon == R.drawable.ic_play_outline) "▶  " else "＋  ") + label, 14f, WHITE, true))   // Hifi 3.0 blur 5: Blur's text glyphs instead of the icons
                 background = RippleDrawable(rippleTint(0x30), shape(LINE, 14), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
                 setOnClickListener { dialog.dismiss(); onClick() }
@@ -3791,14 +3787,12 @@ class MainActivity : Activity() {
     /** Build 2.2: album page buttons without a background box: larger text, accent colour for the main one. */
     /** Hifi 2.73 classic 85/86: the same icon (14dp), text (14sp bold, 12dp gap), height (50dp) and corners as the options in the 3-dot window; two equal halves, content centred, solid floating-window colour, ripple. */
     private fun flatAction(label: String, primary: Boolean, click: () -> Unit): View {
-        val icon = if (primary) R.drawable.ic_play_outline else R.drawable.ic_plus
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(dp(10), 0, dp(10), 0)
             themed { background = RippleDrawable(rippleTint(0x30), shape(floatingColor(), 14), null) }   // Hifi 2.73 classic 86: solid floating-window colour, same 9dp corners as the 3-dot options
-            addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
-            addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
+            addView(text((if (primary) "▶  " else "＋  ") + label, 14f, WHITE, true))   // Hifi 3.0 blur 5: Blur's text glyphs
             isClickable = true; isFocusable = true
             contentDescription = label
             setOnClickListener { click() }

@@ -7,14 +7,14 @@ import android.content.Context
  * The flag is read from the same preference the Classic mode is stored in; every entry point (activity, widgets, notification) refreshes it first.
  */
 internal object UiIcons {
-    @Volatile var classic: Boolean = true   // Hifi 2.73 classic: pure Classic, always on
+    @Volatile var classic: Boolean = false   // Hifi 3.0 blur 5: the Blur (rounded) icons
 
     fun refresh(context: Context) {
         for (name in arrayOf("id.g6hifiplayer.MainActivity", "MainActivity")) {
             val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-            if (p.contains("ui_classic")) { classic = true; return }
+            if (p.contains("ui_classic")) { classic = false; return }
         }
-        classic = true
+        classic = false
     }
 
     fun pick(id: Int): Int = if (!classic) id else when (id) {
