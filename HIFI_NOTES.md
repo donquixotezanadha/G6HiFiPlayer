@@ -1050,3 +1050,6 @@ He reported the flight is right but inconsistent (about 7-8 of 10 open/close cyc
 
 ## Hifi 2.73 classic 104 (versionCode 291): top safe zone + Hi-Res logo travels with the cover
 Flight is consistent now (103). 104: (1) safe zone also on top: an album tapped half-hidden at the top returns fully in view (sv top + 4dp), same smooth rise/drop as the bottom rule; (2) the Hi-Res logo is a separate view that moves with the flying cover (drawn at its bottom-right corner, bounds follow the cover size) instead of being drawn again when the flight ends. OPEN: "blink at the bottom of the mini player" - asked what he sees exactly.
+
+## Hifi 2.73 classic 105 (versionCode 292): flight events visible in the log window
+He found the flight vanishes after a safe-zone scroll (top/bottom edge) and the FLY_ lines were NOT in the log window (they only went to an internal list). 105 lists the last 8 FLY_ events (FLY_BEGIN, FLY_RUN, FLY_DONE, FLY_SAFE_SCROLL, FLY_SKIP, FLY_FADE, FLY_TIMEOUT) at the top of the window opened by long press on the Now Playing info lines; the safe-zone scroll animator is kept in a field and cancelled before the next flight starts (a still-running scroll could fight the next flight).

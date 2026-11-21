@@ -248,6 +248,7 @@ class MainActivity : Activity() {
     private var flyOverlay: ImageView? = null
     private var flyAnim: android.animation.ValueAnimator? = null
     private var flyDst: View? = null
+    private var safeScrollAnim: android.animation.ObjectAnimator? = null   // Hifi 2.73 classic 105: the smooth safe-zone scroll; stopped before the next flight starts
     private var flyBadge: FlyBadgeView? = null   // Hifi 2.73 classic 104: the Hi-Res logo travels with the flying cover (fixed size, at its bottom-right corner)
     private var flySnap: ImageView? = null   // Hifi 2.73 classic 95: picture of the page that is left (it shrinks toward the cover place while it fades)
     private var flyIncoming: View? = null   // the page that comes in (it grows from the cover place while it fades in)
@@ -4008,6 +4009,12 @@ class MainActivity : Activity() {
         }
         panel.addView(text("LOG AUDIO PATH", 12f, MUTED, true).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), 0, 0, 0) },
             LinearLayout.LayoutParams(-1, dp(38)))
+        // Hifi 2.73 classic 105: the last cover-flight events (FLY_...) are listed here so a missed animation can be read, not guessed
+        val flyLines = synchronized(diagnosticEvents) { diagnosticEvents.filter { it.contains("FLY_") }.takeLast(8) }.map { l ->
+            val ms = l.substringBefore(" ").toLongOrNull() ?: 0L
+            java.text.SimpleDateFormat("mm:ss.SSS", Locale.US).format(java.util.Date(ms)) + " " + l.substringAfter("] ")
+        }
+        if (flyLines.isNotEmpty()) panel.addView(text(flyLines.joinToString("\n"), 10f, MUTED, false).apply { setPadding(dp(4), 0, 0, dp(6)) }, LinearLayout.LayoutParams(-1, -2))
         panel.addView(audioPathLogView(), LinearLayout.LayoutParams(-1, 0, 1f))
         dialog.setView(panel)
         panel.visibility = View.INVISIBLE
@@ -4148,10 +4155,13 @@ class MainActivity : Activity() {
                 val delta = if (bottom > safeBottom) bottom - safeBottom else if (top < safeTop) top - safeTop else 0   // Hifi 2.73 classic 104: the top edge is safe too (a half-hidden album is brought fully into view)
                 val target = (sv.scrollY + delta).coerceIn(0, maxY)
                 if (delta != 0 && target != sv.scrollY) {
-                    android.animation.ObjectAnimator.ofInt(sv, "scrollY", sv.scrollY, target).apply {
+                    recordDiagnostic("FLY_SAFE_SCROLL from=${sv.scrollY} to=$target")
+                    safeScrollAnim?.cancel()
+                    safeScrollAnim = android.animation.ObjectAnimator.ofInt(sv, "scrollY", sv.scrollY, target).apply {
                         duration = 320L
                         interpolator = android.view.animation.DecelerateInterpolator(1.4f)
-                    }.start()
+                        start()
+                    }
                 }
                 return true
             }
@@ -4206,6 +4216,7 @@ class MainActivity : Activity() {
      * source at once, the pages fade behind it, then [flyLand] moves it (position and size) to the cover of the next page, which stays hidden until it arrives.
      */
     private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect, outgoing: View? = null, hide: View? = null, badge: Boolean = false) {
+        safeScrollAnim?.let { safeScrollAnim = null; it.cancel() }
         endFly()
         val decor = window.decorView as? ViewGroup ?: return
         if (drawable == null || from.width() <= 0 || from.height() <= 0) { recordDiagnostic("FLY_SKIP begin drawable=${drawable != null} size=${from.width()}x${from.height()}"); return }
@@ -4226,6 +4237,7 @@ class MainActivity : Activity() {
         decor.addView(overlay, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START))
         overlay.pivotX = 0f; overlay.pivotY = 0f; overlay.translationX = from.left.toFloat(); overlay.translationY = from.top.toFloat()   // Hifi 2.73 classic 96: moved with translation + scale (no layout pass per frame)
         flyOverlay = overlay
+        recordDiagnostic("FLY_BEGIN rect=${from.left},${from.top},${from.right},${from.bottom} badge=$badge snap=${flySnap != null}")
         if (badge) {
             val bv = FlyBadgeView(from.width(), from.height())
             decor.addView(bv, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START))
@@ -4288,6 +4300,7 @@ class MainActivity : Activity() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
                         if (flyOverlay !== overlay) return
                         flyAnim = null
+                        recordDiagnostic("FLY_DONE")
                         // hand-off without a gap: the real cover appears first, the copy leaves two frames later (both show the same picture, so nothing blinks)
                         val d = flyDst
                         if (d != null && d.width > 0) {
@@ -4298,6 +4311,7 @@ class MainActivity : Activity() {
                     }
                 })
                 flyAnim = a
+                recordDiagnostic("FLY_RUN to=${to.left},${to.top},${to.right},${to.bottom}")
                 a.start()
                 return true
             }
