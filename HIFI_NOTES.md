@@ -1044,3 +1044,6 @@ Now Playing <-> album page transitions are back to Classic 92 (plain fades, no f
 
 ## Hifi 2.73 classic 102 (versionCode 289): Classic 98 flight + Classic 100 safe zone
 Misunderstanding of 101 corrected: base = Classic 98 (cover flies between grid and album page, album page grows from / shrinks to the cover, Now Playing as Classic 92, no old-view fade-out when the cover flies, gap-free hand-off). The centring of 97 is removed: the grid returns to the ORIGINAL position; only when the album would sit under the floating mini player the list rises smoothly (320 ms, safe bottom = mini player top - 12dp) and the cover follows it (the flight tracks its target live). 101 (slide up) is dropped.
+
+## Hifi 2.73 classic 103 (versionCode 290): flight reliability + diagnostics
+He reported the flight is right but inconsistent (about 7-8 of 10 open/close cycles show it). 103: if the grid cover view has no picture yet, the cached thumbnail is used; every path where the flight is skipped or aborted writes a line to the log (FLY_SKIP begin / open / back / land, FLY_FADE target_not_on_screen, FLY_TIMEOUT), so the cause can be read from the log window after a missed animation.

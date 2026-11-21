@@ -2127,9 +2127,12 @@ class MainActivity : Activity() {
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
                     albumBackStack.clear()
-                    gridCoverViews[album]?.takeIf { it.width > 0 }?.let { c ->
-                        flyBegin(c.drawable, viewRect(c))
-                    }
+                    val gc = gridCoverViews[album]?.takeIf { it.width > 0 }
+                    if (gc != null) {
+                        // Hifi 2.73 classic 103: if the cover view has no picture yet (still loading), use the cached thumbnail so the flight never silently drops out
+                        val d = gc.drawable ?: entries.firstOrNull()?.value?.let { bitmapArtworkCache.get("thumb:" + it.uri.toString()) }?.takeIf { !it.isRecycled }?.let { android.graphics.drawable.BitmapDrawable(resources, it) }
+                        flyBegin(d, viewRect(gc))
+                    } else recordDiagnostic("FLY_SKIP open no_grid_cover")
                     swapAlbumView(true) {
                         selectedAlbum = album
                         albumPageScrollY = 0
@@ -4153,7 +4156,7 @@ class MainActivity : Activity() {
 
     private fun goBackFromAlbum(animate: Boolean = true) {
         val leaving = selectedAlbum
-        if (animate && albumBackStack.isEmpty() && currentPage == "library") albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it), pageScroll, it) }
+        if (animate && albumBackStack.isEmpty() && currentPage == "library") albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it), pageScroll, it) } ?: recordDiagnostic("FLY_SKIP back no_big_cover")
         swapAlbumView(animate) {
             if (albumBackStack.isNotEmpty()) {
                 selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
@@ -4193,7 +4196,7 @@ class MainActivity : Activity() {
     private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect, outgoing: View? = null, hide: View? = null) {
         endFly()
         val decor = window.decorView as? ViewGroup ?: return
-        if (drawable == null || from.width() <= 0 || from.height() <= 0) return
+        if (drawable == null || from.width() <= 0 || from.height() <= 0) { recordDiagnostic("FLY_SKIP begin drawable=${drawable != null} size=${from.width()}x${from.height()}"); return }
         if (outgoing != null && outgoing.width > 0 && outgoing.height > 0) {   // the page that is left: a picture of it, without its cover (the cover is the flying copy)
             try {
                 val prev = hide?.visibility
@@ -4215,7 +4218,7 @@ class MainActivity : Activity() {
     }
 
     private fun flyLand(dst: View, incoming: View? = null, grow: Boolean = false, duration: Long = 380L) {
-        val overlay = flyOverlay ?: return
+        val overlay = flyOverlay ?: run { recordDiagnostic("FLY_SKIP land no_overlay"); return }
         val from = overlay.tag as? android.graphics.Rect ?: run { endFly(); return }
         dst.animate().cancel(); dst.alpha = 0f; flyDst = dst
         flyIncoming = incoming; flyGrow = grow
@@ -4227,6 +4230,7 @@ class MainActivity : Activity() {
                 val to = viewRect(dst)
                 val screenH = resources.displayMetrics.heightPixels
                 if (!dst.isAttachedToWindow || to.width() <= 0 || to.bottom <= 0 || to.top >= screenH) {   // the target is not on screen: the copy just fades away
+                    recordDiagnostic("FLY_FADE target_not_on_screen attached=${dst.isAttachedToWindow} rect=${to.left},${to.top},${to.right},${to.bottom}")
                     overlay.animate().alpha(0f).setDuration(90L).withEndAction { if (flyOverlay === overlay) endFly() }.start()
                     return true
                 }
@@ -4273,7 +4277,7 @@ class MainActivity : Activity() {
                 return true
             }
         })
-        handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 700L)
+        handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) { recordDiagnostic("FLY_TIMEOUT land never started"); endFly() } }, 700L)
     }
 
     override fun onBackPressed() {
