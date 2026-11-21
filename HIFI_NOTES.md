@@ -1029,3 +1029,6 @@
 
 ## Hifi 3.0 blur 2 (versionCode 301)
 Blur silhouette (ic_stat_music / _wide), Blur roundness: covers 10 (mini/row 8), buttons/search 14, row highlights 12, floating windows 16, widget buttons 24/11, widget card 20, blur card corners 20, 4x1 cover corner 0.12, round 4x1 progress. Structure stays Classic 92. Background (blurred cover) moves to build 3 with Now Playing.
+
+## Hifi 3.0 blur 3 (versionCode 302): Blur Now Playing + backdrop + palette
+classicUi=false (Blur paths): blurred cover backdrop + veil (BackdropBlur.kt = Blur's file + the Classic members the widgets/windows still use), big fading cover on Now Playing (no extra cover box), title left with Hi-Res logo, progress 4dp round without gradient, META_RAISE 16, transport gaps 0.5, Blur palette (accent from cover, CARD/ART/LINE/WHITE/ICON_SOFT/MUTED, surfaces F8F8FC/000000, floating windows = Blur colour 16dp). Classic touch function kept (long press info lines -> MD5 log). Icons stay Classic until build 5. Widgets untouched (build 4).
