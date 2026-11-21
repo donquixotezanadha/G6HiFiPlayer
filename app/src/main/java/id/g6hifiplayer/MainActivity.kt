@@ -4101,6 +4101,11 @@ class MainActivity : Activity() {
      * Hifi 2.73 classic 100: coming back to the grid, the opened album stays where it was; only if it would sit in the unsafe zone (under the floating mini player)
      * the list rises just enough, smoothly, to bring it back into the safe area.
      */
+    private fun viewRect(v: View): android.graphics.Rect {
+        val l = IntArray(2); v.getLocationInWindow(l)
+        return android.graphics.Rect(l[0], l[1], l[0] + v.width, l[1] + v.height)
+    }
+
     private fun keepAlbumInSafeZone(album: String) {
         val sv = pageScroll ?: return
         val cover = gridCoverViews[album] ?: return
