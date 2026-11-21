@@ -1047,3 +1047,6 @@ Misunderstanding of 101 corrected: base = Classic 98 (cover flies between grid a
 
 ## Hifi 2.73 classic 103 (versionCode 290): flight reliability + diagnostics
 He reported the flight is right but inconsistent (about 7-8 of 10 open/close cycles show it). 103: if the grid cover view has no picture yet, the cached thumbnail is used; every path where the flight is skipped or aborted writes a line to the log (FLY_SKIP begin / open / back / land, FLY_FADE target_not_on_screen, FLY_TIMEOUT), so the cause can be read from the log window after a missed animation.
+
+## Hifi 2.73 classic 104 (versionCode 291): top safe zone + Hi-Res logo travels with the cover
+Flight is consistent now (103). 104: (1) safe zone also on top: an album tapped half-hidden at the top returns fully in view (sv top + 4dp), same smooth rise/drop as the bottom rule; (2) the Hi-Res logo is a separate view that moves with the flying cover (drawn at its bottom-right corner, bounds follow the cover size) instead of being drawn again when the flight ends. OPEN: "blink at the bottom of the mini player" - asked what he sees exactly.

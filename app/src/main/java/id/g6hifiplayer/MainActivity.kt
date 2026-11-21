@@ -248,6 +248,7 @@ class MainActivity : Activity() {
     private var flyOverlay: ImageView? = null
     private var flyAnim: android.animation.ValueAnimator? = null
     private var flyDst: View? = null
+    private var flyBadge: FlyBadgeView? = null   // Hifi 2.73 classic 104: the Hi-Res logo travels with the flying cover (fixed size, at its bottom-right corner)
     private var flySnap: ImageView? = null   // Hifi 2.73 classic 95: picture of the page that is left (it shrinks toward the cover place while it fades)
     private var flyIncoming: View? = null   // the page that comes in (it grows from the cover place while it fades in)
     private var flyGrow = false
@@ -2131,7 +2132,7 @@ class MainActivity : Activity() {
                     if (gc != null) {
                         // Hifi 2.73 classic 103: if the cover view has no picture yet (still loading), use the cached thumbnail so the flight never silently drops out
                         val d = gc.drawable ?: entries.firstOrNull()?.value?.let { bitmapArtworkCache.get("thumb:" + it.uri.toString()) }?.takeIf { !it.isRecycled }?.let { android.graphics.drawable.BitmapDrawable(resources, it) }
-                        flyBegin(d, viewRect(gc))
+                        flyBegin(d, viewRect(gc), badge = gc.foreground != null)
                     } else recordDiagnostic("FLY_SKIP open no_grid_cover")
                     swapAlbumView(true) {
                         selectedAlbum = album
@@ -4142,8 +4143,11 @@ class MainActivity : Activity() {
                 val mini = queueMiniHost
                 val safeBottom = if (mini != null && mini.isShown && mini.height > 0) viewRect(mini).top - dp(12) else viewRect(sv).bottom
                 val maxY = ((sv.getChildAt(0)?.height ?: 0) - sv.height).coerceAtLeast(0)
-                val target = (sv.scrollY + (bottom - safeBottom)).coerceIn(0, maxY)
-                if (bottom > safeBottom && target > sv.scrollY) {
+                val top = viewRect(cell).top
+                val safeTop = viewRect(sv).top + dp(4)
+                val delta = if (bottom > safeBottom) bottom - safeBottom else if (top < safeTop) top - safeTop else 0   // Hifi 2.73 classic 104: the top edge is safe too (a half-hidden album is brought fully into view)
+                val target = (sv.scrollY + delta).coerceIn(0, maxY)
+                if (delta != 0 && target != sv.scrollY) {
                     android.animation.ObjectAnimator.ofInt(sv, "scrollY", sv.scrollY, target).apply {
                         duration = 320L
                         interpolator = android.view.animation.DecelerateInterpolator(1.4f)
@@ -4156,7 +4160,7 @@ class MainActivity : Activity() {
 
     private fun goBackFromAlbum(animate: Boolean = true) {
         val leaving = selectedAlbum
-        if (animate && albumBackStack.isEmpty() && currentPage == "library") albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it), pageScroll, it) } ?: recordDiagnostic("FLY_SKIP back no_big_cover")
+        if (animate && albumBackStack.isEmpty() && currentPage == "library") albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it), pageScroll, it, it.foreground != null) } ?: recordDiagnostic("FLY_SKIP back no_big_cover")
         swapAlbumView(animate) {
             if (albumBackStack.isNotEmpty()) {
                 selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
@@ -4172,6 +4176,12 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Hifi 2.73 classic 104: draws only the Hi-Res logo, at a fixed size, in the bottom-right corner of the (scaling) cover rectangle rw x rh. */
+    private inner class FlyBadgeView(var rw: Int, var rh: Int) : View(this@MainActivity) {
+        private val d = HiResBadgeDrawable(this@MainActivity)
+        override fun onDraw(c: Canvas) { d.setBounds(0, 0, rw, rh); d.draw(c) }
+    }
+
     private fun viewRect(v: View): android.graphics.Rect {
         val l = IntArray(2); v.getLocationInWindow(l)
         return android.graphics.Rect(l[0], l[1], l[0] + v.width, l[1] + v.height)
@@ -4185,6 +4195,8 @@ class MainActivity : Activity() {
         flyDst = null
         flySnap?.let { (it.parent as? ViewGroup)?.removeView(it) }
         flySnap = null
+        flyBadge?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        flyBadge = null
         flyIncoming?.let { it.alpha = 1f; it.scaleX = 1f; it.scaleY = 1f }
         flyIncoming = null
     }
@@ -4193,7 +4205,7 @@ class MainActivity : Activity() {
      * Hifi 2.73 classic 93: ONE cover moves between the pages (grid -> album page -> Now Playing and back): [flyBegin] puts a copy of the cover over the
      * source at once, the pages fade behind it, then [flyLand] moves it (position and size) to the cover of the next page, which stays hidden until it arrives.
      */
-    private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect, outgoing: View? = null, hide: View? = null) {
+    private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect, outgoing: View? = null, hide: View? = null, badge: Boolean = false) {
         endFly()
         val decor = window.decorView as? ViewGroup ?: return
         if (drawable == null || from.width() <= 0 || from.height() <= 0) { recordDiagnostic("FLY_SKIP begin drawable=${drawable != null} size=${from.width()}x${from.height()}"); return }
@@ -4214,6 +4226,12 @@ class MainActivity : Activity() {
         decor.addView(overlay, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START))
         overlay.pivotX = 0f; overlay.pivotY = 0f; overlay.translationX = from.left.toFloat(); overlay.translationY = from.top.toFloat()   // Hifi 2.73 classic 96: moved with translation + scale (no layout pass per frame)
         flyOverlay = overlay
+        if (badge) {
+            val bv = FlyBadgeView(from.width(), from.height())
+            decor.addView(bv, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START))
+            bv.translationX = from.left.toFloat(); bv.translationY = from.top.toFloat()
+            flyBadge = bv
+        }
         handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 1000L)   // safety: never leave the copy on screen
     }
 
@@ -4243,6 +4261,8 @@ class MainActivity : Activity() {
                     inc.pivotX = (from.centerX() - ir.left).toFloat(); inc.pivotY = (from.centerY() - ir.top).toFloat()
                     inc.scaleX = 0.6f; inc.scaleY = 0.6f
                 }
+                val bv = flyBadge
+                if (bv != null) bv.layoutParams = FrameLayout.LayoutParams(maxOf(from.width(), to.width()) + dp(4), maxOf(from.height(), to.height()) + dp(4), Gravity.TOP or Gravity.START)
                 val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
                 a.duration = duration
                 a.interpolator = android.view.animation.LinearInterpolator()
@@ -4256,6 +4276,11 @@ class MainActivity : Activity() {
                     overlay.translationY = from.top + (live.top - from.top) * g
                     overlay.scaleX = 1f + (live.width().toFloat() / from.width() - 1f) * g
                     overlay.scaleY = 1f + (live.height().toFloat() / from.height() - 1f) * g
+                    bv?.let {
+                        it.translationX = overlay.translationX; it.translationY = overlay.translationY
+                        it.rw = (from.width() * overlay.scaleX).toInt(); it.rh = (from.height() * overlay.scaleY).toInt()
+                        it.invalidate()
+                    }
                     snap?.let { it.scaleX = 1f - 0.45f * t; it.scaleY = it.scaleX; it.alpha = (1f - t * 1.6f).coerceIn(0f, 1f) }
                     inc?.let { if (flyGrow) { it.scaleX = 0.6f + 0.4f * t; it.scaleY = it.scaleX }; it.alpha = (t * 1.6f).coerceIn(0f, 1f) }
                 }
