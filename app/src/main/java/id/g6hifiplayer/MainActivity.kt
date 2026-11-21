@@ -4182,12 +4182,13 @@ class MainActivity : Activity() {
             } catch (_: Throwable) { flySnap = null }
         }
         val overlay = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageDrawable(drawable); tag = from }
-        decor.addView(overlay, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START).apply { leftMargin = from.left; topMargin = from.top })
+        decor.addView(overlay, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START))
+        overlay.pivotX = 0f; overlay.pivotY = 0f; overlay.translationX = from.left.toFloat(); overlay.translationY = from.top.toFloat()   // Hifi 2.73 classic 96: moved with translation + scale (no layout pass per frame)
         flyOverlay = overlay
         handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 1000L)   // safety: never leave the copy on screen
     }
 
-    private fun flyLand(dst: View, incoming: View? = null, grow: Boolean = false, duration: Long = 320L) {
+    private fun flyLand(dst: View, incoming: View? = null, grow: Boolean = false, duration: Long = 360L) {
         val overlay = flyOverlay ?: return
         val from = overlay.tag as? android.graphics.Rect ?: run { endFly(); return }
         dst.animate().cancel(); dst.alpha = 0f; flyDst = dst
@@ -4203,7 +4204,6 @@ class MainActivity : Activity() {
                     overlay.animate().alpha(0f).setDuration(90L).withEndAction { if (flyOverlay === overlay) endFly() }.start()
                     return true
                 }
-                val lp = overlay.layoutParams as FrameLayout.LayoutParams
                 val snap = flySnap
                 val snapRect = snap?.tag as? android.graphics.Rect
                 snap?.let { it.pivotX = (to.centerX() - snapRect!!.left).toFloat(); it.pivotY = (to.centerY() - snapRect.top).toFloat() }
@@ -4215,14 +4215,17 @@ class MainActivity : Activity() {
                 }
                 val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
                 a.duration = duration
-                a.interpolator = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)   // fast start, long soft landing
+                a.interpolator = android.view.animation.LinearInterpolator()
+                val bounce = android.view.animation.OvershootInterpolator(1.1f)   // a soft bounce on arrival, like the mini player
+                val soft = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
                 a.addUpdateListener { u ->
-                    val t = u.animatedValue as Float
-                    lp.leftMargin = (from.left + (to.left - from.left) * t).toInt()
-                    lp.topMargin = (from.top + (to.top - from.top) * t).toInt()
-                    lp.width = (from.width() + (to.width() - from.width()) * t).toInt()
-                    lp.height = (from.height() + (to.height() - from.height()) * t).toInt()
-                    overlay.layoutParams = lp
+                    val g = bounce.getInterpolation(u.animatedValue as Float)       // movement: slight overshoot
+                    val t = soft.getInterpolation(u.animatedValue as Float)         // fades and page scales: no overshoot
+                    val live = if (dst.isAttachedToWindow && dst.width > 0) viewRect(dst) else to   // follow the target if the page is still settling (no jump at the end)
+                    overlay.translationX = from.left + (live.left - from.left) * g
+                    overlay.translationY = from.top + (live.top - from.top) * g
+                    overlay.scaleX = 1f + (live.width().toFloat() / from.width() - 1f) * g
+                    overlay.scaleY = 1f + (live.height().toFloat() / from.height() - 1f) * g
                     snap?.let { it.scaleX = 1f - 0.45f * t; it.scaleY = it.scaleX; it.alpha = (1f - t * 1.6f).coerceIn(0f, 1f) }
                     inc?.let { if (flyGrow) { it.scaleX = 0.6f + 0.4f * t; it.scaleY = it.scaleX }; it.alpha = (t * 1.6f).coerceIn(0f, 1f) }
                 }

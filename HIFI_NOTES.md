@@ -1030,3 +1030,7 @@ Flight 320 ms with a fast-start / soft-landing curve (was 250 ms decelerate); no
 
 ## Hifi 2.73 classic 95 (versionCode 282): the pages move with the cover
 Cover-area pages only (grid, album page, Now Playing; no floating window touched). Going deeper (grid -> album page, album page -> Now Playing) the new page grows from the cover's place (scale 0.6 -> 1 with fade-in, pivot on the cover). Going back (album page -> grid, Now Playing -> album page) a picture of the page that is left shrinks toward the cover's destination (scale 1 -> 0.55) while it fades out and the new page fades in. Same 320 ms curve as the cover.
+
+## Hifi 2.73 classic 96 (versionCode 283): cover flight without jumps
+Cover copy moves with translation + scale (no layout pass per frame, so no stutter); it follows the live position of its target every frame (no jump if the page is still settling); soft overshoot bounce on arrival (like the mini player, OvershootInterpolator 1.1); 360 ms. Fades/page scales keep the no-overshoot curve.
+BLUR NOTE for build 5: raise progress thickness (player + widgets) to the old Blur values now that the bar is round.
