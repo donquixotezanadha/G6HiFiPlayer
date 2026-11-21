@@ -1027,3 +1027,6 @@ Baseline profile (baseline-prof.txt + profileinstaller) removed (no visible effe
 
 ## Hifi 2.73 classic 94 (versionCode 281): smoother cover flight
 Flight 320 ms with a fast-start / soft-landing curve (was 250 ms decelerate); no 60 ms stand-still before it: the page switches at once when the cover flies and fades in beside it.
+
+## Hifi 2.73 classic 95 (versionCode 282): the pages move with the cover
+Cover-area pages only (grid, album page, Now Playing; no floating window touched). Going deeper (grid -> album page, album page -> Now Playing) the new page grows from the cover's place (scale 0.6 -> 1 with fade-in, pivot on the cover). Going back (album page -> grid, Now Playing -> album page) a picture of the page that is left shrinks toward the cover's destination (scale 1 -> 0.55) while it fades out and the new page fades in. Same 320 ms curve as the cover.
