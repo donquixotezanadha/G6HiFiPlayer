@@ -1034,3 +1034,7 @@ Cover-area pages only (grid, album page, Now Playing; no floating window touched
 ## Hifi 2.73 classic 96 (versionCode 283): cover flight without jumps
 Cover copy moves with translation + scale (no layout pass per frame, so no stutter); it follows the live position of its target every frame (no jump if the page is still settling); soft overshoot bounce on arrival (like the mini player, OvershootInterpolator 1.1); 360 ms. Fades/page scales keep the no-overshoot curve.
 BLUR NOTE for build 5: raise progress thickness (player + widgets) to the old Blur values now that the bar is round.
+
+## Hifi 2.73 classic 97 (versionCode 284): centred return + deceleration
+Cover flight: no bounce; quick start then a long smooth deceleration (PathInterpolator 0.05/0.7/0.1/1, 380 ms). Opening an album stores the grid scroll so that album sits in the MIDDLE of the screen; Back returns there (not hidden by the mini player, shorter flight), like Poweramp.
+SAFE BASES for Classic animation: Classic 90 (fade 100/160) or Classic 92 (shortened, preferred). 93-97 = cover-flight experiments.

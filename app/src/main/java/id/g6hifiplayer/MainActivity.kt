@@ -2127,7 +2127,15 @@ class MainActivity : Activity() {
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
                     albumBackStack.clear()
-                    gridCoverViews[album]?.takeIf { it.width > 0 }?.let { flyBegin(it.drawable, viewRect(it)) }
+                    gridCoverViews[album]?.takeIf { it.width > 0 }?.let { c ->
+                        flyBegin(c.drawable, viewRect(c))
+                        // Hifi 2.73 classic 97: whatever album is opened, the grid returns with that album in the MIDDLE of the screen (never behind the mini player, shorter way back)
+                        pageScroll?.let { sv ->
+                            val r = viewRect(c); val sr = viewRect(sv)
+                            val maxY = ((sv.getChildAt(0)?.height ?: 0) - sv.height).coerceAtLeast(0)
+                            listScrollY = (sv.scrollY + (r.centerY() - sr.centerY())).coerceIn(0, maxY)
+                        }
+                    }
                     swapAlbumView(true) {
                         selectedAlbum = album
                         albumPageScrollY = 0
@@ -4188,7 +4196,7 @@ class MainActivity : Activity() {
         handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 1000L)   // safety: never leave the copy on screen
     }
 
-    private fun flyLand(dst: View, incoming: View? = null, grow: Boolean = false, duration: Long = 360L) {
+    private fun flyLand(dst: View, incoming: View? = null, grow: Boolean = false, duration: Long = 380L) {
         val overlay = flyOverlay ?: return
         val from = overlay.tag as? android.graphics.Rect ?: run { endFly(); return }
         dst.animate().cancel(); dst.alpha = 0f; flyDst = dst
@@ -4216,7 +4224,7 @@ class MainActivity : Activity() {
                 val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
                 a.duration = duration
                 a.interpolator = android.view.animation.LinearInterpolator()
-                val bounce = android.view.animation.OvershootInterpolator(1.1f)   // a soft bounce on arrival, like the mini player
+                val bounce = android.view.animation.PathInterpolator(0.05f, 0.7f, 0.1f, 1f)   // Hifi 2.73 classic 97: quick start, then it slows down smoothly into its place (like the old slide-down list), no overshoot
                 val soft = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
                 a.addUpdateListener { u ->
                     val g = bounce.getInterpolation(u.animatedValue as Float)       // movement: slight overshoot
