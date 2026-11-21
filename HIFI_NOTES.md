@@ -1017,3 +1017,7 @@
 - Baseline profile (app/src/main/baseline-prof.txt + androidx.profileinstaller): the app's classes/methods are compiled ahead of time by Android (API 28+, takes effect after the system's background optimisation), for a faster first start and first page switch.
 - warmUpArtwork(): at start the saved thumbnails of the first 16 albums are read into the memory cache and the current cover is decoded once, on the artwork threads.
 - Dead code removed (nothing drawn changes): the unattached bottom-bar leftovers (nav buttons, navState, navBackground, refreshNav, iconAction, rowButton), GlowDrawable (old glow, replaced by ripples), StackedCovers, loadBigArtworkInto, relativeLuminance, inkFor, CARD, coverR and some unused constants/variables. Blur-only values were not touched; the Gradient/Blur widget class stays (it is in use, only the label was renamed).
+
+## Hifi 2.73 classic 92 (from classic 91) - faster animations
+- Page change and grid <-> album page fade: out 100 -> 60 ms, in 160 -> 140 ms (total 260 -> 200 ms; the empty gap in the middle is much shorter). Cover of Now Playing follows.
+- Everything else a little shorter (about -15%): floating window 220 -> 180 ms; mini player down 110 -> 90, up 440 -> 380; press feedback 110 -> 90 and 280 -> 240; play/pause 520 -> 440 and rotate 420 -> 360 (delay 120 -> 100); Classic cover band 320 -> 280; splash 500 -> 440 and 640 -> 560.

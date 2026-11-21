@@ -571,13 +571,13 @@ class MainActivity : Activity() {
                             val ease = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
                             splashLogo?.animate()
                                 ?.alpha(0f)
-                                ?.setDuration(500L)
+                                ?.setDuration(440L)
                                 ?.setInterpolator(ease)
                                 ?.start()
                             splash.animate()
                                 .alpha(0f)
                                 .setStartDelay(120L)
-                                .setDuration(640L)
+                                .setDuration(560L)
                                 .setInterpolator(ease)
                                 .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
                                 .start()
@@ -1260,11 +1260,11 @@ class MainActivity : Activity() {
         setLightTheme(enabled)
         themeIconView?.let { icon ->
             icon.rotation = -200f; icon.scaleX = 0.3f; icon.scaleY = 0.3f
-            icon.animate().rotation(0f).scaleX(1f).scaleY(1f).setStartDelay(120).setDuration(420)
+            icon.animate().rotation(0f).scaleX(1f).scaleY(1f).setStartDelay(100).setDuration(360)
                 .setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
         }
         val anim = android.animation.ValueAnimator.ofFloat(0f, maxR)
-        anim.duration = 520
+        anim.duration = 440
         anim.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
         anim.addUpdateListener { overlay.radius = it.animatedValue as Float; overlay.invalidate() }
         anim.addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -1288,7 +1288,7 @@ class MainActivity : Activity() {
         if (!classicUi || playerCoverBitmap == null || classicSide <= 0 || box.visibility == View.VISIBLE && box.alpha >= 1f) return
         box.animate().cancel()
         if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = dp(28).toFloat(); box.visibility = View.VISIBLE }
-        box.animate().alpha(1f).translationY(0f).setDuration(320L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+        box.animate().alpha(1f).translationY(0f).setDuration(280L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
     }
 
     private fun updateClassicCover() {
@@ -2703,11 +2703,11 @@ class MainActivity : Activity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.animate().cancel()
-                    v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(110).start()
+                    v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(90).start()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.animate().cancel()
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(280)
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(240)
                         .setInterpolator(DecelerateInterpolator(1.4f)).start()
                 }
             }
@@ -3625,7 +3625,7 @@ class MainActivity : Activity() {
                 }
                 panel.pivotX = px; panel.pivotY = py
                 panel.scaleX = 0.88f; panel.scaleY = 0.88f
-                panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220L)
+                panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180L)
                     .setInterpolator(DecelerateInterpolator(1.6f)).start()
             } catch (_: Throwable) {
                 panel.alpha = 1f; panel.scaleX = 1f; panel.scaleY = 1f; panel.visibility = View.VISIBLE
@@ -4023,19 +4023,19 @@ class MainActivity : Activity() {
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
-            mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(110L)
+            mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L)
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
         }
-        playerCoverView?.animate()?.alpha(0f)?.setDuration(100L)?.start()
-        v.animate().alpha(0f).setDuration(100L).withEndAction {
+        playerCoverView?.animate()?.alpha(0f)?.setDuration(60L)?.start()
+        v.animate().alpha(0f).setDuration(60L).withEndAction {
             if (token != pageAnimToken) return@withEndAction
             show(target)
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
-            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(160L).start() }
+            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(140L).start() }
             if (toLibrary) riseMini(token)
-            v.animate().alpha(1f).setDuration(160L).start()
+            v.animate().alpha(1f).setDuration(140L).start()
         }.start()
     }
 
@@ -4046,7 +4046,7 @@ class MainActivity : Activity() {
         val bounce = android.view.animation.OvershootInterpolator(1.15f)
         m.translationY = from; m.alpha = 0f
         android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 440L
+            duration = 380L
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { a ->
                 if (token != pageAnimToken) { cancel(); return@addUpdateListener }
@@ -4088,11 +4088,11 @@ class MainActivity : Activity() {
         v.animate().cancel()
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
-        v.animate().alpha(0f).setDuration(100L).withEndAction {
+        v.animate().alpha(0f).setDuration(60L).withEndAction {
             if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
             switch()
             v.alpha = 0f
-            v.animate().alpha(1f).setDuration(160L).start()
+            v.animate().alpha(1f).setDuration(140L).start()
         }.start()
     }
 
