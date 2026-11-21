@@ -1024,3 +1024,6 @@
 
 ## Hifi 2.73 classic 107 (versionCode 294): back to Classic 92, simple UAPP-style fades
 The cover flight (93-106) is dropped. Base = Classic 92 with the baseline profile (baseline-prof.txt + profileinstaller) removed. Only the transitions the cover passes change, both directions: grid <-> album page (swapAlbumView) and album page <-> Now Playing, mini player -> Now Playing (slideToPage): out 40 ms (was 60), in 150 ms with a decelerate curve (was 140 linear), page + cover backdrop + mini player on the same clock, all as one hardware layer (withLayer) so nothing half-faded lingers; the mini player just fades (50 ms) instead of a 90 ms slide. Floating windows, the mini player's riseMini and the scroll behaviour are untouched. Parked until this is right: fade+swipe up/left/right directions.
+
+## Hifi 2.73 classic 108 (versionCode 295)
+107 was too fast (felt like a splash). Same fixes (one layer, same clock, decelerate in) but durations back to the 92 scale: out 60 ms, in 140 ms, mini player fade 90 ms.
