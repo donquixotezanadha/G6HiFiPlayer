@@ -1024,3 +1024,6 @@
 
 ## Hifi 2.73 classic 99 (versionCode 286): from Classic 92, album tab swap without fade-out
 Only change vs 92: swapAlbumView (grid <-> album page) no longer fades the old view out for 60 ms; the new content is built at once (hidden) and fades in 140 ms. Everything else = Classic 92 (profile, warm-up, durations).
+
+## Hifi 2.73 classic 100 (versionCode 287): safe-zone return (from Classic 99)
+Back to the grid: the opened album returns to its ORIGINAL position; only if its cell would be under the floating mini player (safe bottom = top of the mini player - 12dp) the list scrolls up just enough, smoothly (320 ms decelerate), to bring it into the safe area. Base = Classic 99 (no fade-out of the old view).

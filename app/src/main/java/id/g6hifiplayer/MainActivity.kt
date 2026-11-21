@@ -243,6 +243,7 @@ class MainActivity : Activity() {
     private var queueRowsSig = Int.MIN_VALUE
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
+    private val gridCoverViews = HashMap<String, ImageView>()   // Hifi 2.73 classic 100: grid cover by album (to keep the opened album out of the mini player's zone)
     private var albumSwapToken = 0   // Hifi 2.73 classic 90: cancels an unfinished grid <-> album fade
     private var albumPageScrollY = 0   // Hifi 2.73 classic 82: where the opened album page was, so it stays there after Now Playing
     private var restoringScroll = false
@@ -2092,6 +2093,7 @@ class MainActivity : Activity() {
         val midMargin = dp(7)
         var gridRow: LinearLayout? = null
         albumDots.clear()
+        gridCoverViews.clear()
         albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
@@ -2133,6 +2135,7 @@ class MainActivity : Activity() {
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
             }
+            gridCoverViews[album] = cover
             applyAlbumHiResBadge(cover, entries.map { it.value })
             cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             val dots = ImageView(this).apply {
@@ -4094,7 +4097,36 @@ class MainActivity : Activity() {
         v.animate().alpha(1f).setDuration(140L).start()
     }
 
+    /**
+     * Hifi 2.73 classic 100: coming back to the grid, the opened album stays where it was; only if it would sit in the unsafe zone (under the floating mini player)
+     * the list rises just enough, smoothly, to bring it back into the safe area.
+     */
+    private fun keepAlbumInSafeZone(album: String) {
+        val sv = pageScroll ?: return
+        val cover = gridCoverViews[album] ?: return
+        sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (sv.viewTreeObserver.isAlive) sv.viewTreeObserver.removeOnPreDrawListener(this)
+                if (!cover.isAttachedToWindow || cover.height <= 0) return true
+                val cell = (cover.parent as? View) ?: cover
+                val bottom = viewRect(cell).bottom
+                val mini = queueMiniHost
+                val safeBottom = if (mini != null && mini.isShown && mini.height > 0) viewRect(mini).top - dp(12) else viewRect(sv).bottom
+                val maxY = ((sv.getChildAt(0)?.height ?: 0) - sv.height).coerceAtLeast(0)
+                val target = (sv.scrollY + (bottom - safeBottom)).coerceIn(0, maxY)
+                if (bottom > safeBottom && target > sv.scrollY) {
+                    android.animation.ObjectAnimator.ofInt(sv, "scrollY", sv.scrollY, target).apply {
+                        duration = 320L
+                        interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+                    }.start()
+                }
+                return true
+            }
+        })
+    }
+
     private fun goBackFromAlbum(animate: Boolean = true) {
+        val leaving = selectedAlbum
         swapAlbumView(animate) {
             if (albumBackStack.isNotEmpty()) {
                 selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
@@ -4104,6 +4136,7 @@ class MainActivity : Activity() {
                 selectedAlbum = null
                 renderLibrary()
                 restoreListScroll()
+                leaving?.let { keepAlbumInSafeZone(it) }
             }
         }
     }
