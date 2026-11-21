@@ -1024,3 +1024,6 @@
 
 ## Hifi 2.73 classic 93 (versionCode 280): shared-cover animation, baseline profile removed
 Baseline profile (baseline-prof.txt + profileinstaller) removed (no visible effect). One cover flies between the pages like Poweramp: grid -> album page, album page -> grid (back, to its own grid place, fades away if off screen), album page <-> Now Playing. A copy of the cover is put over the source at once (flyBegin), the pages fade behind it, then it moves in position and size (250 ms) to the next page's cover (flyLand), which stays hidden until it arrives. Warm-up kept.
+
+## Hifi 2.73 classic 94 (versionCode 281): smoother cover flight
+Flight 320 ms with a fast-start / soft-landing curve (was 250 ms decelerate); no 60 ms stand-still before it: the page switches at once when the cover flies and fades in beside it.

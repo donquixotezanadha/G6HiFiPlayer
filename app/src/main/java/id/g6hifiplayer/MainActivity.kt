@@ -4044,8 +4044,8 @@ class MainActivity : Activity() {
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
         }
         playerCoverView?.animate()?.alpha(0f)?.setDuration(60L)?.start()
-        v.animate().alpha(0f).setDuration(60L).withEndAction {
-            if (token != pageAnimToken) return@withEndAction
+        val finish = fun() {
+            if (token != pageAnimToken) return
             show(target)
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
@@ -4057,7 +4057,8 @@ class MainActivity : Activity() {
                 val dst: View? = if (toLibrary) albumBigCover else classicCoverBox
                 if (dst != null) { dst.animate().cancel(); flyLand(dst) } else endFly()
             }
-        }.start()
+        }
+        if (flying) finish() else v.animate().alpha(0f).setDuration(60L).withEndAction { finish() }.start()   // Hifi 2.73 classic 94: with a flying cover the page changes at once
     }
 
     /** The Album mini player comes up from the bottom edge with a soft overshoot (as in 1.17). */
@@ -4109,6 +4110,12 @@ class MainActivity : Activity() {
         v.animate().cancel()
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
+        if (flyOverlay != null) {   // Hifi 2.73 classic 94: the cover is already moving, so the page changes at once (no 60 ms stand-still) and fades in beside it
+            switch()
+            v.alpha = 0f
+            v.animate().alpha(1f).setStartDelay(40L).setDuration(220L).start()
+            return
+        }
         v.animate().alpha(0f).setDuration(60L).withEndAction {
             if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
             switch()
@@ -4161,7 +4168,7 @@ class MainActivity : Activity() {
         handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 1000L)   // safety: never leave the copy on screen
     }
 
-    private fun flyLand(dst: View, duration: Long = 250L) {
+    private fun flyLand(dst: View, duration: Long = 320L) {
         val overlay = flyOverlay ?: return
         val from = overlay.tag as? android.graphics.Rect ?: run { endFly(); return }
         dst.animate().cancel(); dst.alpha = 0f; flyDst = dst
@@ -4178,7 +4185,7 @@ class MainActivity : Activity() {
                 val lp = overlay.layoutParams as FrameLayout.LayoutParams
                 val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
                 a.duration = duration
-                a.interpolator = android.view.animation.DecelerateInterpolator(1.5f)
+                a.interpolator = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)   // fast start, long soft landing
                 a.addUpdateListener { u ->
                     val t = u.animatedValue as Float
                     lp.leftMargin = (from.left + (to.left - from.left) * t).toInt()
