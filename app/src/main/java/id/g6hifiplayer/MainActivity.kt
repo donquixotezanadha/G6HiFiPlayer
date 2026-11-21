@@ -2129,12 +2129,6 @@ class MainActivity : Activity() {
                     albumBackStack.clear()
                     gridCoverViews[album]?.takeIf { it.width > 0 }?.let { c ->
                         flyBegin(c.drawable, viewRect(c))
-                        // Hifi 2.73 classic 97: whatever album is opened, the grid returns with that album in the MIDDLE of the screen (never behind the mini player, shorter way back)
-                        pageScroll?.let { sv ->
-                            val r = viewRect(c); val sr = viewRect(sv)
-                            val maxY = ((sv.getChildAt(0)?.height ?: 0) - sv.height).coerceAtLeast(0)
-                            listScrollY = (sv.scrollY + (r.centerY() - sr.centerY())).coerceIn(0, maxY)
-                        }
                     }
                     swapAlbumView(true) {
                         selectedAlbum = album
@@ -4129,6 +4123,34 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    /**
+     * Hifi 2.73 classic 100: coming back to the grid, the opened album stays where it was; only if it would sit in the unsafe zone (under the floating mini player)
+     * the list rises just enough, smoothly, to bring it back into the safe area.
+     */
+    private fun keepAlbumInSafeZone(album: String) {
+        val sv = pageScroll ?: return
+        val cover = gridCoverViews[album] ?: return
+        sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (sv.viewTreeObserver.isAlive) sv.viewTreeObserver.removeOnPreDrawListener(this)
+                if (!cover.isAttachedToWindow || cover.height <= 0) return true
+                val cell = (cover.parent as? View) ?: cover
+                val bottom = viewRect(cell).bottom
+                val mini = queueMiniHost
+                val safeBottom = if (mini != null && mini.isShown && mini.height > 0) viewRect(mini).top - dp(12) else viewRect(sv).bottom
+                val maxY = ((sv.getChildAt(0)?.height ?: 0) - sv.height).coerceAtLeast(0)
+                val target = (sv.scrollY + (bottom - safeBottom)).coerceIn(0, maxY)
+                if (bottom > safeBottom && target > sv.scrollY) {
+                    android.animation.ObjectAnimator.ofInt(sv, "scrollY", sv.scrollY, target).apply {
+                        duration = 320L
+                        interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+                    }.start()
+                }
+                return true
+            }
+        })
+    }
+
     private fun goBackFromAlbum(animate: Boolean = true) {
         val leaving = selectedAlbum
         if (animate && albumBackStack.isEmpty() && currentPage == "library") albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it), pageScroll, it) }
@@ -4142,6 +4164,7 @@ class MainActivity : Activity() {
                 renderLibrary()
                 restoreListScroll()
                 leaving?.let { gridCoverViews[it] }?.let { flyLand(it, albumRows) } ?: endFly()
+                leaving?.let { keepAlbumInSafeZone(it) }   // Hifi 2.73 classic 102: back in place; only out of the mini player zone does the list rise smoothly
             }
         }
     }

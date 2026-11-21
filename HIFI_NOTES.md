@@ -1041,3 +1041,6 @@ SAFE BASES for Classic animation: Classic 90 (fade 100/160) or Classic 92 (short
 
 ## Hifi 2.73 classic 98 (versionCode 285): cover flight only for the album tab
 Now Playing <-> album page transitions are back to Classic 92 (plain fades, no flying cover, no page grow/shrink). The flight stays only for grid <-> album page. The end of the flight hands over without a gap (real cover shown first, the copy leaves 48 ms later) to stop the occasional blink.
+
+## Hifi 2.73 classic 102 (versionCode 289): Classic 98 flight + Classic 100 safe zone
+Misunderstanding of 101 corrected: base = Classic 98 (cover flies between grid and album page, album page grows from / shrinks to the cover, Now Playing as Classic 92, no old-view fade-out when the cover flies, gap-free hand-off). The centring of 97 is removed: the grid returns to the ORIGINAL position; only when the album would sit under the floating mini player the list rises smoothly (320 ms, safe bottom = mini player top - 12dp) and the cover follows it (the flight tracks its target live). 101 (slide up) is dropped.
