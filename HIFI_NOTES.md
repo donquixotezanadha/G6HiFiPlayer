@@ -1021,3 +1021,6 @@
 ## Hifi 2.73 classic 92 (from classic 91) - faster animations
 - Page change and grid <-> album page fade: out 100 -> 60 ms, in 160 -> 140 ms (total 260 -> 200 ms; the empty gap in the middle is much shorter). Cover of Now Playing follows.
 - Everything else a little shorter (about -15%): floating window 220 -> 180 ms; mini player down 110 -> 90, up 440 -> 380; press feedback 110 -> 90 and 280 -> 240; play/pause 520 -> 440 and rotate 420 -> 360 (delay 120 -> 100); Classic cover band 320 -> 280; splash 500 -> 440 and 640 -> 560.
+
+## Hifi 2.73 classic 107 (versionCode 294): back to Classic 92, simple UAPP-style fades
+The cover flight (93-106) is dropped. Base = Classic 92 with the baseline profile (baseline-prof.txt + profileinstaller) removed. Only the transitions the cover passes change, both directions: grid <-> album page (swapAlbumView) and album page <-> Now Playing, mini player -> Now Playing (slideToPage): out 40 ms (was 60), in 150 ms with a decelerate curve (was 140 linear), page + cover backdrop + mini player on the same clock, all as one hardware layer (withLayer) so nothing half-faded lingers; the mini player just fades (50 ms) instead of a 90 ms slide. Floating windows, the mini player's riseMini and the scroll behaviour are untouched. Parked until this is right: fade+swipe up/left/right directions.

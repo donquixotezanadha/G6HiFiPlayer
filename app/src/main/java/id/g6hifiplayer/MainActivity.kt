@@ -4023,19 +4023,20 @@ class MainActivity : Activity() {
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
-            mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L)
-                .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
+            mini.animate().alpha(0f).setDuration(50L).start()   // Hifi 2.73 classic 107: the mini player just fades with the page (no slide that lingers)
         }
-        playerCoverView?.animate()?.alpha(0f)?.setDuration(60L)?.start()
-        v.animate().alpha(0f).setDuration(60L).withEndAction {
+        // Hifi 2.73 classic 107 (UAPP style): a short simple fade out and a soft fade in, everything the cover touches (page, cover backdrop, mini player) on the same clock and as one layer
+        playerCoverView?.animate()?.alpha(0f)?.setDuration(40L)?.withLayer()?.start()
+        v.animate().alpha(0f).setDuration(40L).withLayer().withEndAction {
             if (token != pageAnimToken) return@withEndAction
             show(target)
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
-            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(140L).start() }
+            val easeIn = android.view.animation.DecelerateInterpolator(1.6f)
+            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(150L).setInterpolator(easeIn).withLayer().start() }
             if (toLibrary) riseMini(token)
-            v.animate().alpha(1f).setDuration(140L).start()
+            v.animate().alpha(1f).setDuration(150L).setInterpolator(easeIn).withLayer().start()
         }.start()
     }
 
@@ -4088,11 +4089,11 @@ class MainActivity : Activity() {
         v.animate().cancel()
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
-        v.animate().alpha(0f).setDuration(60L).withEndAction {
+        v.animate().alpha(0f).setDuration(40L).withLayer().withEndAction {   // Hifi 2.73 classic 107: short out, soft in, as one layer
             if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
             switch()
             v.alpha = 0f
-            v.animate().alpha(1f).setDuration(140L).start()
+            v.animate().alpha(1f).setDuration(150L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).withLayer().start()
         }.start()
     }
 
