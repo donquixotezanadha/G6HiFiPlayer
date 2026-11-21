@@ -243,6 +243,11 @@ class MainActivity : Activity() {
     private var queueRowsSig = Int.MIN_VALUE
     private var pageScroll: ScrollView? = null
     private var listScrollY = 0
+    private var albumBigCover: ImageView? = null   // Hifi 2.73 classic 93: the big cover of the open album page (shared-cover flight)
+    private val gridCoverViews = HashMap<String, ImageView>()   // Hifi 2.73 classic 93: grid covers by album (the cover flies back to its place)
+    private var flyOverlay: ImageView? = null
+    private var flyAnim: android.animation.ValueAnimator? = null
+    private var flyDst: View? = null
     private var albumSwapToken = 0   // Hifi 2.73 classic 90: cancels an unfinished grid <-> album fade
     private var albumPageScrollY = 0   // Hifi 2.73 classic 82: where the opened album page was, so it stays there after Now Playing
     private var restoringScroll = false
@@ -2050,6 +2055,7 @@ class MainActivity : Activity() {
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
             }
+            albumBigCover = bigCover
             applyAlbumHiResBadge(bigCover, entries.map { it.value })
             albumRows.addView(bigCover, LinearLayout.LayoutParams(gridCover, gridCover).apply { topMargin = dp(4); gravity = Gravity.CENTER_HORIZONTAL })
             entries.firstOrNull()?.value?.let { first ->
@@ -2092,6 +2098,7 @@ class MainActivity : Activity() {
         val midMargin = dp(7)
         var gridRow: LinearLayout? = null
         albumDots.clear()
+        gridCoverViews.clear(); albumBigCover = null
         albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
@@ -2117,11 +2124,13 @@ class MainActivity : Activity() {
                 contentDescription = "Open songs in album " + albumLabel(namedArtist, namedAlbum)
                 setOnClickListener {
                     albumBackStack.clear()
+                    gridCoverViews[album]?.takeIf { it.width > 0 }?.let { flyBegin(it.drawable, viewRect(it)) }
                     swapAlbumView(true) {
                         selectedAlbum = album
                         albumPageScrollY = 0
                         renderLibrary()
                         scrollLibraryToTop()
+                        albumBigCover?.let { flyLand(it) }
                     }
                 }
             }
@@ -2133,6 +2142,7 @@ class MainActivity : Activity() {
                 background = shape(ART, 0)
                 contentDescription = "Artwork $album"
             }
+            gridCoverViews[album] = cover
             applyAlbumHiResBadge(cover, entries.map { it.value })
             cell.addView(cover, LinearLayout.LayoutParams(-1, -2))
             val dots = ImageView(this).apply {
@@ -4022,6 +4032,13 @@ class MainActivity : Activity() {
         queueMiniHost?.let { it.translationY = 0f; it.alpha = 1f }
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
+        // Hifi 2.73 classic 93: the album's cover flies between the album page and Now Playing (the same cover, only its place and size change)
+        var flying = false
+        if (currentPage == "library" && target == "player" && selectedAlbum != null) {
+            albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it)); flying = flyOverlay != null }
+        } else if (currentPage == "player" && target == "library" && selectedAlbum != null) {
+            classicCoverBox?.takeIf { it.width > 0 && it.isShown && it.alpha > 0.5f }?.let { flyBegin(it.drawable, viewRect(it)); flying = flyOverlay != null }
+        }
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
             mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L)
                 .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
@@ -4036,6 +4053,10 @@ class MainActivity : Activity() {
             playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(140L).start() }
             if (toLibrary) riseMini(token)
             v.animate().alpha(1f).setDuration(140L).start()
+            if (flying) {
+                val dst: View? = if (toLibrary) albumBigCover else classicCoverBox
+                if (dst != null) { dst.animate().cancel(); flyLand(dst) } else endFly()
+            }
         }.start()
     }
 
@@ -4097,6 +4118,8 @@ class MainActivity : Activity() {
     }
 
     private fun goBackFromAlbum(animate: Boolean = true) {
+        val leaving = selectedAlbum
+        if (animate && albumBackStack.isEmpty() && currentPage == "library") albumBigCover?.takeIf { it.width > 0 && it.isShown }?.let { flyBegin(it.drawable, viewRect(it)) }
         swapAlbumView(animate) {
             if (albumBackStack.isNotEmpty()) {
                 selectedAlbum = albumBackStack.removeAt(albumBackStack.size - 1)
@@ -4106,8 +4129,73 @@ class MainActivity : Activity() {
                 selectedAlbum = null
                 renderLibrary()
                 restoreListScroll()
+                leaving?.let { gridCoverViews[it] }?.let { flyLand(it) } ?: endFly()
             }
         }
+    }
+
+    private fun viewRect(v: View): android.graphics.Rect {
+        val l = IntArray(2); v.getLocationInWindow(l)
+        return android.graphics.Rect(l[0], l[1], l[0] + v.width, l[1] + v.height)
+    }
+
+    private fun endFly() {
+        flyAnim?.let { flyAnim = null; it.removeAllListeners(); it.cancel() }
+        flyOverlay?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        flyOverlay = null
+        flyDst?.let { it.alpha = 1f; it.translationY = 0f }
+        flyDst = null
+    }
+
+    /**
+     * Hifi 2.73 classic 93: ONE cover moves between the pages (grid -> album page -> Now Playing and back): [flyBegin] puts a copy of the cover over the
+     * source at once, the pages fade behind it, then [flyLand] moves it (position and size) to the cover of the next page, which stays hidden until it arrives.
+     */
+    private fun flyBegin(drawable: android.graphics.drawable.Drawable?, from: android.graphics.Rect) {
+        endFly()
+        val decor = window.decorView as? ViewGroup ?: return
+        if (drawable == null || from.width() <= 0 || from.height() <= 0) return
+        val overlay = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageDrawable(drawable); tag = from }
+        decor.addView(overlay, FrameLayout.LayoutParams(from.width(), from.height(), Gravity.TOP or Gravity.START).apply { leftMargin = from.left; topMargin = from.top })
+        flyOverlay = overlay
+        handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 1000L)   // safety: never leave the copy on screen
+    }
+
+    private fun flyLand(dst: View, duration: Long = 250L) {
+        val overlay = flyOverlay ?: return
+        val from = overlay.tag as? android.graphics.Rect ?: run { endFly(); return }
+        dst.animate().cancel(); dst.alpha = 0f; flyDst = dst
+        dst.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (dst.viewTreeObserver.isAlive) dst.viewTreeObserver.removeOnPreDrawListener(this)
+                if (flyOverlay !== overlay || flyAnim != null) return true
+                val to = viewRect(dst)
+                val screenH = resources.displayMetrics.heightPixels
+                if (!dst.isAttachedToWindow || to.width() <= 0 || to.bottom <= 0 || to.top >= screenH) {   // the target is not on screen: the copy just fades away
+                    overlay.animate().alpha(0f).setDuration(90L).withEndAction { if (flyOverlay === overlay) endFly() }.start()
+                    return true
+                }
+                val lp = overlay.layoutParams as FrameLayout.LayoutParams
+                val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
+                a.duration = duration
+                a.interpolator = android.view.animation.DecelerateInterpolator(1.5f)
+                a.addUpdateListener { u ->
+                    val t = u.animatedValue as Float
+                    lp.leftMargin = (from.left + (to.left - from.left) * t).toInt()
+                    lp.topMargin = (from.top + (to.top - from.top) * t).toInt()
+                    lp.width = (from.width() + (to.width() - from.width()) * t).toInt()
+                    lp.height = (from.height() + (to.height() - from.height()) * t).toInt()
+                    overlay.layoutParams = lp
+                }
+                a.addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) { if (flyOverlay === overlay) { flyAnim = null; endFly() } }
+                })
+                flyAnim = a
+                a.start()
+                return true
+            }
+        })
+        handler.postDelayed({ if (flyOverlay === overlay && flyAnim == null) endFly() }, 700L)
     }
 
     override fun onBackPressed() {

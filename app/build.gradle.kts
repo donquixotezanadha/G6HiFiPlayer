@@ -21,8 +21,8 @@ android {
         applicationId = "id.hifi.player.classic"
         minSdk = 28
         targetSdk = 35
-        versionCode = 279
-        versionName = "2.73 classic 92"
+        versionCode = 280
+        versionName = "2.73 classic 93"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -51,5 +51,4 @@ dependencies {
     implementation("androidx.media3:media3-common:1.10.1")
     implementation("androidx.media3:media3-datasource:1.10.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
-    implementation("androidx.profileinstaller:profileinstaller:1.4.1")   // Hifi 2.73 classic 92: installs the baseline profile (faster first start)
 }
