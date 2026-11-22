@@ -1069,3 +1069,9 @@ Opening an album page is now a soft plain fade (180 ms, decelerate 1.6) instead 
 
 ## Hifi 2.73 classic 122 (versionCode 309), from 121
 Plus and x icons 1 dp smaller everywhere in the app: track-row "+" (album page and the other list), queue "x" (both via iconImageAction: icon width 12 -> 11 dp), the "Add to queue" row in the 3-dot window (14 -> 13 dp) and the plus of the album page "Add to queue" button (13 -> 12 dp). Done with half-dp padding on both sides, so touch areas, text positions and the play icons are unchanged. The notification "Close player" action icon (system-drawn) was not touched.
+
+## Hifi 2.73 classic 123 (versionCode 310), from 122
+- Safe-zone scroll NOT needed any more (user: it existed only because of the cover flight; the grid returns to its place as is).
+- Mini player sinks again when it leaves the album page (translationY down + fade, 90 ms accelerate, as in 92); its rise with the small bounce is unchanged. It was removed in 107 only to rule it out as a source of leftover images (not because of the slide-left album); not confirmed as a cause.
+- Startup remnant of the Now Playing cover: the cover (classicCoverBox) was revealed with fade + 28 dp slide-up (280 ms) while the splash was dissolving, so the user saw it move under the dissolving splash. Now the first cover of a start is placed at once while the splash is on screen (startupSplashView), or a plain 200 ms fade if the splash is gone; later covers keep the old reveal.
+- The notification "Close player" icon stays as is (user).

@@ -130,6 +130,8 @@ class MainActivity : Activity() {
     private var lightTheme = false
     // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
     private var startupSplashShown = false
+    private var startupSplashView: FrameLayout? = null   // Hifi 2.73 classic 123: while the splash is on screen the Now Playing cover is placed at once (no fade / slide-up under the dissolving splash)
+    private var firstCoverRevealDone = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     // Hifi 2.2: the dark greys follow the darkened accent of the cover (the old greys stay for covers without colour / no cover).
     private val hasAlbumTint get() = !classicUi && if (lightTheme) albumTint != AlbumAccent.DEFAULT_LIGHT_TINT else albumDark != AlbumAccent.DEFAULT_DARK
@@ -571,6 +573,7 @@ class MainActivity : Activity() {
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
             startupSplash = splash
+            startupSplashView = splash
         }
         setContentView(stage)
         startupSplash?.let { splash ->
@@ -592,7 +595,7 @@ class MainActivity : Activity() {
                                 .setStartDelay(120L)
                                 .setDuration(560L)
                                 .setInterpolator(ease)
-                                .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
+                                .withEndAction { if (splash.parent === stage) stage.removeView(splash); startupSplashView = null }
                                 .start()
                         }
                     }, 1500L)
@@ -1315,6 +1318,13 @@ class MainActivity : Activity() {
         val box = classicCoverBox ?: return
         if (!classicUi || playerCoverBitmap == null || classicSide <= 0 || box.visibility == View.VISIBLE && box.alpha >= 1f) return
         box.animate().cancel()
+        if (!firstCoverRevealDone) {   // Hifi 2.73 classic 123: the very first cover of a start never slides: at once under the splash, or a plain fade if the splash is already gone
+            firstCoverRevealDone = true
+            if (startupSplashView?.parent != null) { box.translationY = 0f; box.alpha = 1f; box.visibility = View.VISIBLE; return }
+            if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = 0f; box.visibility = View.VISIBLE }
+            box.animate().alpha(1f).setDuration(200L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+            return
+        }
         if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = dp(28).toFloat(); box.visibility = View.VISIBLE }
         box.animate().alpha(1f).translationY(0f).setDuration(280L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
     }
@@ -4071,7 +4081,7 @@ class MainActivity : Activity() {
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
-            mini.animate().alpha(0f).setDuration(70L).start()   // Hifi 2.73 classic 113: one timing for all cover-area changes: out 70 ms, in 160 ms   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
+            mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L).setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()   // Hifi 2.73 classic 123: the mini player sinks again (92) while it fades; // Hifi 2.73 classic 113: one timing for all cover-area changes: out 70 ms, in 160 ms   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
         }
         // Hifi 2.73 classic 107 (UAPP style): a short simple fade out and a soft fade in, everything the cover touches (page, cover backdrop, mini player) on the same clock and as one layer
         playerCoverView?.animate()?.alpha(0f)?.setDuration(70L)?.setInterpolator(android.view.animation.LinearInterpolator())?.start()   // Hifi 2.73 classic 109: no withLayer (the layer build ate the first frames, so the fade looked like a jump); 110 ms linear, clearly visible
