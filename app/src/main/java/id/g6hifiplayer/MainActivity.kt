@@ -130,6 +130,8 @@ class MainActivity : Activity() {
     private var lightTheme = false
     // Build 3.08: show the startup splash only on the Activity's first creation, not on theme rebuilds.
     private var startupSplashShown = false
+    private var startupSplashView: FrameLayout? = null   // Hifi 2.73 classic 123: while the splash is on screen the Now Playing cover is placed at once (no fade / slide-up under the dissolving splash)
+    private var firstCoverRevealDone = false
     private val BG get() = if (lightTheme) LIGHT_SURFACE else playerSurface
     // Hifi 2.2: the dark greys follow the darkened accent of the cover (the old greys stay for covers without colour / no cover).
     private val hasAlbumTint get() = if (lightTheme) albumTint != AlbumAccent.DEFAULT_LIGHT_TINT else albumDark != AlbumAccent.DEFAULT_DARK
@@ -147,6 +149,9 @@ class MainActivity : Activity() {
     private val MUTED get() = if (lightTheme) 0xFF484855.toInt() else 0xFFA4A4B2.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
+    private var paletteVersion = 0   // Hifi 2.73 classic 120: counts palette changes; the kept Album grid is only reused when it was built / re-tinted with the current palette
+    private var gridCachePalette = 0
+    private var playerRetintPending = false   // the player's own views are re-tinted when Now Playing is left; everything else is re-tinted while Now Playing is idle
     private var buildingUi = false
     private val themers = java.util.WeakHashMap<View, MutableList<(View) -> Unit>>()
     private var albumGridColumns = 2
@@ -257,6 +262,16 @@ class MainActivity : Activity() {
     private var playerTitleRow: View? = null
     private var playerCoverView: NowPlayingCoverView? = null   // Hifi 1.43: the clear cover behind the Now Playing page (and its header)
     private var playerCoverBitmap: android.graphics.Bitmap? = null
+    // Hifi 2.73 classic 119: the Album grid is kept alive while an album page is open (no rebuild when coming back), and the grouping / ordering is computed once per library
+    private var gridCacheView: LinearLayout? = null
+    private var gridCacheTracks: List<Track>? = null
+    private var gridCacheLight = false
+    private var gridCacheClassic = false
+    private val gridCacheDots = ArrayList<View>()
+    private var groupCacheTracks: List<Track>? = null
+    private var groupCacheGrouped: Map<String, List<IndexedValue<Track>>> = emptyMap()
+    private var groupCacheAlbums: List<String> = emptyList()
+    private var groupCacheNames: Map<String, Pair<String, String>> = emptyMap()
     private val albumDots = ArrayList<View>()   // Hifi 2.73 classic 89: the 3-dot buttons of the Album grid (round touch area, centred on the marks, reaching ~10dp beyond the cell edge)
     private var classicCoverBox: ImageView? = null   // Hifi 2.61: Classic only: rounded square cover (in colour) in the free space above the title
     private var hiResLogoView: ImageView? = null      // Hifi 1.44: Hi-Res logo above the queue button
@@ -548,6 +563,7 @@ class MainActivity : Activity() {
             stage.addView(splash, FrameLayout.LayoutParams(-1, -1))
             startupSplashShown = true
             startupSplash = splash
+            startupSplashView = splash
         }
         setContentView(stage)
         startupSplash?.let { splash ->
@@ -569,7 +585,7 @@ class MainActivity : Activity() {
                                 .setStartDelay(120L)
                                 .setDuration(560L)
                                 .setInterpolator(ease)
-                                .withEndAction { if (splash.parent === stage) stage.removeView(splash) }
+                                .withEndAction { if (splash.parent === stage) stage.removeView(splash); startupSplashView = null }
                                 .start()
                         }
                     }, 1500L)
@@ -815,7 +831,7 @@ class MainActivity : Activity() {
         val albumBtn = FrameLayout(this).apply {
             contentDescription = "Albums"
             isClickable = true; isFocusable = true
-            setOnClickListener { slidePageTo(true) }
+            setOnClickListener { slideToPage("library", slideX = 1) }   // Hifi 2.73 classic 117: Now Playing -> album slides left (the album comes in from the right)
             circleRipple()
             addView(albumIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
@@ -1101,13 +1117,27 @@ class MainActivity : Activity() {
     }
 
     /** Re-applies every themed colour (backgrounds, ripples, text) of the pages that are built. */
-    private fun retintPages() {
-        tabsPaletteDirty = false
+    private fun isUnderPlayer(v: View): Boolean {
+        var p: View? = v
+        while (p != null) { if (p === playerPanel) return true; p = p.parent as? View }
+        return false
+    }
+    /** Hifi 2.73 classic 120: [part] 0 = every view, 1 = every view outside Now Playing (done while Now Playing is idle), 2 = Now Playing's own views (done when it is left). */
+    private fun retintPages(part: Int = 0) {
+        if (part != 2) tabsPaletteDirty = false
+        playerRetintPending = part == 1
         val snapshot = themers.entries.map { it.key to it.value.toList() }
         for ((view, blocks) in snapshot) {
             if (!view.isAttachedToWindow) continue
+            if (part != 0) { val inPlayer = isUnderPlayer(view); if ((part == 1) == inPlayer) continue }
             blocks.forEach { it(view) }
         }
+        if (part != 2 && gridCacheView?.isAttachedToWindow == true) gridCachePalette = paletteVersion
+    }
+    /** Heavy re-tint work must not run at the moment a page has just faded out (it froze the last frame): do it a little after the palette changed, while Now Playing sits still. */
+    private fun scheduleIdleRetint() {
+        paletteVersion++
+        handler.postDelayed({ if (tabsPaletteDirty && currentPage == "player") retintPages(1) }, 900L)
     }
 
     /** Status/navigation bars follow the page surface so no black strip is left at the bottom. */
@@ -1131,6 +1161,7 @@ class MainActivity : Activity() {
             getPreferences(MODE_PRIVATE).edit().putFloat("classic_tint_h", th).putFloat("classic_tint_k", tk).apply()
             darkDrawables.forEach { it.invalidateSelf() }
             tabsPaletteDirty = true
+            scheduleIdleRetint()
         }
         if (result.accent == albumAccent && result.dark == albumDark && result.lightAccent == albumAccentLight && result.lightTint == albumTint) return
         albumAccent = result.accent
@@ -1148,7 +1179,7 @@ class MainActivity : Activity() {
         if (::queueMiniProgress.isInitialized) { val m = queueMiniProgress.max; val pr = queueMiniProgress.progress; queueMiniProgress.progressDrawable = miniProgressDrawable(); queueMiniProgress.max = m; queueMiniProgress.progress = pr }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
         if (buildingUi) return
-        if (currentPage == "player") tabsPaletteDirty = true else retintPages()
+        if (currentPage == "player") { tabsPaletteDirty = true; scheduleIdleRetint() } else { paletteVersion++; retintPages() }
     }
 
     /** Dark theme palette: black page, white and grey text, accent from the cover (Hifi 2.1). Only the backdrop follows the cover. */
@@ -1187,7 +1218,7 @@ class MainActivity : Activity() {
         if (::playView.isInitialized) syncPlaybackIcon()
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
         if (buildingUi) return
-        if (currentPage == "player") tabsPaletteDirty = true else retintPages()
+        if (currentPage == "player") { tabsPaletteDirty = true; scheduleIdleRetint() } else { paletteVersion++; retintPages() }
     }
 
     private fun makeLibraryPanel() {
@@ -1278,6 +1309,13 @@ class MainActivity : Activity() {
         val box = classicCoverBox ?: return
         if (!classicUi || playerCoverBitmap == null || classicSide <= 0 || box.visibility == View.VISIBLE && box.alpha >= 1f) return
         box.animate().cancel()
+        if (!firstCoverRevealDone) {   // Hifi 2.73 classic 123: the very first cover of a start never slides: at once under the splash, or a plain fade if the splash is already gone
+            firstCoverRevealDone = true
+            if (startupSplashView?.parent != null) { box.translationY = 0f; box.alpha = 1f; box.visibility = View.VISIBLE; return }
+            if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = 0f; box.visibility = View.VISIBLE }
+            box.animate().alpha(1f).setDuration(200L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+            return
+        }
         if (box.visibility != View.VISIBLE) { box.alpha = 0f; box.translationY = dp(28).toFloat(); box.visibility = View.VISIBLE }
         box.animate().alpha(1f).translationY(0f).setDuration(280L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
     }
@@ -1488,7 +1526,7 @@ class MainActivity : Activity() {
             themed { background = RippleDrawable(rippleTint(0x0E), floatingBackground(), null) }   // Hifi 2.73 classic 12: very faint touch ripple on the mini player card (was 0x30)
             isClickable = true
             isFocusable = true
-            setOnClickListener { showPlayerAnimated() }
+            setOnClickListener { slideToPage("player", true) }   // Hifi 2.73 classic 114: touching the mini player brings Now Playing in sliding up
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -2012,8 +2050,14 @@ class MainActivity : Activity() {
 
         // Group once per render; selected album rows are shown before the grid so tapping a
         // cover immediately reveals its tracks instead of appending them below the entire library.
-        val groupedAlbums = tracks.withIndex().groupBy { it.value.folder }   // Hifi 2.34: one folder = one album
-        val (albums, albumNames) = albumOrder(groupedAlbums.mapValues { e -> e.value.map { it.value } })
+        if (groupCacheTracks !== tracks) {   // Hifi 2.73 classic 119: grouping + ordering once per library (tracks is always replaced as a whole)
+            val g = tracks.withIndex().groupBy { it.value.folder }   // Hifi 2.34: one folder = one album
+            val (a, n) = albumOrder(g.mapValues { e -> e.value.map { it.value } })
+            groupCacheGrouped = g; groupCacheAlbums = a; groupCacheNames = n; groupCacheTracks = tracks
+        }
+        val groupedAlbums = groupCacheGrouped
+        val albums = groupCacheAlbums
+        val albumNames = groupCacheNames
 
         // Hifi 2.73 classic 34: the Album tab is a LIST: small cover (the size of a 3-column grid cover) with the album title and the artist beside it.
         // Tapping an album opens PLAY ALBUM / ADD TO QUEUE and the track list under that row (rows below slide down); no dim.
@@ -2079,12 +2123,21 @@ class MainActivity : Activity() {
         var gridRow: LinearLayout? = null
         albumDots.clear()
         albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
+        val kept = gridCacheView
+        if (kept != null && gridCacheTracks === tracks && gridCacheLight == lightTheme && gridCacheClassic == classicUi && gridCachePalette == paletteVersion) {
+            (kept.parent as? ViewGroup)?.removeView(kept)
+            albumRows.addView(kept, LinearLayout.LayoutParams(-1, -2))   // Hifi 2.73 classic 119: the same grid as before, nothing is rebuilt
+            albumDots.addAll(gridCacheDots)
+            librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
+            return
+        }
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
             if (position % 2 == 0) {
                 gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+                grid.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val row = gridRow!!
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
@@ -2152,6 +2205,9 @@ class MainActivity : Activity() {
         }
         // an odd last row keeps the same cover size: an empty cell of the same weight
         if (albums.size % 2 == 1) gridRow?.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { leftMargin = midMargin })
+        albumRows.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        gridCacheView = grid; gridCachePalette = paletteVersion; gridCacheTracks = tracks; gridCacheLight = lightTheme; gridCacheClassic = classicUi
+        gridCacheDots.clear(); gridCacheDots.addAll(albumDots)
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 
@@ -3479,7 +3535,7 @@ class MainActivity : Activity() {
         if (which == "library" && previousPage != "library") restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
-        if (which != "player" && tabsPaletteDirty) retintPages()
+        if (which != "player" && tabsPaletteDirty) retintPages() else if (which != "player" && playerRetintPending) retintPages(2)
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         playerCoverView?.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
@@ -3843,6 +3899,8 @@ class MainActivity : Activity() {
         return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60)
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+    /** Hifi 2.73 classic 122: half a dp in pixels; used as padding on both sides so a plus / x icon becomes 1 dp smaller (the layout and the text beside it stay where they are). */
+    private fun halfDp() = Math.round(resources.displayMetrics.density * 0.5f)
 
     /**
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface
@@ -3990,7 +4048,7 @@ class MainActivity : Activity() {
     private fun slidePageTo(toLibrary: Boolean) = slideToPage(if (toLibrary) "library" else "player")
 
     /** Hifi 2.73 classic 90: every tab change (Albums / Setting included) fades the same way, not only Now Playing <-> Albums. */
-    private fun slideToPage(target: String) {
+    private fun slideToPage(target: String, slideUp: Boolean = false, slideX: Int = 0) {
         val toLibrary = target == "library"
         val v = pageContentView
         val token = ++pageAnimToken
@@ -4003,19 +4061,22 @@ class MainActivity : Activity() {
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
-            mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L)
-                .setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()
+            mini.animate().translationY(mini.height.toFloat()).alpha(0f).setDuration(90L).setInterpolator(android.view.animation.AccelerateInterpolator(1.2f)).start()   // Hifi 2.73 classic 123: the mini player sinks again (92) while it fades; // Hifi 2.73 classic 113: one timing for all cover-area changes: out 70 ms, in 160 ms   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
         }
-        playerCoverView?.animate()?.alpha(0f)?.setDuration(60L)?.start()
-        v.animate().alpha(0f).setDuration(60L).withEndAction {
+        // Hifi 2.73 classic 107 (UAPP style): a short simple fade out and a soft fade in, everything the cover touches (page, cover backdrop, mini player) on the same clock and as one layer
+        playerCoverView?.animate()?.alpha(0f)?.setDuration(70L)?.setInterpolator(android.view.animation.LinearInterpolator())?.start()   // Hifi 2.73 classic 109: no withLayer (the layer build ate the first frames, so the fade looked like a jump); 110 ms linear, clearly visible
+        v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {
             if (token != pageAnimToken) return@withEndAction
             show(target)
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
-            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(140L).start() }
+            if (slideUp) { v.translationY = dp(28).toFloat(); v.animate().translationY(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start() }   // Hifi 2.73 classic 114: Now Playing slides up 28 dp while it fades in (only after touching the mini player)
+            if (slideX != 0) { v.translationX = slideX * dp(28).toFloat(); v.animate().translationX(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start() }   // Hifi 2.73 classic 117
+            val easeIn = android.view.animation.DecelerateInterpolator(1.4f)
+            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(160L).setInterpolator(easeIn).start() }
             if (toLibrary) riseMini(token)
-            v.animate().alpha(1f).setDuration(140L).start()
+            v.animate().alpha(1f).setDuration(160L).setInterpolator(easeIn).start()
         }.start()
     }
 
@@ -4066,13 +4127,28 @@ class MainActivity : Activity() {
     private fun swapAlbumView(animate: Boolean, switch: () -> Unit) {
         val v = albumRows
         v.animate().cancel()
+        v.scaleX = 1f; v.scaleY = 1f; v.translationX = 0f; v.translationY = 0f
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
-        v.animate().alpha(0f).setDuration(60L).withEndAction {
-            if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
+        // Hifi 2.73 classic 113: same timing as the page changes (out 70 ms, in 160 ms decelerate). Opening an album: the new page slides in 28 dp from the right while it fades in;
+        // closing: the album page fades out and shrinks slightly towards the centre (0.96). No band fade, no cover special case.
+        val wasOpen = selectedAlbum != null
+        // Hifi 2.73 classic 115: closing an album = the floating window exit (140 ms, accelerating, shrink to 0.92 + fade); opening keeps 70 ms
+        val out = if (wasOpen) v.animate().alpha(0f).translationY(dp(56).toFloat()).setDuration(140L).setInterpolator(android.view.animation.AccelerateInterpolator())   // Hifi 2.73 classic 118: closing an album = slides down 56 dp while fading out, 140 ms again (no shrink)
+                  else v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator())
+        out.withEndAction {
+            if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 0f; return@withEndAction }
             switch()
+            val opened = !wasOpen && selectedAlbum != null
             v.alpha = 0f
-            v.animate().alpha(1f).setDuration(140L).start()
+            v.translationX = 0f; v.translationY = 0f
+            if (opened) {   // Hifi 2.73 classic 116: opening = the reverse of closing: grows from 0.92 to full size while fading in, slowing down at the end (180 ms, as the floating windows open)
+                v.scaleX = 1f; v.scaleY = 1f   // Hifi 2.73 classic 121: a soft plain fade, no zoom any more
+                v.animate().alpha(1f).setDuration(180L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+            } else {
+                v.scaleX = 1f; v.scaleY = 1f
+                v.animate().alpha(1f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
+            }
         }.start()
     }
 
@@ -4096,7 +4172,7 @@ class MainActivity : Activity() {
             return
         }
         if (currentPage != "player") {
-            showPlayerAnimated()
+            slideToPage("player", slideX = -1)   // Hifi 2.73 classic 117: album -> Now Playing by Back slides right (Now Playing comes in from the left)
             return
         }
         // Build 2.8: Back on the Now Playing page only sends the app to the background (like Home).

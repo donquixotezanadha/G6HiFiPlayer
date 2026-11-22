@@ -1038,3 +1038,11 @@ App palette already came with build 3. Widgets now use the Blur look again: blur
 
 ## Hifi 3.0 blur 5 (versionCode 304): Blur icons, round 3 dots, progress thickness
 UiIcons.classic = false: Blur's rounded icons for transport, play/pause (app, widgets, notification), gear/sun/moon/queue/album, 3-bar equalizer. "+" / "x" in the lists and the Play album / Add to queue buttons use Blur's text glyphs (+, x, play triangle, plus sign) instead of Classic's own icon images. 3 dots are round. Progress thickness back to the Blur values: mini player 3dp, widgets 4dp (player was 4dp since build 3). Animations stay as Classic 92 (no cover flight in Blur).
+
+## Hifi 3.0 blur 6 (versionCode 311), from blur 5: Classic 92 -> 123 animation + performance ported
+Applied as the diff Classic 92 -> Classic 123 of MainActivity.kt (3-way); the three conflicts were all icon / text-glyph code and Blur's own versions were kept. Included:
+- Baseline profile removed (baseline-prof.txt + profileinstaller dependency).
+- One page-fade timing (out 70 ms, in 160 ms decelerate), Now Playing -> album slides in from the right (28 dp), album -> Now Playing by Back from the left, mini player touch = Now Playing slides up 28 dp, mini player sinks again (90 ms + fade) and rises as before (small bounce).
+- Grid <-> album page: opening = soft fade 180 ms, closing = slide down 56 dp + fade 140 ms.
+- Performance: Album grid kept alive while an album page is open (rebuilt only when the library, theme or palette changes), album grouping cached, heavy re-tint moved out of the page switch.
+- NOT ported on purpose: plus / x 1 dp smaller (Blur keeps its text glyphs and its sizes), album page button sizes (Blur's own), Classic-only startup cover reveal (classicUi only).
