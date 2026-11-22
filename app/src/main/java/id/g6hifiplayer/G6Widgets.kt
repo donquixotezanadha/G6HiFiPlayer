@@ -67,12 +67,12 @@ object G6Widgets {
     private const val THUMB_PX = 400
     private const val PLACEHOLDER_PX = 256
     /** Corner radius of the 4x1 cover as a fraction of its side (Build 2.17: a little rounder, like the picture). */
-    private const val CORNER_FRACTION = 0f   // Hifi 2.67b: square cover (no rounded corners) on the 4x1
+    private const val CORNER_FRACTION = 0.12f   // Hifi 2.67b: square cover (no rounded corners) on the 4x1
     /** The 2x2 cover is a circle: radius = half the side. */
     private const val CIRCLE_FRACTION = 0.5f
     private const val LEGACY_ACCENT = 0xFF6662C6.toInt()   // Hifi 2.1: only the Light widgets keep the old purple
     private const val LIGHT_CARD = 0xFFDADADD.toInt()      // card / button colour of the Light widgets
-    private const val COVER_WIDGET_FRACTION = 0f   // Hifi 2.67b: square cover on the Simple 4x1, Text 4x2 and Blur 4x2 widgets (was 0.16)
+    private const val COVER_WIDGET_FRACTION = 0.16f   // Hifi 2.67b: square cover on the Simple 4x1, Text 4x2 and Blur 4x2 widgets (was 0.16)
     /** Legacy sizing threshold retained for compatibility with older widget instances. */
     private const val LARGE_MIN_HEIGHT_DP = 170
     private const val TOGGLE_DEBOUNCE_MS = 180L
@@ -640,7 +640,7 @@ object G6Widgets {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.color = color
-        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.20f, size * 0.20f, paint)
+        Canvas(bmp).drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.28f, size * 0.28f, paint)
         return bmp
     }
 

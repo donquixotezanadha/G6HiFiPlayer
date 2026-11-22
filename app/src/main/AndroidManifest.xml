@@ -12,7 +12,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Hifi"
+        android:label="Hifi Round"
         android:theme="@style/Theme.G6HiFiPlayer"
         android:supportsRtl="true">
 
