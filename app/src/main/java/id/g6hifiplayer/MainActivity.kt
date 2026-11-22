@@ -251,6 +251,16 @@ class MainActivity : Activity() {
     private var playerTitleRow: View? = null
     private var playerCoverView: NowPlayingCoverView? = null   // Hifi 1.43: the clear cover behind the Now Playing page (and its header)
     private var playerCoverBitmap: android.graphics.Bitmap? = null
+    // Hifi 2.73 classic 119: the Album grid is kept alive while an album page is open (no rebuild when coming back), and the grouping / ordering is computed once per library
+    private var gridCacheView: LinearLayout? = null
+    private var gridCacheTracks: List<Track>? = null
+    private var gridCacheLight = false
+    private var gridCacheClassic = false
+    private val gridCacheDots = ArrayList<View>()
+    private var groupCacheTracks: List<Track>? = null
+    private var groupCacheGrouped: Map<String, List<IndexedValue<Track>>> = emptyMap()
+    private var groupCacheAlbums: List<String> = emptyList()
+    private var groupCacheNames: Map<String, Pair<String, String>> = emptyMap()
     private val albumDots = ArrayList<View>()   // Hifi 2.73 classic 89: the 3-dot buttons of the Album grid (round touch area, centred on the marks, reaching ~10dp beyond the cell edge)
     private var classicCoverBox: ImageView? = null   // Hifi 2.61: Classic only: rounded square cover (in colour) in the free space above the title
     private var hiResLogoView: ImageView? = null      // Hifi 1.44: Hi-Res logo above the queue button
@@ -2027,8 +2037,14 @@ class MainActivity : Activity() {
 
         // Group once per render; selected album rows are shown before the grid so tapping a
         // cover immediately reveals its tracks instead of appending them below the entire library.
-        val groupedAlbums = tracks.withIndex().groupBy { it.value.folder }   // Hifi 2.34: one folder = one album
-        val (albums, albumNames) = albumOrder(groupedAlbums.mapValues { e -> e.value.map { it.value } })
+        if (groupCacheTracks !== tracks) {   // Hifi 2.73 classic 119: grouping + ordering once per library (tracks is always replaced as a whole)
+            val g = tracks.withIndex().groupBy { it.value.folder }   // Hifi 2.34: one folder = one album
+            val (a, n) = albumOrder(g.mapValues { e -> e.value.map { it.value } })
+            groupCacheGrouped = g; groupCacheAlbums = a; groupCacheNames = n; groupCacheTracks = tracks
+        }
+        val groupedAlbums = groupCacheGrouped
+        val albums = groupCacheAlbums
+        val albumNames = groupCacheNames
 
         // Hifi 2.73 classic 34: the Album tab is a LIST: small cover (the size of a 3-column grid cover) with the album title and the artist beside it.
         // Tapping an album opens PLAY ALBUM / ADD TO QUEUE and the track list under that row (rows below slide down); no dim.
@@ -2093,12 +2109,21 @@ class MainActivity : Activity() {
         var gridRow: LinearLayout? = null
         albumDots.clear()
         albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
+        val kept = gridCacheView
+        if (kept != null && gridCacheTracks === tracks && gridCacheLight == lightTheme && gridCacheClassic == classicUi) {
+            (kept.parent as? ViewGroup)?.removeView(kept)
+            albumRows.addView(kept, LinearLayout.LayoutParams(-1, -2))   // Hifi 2.73 classic 119: the same grid as before, nothing is rebuilt
+            albumDots.addAll(gridCacheDots)
+            librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
+            return
+        }
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
         albums.forEachIndexed { position, album ->
             val entries = groupedAlbums[album].orEmpty()
             val (namedArtist, namedAlbum) = albumNames[album] ?: ("" to album)
             if (position % 2 == 0) {
                 gridRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
-                albumRows.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+                grid.addView(gridRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             }
             val row = gridRow!!
             val rowIndices = entries.sortedWith(compareBy<IndexedValue<Track>> { it.value.trackNumber }.thenBy { it.value.title.lowercase(Locale.ROOT) }).map { it.index }
@@ -2165,6 +2190,9 @@ class MainActivity : Activity() {
         }
         // an odd last row keeps the same cover size: an empty cell of the same weight
         if (albums.size % 2 == 1) gridRow?.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { leftMargin = midMargin })
+        albumRows.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        gridCacheView = grid; gridCacheTracks = tracks; gridCacheLight = lightTheme; gridCacheClassic = classicUi
+        gridCacheDots.clear(); gridCacheDots.addAll(albumDots)
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
 

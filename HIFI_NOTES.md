@@ -1053,3 +1053,8 @@ Opening an album is the reverse of closing: the new page grows from 0.92 to full
 
 ## Hifi 2.73 classic 118 (versionCode 305), from 117
 Only the closing of an album page changes: 140 ms again (default accelerate curve), the page slides down 56 dp while it fades out (no shrink). The grid then comes in 160 ms as before. Everything else is 117 (open = grow from 0.92 + fade, slides Now Playing <-> album, slide up from the mini player). User note on 117: everything nearly perfect, only closing an album still leaves a remnant.
+
+## Hifi 2.73 classic 119 (versionCode 306), from 118: performance only, no visual change
+- The Album grid is built once and kept alive: when an album page opens the grid view is only detached (gridCacheView), and coming back re-attaches it without rebuilding (valid while `tracks` is the same list object, same theme, same classicUi; any rescan replaces `tracks`, so the grid is rebuilt then). The grid's 3-dot list (albumDots) is restored with it.
+- Grouping and ordering of albums (groupBy folder + albumOrder) are computed once per library (groupCache*), not on every render; the album page uses the same result.
+- Why: closing an album rebuilt every cell (belasan views x all albums) on the UI thread at the moment the page was almost transparent, which freezes the last frame (the leftover image). Poweramp keeps its list alive the same way.
