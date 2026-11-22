@@ -1034,3 +1034,6 @@ The cover flight (93-106) is dropped. Base = Classic 92 with the baseline profil
 
 ## Hifi 2.73 classic 111 (versionCode 298) = Classic 109 again
 Classic 110 (cover band fades with the page) was worse: with the band at alpha 0 only the solid base colour is left, so every switch flashed black. 111 is exactly 109 (fades 110 / 190 ms, album page buttons -1), the band is static again.
+
+## Hifi 2.73 classic 113 (versionCode 300), from 111
+One timing for all cover-area changes (Now Playing <-> album, mini player -> album, grid <-> album page): out 70 ms linear, in 160 ms decelerate (111/109 were 110/190). Album page opening from the grid: the new page also slides in 28 dp from the right while fading in; closing: the album page fades out and shrinks to 0.96 towards the centre. The special fast cover fade of 112 and any band fade are gone (band is static). Slide up / left / right between Now Playing and album stays parked.

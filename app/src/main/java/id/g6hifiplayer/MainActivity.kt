@@ -4023,20 +4023,20 @@ class MainActivity : Activity() {
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
-            mini.animate().alpha(0f).setDuration(110L).start()   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
+            mini.animate().alpha(0f).setDuration(70L).start()   // Hifi 2.73 classic 113: one timing for all cover-area changes: out 70 ms, in 160 ms   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
         }
         // Hifi 2.73 classic 107 (UAPP style): a short simple fade out and a soft fade in, everything the cover touches (page, cover backdrop, mini player) on the same clock and as one layer
-        playerCoverView?.animate()?.alpha(0f)?.setDuration(110L)?.setInterpolator(android.view.animation.LinearInterpolator())?.start()   // Hifi 2.73 classic 109: no withLayer (the layer build ate the first frames, so the fade looked like a jump); 110 ms linear, clearly visible
-        v.animate().alpha(0f).setDuration(110L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {
+        playerCoverView?.animate()?.alpha(0f)?.setDuration(70L)?.setInterpolator(android.view.animation.LinearInterpolator())?.start()   // Hifi 2.73 classic 109: no withLayer (the layer build ate the first frames, so the fade looked like a jump); 110 ms linear, clearly visible
+        v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {
             if (token != pageAnimToken) return@withEndAction
             show(target)
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
             val easeIn = android.view.animation.DecelerateInterpolator(1.4f)
-            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(190L).setInterpolator(easeIn).start() }
+            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(160L).setInterpolator(easeIn).start() }
             if (toLibrary) riseMini(token)
-            v.animate().alpha(1f).setDuration(190L).setInterpolator(easeIn).start()
+            v.animate().alpha(1f).setDuration(160L).setInterpolator(easeIn).start()
         }.start()
     }
 
@@ -4087,13 +4087,22 @@ class MainActivity : Activity() {
     private fun swapAlbumView(animate: Boolean, switch: () -> Unit) {
         val v = albumRows
         v.animate().cancel()
+        v.scaleX = 1f; v.scaleY = 1f; v.translationX = 0f
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
-        v.animate().alpha(0f).setDuration(110L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {   // Hifi 2.73 classic 109: visible fade out 110 ms, soft fade in 190 ms
-            if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
+        // Hifi 2.73 classic 113: same timing as the page changes (out 70 ms, in 160 ms decelerate). Opening an album: the new page slides in 28 dp from the right while it fades in;
+        // closing: the album page fades out and shrinks slightly towards the centre (0.96). No band fade, no cover special case.
+        val wasOpen = selectedAlbum != null
+        val out = v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator())
+        if (wasOpen) out.scaleX(0.96f).scaleY(0.96f)
+        out.withEndAction {
+            if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; return@withEndAction }
             switch()
+            val opened = !wasOpen && selectedAlbum != null
+            v.scaleX = 1f; v.scaleY = 1f
             v.alpha = 0f
-            v.animate().alpha(1f).setDuration(190L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
+            v.translationX = if (opened) dp(28).toFloat() else 0f
+            v.animate().alpha(1f).translationX(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
         }.start()
     }
 
