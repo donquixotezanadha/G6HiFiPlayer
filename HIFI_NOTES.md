@@ -1092,3 +1092,10 @@ Only the launcher label: "Hifi Round" -> "Hifi" (user will use one version at a 
 
 ## Hifi 2.73 classic round 4 (versionCode 316), from round 3
 Notification "Close player" x 2 dp smaller (same change as Classic 124): 15.6 dp -> 13.6 dp glyph. Nothing else changed.
+
+## Hifi 2.73 classic round 5 (versionCode 317), from round 4
+Icons, icon sizes, control sizes and progress thickness now follow Blur (Blur 6 is the reference):
+- Every icon is Blur's own: UiIcons.sharpIcons = false (new flag; `classic` stays true for flat progress shape and the 4-bar equalizer), so Now Playing controls, mini player, dock icons (sun/moon/queue/album, album icon flipped as in Blur), widgets and the notification (previous / play / pause / next / Close) use the rounded Blur drawables and sizes. The round-4 "notification close 2 dp smaller" tweak only touched the sharp icon, which is no longer used: the notification Close is Blur's size again.
+- Play album / Add to queue, the "+" on track rows and the "x" in the queue: Blur's text glyphs ("▶  " / "＋  " 14 sp labels, "+" / "×" 22 sp), instead of the user's own plus / x / play-outline images. 3-dot icon = Blur's round dots (ic_more_vert).
+- Progress thickness as Blur: Now Playing 4 dp (was 3), mini player 3 dp (was 2), widgets 4 dp (was 3; 4x1, blur 4x1, blur 4x2, text 4x2 layouts). Bars stay flat (Round / Classic shape), only thickness changed.
+- Unchanged on purpose: launcher / splash logo (rounded Classic logo), notification status-bar glyph (ic_stat_music), equalizer (4 bars), gap between prev / play / next, colours.

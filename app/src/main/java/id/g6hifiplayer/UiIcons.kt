@@ -8,6 +8,8 @@ import android.content.Context
  */
 internal object UiIcons {
     @Volatile var classic: Boolean = true   // Hifi 2.73 classic: pure Classic, always on
+    /** Hifi 2.73 classic round 5: the sharp Classic icons are not used; every icon (controls, dock, notification, widgets) is Blur's own. */
+    const val sharpIcons: Boolean = false
 
     fun refresh(context: Context) {
         for (name in arrayOf("id.g6hifiplayer.MainActivity", "MainActivity")) {
@@ -17,7 +19,7 @@ internal object UiIcons {
         classic = true
     }
 
-    fun pick(id: Int): Int = if (!classic) id else when (id) {
+    fun pick(id: Int): Int = if (!sharpIcons || !classic) id else when (id) {
         R.drawable.g6_w_ic_next -> R.drawable.g6_w_ic_next_sharp
         R.drawable.g6_w_ic_pause -> R.drawable.g6_w_ic_pause_sharp
         R.drawable.g6_w_ic_pause_2x2 -> R.drawable.g6_w_ic_pause_2x2_sharp
