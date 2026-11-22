@@ -21,8 +21,8 @@ android {
         applicationId = "id.hifi.player.classic"
         minSdk = 28
         targetSdk = 35
-        versionCode = 310
-        versionName = "2.73 classic 123"
+        versionCode = 315
+        versionName = "2.73 classic 124"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

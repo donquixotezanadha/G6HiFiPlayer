@@ -1075,3 +1075,6 @@ Plus and x icons 1 dp smaller everywhere in the app: track-row "+" (album page a
 - Mini player sinks again when it leaves the album page (translationY down + fade, 90 ms accelerate, as in 92); its rise with the small bounce is unchanged. It was removed in 107 only to rule it out as a source of leftover images (not because of the slide-left album); not confirmed as a cause.
 - Startup remnant of the Now Playing cover: the cover (classicCoverBox) was revealed with fade + 28 dp slide-up (280 ms) while the splash was dissolving, so the user saw it move under the dissolving splash. Now the first cover of a start is placed at once while the splash is on screen (startupSplashView), or a plain 200 ms fade if the splash is gone; later covers keep the old reveal.
 - The notification "Close player" icon stays as is (user).
+
+## Hifi 2.73 classic 124 (versionCode 315), from 123
+Notification "Close player" x (ic_close_24_sharp) 2 dp smaller: the glyph was 14 units + 1.6 stroke (about 15.6 dp), now 12 units + 1.6 stroke (13.6 dp), same centre and stroke width. Only the Classic notification icon; nothing else changed.
