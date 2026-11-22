@@ -1031,3 +1031,6 @@ The cover flight (93-106) is dropped. Base = Classic 92 with the baseline profil
 ## Hifi 2.73 classic 109 (versionCode 296)
 - Fades: out 60 -> 110 ms linear, in 140 -> 190 ms decelerate; withLayer removed (building the hardware layer of the big page cost the first frames, so the 60 ms fade looked like a jump). Page, cover backdrop and mini player share the same clock.
 - Icon sizes: compared Blur 2.84 with Blur 5. The "+" / "x" row glyphs (22) and the 3-dot window options (14) are identical in both, so only the album page buttons differ: 15 sp in 2.84, 14 sp in Blur 5 (-1). Same delta applied to Classic's album page buttons: text 14 -> 13 sp, icon 14 -> 13 dp. 3-dot window options and row "+"/"x" unchanged.
+
+## Hifi 2.73 classic 111 (versionCode 298) = Classic 109 again
+Classic 110 (cover band fades with the page) was worse: with the band at alpha 0 only the solid base colour is left, so every switch flashed black. 111 is exactly 109 (fades 110 / 190 ms, album page buttons -1), the band is static again.
