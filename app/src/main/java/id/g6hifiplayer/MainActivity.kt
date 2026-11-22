@@ -4089,10 +4089,15 @@ class MainActivity : Activity() {
         v.animate().cancel()
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
+        // Hifi 2.73 classic 112: the album page's big cover leaves faster (55 ms) and arrives faster (120 ms) than the rest of the page, so it is never a half-transparent picture over the static cover band
+        val oldCover = if (selectedAlbum != null) albumRows.getChildAt(0) else null
+        oldCover?.animate()?.cancel()
+        oldCover?.animate()?.alpha(0f)?.setDuration(55L)?.setInterpolator(android.view.animation.LinearInterpolator())?.start()
         v.animate().alpha(0f).setDuration(110L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {   // Hifi 2.73 classic 109: visible fade out 110 ms, soft fade in 190 ms
             if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
             switch()
             v.alpha = 0f
+            if (selectedAlbum != null) albumRows.getChildAt(0)?.let { c -> c.alpha = 0f; c.animate().alpha(1f).setDuration(120L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start() }
             v.animate().alpha(1f).setDuration(190L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
         }.start()
     }

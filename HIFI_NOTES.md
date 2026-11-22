@@ -1034,3 +1034,6 @@ The cover flight (93-106) is dropped. Base = Classic 92 with the baseline profil
 
 ## Hifi 2.73 classic 111 (versionCode 298) = Classic 109 again
 Classic 110 (cover band fades with the page) was worse: with the band at alpha 0 only the solid base colour is left, so every switch flashed black. 111 is exactly 109 (fades 110 / 190 ms, album page buttons -1), the band is static again.
+
+## Hifi 2.73 classic 112 (versionCode 299), from 111
+Leftover picture on grid <-> album page: the album page's big cover (first child of albumRows) now fades out in 55 ms and in in 120 ms (decelerate), faster than the page (110 / 190 ms), so it is never a half-transparent picture over the static cover band. The band itself is NOT faded (110 flashed black). Rest unchanged.
