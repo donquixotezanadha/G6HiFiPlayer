@@ -699,7 +699,7 @@ class MainActivity : Activity() {
             val thickness = thicknessPx.coerceAtLeast(1).coerceAtMost(b.height())
             val top = b.top + (b.height() - thickness) / 2f
             val bottom = top + thickness
-            val radius = if (classicUi) 0f else thickness / 2f   // Hifi 2.72: flat square progress bar in Classic
+            val radius = thickness / 2f   // Hifi 2.72: flat square progress bar in Classic
             rect.set(b.left.toFloat(), top, b.right.toFloat(), bottom)
             paint.color = trackColor
             paint.alpha = android.graphics.Color.alpha(trackColor)

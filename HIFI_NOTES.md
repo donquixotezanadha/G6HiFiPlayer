@@ -1102,3 +1102,6 @@ Icons, icon sizes, control sizes and progress thickness now follow Blur (Blur 6 
 
 ## Hifi 2.73 classic round 6 (versionCode 318), from round 5
 As Blur: gap between prev / play / next (spacer weight 0.8 -> 0.5), equalizer = Blur's 3 rounded full-width bars (EqualizerView now keyed on UiIcons.sharpIcons = false). 3-dot icon is already Blur's round dots since round 5.
+
+## Hifi 2.73 classic round 7 (versionCode 319), from round 6
+Progress bars rounded as Blur (pill ends): Now Playing + mini player (RoundedProgressDrawable radius = thickness / 2) and widgets (radius = height / 2). Nothing else changed.

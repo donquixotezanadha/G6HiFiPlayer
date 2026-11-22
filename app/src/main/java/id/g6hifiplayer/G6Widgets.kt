@@ -751,7 +751,7 @@ object G6Widgets {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val radius = if (UiIcons.classic) 0f else height / 2f   // Hifi 2.72: flat square progress bar in Classic
+        val radius = height / 2f   // Hifi 2.72: flat square progress bar in Classic
         paint.color = if (light) 0x2E000000 else unplayedTrackColour()   // Hifi 2.4: unplayed part = colour of the selected track row in the app
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
         val filled = (width * progress.coerceIn(0, 100) / 100f).coerceIn(0f, width.toFloat())
