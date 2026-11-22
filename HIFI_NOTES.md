@@ -1082,3 +1082,7 @@ Classic 123 + ONLY Blur's roundness (covers, windows, widgets). Nothing else: ic
 - Windows / mini player card: floating window corners 10 -> 16 dp; window options, album page Play album / Add to queue, small buttons and the search field 9 -> 14 dp; selected-row highlights 8 -> 12 dp; grid cell ripple 8 -> 12 dp.
 - Widgets: card 14 -> 20 dp (g6_widget_card_bg, g6_blur_bg 9-piece corners 14 -> 20), round buttons 17 -> 24 dp, pressed 14 -> 20 dp, square buttons 8 -> 11 dp, 4x1 cover corner 0 -> 12%, Simple/Text/Blur widget covers 0 -> 16%, 2x2 play square 0.20 -> 0.28.
 - Own app id so it installs next to Classic 123, Blur 6, Blur 2.84; launcher label "Hifi Round" to tell it apart (icon is the Classic one).
+
+## Hifi 2.73 classic round 2 (versionCode 313), from round 1
+- Now Playing cover rounded in proportion to its size: same ratio as the grid cover (10 dp at the grid cover size, so about 6.6% of the side, about 21 dp on a 328 dp wide cover); set in the stack layout listener (ClassicCoverView.radiusPx). The Hi-Res badge sits 4% of the width inside, so it stays within the rounded corner.
+- Launcher icon (ic_launcher_fg.png) and splash logo (ic_splash_wave.png): same bars, same size, same colour, but every bar is now a full pill (rounded ends, radius = half the bar width, drawn 4x supersampled from each bar's exact bounding box). "HIFI" font and the silhouettes are untouched (user: silhouettes too small).

@@ -1003,6 +1003,10 @@ class MainActivity : Activity() {
                 lp.width = side; lp.height = side; lp.topMargin = topMargin
                 classicCover.layoutParams = lp
             }
+            // Hifi 2.73 classic round 2: the Now Playing cover is rounded in proportion to its size: the grid cover is 10dp at its size, so this one gets the same ratio
+            val gridSide = ((playerPanel.width - dp(32) - dp(14)) / 2 - dp(6)).coerceAtLeast(dp(40))
+            val wantR = side * dp(10).toFloat() / gridSide
+            if (classicCover.radiusPx != wantR) { classicCover.radiusPx = wantR; classicCover.invalidate() }
             if (side > 0 && classicSide != side) { classicSide = side; revealClassicCover() }
         }
         updateClassicCover()
