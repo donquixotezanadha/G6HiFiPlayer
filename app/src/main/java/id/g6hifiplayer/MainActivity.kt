@@ -4151,8 +4151,8 @@ class MainActivity : Activity() {
             v.alpha = 0f
             v.translationX = 0f; v.translationY = 0f
             if (opened) {   // Hifi 2.73 classic 116: opening = the reverse of closing: grows from 0.92 to full size while fading in, slowing down at the end (180 ms, as the floating windows open)
-                v.scaleX = 0.92f; v.scaleY = 0.92f
-                v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+                v.scaleX = 1f; v.scaleY = 1f   // Hifi 2.73 classic 121: a soft plain fade, no zoom any more
+                v.animate().alpha(1f).setDuration(180L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
             } else {
                 v.scaleX = 1f; v.scaleY = 1f
                 v.animate().alpha(1f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
