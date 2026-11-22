@@ -4089,21 +4089,21 @@ class MainActivity : Activity() {
     private fun swapAlbumView(animate: Boolean, switch: () -> Unit) {
         val v = albumRows
         v.animate().cancel()
-        v.scaleX = 1f; v.scaleY = 1f; v.translationX = 0f
+        v.scaleX = 1f; v.scaleY = 1f; v.translationX = 0f; v.translationY = 0f
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
         // Hifi 2.73 classic 113: same timing as the page changes (out 70 ms, in 160 ms decelerate). Opening an album: the new page slides in 28 dp from the right while it fades in;
         // closing: the album page fades out and shrinks slightly towards the centre (0.96). No band fade, no cover special case.
         val wasOpen = selectedAlbum != null
         // Hifi 2.73 classic 115: closing an album = the floating window exit (140 ms, accelerating, shrink to 0.92 + fade); opening keeps 70 ms
-        val out = if (wasOpen) v.animate().alpha(0f).scaleX(0.92f).scaleY(0.92f).setDuration(110L).setInterpolator(android.view.animation.AccelerateInterpolator(1.8f))   // Hifi 2.73 classic 117: shorter (110 ms) with a longer-lasting, steeper fade curve (1.8)
+        val out = if (wasOpen) v.animate().alpha(0f).translationY(dp(56).toFloat()).setDuration(140L).setInterpolator(android.view.animation.AccelerateInterpolator())   // Hifi 2.73 classic 118: closing an album = slides down 56 dp while fading out, 140 ms again (no shrink)
                   else v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator())
         out.withEndAction {
-            if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; return@withEndAction }
+            if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 0f; return@withEndAction }
             switch()
             val opened = !wasOpen && selectedAlbum != null
             v.alpha = 0f
-            v.translationX = 0f
+            v.translationX = 0f; v.translationY = 0f
             if (opened) {   // Hifi 2.73 classic 116: opening = the reverse of closing: grows from 0.92 to full size while fading in, slowing down at the end (180 ms, as the floating windows open)
                 v.scaleX = 0.92f; v.scaleY = 0.92f
                 v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()

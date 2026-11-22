@@ -1050,3 +1050,6 @@ Opening an album is the reverse of closing: the new page grows from 0.92 to full
 ## Hifi 2.73 classic 117 (versionCode 304), from 116
 - Closing an album: 140 -> 110 ms, fade curve AccelerateInterpolator 1.8 (was 1.0; the page stays visible longer and then goes quickly, no faint remnant); still shrinks to 0.92. Opening unchanged (user: "hampir selalu benar").
 - Now Playing -> album (dock Albums button): page content slides in 28 dp from the right (slide left). Album -> Now Playing by Back: slides in from the left (slide right). Back from Now Playing, the mini player touch (slide up) and Play album paths unchanged. Only pageContentView moves; the cover backdrop just fades.
+
+## Hifi 2.73 classic 118 (versionCode 305), from 117
+Only the closing of an album page changes: 140 ms again (default accelerate curve), the page slides down 56 dp while it fades out (no shrink). The grid then comes in 160 ms as before. Everything else is 117 (open = grow from 0.92 + fade, slides Now Playing <-> album, slide up from the mini player). User note on 117: everything nearly perfect, only closing an album still leaves a remnant.
