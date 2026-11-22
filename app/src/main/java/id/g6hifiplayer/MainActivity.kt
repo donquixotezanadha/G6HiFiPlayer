@@ -141,6 +141,9 @@ class MainActivity : Activity() {
     private val MUTED get() = if (lightTheme) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false
+    private var paletteVersion = 0   // Hifi 2.73 classic 120: counts palette changes; the kept Album grid is only reused when it was built / re-tinted with the current palette
+    private var gridCachePalette = 0
+    private var playerRetintPending = false   // the player's own views are re-tinted when Now Playing is left; everything else is re-tinted while Now Playing is idle
     private var buildingUi = false
     private val themers = java.util.WeakHashMap<View, MutableList<(View) -> Unit>>()
     private var albumGridColumns = 2
@@ -1121,13 +1124,27 @@ class MainActivity : Activity() {
     }
 
     /** Re-applies every themed colour (backgrounds, ripples, text) of the pages that are built. */
-    private fun retintPages() {
-        tabsPaletteDirty = false
+    private fun isUnderPlayer(v: View): Boolean {
+        var p: View? = v
+        while (p != null) { if (p === playerPanel) return true; p = p.parent as? View }
+        return false
+    }
+    /** Hifi 2.73 classic 120: [part] 0 = every view, 1 = every view outside Now Playing (done while Now Playing is idle), 2 = Now Playing's own views (done when it is left). */
+    private fun retintPages(part: Int = 0) {
+        if (part != 2) tabsPaletteDirty = false
+        playerRetintPending = part == 1
         val snapshot = themers.entries.map { it.key to it.value.toList() }
         for ((view, blocks) in snapshot) {
             if (!view.isAttachedToWindow) continue
+            if (part != 0) { val inPlayer = isUnderPlayer(view); if ((part == 1) == inPlayer) continue }
             blocks.forEach { it(view) }
         }
+        if (part != 2 && gridCacheView?.isAttachedToWindow == true) gridCachePalette = paletteVersion
+    }
+    /** Heavy re-tint work must not run at the moment a page has just faded out (it froze the last frame): do it a little after the palette changed, while Now Playing sits still. */
+    private fun scheduleIdleRetint() {
+        paletteVersion++
+        handler.postDelayed({ if (tabsPaletteDirty && currentPage == "player") retintPages(1) }, 900L)
     }
 
     /** Status/navigation bars follow the page surface so no black strip is left at the bottom. */
@@ -1151,6 +1168,7 @@ class MainActivity : Activity() {
             getPreferences(MODE_PRIVATE).edit().putFloat("classic_tint_h", th).putFloat("classic_tint_k", tk).apply()
             darkDrawables.forEach { it.invalidateSelf() }
             tabsPaletteDirty = true
+            scheduleIdleRetint()
         }
         if (result.accent == albumAccent && result.dark == albumDark && result.lightAccent == albumAccentLight && result.lightTint == albumTint) return
         albumAccent = result.accent
@@ -1167,7 +1185,7 @@ class MainActivity : Activity() {
         if (::queueMiniProgress.isInitialized) { val m = queueMiniProgress.max; val pr = queueMiniProgress.progress; queueMiniProgress.progressDrawable = miniProgressDrawable(); queueMiniProgress.max = m; queueMiniProgress.progress = pr }
         updateAlbumPlayingMarks(try { player?.isPlaying == true } catch (_: Exception) { false })
         if (buildingUi) return
-        if (currentPage == "player") tabsPaletteDirty = true else retintPages()
+        if (currentPage == "player") { tabsPaletteDirty = true; scheduleIdleRetint() } else { paletteVersion++; retintPages() }
     }
 
     /** Dark theme palette: black page, white and grey text, accent from the cover (Hifi 2.1). Only the backdrop follows the cover. */
@@ -1206,7 +1224,7 @@ class MainActivity : Activity() {
         if (::playView.isInitialized) syncPlaybackIcon()
         // The bottom bar and the system bars change at once; the lists are repainted only when a tab is visible.
         if (buildingUi) return
-        if (currentPage == "player") tabsPaletteDirty = true else retintPages()
+        if (currentPage == "player") { tabsPaletteDirty = true; scheduleIdleRetint() } else { paletteVersion++; retintPages() }
     }
 
     private fun makeLibraryPanel() {
@@ -2110,7 +2128,7 @@ class MainActivity : Activity() {
         albumDots.clear()
         albumRows.clipChildren = false; albumRows.clipToPadding = false; libraryPanel.clipChildren = false; libraryPanel.clipToPadding = false
         val kept = gridCacheView
-        if (kept != null && gridCacheTracks === tracks && gridCacheLight == lightTheme && gridCacheClassic == classicUi) {
+        if (kept != null && gridCacheTracks === tracks && gridCacheLight == lightTheme && gridCacheClassic == classicUi && gridCachePalette == paletteVersion) {
             (kept.parent as? ViewGroup)?.removeView(kept)
             albumRows.addView(kept, LinearLayout.LayoutParams(-1, -2))   // Hifi 2.73 classic 119: the same grid as before, nothing is rebuilt
             albumDots.addAll(gridCacheDots)
@@ -2191,7 +2209,7 @@ class MainActivity : Activity() {
         // an odd last row keeps the same cover size: an empty cell of the same weight
         if (albums.size % 2 == 1) gridRow?.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { leftMargin = midMargin })
         albumRows.addView(grid, LinearLayout.LayoutParams(-1, -2))
-        gridCacheView = grid; gridCacheTracks = tracks; gridCacheLight = lightTheme; gridCacheClassic = classicUi
+        gridCacheView = grid; gridCachePalette = paletteVersion; gridCacheTracks = tracks; gridCacheLight = lightTheme; gridCacheClassic = classicUi
         gridCacheDots.clear(); gridCacheDots.addAll(albumDots)
         librarySummary.text = tracks.size.toString() + " tracks • " + albums.size + " albums"
     }
@@ -3522,7 +3540,7 @@ class MainActivity : Activity() {
         if (which == "library" && previousPage != "library") restoreListScroll()
         // All pages share the cover-coloured surface; the system bars follow it.
         applySystemBars()
-        if (which != "player" && tabsPaletteDirty) retintPages()
+        if (which != "player" && tabsPaletteDirty) retintPages() else if (which != "player" && playerRetintPending) retintPages(2)
         playerPanel.visibility = if (which == "player") View.VISIBLE else View.GONE
         playerCoverView?.visibility = if (which == "player") View.VISIBLE else View.GONE
         libraryPanel.visibility = if (which == "library") View.VISIBLE else View.GONE
