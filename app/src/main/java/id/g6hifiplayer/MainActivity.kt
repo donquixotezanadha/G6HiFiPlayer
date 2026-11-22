@@ -3811,8 +3811,8 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(10), 0, dp(10), 0)
             themed { background = RippleDrawable(rippleTint(0x30), shape(floatingColor(), 9), null) }   // Hifi 2.73 classic 86: solid floating-window colour, same 9dp corners as the 3-dot options
-            addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))
-            addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
+            addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(13), dp(13)))   // Hifi 2.73 classic 109: album page buttons 1 unit smaller (the Blur 2.84 -> Blur 5 difference: 15 -> 14 sp)
+            addView(text(label, 13f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
             isClickable = true; isFocusable = true
             contentDescription = label
             setOnClickListener { click() }
@@ -4023,20 +4023,20 @@ class MainActivity : Activity() {
         if (v == null || currentPage == target) { show(target); return }
         val mini = queueMiniHost
         if (currentPage == "library" && target != "library" && mini != null && mini.visibility == View.VISIBLE) {
-            mini.animate().alpha(0f).setDuration(90L).start()   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
+            mini.animate().alpha(0f).setDuration(110L).start()   // Hifi 2.73 classic 108 (was 50): the mini player just fades with the page (no slide that lingers)
         }
         // Hifi 2.73 classic 107 (UAPP style): a short simple fade out and a soft fade in, everything the cover touches (page, cover backdrop, mini player) on the same clock and as one layer
-        playerCoverView?.animate()?.alpha(0f)?.setDuration(60L)?.withLayer()?.start()
-        v.animate().alpha(0f).setDuration(60L).withLayer().withEndAction {
+        playerCoverView?.animate()?.alpha(0f)?.setDuration(110L)?.setInterpolator(android.view.animation.LinearInterpolator())?.start()   // Hifi 2.73 classic 109: no withLayer (the layer build ate the first frames, so the fade looked like a jump); 110 ms linear, clearly visible
+        v.animate().alpha(0f).setDuration(110L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {
             if (token != pageAnimToken) return@withEndAction
             show(target)
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
-            val easeIn = android.view.animation.DecelerateInterpolator(1.6f)
-            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(140L).setInterpolator(easeIn).withLayer().start() }
+            val easeIn = android.view.animation.DecelerateInterpolator(1.4f)
+            playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(190L).setInterpolator(easeIn).start() }
             if (toLibrary) riseMini(token)
-            v.animate().alpha(1f).setDuration(140L).setInterpolator(easeIn).withLayer().start()
+            v.animate().alpha(1f).setDuration(190L).setInterpolator(easeIn).start()
         }.start()
     }
 
@@ -4089,11 +4089,11 @@ class MainActivity : Activity() {
         v.animate().cancel()
         val token = ++albumSwapToken
         if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
-        v.animate().alpha(0f).setDuration(60L).withLayer().withEndAction {   // Hifi 2.73 classic 107: short out, soft in, as one layer
+        v.animate().alpha(0f).setDuration(110L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {   // Hifi 2.73 classic 109: visible fade out 110 ms, soft fade in 190 ms
             if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
             switch()
             v.alpha = 0f
-            v.animate().alpha(1f).setDuration(140L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).withLayer().start()
+            v.animate().alpha(1f).setDuration(190L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
         }.start()
     }
 
