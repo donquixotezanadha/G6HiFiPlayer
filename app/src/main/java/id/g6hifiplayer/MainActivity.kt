@@ -4094,8 +4094,9 @@ class MainActivity : Activity() {
         // Hifi 2.73 classic 113: same timing as the page changes (out 70 ms, in 160 ms decelerate). Opening an album: the new page slides in 28 dp from the right while it fades in;
         // closing: the album page fades out and shrinks slightly towards the centre (0.96). No band fade, no cover special case.
         val wasOpen = selectedAlbum != null
-        val out = v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator())
-        if (wasOpen) out.scaleX(0.96f).scaleY(0.96f)
+        // Hifi 2.73 classic 115: closing an album = the floating window exit (140 ms, accelerating, shrink to 0.92 + fade); opening keeps 70 ms
+        val out = if (wasOpen) v.animate().alpha(0f).scaleX(0.92f).scaleY(0.92f).setDuration(140L).setInterpolator(android.view.animation.AccelerateInterpolator())
+                  else v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator())
         out.withEndAction {
             if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; return@withEndAction }
             switch()

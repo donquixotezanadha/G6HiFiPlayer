@@ -1040,3 +1040,6 @@ One timing for all cover-area changes (Now Playing <-> album, mini player -> alb
 
 ## Hifi 2.73 classic 114 (versionCode 301), from 113
 Only when Now Playing is opened by touching the mini player: Now Playing slides up 28 dp while it fades in (slideToPage(target, slideUp = true); the mini player click is the only caller). Back, Play album and every other path stay as 113. Rest of the slide directions (Now Playing -> album left, back right) still parked.
+
+## Hifi 2.73 classic 115 (versionCode 302), from 114
+Floating windows: open 180 ms (grow from 88%, decelerate 1.6, fade in), close 140 ms (shrink to 92%, accelerate, fade out). Closing an album page now uses the same exit (140 ms accelerate, 0.92 shrink + fade); the grid comes in 160 ms as before. Opening an album (70 ms out, small slide in) unchanged.
