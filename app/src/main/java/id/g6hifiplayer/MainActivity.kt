@@ -3565,7 +3565,7 @@ class MainActivity : Activity() {
     private fun iconImageAction(icon: Int, click: () -> Unit) = ImageView(this).apply {
         setImageResource(icon)
         scaleType = ImageView.ScaleType.FIT_CENTER
-        setPadding(dp(14), dp(10), dp(14), dp(10))
+        setPadding(dp(14) + halfDp(), dp(10), dp(14) + halfDp(), dp(10))   // Hifi 2.73 classic 122: plus and x 1 dp smaller (track rows, queue)
         circleRipple()
         setColorFilter(ACTION_GREY)
         isClickable = true; isFocusable = true; setOnClickListener { click() }
@@ -3744,7 +3744,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(10), 0)
-                addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(14), dp(14)))   // Hifi 2.73 classic 52: his own icons
+                addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER; if (icon == R.drawable.ic_plus) setPadding(halfDp(), halfDp(), halfDp(), halfDp()) }, LinearLayout.LayoutParams(dp(14), dp(14)))   // Hifi 2.73 classic 52: his own icons; 122: the plus is 1 dp smaller
                 addView(text(label, 14f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
                 background = RippleDrawable(rippleTint(0x30), shape(LINE, 9), null)   // 2.3: same colour as the unselected buttons in Setting
                 isClickable = true; isFocusable = true
@@ -3857,7 +3857,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(10), 0, dp(10), 0)
             themed { background = RippleDrawable(rippleTint(0x30), shape(floatingColor(), 9), null) }   // Hifi 2.73 classic 86: solid floating-window colour, same 9dp corners as the 3-dot options
-            addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(13), dp(13)))   // Hifi 2.73 classic 109: album page buttons 1 unit smaller (the Blur 2.84 -> Blur 5 difference: 15 -> 14 sp)
+            addView(ImageView(this@MainActivity).apply { setImageResource(icon); setColorFilter(WHITE); scaleType = ImageView.ScaleType.FIT_CENTER; if (!primary) setPadding(halfDp(), halfDp(), halfDp(), halfDp()) }, LinearLayout.LayoutParams(dp(13), dp(13)))   // 122: the plus of Add to queue is 1 dp smaller   // Hifi 2.73 classic 109: album page buttons 1 unit smaller (the Blur 2.84 -> Blur 5 difference: 15 -> 14 sp)
             addView(text(label, 13f, WHITE, true).apply { setPadding(dp(12), 0, 0, 0) })
             isClickable = true; isFocusable = true
             contentDescription = label
@@ -3909,6 +3909,8 @@ class MainActivity : Activity() {
         return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60)
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+    /** Hifi 2.73 classic 122: half a dp in pixels; used as padding on both sides so a plus / x icon becomes 1 dp smaller (the layout and the text beside it stay where they are). */
+    private fun halfDp() = Math.round(resources.displayMetrics.density * 0.5f)
 
     /**
      * Hifi 1.35: ONE background for every floating window (Setting, long-press on an album) and for the mini player card: the page surface

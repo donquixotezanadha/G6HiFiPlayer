@@ -1066,3 +1066,6 @@ Only the closing of an album page changes: 140 ms again (default accelerate curv
 
 ## Hifi 2.73 classic 121 (versionCode 308), from 120
 Opening an album page is now a soft plain fade (180 ms, decelerate 1.6) instead of grow-from-0.92 + fade. Nothing else changed (close = slide down 56 dp + fade 140 ms, slides, cache). User on 120: "perfect, all as wanted", the leftover image is almost gone.
+
+## Hifi 2.73 classic 122 (versionCode 309), from 121
+Plus and x icons 1 dp smaller everywhere in the app: track-row "+" (album page and the other list), queue "x" (both via iconImageAction: icon width 12 -> 11 dp), the "Add to queue" row in the 3-dot window (14 -> 13 dp) and the plus of the album page "Add to queue" button (13 -> 12 dp). Done with half-dp padding on both sides, so touch areas, text positions and the play icons are unchanged. The notification "Close player" action icon (system-drawn) was not touched.
