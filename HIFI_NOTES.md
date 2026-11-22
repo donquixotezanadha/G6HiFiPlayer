@@ -1037,3 +1037,6 @@ Classic 110 (cover band fades with the page) was worse: with the band at alpha 0
 
 ## Hifi 2.73 classic 113 (versionCode 300), from 111
 One timing for all cover-area changes (Now Playing <-> album, mini player -> album, grid <-> album page): out 70 ms linear, in 160 ms decelerate (111/109 were 110/190). Album page opening from the grid: the new page also slides in 28 dp from the right while fading in; closing: the album page fades out and shrinks to 0.96 towards the centre. The special fast cover fade of 112 and any band fade are gone (band is static). Slide up / left / right between Now Playing and album stays parked.
+
+## Hifi 2.73 classic 114 (versionCode 301), from 113
+Only when Now Playing is opened by touching the mini player: Now Playing slides up 28 dp while it fades in (slideToPage(target, slideUp = true); the mini player click is the only caller). Back, Play album and every other path stay as 113. Rest of the slide directions (Now Playing -> album left, back right) still parked.

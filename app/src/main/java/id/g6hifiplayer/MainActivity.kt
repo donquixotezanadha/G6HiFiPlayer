@@ -1504,7 +1504,7 @@ class MainActivity : Activity() {
             themed { background = RippleDrawable(rippleTint(0x0E), floatingBackground(), null) }   // Hifi 2.73 classic 12: very faint touch ripple on the mini player card (was 0x30)
             isClickable = true
             isFocusable = true
-            setOnClickListener { showPlayerAnimated() }
+            setOnClickListener { slideToPage("player", true) }   // Hifi 2.73 classic 114: touching the mini player brings Now Playing in sliding up
         }
         queueMiniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -4010,7 +4010,7 @@ class MainActivity : Activity() {
     private fun slidePageTo(toLibrary: Boolean) = slideToPage(if (toLibrary) "library" else "player")
 
     /** Hifi 2.73 classic 90: every tab change (Albums / Setting included) fades the same way, not only Now Playing <-> Albums. */
-    private fun slideToPage(target: String) {
+    private fun slideToPage(target: String, slideUp: Boolean = false) {
         val toLibrary = target == "library"
         val v = pageContentView
         val token = ++pageAnimToken
@@ -4033,6 +4033,7 @@ class MainActivity : Activity() {
             mini?.animate()?.cancel()
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
+            if (slideUp) { v.translationY = dp(28).toFloat(); v.animate().translationY(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start() }   // Hifi 2.73 classic 114: Now Playing slides up 28 dp while it fades in (only after touching the mini player)
             val easeIn = android.view.animation.DecelerateInterpolator(1.4f)
             playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(160L).setInterpolator(easeIn).start() }
             if (toLibrary) riseMini(token)
