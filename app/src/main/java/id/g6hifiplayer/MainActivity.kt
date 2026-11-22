@@ -1364,6 +1364,9 @@ class MainActivity : Activity() {
     private class DarkBackdropDrawable(private val light: Boolean) : android.graphics.drawable.Drawable() {
         var classicBitmap: android.graphics.Bitmap? = null   // Hifi 2.60: the sharp cover, used by Classic only
             set(value) { field = value; invalidateSelf() }
+        var bandAlpha = 1f   // Hifi 2.73 classic 110: the cover band can fade with the page (grid <-> album), so no picture is left standing behind a fading page
+            set(value) { field = value.coerceIn(0f, 1f); invalidateSelf() }
+        private val bandLayerPaint = android.graphics.Paint()
         private val bitmapPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
         private val classicMask = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN) }
 
@@ -1382,7 +1385,8 @@ class MainActivity : Activity() {
                     val k = maxOf(w / bmp.width, bandH / bmp.height)
                     val sw = (w / k).toInt().coerceIn(1, bmp.width); val sh = (bandH / k).toInt().coerceIn(1, bmp.height)
                     val sx = (bmp.width - sw) / 2; val sy = (bmp.height - sh) / 2
-                    val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, null)
+                    bandLayerPaint.alpha = (bandAlpha * 255f).toInt()
+                    val save = canvas.saveLayer(b.left.toFloat(), top, b.left + w, bottom, bandLayerPaint)
                     bitmapPaint.colorFilter = BackdropBlur.classicTone(light, 0.75f, 1.0f, 0.0f, 0.24f)
                     canvas.drawBitmap(bmp, android.graphics.Rect(sx, sy, sx + sw, sy + sh), android.graphics.RectF(b.left.toFloat(), top, b.left + w, bottom), bitmapPaint)
                     bitmapPaint.colorFilter = null
@@ -4084,15 +4088,29 @@ class MainActivity : Activity() {
      * Hifi 2.73 classic 90: grid <-> album page uses the same quick fade as the page changes (fade out 100 ms -> switch -> fade in 160 ms).
      * [animate] = false switches at once (Play album: the page is already behind Now Playing).
      */
+    private var bandAnim: android.animation.ValueAnimator? = null
+    /** Hifi 2.73 classic 110: fades the cover band painted behind every page, on the same clock as the page. */
+    private fun fadeBand(to: Int, duration: Long, interpolator: android.animation.TimeInterpolator) {
+        bandAnim?.cancel()
+        val from = darkDrawables.firstOrNull()?.bandAlpha ?: 1f
+        val end = to.toFloat()
+        bandAnim = android.animation.ValueAnimator.ofFloat(from, end).apply {
+            this.duration = duration; this.interpolator = interpolator
+            addUpdateListener { a -> val x = a.animatedValue as Float; darkDrawables.forEach { it.bandAlpha = x } }
+            start()
+        }
+    }
     private fun swapAlbumView(animate: Boolean, switch: () -> Unit) {
         val v = albumRows
         v.animate().cancel()
         val token = ++albumSwapToken
-        if (!animate || currentPage != "library" || !v.isShown) { v.alpha = 1f; switch(); return }
+        if (!animate || currentPage != "library" || !v.isShown) { bandAnim?.cancel(); darkDrawables.forEach { it.bandAlpha = 1f }; v.alpha = 1f; switch(); return }
+        fadeBand(0, 110L, android.view.animation.LinearInterpolator())
         v.animate().alpha(0f).setDuration(110L).setInterpolator(android.view.animation.LinearInterpolator()).withEndAction {   // Hifi 2.73 classic 109: visible fade out 110 ms, soft fade in 190 ms
             if (token != albumSwapToken) { v.alpha = 1f; return@withEndAction }
             switch()
             v.alpha = 0f
+            fadeBand(1, 190L, android.view.animation.DecelerateInterpolator(1.4f))
             v.animate().alpha(1f).setDuration(190L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
         }.start()
     }
