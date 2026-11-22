@@ -923,9 +923,9 @@ class MainActivity : Activity() {
         transport.clipChildren = false
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1.3f))
         transport.addView(prevView, LinearLayout.LayoutParams(dp(TRANSPORT_SIDE_DP), dp(TRANSPORT_SIDE_DP)))
-        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, if (classicUi) 0.8f else 0.5f))   // Hifi 2.71: wider gap between prev / play / next in Classic
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.5f))   // Hifi 2.71: wider gap between prev / play / next in Classic
         transport.addView(playView, LinearLayout.LayoutParams(dp(TRANSPORT_PLAY_DP), dp(TRANSPORT_PLAY_DP)))
-        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, if (classicUi) 0.8f else 0.5f))   // Hifi 2.71: wider gap between prev / play / next in Classic
+        transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 0.5f))   // Hifi 2.71: wider gap between prev / play / next in Classic
         transport.addView(nextView, LinearLayout.LayoutParams(dp(TRANSPORT_SIDE_DP), dp(TRANSPORT_SIDE_DP)))
         transport.addView(android.widget.Space(this), LinearLayout.LayoutParams(0, 1, 1.3f))
 

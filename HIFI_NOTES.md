@@ -1099,3 +1099,6 @@ Icons, icon sizes, control sizes and progress thickness now follow Blur (Blur 6 
 - Play album / Add to queue, the "+" on track rows and the "x" in the queue: Blur's text glyphs ("▶  " / "＋  " 14 sp labels, "+" / "×" 22 sp), instead of the user's own plus / x / play-outline images. 3-dot icon = Blur's round dots (ic_more_vert).
 - Progress thickness as Blur: Now Playing 4 dp (was 3), mini player 3 dp (was 2), widgets 4 dp (was 3; 4x1, blur 4x1, blur 4x2, text 4x2 layouts). Bars stay flat (Round / Classic shape), only thickness changed.
 - Unchanged on purpose: launcher / splash logo (rounded Classic logo), notification status-bar glyph (ic_stat_music), equalizer (4 bars), gap between prev / play / next, colours.
+
+## Hifi 2.73 classic round 6 (versionCode 318), from round 5
+As Blur: gap between prev / play / next (spacer weight 0.8 -> 0.5), equalizer = Blur's 3 rounded full-width bars (EqualizerView now keyed on UiIcons.sharpIcons = false). 3-dot icon is already Blur's round dots since round 5.
