@@ -1043,3 +1043,6 @@ Only when Now Playing is opened by touching the mini player: Now Playing slides 
 
 ## Hifi 2.73 classic 115 (versionCode 302), from 114
 Floating windows: open 180 ms (grow from 88%, decelerate 1.6, fade in), close 140 ms (shrink to 92%, accelerate, fade out). Closing an album page now uses the same exit (140 ms accelerate, 0.92 shrink + fade); the grid comes in 160 ms as before. Opening an album (70 ms out, small slide in) unchanged.
+
+## Hifi 2.73 classic 116 (versionCode 303), from 115
+Opening an album is the reverse of closing: the new page grows from 0.92 to full size while fading in, decelerating (180 ms, DecelerateInterpolator 1.6, same as the floating window pop-in); the 28 dp slide from the right is gone. Closing unchanged (140 ms accelerate, 0.92 + fade). User note on 115: leftover image is fainter, probably thanks to the longer fade curve.

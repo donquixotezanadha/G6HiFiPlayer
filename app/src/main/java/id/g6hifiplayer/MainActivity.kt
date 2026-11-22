@@ -4101,10 +4101,15 @@ class MainActivity : Activity() {
             if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; return@withEndAction }
             switch()
             val opened = !wasOpen && selectedAlbum != null
-            v.scaleX = 1f; v.scaleY = 1f
             v.alpha = 0f
-            v.translationX = if (opened) dp(28).toFloat() else 0f
-            v.animate().alpha(1f).translationX(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
+            v.translationX = 0f
+            if (opened) {   // Hifi 2.73 classic 116: opening = the reverse of closing: grows from 0.92 to full size while fading in, slowing down at the end (180 ms, as the floating windows open)
+                v.scaleX = 0.92f; v.scaleY = 0.92f
+                v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+            } else {
+                v.scaleX = 1f; v.scaleY = 1f
+                v.animate().alpha(1f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start()
+            }
         }.start()
     }
 
