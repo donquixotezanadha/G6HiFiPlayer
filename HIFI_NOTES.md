@@ -1046,3 +1046,7 @@ Floating windows: open 180 ms (grow from 88%, decelerate 1.6, fade in), close 14
 
 ## Hifi 2.73 classic 116 (versionCode 303), from 115
 Opening an album is the reverse of closing: the new page grows from 0.92 to full size while fading in, decelerating (180 ms, DecelerateInterpolator 1.6, same as the floating window pop-in); the 28 dp slide from the right is gone. Closing unchanged (140 ms accelerate, 0.92 + fade). User note on 115: leftover image is fainter, probably thanks to the longer fade curve.
+
+## Hifi 2.73 classic 117 (versionCode 304), from 116
+- Closing an album: 140 -> 110 ms, fade curve AccelerateInterpolator 1.8 (was 1.0; the page stays visible longer and then goes quickly, no faint remnant); still shrinks to 0.92. Opening unchanged (user: "hampir selalu benar").
+- Now Playing -> album (dock Albums button): page content slides in 28 dp from the right (slide left). Album -> Now Playing by Back: slides in from the left (slide right). Back from Now Playing, the mini player touch (slide up) and Play album paths unchanged. Only pageContentView moves; the cover backdrop just fades.

@@ -825,7 +825,7 @@ class MainActivity : Activity() {
         val albumBtn = FrameLayout(this).apply {
             contentDescription = "Albums"
             isClickable = true; isFocusable = true
-            setOnClickListener { slidePageTo(true) }
+            setOnClickListener { slideToPage("library", slideX = 1) }   // Hifi 2.73 classic 117: Now Playing -> album slides left (the album comes in from the right)
             circleRipple()
             addView(albumIcon, FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
         }
@@ -4010,7 +4010,7 @@ class MainActivity : Activity() {
     private fun slidePageTo(toLibrary: Boolean) = slideToPage(if (toLibrary) "library" else "player")
 
     /** Hifi 2.73 classic 90: every tab change (Albums / Setting included) fades the same way, not only Now Playing <-> Albums. */
-    private fun slideToPage(target: String, slideUp: Boolean = false) {
+    private fun slideToPage(target: String, slideUp: Boolean = false, slideX: Int = 0) {
         val toLibrary = target == "library"
         val v = pageContentView
         val token = ++pageAnimToken
@@ -4034,6 +4034,7 @@ class MainActivity : Activity() {
             mini?.let { it.translationY = 0f; it.alpha = 1f }
             v.alpha = 0f
             if (slideUp) { v.translationY = dp(28).toFloat(); v.animate().translationY(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start() }   // Hifi 2.73 classic 114: Now Playing slides up 28 dp while it fades in (only after touching the mini player)
+            if (slideX != 0) { v.translationX = slideX * dp(28).toFloat(); v.animate().translationX(0f).setDuration(160L).setInterpolator(android.view.animation.DecelerateInterpolator(1.4f)).start() }   // Hifi 2.73 classic 117
             val easeIn = android.view.animation.DecelerateInterpolator(1.4f)
             playerCoverView?.let { it.alpha = 0f; it.animate().alpha(1f).setDuration(160L).setInterpolator(easeIn).start() }
             if (toLibrary) riseMini(token)
@@ -4095,7 +4096,7 @@ class MainActivity : Activity() {
         // closing: the album page fades out and shrinks slightly towards the centre (0.96). No band fade, no cover special case.
         val wasOpen = selectedAlbum != null
         // Hifi 2.73 classic 115: closing an album = the floating window exit (140 ms, accelerating, shrink to 0.92 + fade); opening keeps 70 ms
-        val out = if (wasOpen) v.animate().alpha(0f).scaleX(0.92f).scaleY(0.92f).setDuration(140L).setInterpolator(android.view.animation.AccelerateInterpolator())
+        val out = if (wasOpen) v.animate().alpha(0f).scaleX(0.92f).scaleY(0.92f).setDuration(110L).setInterpolator(android.view.animation.AccelerateInterpolator(1.8f))   // Hifi 2.73 classic 117: shorter (110 ms) with a longer-lasting, steeper fade curve (1.8)
                   else v.animate().alpha(0f).setDuration(70L).setInterpolator(android.view.animation.LinearInterpolator())
         out.withEndAction {
             if (token != albumSwapToken) { v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; return@withEndAction }
@@ -4133,7 +4134,7 @@ class MainActivity : Activity() {
             return
         }
         if (currentPage != "player") {
-            showPlayerAnimated()
+            slideToPage("player", slideX = -1)   // Hifi 2.73 classic 117: album -> Now Playing by Back slides right (Now Playing comes in from the left)
             return
         }
         // Build 2.8: Back on the Now Playing page only sends the app to the background (like Home).
