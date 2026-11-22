@@ -9,5 +9,5 @@
         android:strokeWidth="1.6"
         android:strokeLineJoin="miter"
         android:strokeLineCap="butt"
-        android:pathData="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12z" />
+        android:pathData="M18.00,7.21L16.79,6.00L12.00,10.79L7.21,6.00L6.00,7.21L10.79,12.00L6.00,16.79L7.21,18.00L12.00,13.21L16.79,18.00L18.00,16.79L13.21,12.00z" />
 </vector>

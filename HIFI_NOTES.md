@@ -1089,3 +1089,6 @@ Classic 123 + ONLY Blur's roundness (covers, windows, widgets). Nothing else: ic
 
 ## Hifi 2.73 classic round 3 (versionCode 314), from round 2
 Only the launcher label: "Hifi Round" -> "Hifi" (user will use one version at a time and swap). App id stays id.hifi.player.classicround, so it still installs next to the other builds.
+
+## Hifi 2.73 classic round 4 (versionCode 316), from round 3
+Notification "Close player" x 2 dp smaller (same change as Classic 124): 15.6 dp -> 13.6 dp glyph. Nothing else changed.
