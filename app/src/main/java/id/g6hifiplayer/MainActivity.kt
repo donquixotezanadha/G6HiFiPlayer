@@ -139,7 +139,7 @@ class MainActivity : Activity() {
     private val LINE get() = if (lightTheme) (if (hasAlbumTint) 0x1F000000 else 0x1A000000) else if (hasAlbumTint) withAlpha(mixColors(albumDark, Color.WHITE, 0.10f), 0xCC) else 0xCC292929.toInt()
     private val WHITE get() = if (lightTheme) Color.BLACK else playerInk
     // Hifi 1.22: Light grey text 0xFF686875 -> 0xFF484855 (darker). Dark is unchanged (0xFFA4A4B2).
-    private val ICON_SOFT get() = if (lightTheme) Color.BLACK else Color.WHITE   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
+    private val ICON_SOFT get() = if (lightTheme) 0xFF60606D.toInt() else 0xFF93939F.toInt()   // Hifi 2.73 classic round 8: Blur's grey for theme / queue / album / gear icons   // Hifi 2.31: theme / queue / album / gear icons, a little less dense (Light lighter, Dark darker)
     private val MUTED get() = if (lightTheme) 0xFF484848.toInt() else 0xFFA5A5A5.toInt()
     private var pageRoot: LinearLayout? = null
     private var tabsPaletteDirty = false

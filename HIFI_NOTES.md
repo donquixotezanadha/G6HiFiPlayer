@@ -1105,3 +1105,6 @@ As Blur: gap between prev / play / next (spacer weight 0.8 -> 0.5), equalizer = 
 
 ## Hifi 2.73 classic round 7 (versionCode 319), from round 6
 Progress bars rounded as Blur (pill ends): Now Playing + mini player (RoundedProgressDrawable radius = thickness / 2) and widgets (radius = height / 2). Nothing else changed.
+
+## Hifi 2.73 classic round 8 (versionCode 320), from round 7
+Theme / queue / album icons under the Now Playing info (and the gear) use Blur's grey (ICON_SOFT: Light 60606D, Dark 93939F) instead of pure black/white. Nothing else changed.
