@@ -552,13 +552,10 @@ class PlaybackKeepAliveService : Service() {
                         eventListener: AudioRendererEventListener,
                         out: java.util.ArrayList<Renderer>
                     ) {
-                        // Hifi 1.29 strict mode: the audio renderers are ONLY the player's own: FLAC (8-24 bit), ALAC (16-24 bit,
-                        // in .m4a) and WAV (16 / 24-bit PCM, passed straight through). No MediaCodec renderer is added, so any
-                        // other format (MP3, AAC, OGG, DSD, 32-bit ...) has no way to play at all, and there is no second path
-                        // to the Android mixer.
-                        out.add(FlacPcmRenderer(eventHandler, eventListener, audioSink))
-                        out.add(AlacPcmRenderer(eventHandler, eventListener, audioSink))
-                        out.add(PcmCopyRenderer(eventHandler, eventListener, audioSink))
+                        // Hifi iTunes 1 strict mode: ONE audio renderer only, the player's own AAC-LC decoder (iTunes style .m4a, 24-bit
+                        // PCM straight into the direct output). No FLAC, ALAC or WAV renderer and no MediaCodec renderer, so every other
+                        // format (and HE-AAC) has no way to play at all, and there is no path to the Android mixer.
+                        out.add(AacPcmRenderer(eventHandler, eventListener, audioSink))
                     }
 
                     // Hifi 1.29: no video, image or camera-motion renderers either (audio only).

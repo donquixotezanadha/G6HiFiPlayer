@@ -2594,7 +2594,7 @@ class MainActivity : Activity() {
                     updatePlaybackNotification(isPlaying)
                 }
             }
-            // Hifi 1.29 strict mode: only FLAC, ALAC and WAV have a renderer. If the file's audio track has none, nothing may play.
+            // Hifi iTunes 1 strict mode: only AAC-LC (M4A) has a renderer. If the file's audio track has none, nothing may play.
             override fun onTracksChanged(trackInfo: androidx.media3.common.Tracks) {
                 if (trackInfo.groups.isNotEmpty() && !trackInfo.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_AUDIO)) {
                     strictBlocked = true
@@ -2603,10 +2603,10 @@ class MainActivity : Activity() {
                     val mime = trackInfo.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
                         ?.let { g -> try { g.getTrackFormat(0).sampleMimeType } catch (_: Exception) { null } }
                     val title = this@MainActivity.tracks.getOrNull(currentIndex)?.title ?: ""
-                    statusView.text = "Not supported (strict mode: FLAC, ALAC, WAV only)" + (mime?.let { " • $it" } ?: "") + (if (title.isNotEmpty()) "\n$title" else "")
-                    try { Toast.makeText(this@MainActivity, "Not played: only FLAC, ALAC and WAV are supported" + (mime?.let { "\n($it)" } ?: ""), Toast.LENGTH_LONG).show() } catch (_: Exception) { }
+                    statusView.text = "Not supported (strict mode: AAC-LC M4A only)" + (mime?.let { " • $it" } ?: "") + (if (title.isNotEmpty()) "\n$title" else "")
+                    try { Toast.makeText(this@MainActivity, "Not played: only AAC-LC (M4A) is supported" + (mime?.let { "\n($it)" } ?: ""), Toast.LENGTH_LONG).show() } catch (_: Exception) { }
                     recordDiagnostic("STRICT_UNSUPPORTED mime=" + mime)
-                    AudioPathLog.add(AudioPathLog.KIND_ERROR, "NOT PLAYED", title.ifEmpty { "Unknown track" }, "strict mode: FLAC, ALAC and WAV only" + (mime?.let { " • $it" } ?: ""))
+                    AudioPathLog.add(AudioPathLog.KIND_ERROR, "NOT PLAYED", title.ifEmpty { "Unknown track" }, "strict mode: AAC-LC M4A only" + (mime?.let { " • $it" } ?: ""))
                     syncPlaybackIcon(false)
                     refreshAudioInfo()
                 }
@@ -3982,7 +3982,7 @@ class MainActivity : Activity() {
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val entries = AudioPathLog.snapshot()
         if (entries.isEmpty()) {
-            list.addView(text("No tracks logged yet. Play a FLAC, ALAC or WAV track.", 12f, MUTED, false))
+            list.addView(text("No tracks logged yet. Play an AAC M4A track.", 12f, MUTED, false))
         }
         for (e in entries) {
             val warn = when (e.kind) { AudioPathLog.KIND_ERROR -> 0xFFFF5252.toInt(); AudioPathLog.KIND_UNMATCH -> 0xFFFFA040.toInt(); else -> 0 }
@@ -4353,6 +4353,6 @@ class MainActivity : Activity() {
         /** Hifi 2.58: Classic UI = no blur anywhere (plain theme surface behind the pages, flat Blur widgets). Adaptive (default) = blurred cover backdrop. */
         @Volatile private var classicUi = false
         private val LIGHT_SURFACE get() = 0xFFF8F8FC.toInt()   // Hifi 2.73 classic 14: Light base with the thin tint of the cover
-        private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "ape", "dsf", "dff", "wma", "3gp", "amr")
+        private val AUDIO_EXTENSIONS = setOf("m4a", "mp4", "aac")   // Hifi iTunes 1: only what the AAC decoder can play
     }
 }

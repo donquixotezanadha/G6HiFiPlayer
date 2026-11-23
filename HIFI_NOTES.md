@@ -1046,3 +1046,8 @@ Applied as the diff Classic 92 -> Classic 123 of MainActivity.kt (3-way); the th
 - Grid <-> album page: opening = soft fade 180 ms, closing = slide down 56 dp + fade 140 ms.
 - Performance: Album grid kept alive while an album page is open (rebuilt only when the library, theme or palette changes), album grouping cached, heavy re-tint moved out of the page switch.
 - NOT ported on purpose: plus / x 1 dp smaller (Blur keeps its text glyphs and its sizes), album page button sizes (Blur's own), Classic-only startup cover reveal (classicUi only).
+
+## Hifi 3.0 itunes 1 (branch hifi-v3-itunes-1, id id.hifi.player.itunes, vc 330)
+- From Blur 6. ONE audio renderer: AacPcmRenderer (AAC-LC, mono/stereo, 8-96 kHz, .m4a/.mp4/.aac) with AacPcmDecoder; FLAC/ALAC/WAV renderers are no longer registered (classes stay in the source, unused). Library scan lists only m4a/mp4/aac. HE-AAC / multichannel / other formats: refused by the strict mode ("AAC-LC M4A only"). Speaker/headset routing is untouched (same as Blur 6).
+- Decoder = copy of JAAD (net.sourceforge.jaad.aac, public domain) patched: 24-bit output (float x256, one rounding, no dither/gain), TNS implemented (was an empty TODO), PNS noise generator fixed (even LCG multiplier ran to 0 -> NaN), quantizer table was 1 entry short (escape value 8191). SBR disabled.
+- Checked offline against ffmpeg's AAC decoder (44.1/48/32/22.05/96/8 kHz, mono + stereo, transient-heavy test signal, PNS off): SNR about 100 dB (about -100 dBFS difference). With PNS on the noise differs by design (random). Gapless trimming (iTunSMPB) is not applied: a few ms of encoder delay stays at the start.
