@@ -257,6 +257,17 @@ internal class DirectAudioOutput private constructor(
         private const val DEAD_OBJECT = -32
         private const val FORMAT_PCM_24_BIT_PACKED = 6
         private const val FLAG_DIRECT = 1
+        private const val DEMOTE_RETRIES = 8
+        private const val DEMOTE_FORCE_CLOSE_AT = 4
+
+        /** True when the route read back from the track shows flags WITHOUT DIRECT (demoted to a mixer thread). Unknown flags count as not demoted. */
+        private fun demoted(handle: Long): Boolean {
+            val text = try { NativeDirectStream.routeInfo(handle) } catch (_: Throwable) { return false }
+            val match = Regex("flags=0x([0-9a-fA-F]+)").find(text) ?: return false
+            val value = match.groupValues[1].toLongOrNull(16) ?: return false
+            if (value == 0xFFFFFC19L) return false   // getFlags could not be resolved natively (placeholder -999)
+            return (value and 1L) == 0L
+        }
 
         // The output that is currently open (the policy allows only one DIRECT track at a time).
         private val lock = Any()
@@ -310,6 +321,28 @@ internal class DirectAudioOutput private constructor(
                 }
                 try { Thread.sleep(100) } catch (_: InterruptedException) { break }
                 handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
+            }
+            // Hifi 2026-11-24: the policy can ACCEPT the open but demote the track to the mixer (flags without DIRECT, 48 kHz, 16-bit
+            // HAL). Seen when the headset is plugged in while a track is playing: the new track was opened 6 ms after the audio
+            // patch changed, while the old DIRECT output was still there. The route is read back right after open; a demoted
+            // track is closed and the DIRECT open is repeated for about a second. After that the track is kept as it is (the
+            // info line then shows it is not DIRECT), so playback never stops because of this check.
+            var demotedTries = 0
+            while (handle != 0L && demotedTries < DEMOTE_RETRIES && demoted(handle)) {
+                demotedTries++
+                DirectOutputState.log("DIRECT request was demoted to the mixer (${NativeDirectStream.routeInfo(handle)}); reopening $demotedTries/$DEMOTE_RETRIES")
+                try { NativeDirectStream.close(handle) } catch (_: Throwable) { }
+                handle = 0L
+                if (demotedTries == DEMOTE_FORCE_CLOSE_AT) {
+                    val old = synchronized(lock) { live }
+                    old?.forceClose()
+                }
+                try { Thread.sleep(150) } catch (_: InterruptedException) { break }
+                handle = NativeDirectStream.open(config.sampleRate, FORMAT_PCM_24_BIT_PACKED, FLAG_DIRECT, BUFFER_MS)
+            }
+            if (demotedTries > 0 && handle != 0L) {
+                DirectOutputState.log(if (demoted(handle)) "still on the mixer after $demotedTries reopen(s); route: ${NativeDirectStream.routeInfo(handle)}"
+                    else "DIRECT output obtained after $demotedTries reopen(s); route: ${NativeDirectStream.routeInfo(handle)}")
             }
             if (handle == 0L) {
                 DirectOutputState.log("native DIRECT open failed (${config.sampleRate} Hz): ${NativeDirectStream.lastLog()}")
