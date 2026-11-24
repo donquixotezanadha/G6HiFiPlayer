@@ -354,7 +354,12 @@ class MainActivity : Activity() {
                     it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
             }
             // A speaker-added event can accompany jack removal; it must not cancel the stop check.
-            if (wiredAdded) handler.removeCallbacks(wiredDisconnectCheck)
+            if (wiredAdded) {
+                handler.removeCallbacks(wiredDisconnectCheck)
+                // Hifi 2026-11-24: the info line said "NOT BIT-PERFECT • speaker" until the next pause/play because nothing refreshed it
+                // when the headset was plugged in while playing (the dump showed the DIRECT track on the headphone all the time).
+                handler.postDelayed({ try { refreshAudioInfo() } catch (_: Throwable) { } }, 400L)
+            }
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
             val details = removedDevices.joinToString { describe(it) }
