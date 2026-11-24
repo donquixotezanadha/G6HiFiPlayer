@@ -21,8 +21,8 @@ android {
         applicationId = "id.hifi.player.itunes"
         minSdk = 28
         targetSdk = 35
-        versionCode = 330
-        versionName = "3.0 itunes 1"
+        versionCode = 340
+        versionName = "3.0 itunes 3"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

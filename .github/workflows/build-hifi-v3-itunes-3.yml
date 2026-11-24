@@ -1,9 +1,9 @@
-name: Hifi 3.0 itunes 1 - Blur 6 with only the AAC M4A decoder
+name: Hifi 3.0 itunes 3 - DIRECT retry by output id + info refresh on headset plug
 
 on:
   workflow_dispatch:
   push:
-    branches: ["hifi-v3-itunes-1"]
+    branches: ["hifi-v3-itunes-3"]
 
 permissions:
   contents: read
@@ -37,13 +37,13 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player.itunes' versionCode='330' versionName='3.0 itunes 1'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player.itunes' versionCode='340' versionName='3.0 itunes 3'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
-          cp "$APK" "verified-artifact/Hifi-3.0-itunes-1.apk"
+          cp "$APK" "verified-artifact/Hifi-3.0-itunes-3.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Hifi-3.0-itunes-1-apk
+          name: Hifi-3.0-itunes-3-apk
           path: verified-artifact/*
           if-no-files-found: error
           retention-days: 90
