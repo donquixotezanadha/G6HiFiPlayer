@@ -1,9 +1,9 @@
-name: Hifi 2.73 classic round 8 - pure Classic
+name: Hifi 2.73 classic round 9 - DIRECT demotion retry (headset plugged while playing)
 
 on:
   workflow_dispatch:
   push:
-    branches: ["hifi-v2-73-classic-round-8"]
+    branches: ["hifi-v2-73-classic-round-9"]
 
 permissions:
   contents: read
@@ -37,13 +37,13 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player.classicround' versionCode='320' versionName='2.73 classic round 8'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player.classicround' versionCode='334' versionName='2.73 classic round 9'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
-          cp "$APK" "verified-artifact/Hifi-2.73-classic-round-8.apk"
+          cp "$APK" "verified-artifact/Hifi-2.73-classic-round-9.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Hifi-2.73-classic-round-8-apk
+          name: Hifi-2.73-classic-round-9-apk
           path: verified-artifact/*
           if-no-files-found: error
           retention-days: 90
