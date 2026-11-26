@@ -77,6 +77,7 @@ internal object BackdropBlur {
         if (soft == null || soft.isRecycled) return (neutralAlpha shl 24) or neutral
         var chromaSum = 0.0
         var n = 0
+        var chromaNb = 0.0; var nNb = 0   // Hifi 3.0 blur 11: chroma of the NOT dark samples only (a big black area no longer dilutes a pastel / cream cover)
         // Hifi 3.0 blur 10: the hue = the DOMINANT colour by area (Classic Round 17 method); before it was the chroma-weighted mean RGB of the whole cover,
         // which mixes two colours into a third one. Strength (meanChroma -> t), saturation / value rules and the veil alpha are unchanged.
         val bins = 36
@@ -94,6 +95,7 @@ internal object BackdropBlur {
                 chromaSum += c
                 n++
                 android.graphics.Color.RGBToHSV(r, g, b, hsv)
+                if (hsv[2] >= 0.30f) { chromaNb += c; nNb++ }
                 if (hsv[2] >= 0.12f) seen++
                 if (hsv[1] >= 0.08f && hsv[2] >= 0.20f) {
                     val bin = ((hsv[0] / 360f) * bins).toInt().coerceIn(0, bins - 1)
@@ -105,7 +107,11 @@ internal object BackdropBlur {
         }
         if (n == 0 || chromaSum <= 0.0) return (neutralAlpha shl 24) or neutral
         val meanChroma = chromaSum / n
-        val t = ((meanChroma - 0.08) / (0.30 - 0.08)).coerceIn(0.0, 1.0).let { it * it * (3 - 2 * it) }   // smoothstep: 0 below 8%, full from 30%
+        val tOld = ((meanChroma - 0.08) / (0.30 - 0.08)).coerceIn(0.0, 1.0).let { it * it * (3 - 2 * it) }   // smoothstep: 0 below 8%, full from 30%
+        // blur 11: second strength from the not-dark samples (needs 15% of the cover), a little more tolerant towards pastel / cream (from 6%); the stronger of the two counts,
+        // so covers without a big dark area keep exactly their old strength
+        val tNb = if (nNb >= n * 0.15) (((chromaNb / nNb) - 0.06) / (0.30 - 0.06)).coerceIn(0.0, 1.0).let { it * it * (3 - 2 * it) } else 0.0
+        val t = maxOf(tOld, tNb)
         if (t <= 0.0) return (neutralAlpha shl 24) or neutral
         var best = -1; var bestN = 0
         for (q in 0 until bins) {

@@ -1049,3 +1049,6 @@ Applied as the diff Classic 92 -> Classic 123 of MainActivity.kt (3-way); the th
 
 ## Hifi 3.0 blur 10
 - From blur 9: colour PICKING only, same method as Classic Round 17, Blur values unchanged. AlbumAccent.from: dominant hue window by AREA (not the most striking), pastel / cream / beige (sat >= 0.08) count, needs >= 10% of the non-black samples else colourless; all later formulas unchanged. BackdropBlur.veilColor: hue + saturation from the dominant hue window of the blurred cover (was the chroma-weighted mean RGB of the whole cover, which mixed colours); strength meanChroma->t, veil alpha, tint S/V unchanged; also needs >= 10% area. No vivid reduction and no gains (those are Classic-only). versionCode 349.
+
+## Hifi 3.0 blur 11
+- From blur 10: veil strength for pastel / cream covers with a big black area (A7X Life Is But a Dream: cream paper + black ink looked grey in Blur, correct in Classic). Cause: meanChroma was averaged over ALL samples, black counted as 0 chroma. Now a second strength from the not-dark samples (v >= 0.30, needs 15% of the cover; thresholds 0.06 -> 0.30, slightly more tolerant) and t = max(old, new): covers without big dark areas keep their old strength. Classic untouched. versionCode 350.
