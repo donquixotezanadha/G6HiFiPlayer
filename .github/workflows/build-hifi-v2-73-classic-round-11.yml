@@ -1,4 +1,4 @@
-name: Hifi 2.73 classic round 11 - DIRECT retry by output id + info refresh on headset plug
+name: Hifi 2.73 classic round 11 - background tint back (classic 16)
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player.classicround' versionCode='339' versionName='2.73 classic round 11'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -F "package: name='id.hifi.player.classicround' versionCode='341' versionName='2.73 classic round 11'"
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/libg6direct.so'
           mkdir -p verified-artifact
           cp "$APK" "verified-artifact/Hifi-2.73-classic-round-11.apk"
