@@ -20,7 +20,7 @@ internal object BackdropBlur {
     private const val LIGHT_VIVID_EXTRA_CUT = 0.85f  // round 21: Light only: strongly vivid colours get up to 85% less tint on top of the shared protection (round 18-20: 50%, later ramp)
     private const val LIGHT_VIVID_FROM = 0.32f       // round 21: Light starts softening at saturation x brightness 0.32 and is at full cut from 0.70 (pastel / cream stay below 0.32)
     private const val LIGHT_VIVID_SPAN = 0.38f
-    private fun lightVividFactor(): Float { val t = ((tintVivid - LIGHT_VIVID_FROM) / LIGHT_VIVID_SPAN).coerceIn(0f, 1f); return 1f - LIGHT_VIVID_EXTRA_CUT * (t * t * (3f - 2f * t)) }
+    private fun lightVividFactor(): Float { val t = ((tintVivid - LIGHT_VIVID_FROM) / LIGHT_VIVID_SPAN).coerceIn(0f, 1f); val e = 1f - Math.pow((1f - t).toDouble(), 1.7).toFloat(); return 1f - LIGHT_VIVID_EXTRA_CUT * e }   // round 22: ease-out curve (was smoothstep): mid colours drop sooner, both ends (pastel < 0.32, strong >= 0.70) unchanged
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)
 
     val CLASSIC_LIGHT: Int get() = tinted(CLASSIC_LIGHT_BASE)
