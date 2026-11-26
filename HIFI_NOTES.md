@@ -1144,3 +1144,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 22
 - From round 21, Light only: mid-vivid colours were still too dense (pastel and strong ones fine). The Light vivid cut keeps the same start (0.32) and end (0.70, 85% cut) but follows an ease-out curve 1-(1-t)^1.7 instead of smoothstep, so mid colours are cut sooner (e.g. at the middle: factor 0.61 -> 0.44). Dark unchanged. versionCode 354.
+
+## Hifi 2.73 classic round 23
+- From round 22, Light only: mid colours still too vivid -> ease-out exponent 1.7 -> 3.0 (middle factor 0.44 -> 0.28; a quarter into the ramp 0.67 -> 0.51). Same start (0.32) and end (0.70, 85% cut). Dark unchanged. versionCode 355.
