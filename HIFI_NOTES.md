@@ -1114,3 +1114,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 12
 - From round 11: background tint twice as strong (saturation gain x2 on all tinted bases, Dark and Light, same lightness). versionCode 342.
+
+## Hifi 2.73 classic round 13
+- From round 12: background tint gain x2 -> x3.5 (Dark and Light). versionCode 343.
