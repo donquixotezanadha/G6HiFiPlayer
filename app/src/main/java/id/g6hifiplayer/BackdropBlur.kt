@@ -24,6 +24,14 @@ internal object BackdropBlur {
      *  (gain 4.0, round 14-21: 6), strong colours (>= 0.70) stay very soft (0.8), and the middle falls quickly in between (0.45 -> about 2.0, 0.65 -> about 0.9).
      *  The Dark-style shared vivid cut already inside tintK is divided out first, so Light is shaped only by this curve. */
     private fun lightGain(): Float { val t = ((tintVivid - 0.30f) / 0.40f).coerceIn(0f, 1f); val e = 1f - (1f - t) * (1f - t); return 4.0f - 3.2f * e }
+    /** Hifi 2.73 classic round 25: Light only: green, cyan and blue read as much stronger than warm hues at the same saturation, so their tint is softened
+     *  (yellow-green 70 deg to blue-violet 260 deg: x0.55, smooth 25 deg edges); reds, oranges, yellows, pinks and violet-magenta keep the full curve. */
+    private fun lightHueFactor(): Float {
+        val h = tintHue
+        fun ss(x: Float): Float { val t = x.coerceIn(0f, 1f); return t * t * (3f - 2f * t) }
+        val inBand = ss((h - 45f) / 25f) * (1f - ss((h - 260f) / 25f))
+        return 1f - 0.45f * inBand
+    }
     private fun lightBaseK(): Float { val x = ((tintVivid - 0.45f) / 0.45f).coerceIn(0f, 1f); val keep = (1f - 0.85f * (x * x * (3f - 2f * x))).coerceAtLeast(0.15f); return (tintK / keep).coerceAtMost(1f) }
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)
 
@@ -54,7 +62,7 @@ internal object BackdropBlur {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(base, hsv)
         hsv[0] = tintHue
-        hsv[1] = (hsv[1] * (if (lum(base) > 128f) lightBaseK() * lightGain() else tintK * TINT_GAIN_DARK)).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint gain 3.5 (round 11 = x1, round 12 = x2)
+        hsv[1] = (hsv[1] * (if (lum(base) > 128f) lightBaseK() * lightGain() * lightHueFactor() else tintK * TINT_GAIN_DARK)).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint gain 3.5 (round 11 = x1, round 12 = x2)
         val c = android.graphics.Color.HSVToColor(hsv)
         val y1 = lum(c)
         val f = if (y1 > 0.5f) lum(base) / y1 else 1f

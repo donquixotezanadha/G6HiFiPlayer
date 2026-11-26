@@ -1150,3 +1150,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 24
 - Light only (Dark unchanged), from round 23. His screenshots: strong colours too grey (round 21/22 better), pastel looked more vivid than strong, mid colours still too vivid; wants Light more pastel / softer, weak colours still tinted a little. Round 21-23 gain curve was non-monotonic (pastel full gain 6, strong ~0.7). Round 24: shared vivid cut divided out of tintK for Light, then ONE monotonic gain curve over vividness (sat x bright): <= 0.30 gain 4.0 (was 6), 0.45 ~2.0, 0.65 ~0.9, >= 0.70 0.8 (ease-out 1-(1-t)^2 over 0.30-0.70). versionCode 356.
+
+## Hifi 2.73 classic round 25
+- Light only, from round 24: green (Ada Band) and blue (Keane) still too strong. New hue factor in Light: hue 70-260 deg (yellow-green .. blue-violet) x0.55, smooth 25 deg edges (BackdropBlur.lightHueFactor); other hues keep round 24 curve. Dark unchanged. versionCode 357.
