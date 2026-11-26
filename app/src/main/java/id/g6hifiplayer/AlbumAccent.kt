@@ -133,7 +133,7 @@ internal object AlbumAccent {
     fun tintOf(bitmap: Bitmap?): Int {
         if (bitmap == null || bitmap.isRecycled || bitmap.width <= 0 || bitmap.height <= 0) return DEFAULT_DARK
         val bins = 36
-        val area = FloatArray(bins); val cx = FloatArray(bins); val cy = FloatArray(bins)
+        val area = FloatArray(bins); val cnt = IntArray(bins); val cx = FloatArray(bins); val cy = FloatArray(bins)
         var seen = 0; var coloured = 0
         val hsv = FloatArray(3)
         try {
@@ -150,7 +150,7 @@ internal object AlbumAccent {
                     val bin = ((hsv[0] / 360f) * bins).toInt().coerceIn(0, bins - 1)
                     val w = hsv[1] * hsv[2]
                     coloured++
-                    area[bin] += w
+                    area[bin] += w; cnt[bin]++
                     val rad = Math.toRadians(hsv[0].toDouble())
                     cx[bin] += (Math.cos(rad) * w).toFloat(); cy[bin] += (Math.sin(rad) * w).toFloat()
                 }
@@ -162,15 +162,19 @@ internal object AlbumAccent {
             val w = area[(b + bins - 1) % bins] + area[b] + area[(b + 1) % bins]
             if (w > bestW) { bestW = w; best = b }
         }
-        var sx = 0f; var sy = 0f; var inWindow = 0f
-        for (d in -1..1) { val b = (best + d + bins) % bins; sx += cx[b]; sy += cy[b]; inWindow += area[b] }
+        var sx = 0f; var sy = 0f; var inWindow = 0f; var nWindow = 0
+        for (d in -1..1) { val b = (best + d + bins) % bins; sx += cx[b]; sy += cy[b]; inWindow += area[b]; nWindow += cnt[b] }
         if (inWindow <= 0f) return DEFAULT_DARK
         var hue = Math.toDegrees(Math.atan2(sy.toDouble(), sx.toDouble())).toFloat()
         if (hue < 0f) hue += 360f
         // strength by the share of the samples that really belong to the winning colour window (vividness-weighted share is not used: area decides)
         val share = coloured.toFloat() / seen
         val tt = ((share - 0.10f) / 0.25f).coerceIn(0f, 1f)
-        val k = tt * tt * (3f - 2f * tt)
+        val kShare = tt * tt * (3f - 2f * tt)
+        // round 16: the more vivid the colour (saturation x brightness, far from grey / black / white), the weaker the tint: up to 50% less at full vividness (both themes)
+        val vivid = if (nWindow > 0) inWindow / nWindow else 0f
+        val vt = ((vivid - 0.35f) / 0.50f).coerceIn(0f, 1f)
+        val k = kShare * (1f - 0.5f * (vt * vt * (3f - 2f * vt)))
         if (k <= 0.01f) return DEFAULT_DARK
         return Color.HSVToColor(floatArrayOf(hue, 0.45f * k, 0.20f)) or 0xFF000000.toInt()
     }
