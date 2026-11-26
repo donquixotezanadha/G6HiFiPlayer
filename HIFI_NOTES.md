@@ -1147,3 +1147,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 23
 - From round 22, Light only: mid colours still too vivid -> ease-out exponent 1.7 -> 3.0 (middle factor 0.44 -> 0.28; a quarter into the ramp 0.67 -> 0.51). Same start (0.32) and end (0.70, 85% cut). Dark unchanged. versionCode 355.
+
+## Hifi 2.73 classic round 24
+- Light only (Dark unchanged), from round 23. His screenshots: strong colours too grey (round 21/22 better), pastel looked more vivid than strong, mid colours still too vivid; wants Light more pastel / softer, weak colours still tinted a little. Round 21-23 gain curve was non-monotonic (pastel full gain 6, strong ~0.7). Round 24: shared vivid cut divided out of tintK for Light, then ONE monotonic gain curve over vividness (sat x bright): <= 0.30 gain 4.0 (was 6), 0.45 ~2.0, 0.65 ~0.9, >= 0.70 0.8 (ease-out 1-(1-t)^2 over 0.30-0.70). versionCode 356.
