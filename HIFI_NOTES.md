@@ -1135,3 +1135,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 19
 - From round 18: shared vivid cut (Dark and Light) 50% -> 70% at full vividness; Light extra cut (50%) unchanged, so Light vivid = 0.3 x 0.5 = 15% of full strength, Dark vivid = 30%. Pastel / cream unaffected. versionCode 351 (350 was Blur 11).
+
+## Hifi 2.73 classic round 20
+- From round 19: shared vivid cut 70% -> 85% at full vividness (Dark and Light); Light extra cut 50% unchanged. Pastel / cream unaffected. versionCode 352.
