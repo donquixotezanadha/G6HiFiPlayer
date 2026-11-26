@@ -1117,3 +1117,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 13
 - From round 12: background tint gain x2 -> x3.5 (Dark and Light). versionCode 343.
+
+## Hifi 2.73 classic round 14
+- From round 13: Light tint gain x6 (own gain, Light bases are almost white); Dark stays x3.5. versionCode 344.
