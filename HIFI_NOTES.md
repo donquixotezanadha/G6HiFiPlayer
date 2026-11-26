@@ -1153,3 +1153,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 25
 - Light only, from round 24: green (Ada Band) and blue (Keane) still too strong. New hue factor in Light: hue 70-260 deg (yellow-green .. blue-violet) x0.55, smooth 25 deg edges (BackdropBlur.lightHueFactor); other hues keep round 24 curve. Dark unchanged. versionCode 357.
+
+## Hifi 2.73 classic round 26
+- Light only, from round 25: green..blue band (hue 70-260 deg) x0.55 -> x0.45, a little softer. Warm hues untouched (he judged red Hoobastank, weaker than the mid colours, as correct). Dark unchanged. versionCode 358.

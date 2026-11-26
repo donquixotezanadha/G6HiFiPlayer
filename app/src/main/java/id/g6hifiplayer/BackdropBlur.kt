@@ -30,7 +30,7 @@ internal object BackdropBlur {
         val h = tintHue
         fun ss(x: Float): Float { val t = x.coerceIn(0f, 1f); return t * t * (3f - 2f * t) }
         val inBand = ss((h - 45f) / 25f) * (1f - ss((h - 260f) / 25f))
-        return 1f - 0.45f * inBand
+        return 1f - 0.55f * inBand   // round 26: x0.45 in the green..blue band (round 25: x0.55)
     }
     private fun lightBaseK(): Float { val x = ((tintVivid - 0.45f) / 0.45f).coerceIn(0f, 1f); val keep = (1f - 0.85f * (x * x * (3f - 2f * x))).coerceAtLeast(0.15f); return (tintK / keep).coerceAtMost(1f) }
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)
