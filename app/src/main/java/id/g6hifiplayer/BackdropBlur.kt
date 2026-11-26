@@ -12,6 +12,8 @@ internal object BackdropBlur {
     const val CLASSIC_WINDOW_DARK_BASE = 0xFF1E2128.toInt()
     const val CLASSIC_CARD_LIGHT_BASE = 0xFFD9D9E1.toInt()
 
+    private const val TINT_GAIN = 2f
+
     @Volatile private var tintHue = 0f        // hue (0..360) of the cover colour
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)
 
@@ -40,7 +42,7 @@ internal object BackdropBlur {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(base, hsv)
         hsv[0] = tintHue
-        hsv[1] = hsv[1] * tintK
+        hsv[1] = (hsv[1] * tintK * TINT_GAIN).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint twice as strong (round 11 = x1)
         val c = android.graphics.Color.HSVToColor(hsv)
         val y1 = lum(c)
         val f = if (y1 > 0.5f) lum(base) / y1 else 1f
