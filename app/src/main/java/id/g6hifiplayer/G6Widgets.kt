@@ -114,7 +114,8 @@ object G6Widgets {
             } else AlbumAccent.NEUTRAL
             storeAccent(prefs, result)
         }
-        // Hifi 2.73 classic 17: no cover tint, accent = pure theme colour, card / button box = neutral grey derived from black / white
+        // Classic Round 11: accent = pure theme colour (as before), but card / button box / backdrop follow the cover tint again (as classic 16)
+        BackdropBlur.setTintFromCoverDark(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK))
         accentNow = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
         progressEndNow = AlbumAccent.vivid(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK), light)   // Hifi 2.73 classic 19: vivid end of the played progress
         cardColorNow = if (light) BackdropBlur.cardLight() else BackdropBlur.windowDark()
@@ -545,7 +546,7 @@ object G6Widgets {
                 val sy = (raw.height - sh) / 2
                 val layer = canvas.saveLayer(left, 0f, w.toFloat(), h.toFloat(), null)
                 val tone = Paint(Paint.FILTER_BITMAP_FLAG)
-                tone.colorFilter = BackdropBlur.classicTone(light, 0.80f, 1.0f, 0.0f, 0.20f)
+                tone.colorFilter = BackdropBlur.classicTone(light, 0.65f, 0.95f, 0.08f, 0.28f)
                 canvas.drawBitmap(raw, android.graphics.Rect(sx, sy, sx + sw, sy + sh), RectF(left, 0f, w.toFloat(), h.toFloat()), tone)
                 val mask = Paint()
                 mask.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)

@@ -1108,3 +1108,6 @@ Progress bars rounded as Blur (pill ends): Now Playing + mini player (RoundedPro
 
 ## Hifi 2.73 classic round 8 (versionCode 320), from round 7
 Theme / queue / album icons under the Now Playing info (and the gear) use Blur's grey (ICON_SOFT: Light 60606D, Dark 93939F) instead of pure black/white. Nothing else changed.
+
+## Hifi 2.73 classic round 11
+- Classic Round only (from round 10): background tint back as in Hifi 2.73 classic 16 (undoes the tint removal of classic 17 for backgrounds only). Bases: Dark page 0F1114, windows / mini player / widget 4x1 1E2128, Light page F5F5FF, widget card Light D9D9E1, all follow the cover colour again (thin tint, grey cover = plain grey); cover band takes the tint (app Dark/Light 0.75-0.97 / 0.07-0.28, widgets 0.65-0.95 / 0.08-0.28); launcher icon background F8F8FC; system launch window Dark 111111 / Light F9F9F9. Accent, icons, text greys, round shapes unchanged from round 10. versionCode 341.
