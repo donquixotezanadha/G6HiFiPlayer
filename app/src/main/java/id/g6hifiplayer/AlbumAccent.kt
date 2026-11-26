@@ -133,7 +133,8 @@ internal object AlbumAccent {
     fun tintOf(bitmap: Bitmap?): Int {
         if (bitmap == null || bitmap.isRecycled || bitmap.width <= 0 || bitmap.height <= 0) return DEFAULT_DARK
         val bins = 36
-        val area = FloatArray(bins); val cnt = IntArray(bins); val cx = FloatArray(bins); val cy = FloatArray(bins)
+        val cnt = IntArray(bins); val cx = FloatArray(bins); val cy = FloatArray(bins)
+        val satSum = FloatArray(bins); val svSum = FloatArray(bins)
         var seen = 0; var coloured = 0
         val hsv = FloatArray(3)
         try {
@@ -146,35 +147,41 @@ internal object AlbumAccent {
                     Color.colorToHSV(p, hsv)
                     if (hsv[2] < 0.12f) continue           // black does not count at all
                     seen++
-                    if (hsv[1] < MIN_SATURATION || hsv[2] < 0.20f) continue   // grey / cream / beige / very dark = neutral
+                    // round 17: pastel / cream / beige (saturation from 0.08) count as a colour again; only real grey and very dark pixels are neutral
+                    if (hsv[1] < 0.08f || hsv[2] < 0.20f) continue
                     val bin = ((hsv[0] / 360f) * bins).toInt().coerceIn(0, bins - 1)
-                    val w = hsv[1] * hsv[2]
                     coloured++
-                    area[bin] += w; cnt[bin]++
+                    cnt[bin]++
+                    satSum[bin] += hsv[1]; svSum[bin] += hsv[1] * hsv[2]
                     val rad = Math.toRadians(hsv[0].toDouble())
-                    cx[bin] += (Math.cos(rad) * w).toFloat(); cy[bin] += (Math.sin(rad) * w).toFloat()
+                    cx[bin] += (Math.cos(rad) * hsv[1]).toFloat(); cy[bin] += (Math.sin(rad) * hsv[1]).toFloat()
                 }
             }
         } catch (_: Throwable) { return DEFAULT_DARK }
         if (seen == 0 || coloured == 0) return DEFAULT_DARK
-        var best = 0; var bestW = -1f
+        // the winning hue = the one with the most AREA (a cream cover with a small vivid detail stays cream)
+        var best = 0; var bestN = -1
         for (b in 0 until bins) {
-            val w = area[(b + bins - 1) % bins] + area[b] + area[(b + 1) % bins]
-            if (w > bestW) { bestW = w; best = b }
+            val n = cnt[(b + bins - 1) % bins] + cnt[b] + cnt[(b + 1) % bins]
+            if (n > bestN) { bestN = n; best = b }
         }
-        var sx = 0f; var sy = 0f; var inWindow = 0f; var nWindow = 0
-        for (d in -1..1) { val b = (best + d + bins) % bins; sx += cx[b]; sy += cy[b]; inWindow += area[b]; nWindow += cnt[b] }
-        if (inWindow <= 0f) return DEFAULT_DARK
+        var sx = 0f; var sy = 0f; var nWindow = 0; var sSat = 0f; var sSv = 0f
+        for (d in -1..1) { val b = (best + d + bins) % bins; sx += cx[b]; sy += cy[b]; nWindow += cnt[b]; sSat += satSum[b]; sSv += svSum[b] }
+        if (nWindow <= 0) return DEFAULT_DARK
         var hue = Math.toDegrees(Math.atan2(sy.toDouble(), sx.toDouble())).toFloat()
         if (hue < 0f) hue += 360f
-        // strength by the share of the samples that really belong to the winning colour window (vividness-weighted share is not used: area decides)
-        val share = coloured.toFloat() / seen
+        // 1) area: strength fades in between 10% and 35% of the non-black samples that belong to the winning hue window
+        val share = nWindow.toFloat() / seen
         val tt = ((share - 0.10f) / 0.25f).coerceIn(0f, 1f)
         val kShare = tt * tt * (3f - 2f * tt)
-        // round 16: the more vivid the colour (saturation x brightness, far from grey / black / white), the weaker the tint: up to 50% less at full vividness (both themes)
-        val vivid = if (nWindow > 0) inWindow / nWindow else 0f
-        val vt = ((vivid - 0.35f) / 0.50f).coerceIn(0f, 1f)
-        val k = kShare * (1f - 0.5f * (vt * vt * (3f - 2f * vt)))
+        // 2) a nearly grey cast must not tint (saturation 0.08 -> 0, full from 0.22): pastel / cream keep their tint, a grey photo stays grey
+        val meanSat = sSat / nWindow
+        val ts = ((meanSat - 0.08f) / 0.14f).coerceIn(0f, 1f)
+        val kSat = ts * ts * (3f - 2f * ts)
+        // 3) vivid protection (round 16): saturation x brightness far from grey / black / white -> up to 50% weaker; pastel / cream (low saturation x brightness) is not affected
+        val vivid = sSv / nWindow
+        val vt = ((vivid - 0.45f) / 0.45f).coerceIn(0f, 1f)
+        val k = kShare * kSat * (1f - 0.5f * (vt * vt * (3f - 2f * vt)))
         if (k <= 0.01f) return DEFAULT_DARK
         return Color.HSVToColor(floatArrayOf(hue, 0.45f * k, 0.20f)) or 0xFF000000.toInt()
     }

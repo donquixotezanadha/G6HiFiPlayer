@@ -1126,3 +1126,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 16
 - From round 15: tint strength reduced for vivid covers (mean saturation x brightness of the winning hue window; smoothstep 0.35..0.85, up to 50% less), both themes. versionCode 346.
+
+## Hifi 2.73 classic round 17
+- From round 16: pastel / cream / beige (saturation >= 0.08) count as colour again for the tint (cause of the grey: round 15/16 treated saturation < 0.28 as neutral). Winning hue = most area (cream with a small vivid detail stays cream); strength = area share (10-35%) x saturation factor (0.08 -> 0, 0.22 -> full, so grey casts stay grey) x vivid protection (saturation x brightness 0.45-0.90, up to 50% less; pastel unaffected). versionCode 347.
