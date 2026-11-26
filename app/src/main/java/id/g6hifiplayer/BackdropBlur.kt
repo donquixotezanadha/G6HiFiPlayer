@@ -17,7 +17,10 @@ internal object BackdropBlur {
 
     @Volatile private var tintHue = 0f        // hue (0..360) of the cover colour
     @Volatile private var tintVivid = 0f      // Hifi 2.73 classic round 18: 0 = pastel / dull cover colour, 1 = very vivid (carried in the value channel of the tint colour)
-    private const val LIGHT_VIVID_EXTRA_CUT = 0.5f   // round 18: Light only: vivid colours get up to 50% less tint on top of the shared protection
+    private const val LIGHT_VIVID_EXTRA_CUT = 0.85f  // round 21: Light only: strongly vivid colours get up to 85% less tint on top of the shared protection (round 18-20: 50%, later ramp)
+    private const val LIGHT_VIVID_FROM = 0.32f       // round 21: Light starts softening at saturation x brightness 0.32 and is at full cut from 0.70 (pastel / cream stay below 0.32)
+    private const val LIGHT_VIVID_SPAN = 0.38f
+    private fun lightVividFactor(): Float { val t = ((tintVivid - LIGHT_VIVID_FROM) / LIGHT_VIVID_SPAN).coerceIn(0f, 1f); return 1f - LIGHT_VIVID_EXTRA_CUT * (t * t * (3f - 2f * t)) }
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)
 
     val CLASSIC_LIGHT: Int get() = tinted(CLASSIC_LIGHT_BASE)
@@ -47,7 +50,7 @@ internal object BackdropBlur {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(base, hsv)
         hsv[0] = tintHue
-        hsv[1] = (hsv[1] * tintK * (if (lum(base) > 128f) TINT_GAIN_LIGHT * (1f - LIGHT_VIVID_EXTRA_CUT * tintVivid) else TINT_GAIN_DARK)).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint gain 3.5 (round 11 = x1, round 12 = x2)
+        hsv[1] = (hsv[1] * tintK * (if (lum(base) > 128f) TINT_GAIN_LIGHT * lightVividFactor() else TINT_GAIN_DARK)).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint gain 3.5 (round 11 = x1, round 12 = x2)
         val c = android.graphics.Color.HSVToColor(hsv)
         val y1 = lum(c)
         val f = if (y1 > 0.5f) lum(base) / y1 else 1f

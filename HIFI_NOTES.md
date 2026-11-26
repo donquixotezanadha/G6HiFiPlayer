@@ -1138,3 +1138,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 20
 - From round 19: shared vivid cut 70% -> 85% at full vividness (Dark and Light); Light extra cut 50% unchanged. Pastel / cream unaffected. versionCode 352.
+
+## Hifi 2.73 classic round 21
+- From round 20, Light only (Dark and pastel unchanged): strong vivid colours were still too vivid in Light because the old Light cut followed a late ramp (vividness 0.45-0.90, 50%). Now Result.tint carries the RAW vividness (saturation x brightness) in the value channel and Light applies its own cut: from 0.32, full from 0.70, up to 85% less (BackdropBlur.lightVividFactor). Dark k (shared cut 85%) unchanged. versionCode 353.
