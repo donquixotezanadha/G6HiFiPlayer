@@ -76,8 +76,13 @@ internal object BackdropBlur {
         val neutral = if (light) 0xFFFFFF else 0x000000
         if (soft == null || soft.isRecycled) return (neutralAlpha shl 24) or neutral
         var chromaSum = 0.0
-        var wr = 0.0; var wg = 0.0; var wb = 0.0
         var n = 0
+        // Hifi 3.0 blur 10: the hue = the DOMINANT colour by area (Classic Round 17 method); before it was the chroma-weighted mean RGB of the whole cover,
+        // which mixes two colours into a third one. Strength (meanChroma -> t), saturation / value rules and the veil alpha are unchanged.
+        val bins = 36
+        val bc = IntArray(bins); val br = DoubleArray(bins); val bg = DoubleArray(bins); val bb2 = DoubleArray(bins); val bch = DoubleArray(bins)
+        var seen = 0
+        val hsv = FloatArray(3)
         val step = 3
         var y = 0
         while (y < soft.height) {
@@ -87,8 +92,13 @@ internal object BackdropBlur {
                 val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
                 val c = (maxOf(r, g, b) - minOf(r, g, b)) / 255.0
                 chromaSum += c
-                wr += r * c; wg += g * c; wb += b * c
                 n++
+                android.graphics.Color.RGBToHSV(r, g, b, hsv)
+                if (hsv[2] >= 0.12f) seen++
+                if (hsv[1] >= 0.08f && hsv[2] >= 0.20f) {
+                    val bin = ((hsv[0] / 360f) * bins).toInt().coerceIn(0, bins - 1)
+                    bc[bin]++; br[bin] += r * c; bg[bin] += g * c; bb2[bin] += b * c; bch[bin] += c
+                }
                 x += step
             }
             y += step
@@ -97,8 +107,16 @@ internal object BackdropBlur {
         val meanChroma = chromaSum / n
         val t = ((meanChroma - 0.08) / (0.30 - 0.08)).coerceIn(0.0, 1.0).let { it * it * (3 - 2 * it) }   // smoothstep: 0 below 8%, full from 30%
         if (t <= 0.0) return (neutralAlpha shl 24) or neutral
-        val hsv = FloatArray(3)
-        android.graphics.Color.RGBToHSV((wr / chromaSum).toInt().coerceIn(0, 255), (wg / chromaSum).toInt().coerceIn(0, 255), (wb / chromaSum).toInt().coerceIn(0, 255), hsv)
+        var best = -1; var bestN = 0
+        for (q in 0 until bins) {
+            val cN = bc[(q + bins - 1) % bins] + bc[q] + bc[(q + 1) % bins]
+            if (cN > bestN) { bestN = cN; best = q }
+        }
+        if (best < 0 || seen <= 0 || bestN.toFloat() / seen < 0.10f) return (neutralAlpha shl 24) or neutral
+        var wr = 0.0; var wg = 0.0; var wb = 0.0; var chromaWin = 0.0
+        for (d in -1..1) { val q = (best + d + bins) % bins; wr += br[q]; wg += bg[q]; wb += bb2[q]; chromaWin += bch[q] }
+        if (chromaWin <= 0.0) return (neutralAlpha shl 24) or neutral
+        android.graphics.Color.RGBToHSV((wr / chromaWin).toInt().coerceIn(0, 255), (wg / chromaWin).toInt().coerceIn(0, 255), (wb / chromaWin).toInt().coerceIn(0, 255), hsv)
         val tint = if (light) android.graphics.Color.HSVToColor(floatArrayOf(hsv[0], 0.34f, 1f))
                    else android.graphics.Color.HSVToColor(floatArrayOf(hsv[0], hsv[1].coerceIn(0.45f, 0.95f), 0.34f))
         val k = (0.85 * t).toFloat()

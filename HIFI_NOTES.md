@@ -1046,3 +1046,6 @@ Applied as the diff Classic 92 -> Classic 123 of MainActivity.kt (3-way); the th
 - Grid <-> album page: opening = soft fade 180 ms, closing = slide down 56 dp + fade 140 ms.
 - Performance: Album grid kept alive while an album page is open (rebuilt only when the library, theme or palette changes), album grouping cached, heavy re-tint moved out of the page switch.
 - NOT ported on purpose: plus / x 1 dp smaller (Blur keeps its text glyphs and its sizes), album page button sizes (Blur's own), Classic-only startup cover reveal (classicUi only).
+
+## Hifi 3.0 blur 10
+- From blur 9: colour PICKING only, same method as Classic Round 17, Blur values unchanged. AlbumAccent.from: dominant hue window by AREA (not the most striking), pastel / cream / beige (sat >= 0.08) count, needs >= 10% of the non-black samples else colourless; all later formulas unchanged. BackdropBlur.veilColor: hue + saturation from the dominant hue window of the blurred cover (was the chroma-weighted mean RGB of the whole cover, which mixed colours); strength meanChroma->t, veil alpha, tint S/V unchanged; also needs >= 10% area. No vivid reduction and no gains (those are Classic-only). versionCode 349.

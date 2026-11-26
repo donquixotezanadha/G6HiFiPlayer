@@ -49,6 +49,7 @@ internal object AlbumAccent {
         val gs = FloatArray(HUE_BINS)
         val bs = FloatArray(HUE_BINS)
         var total = 0
+        var seen = 0   // Hifi 3.0 blur 10: samples that are not black (for the area share of the dominant colour)
         var avgR = 0L
         var avgG = 0L
         var avgB = 0L
@@ -66,7 +67,9 @@ internal object AlbumAccent {
                     total++
                     avgR += r; avgG += g; avgB += b
                     Color.colorToHSV(p, hsv)
-                    if (hsv[1] < MIN_SATURATION || hsv[2] < MIN_VALUE) continue
+                    if (hsv[2] >= 0.12f) seen++
+                    // blur 10 (same colour picking as Classic Round 17): pastel / cream / beige count as a colour (saturation from 0.08); real grey and very dark pixels are neutral
+                    if (hsv[1] < 0.08f || hsv[2] < 0.20f) continue
                     val bin = ((hsv[0] / 360f) * HUE_BINS).toInt().coerceIn(0, HUE_BINS - 1)
                     val wgt = hsv[1] * hsv[2]
                     count[bin]++
@@ -81,20 +84,17 @@ internal object AlbumAccent {
         }
         if (total == 0) return NEUTRAL
 
-        // The most striking colour: the best average vividness (saturation x brightness), a little help from its area.
-        val minCount = maxOf(6, (total * MIN_AREA).toInt())
+        // Hifi 3.0 blur 10: the colour = the DOMINANT one by area (a grey / cream cover with a small other colour keeps its own colour), like Classic Round 17.
+        // It needs at least 10% of the non-black samples, otherwise the cover counts as colourless. All later formulas (mix, lift, dark, light) are unchanged.
         var best = -1
-        var bestScore = 0f
+        var bestN = 0
         for (b in 0 until HUE_BINS) {
             val lo = (b + HUE_BINS - 1) % HUE_BINS
             val hi = (b + 1) % HUE_BINS
             val c = count[lo] + count[b] + count[hi]
-            if (c < minCount) continue
-            val vivid = (weight[lo] + weight[b] + weight[hi]) / c
-            val area = 0.40f + 0.60f * minOf(1f, c / (total * FULL_AREA))
-            val score = vivid * area
-            if (score > bestScore) { bestScore = score; best = b }
+            if (c > bestN) { bestN = c; best = b }
         }
+        if (seen <= 0 || bestN < 6 || bestN.toFloat() / seen < 0.10f) best = -1
 
         if (best < 0) {
             // No colour at all: black and white or grey cover. Mix in the average grey of the cover.
