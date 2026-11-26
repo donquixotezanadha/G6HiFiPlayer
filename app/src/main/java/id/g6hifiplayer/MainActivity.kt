@@ -385,7 +385,7 @@ class MainActivity : Activity() {
         lightTheme = savedLightTheme
         classicUi = true   // Hifi 2.67b: pure Classic, no Adaptive / blur any more
         UiIcons.refresh(this)
-        getPreferences(MODE_PRIVATE).let { BackdropBlur.restoreTint(it.getFloat("classic_tint_h", 0f), it.getFloat("classic_tint_k", 0f)) }   // Hifi 2.73 classic 14: first frame already has the last cover tint
+        getPreferences(MODE_PRIVATE).let { BackdropBlur.restoreTint(it.getFloat("classic_tint_h", 0f), it.getFloat("classic_tint_k", 0f), it.getFloat("classic_tint_v", 0f)) }   // Hifi 2.73 classic 14: first frame already has the last cover tint
         albumGridColumns = 2   // Hifi 2.73 classic 34 / 2.89: the column option is gone
         libraryNeedsFolder = getPreferences(MODE_PRIVATE).getString("music_tree_uri", null) == null
         autoNextAlbum = getPreferences(MODE_PRIVATE).getBoolean("auto_next_album", true)
@@ -1178,7 +1178,7 @@ class MainActivity : Activity() {
     private fun applyAccent(result: AlbumAccent.Result) {
         if (BackdropBlur.setTintFromCoverDark(result.tint)) {   // Hifi 2.73 classic 14 (round 15: dominant-colour tint): backgrounds follow the cover tint
             val (th, tk) = BackdropBlur.tintState()
-            getPreferences(MODE_PRIVATE).edit().putFloat("classic_tint_h", th).putFloat("classic_tint_k", tk).apply()
+            getPreferences(MODE_PRIVATE).edit().putFloat("classic_tint_h", th).putFloat("classic_tint_k", tk).putFloat("classic_tint_v", BackdropBlur.vividState()).apply()
             darkDrawables.forEach { it.invalidateSelf() }
             tabsPaletteDirty = true
             scheduleIdleRetint()

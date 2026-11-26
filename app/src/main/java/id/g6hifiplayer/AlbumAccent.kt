@@ -181,9 +181,11 @@ internal object AlbumAccent {
         // 3) vivid protection (round 16): saturation x brightness far from grey / black / white -> up to 50% weaker; pastel / cream (low saturation x brightness) is not affected
         val vivid = sSv / nWindow
         val vt = ((vivid - 0.45f) / 0.45f).coerceIn(0f, 1f)
-        val k = kShare * kSat * (1f - 0.5f * (vt * vt * (3f - 2f * vt)))
+        val vs = vt * vt * (3f - 2f * vt)
+        val k = kShare * kSat * (1f - 0.5f * vs)
         if (k <= 0.01f) return DEFAULT_DARK
-        return Color.HSVToColor(floatArrayOf(hue, 0.45f * k, 0.20f)) or 0xFF000000.toInt()
+        // round 18: the value channel carries the vividness (0.20 + 0.60 x vs) so Light can cut vivid colours further than Dark
+        return Color.HSVToColor(floatArrayOf(hue, 0.45f * k, 0.20f + 0.60f * vs)) or 0xFF000000.toInt()
     }
 
     /** Hifi 2.73 classic 19: vivid end colour of the played part of the progress bar (the bar runs from the pure theme colour to this colour).

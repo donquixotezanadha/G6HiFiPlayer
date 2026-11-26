@@ -16,6 +16,8 @@ internal object BackdropBlur {
     private const val TINT_GAIN_LIGHT = 6f     // Light bases start almost white (saturation ~4% vs 25% in Dark), so Light gets its own, higher gain
 
     @Volatile private var tintHue = 0f        // hue (0..360) of the cover colour
+    @Volatile private var tintVivid = 0f      // Hifi 2.73 classic round 18: 0 = pastel / dull cover colour, 1 = very vivid (carried in the value channel of the tint colour)
+    private const val LIGHT_VIVID_EXTRA_CUT = 0.5f   // round 18: Light only: vivid colours get up to 50% less tint on top of the shared protection
     @Volatile private var tintK = 0f          // 0 = grey cover (no tint), 1 = colourful cover (full thin tint)
 
     val CLASSIC_LIGHT: Int get() = tinted(CLASSIC_LIGHT_BASE)
@@ -29,12 +31,14 @@ internal object BackdropBlur {
         android.graphics.Color.colorToHSV(dark, hsv)
         val k = (hsv[1] / 0.45f).coerceIn(0f, 1f)
         val h = if (k <= 0.001f) 0f else hsv[0]
-        val changed = Math.abs(h - tintHue) > 0.5f || Math.abs(k - tintK) > 0.01f
-        tintHue = h; tintK = k
+        val v = ((hsv[2] - 0.20f) / 0.60f).coerceIn(0f, 1f)
+        val changed = Math.abs(h - tintHue) > 0.5f || Math.abs(k - tintK) > 0.01f || Math.abs(v - tintVivid) > 0.02f
+        tintHue = h; tintK = k; tintVivid = v
         return changed
     }
     fun tintState(): Pair<Float, Float> = Pair(tintHue, tintK)
-    fun restoreTint(hue: Float, k: Float) { tintHue = hue; tintK = k }
+    fun vividState(): Float = tintVivid
+    fun restoreTint(hue: Float, k: Float, vivid: Float = 0f) { tintHue = hue; tintK = k; tintVivid = vivid }
 
     private fun lum(c: Int) = 0.299f * android.graphics.Color.red(c) + 0.587f * android.graphics.Color.green(c) + 0.114f * android.graphics.Color.blue(c)
 
@@ -43,7 +47,7 @@ internal object BackdropBlur {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(base, hsv)
         hsv[0] = tintHue
-        hsv[1] = (hsv[1] * tintK * (if (lum(base) > 128f) TINT_GAIN_LIGHT else TINT_GAIN_DARK)).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint gain 3.5 (round 11 = x1, round 12 = x2)
+        hsv[1] = (hsv[1] * tintK * (if (lum(base) > 128f) TINT_GAIN_LIGHT * (1f - LIGHT_VIVID_EXTRA_CUT * tintVivid) else TINT_GAIN_DARK)).coerceAtMost(1f)   // Hifi 2.73 classic round 12: tint gain 3.5 (round 11 = x1, round 12 = x2)
         val c = android.graphics.Color.HSVToColor(hsv)
         val y1 = lum(c)
         val f = if (y1 > 0.5f) lum(base) / y1 else 1f
