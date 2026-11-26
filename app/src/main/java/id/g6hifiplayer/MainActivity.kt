@@ -1176,7 +1176,7 @@ class MainActivity : Activity() {
     private fun miniProgressDrawable() = RoundedProgressDrawable(if (lightTheme) LIGHT_PROGRESS_TRACK_GREY else DARK_PROGRESS_TRACK, accentColor, dp(3), progressEnd)
 
     private fun applyAccent(result: AlbumAccent.Result) {
-        if (BackdropBlur.setTintFromCoverDark(result.dark)) {   // Hifi 2.73 classic 14: backgrounds follow the cover tint
+        if (BackdropBlur.setTintFromCoverDark(result.tint)) {   // Hifi 2.73 classic 14 (round 15: dominant-colour tint): backgrounds follow the cover tint
             val (th, tk) = BackdropBlur.tintState()
             getPreferences(MODE_PRIVATE).edit().putFloat("classic_tint_h", th).putFloat("classic_tint_k", tk).apply()
             darkDrawables.forEach { it.invalidateSelf() }

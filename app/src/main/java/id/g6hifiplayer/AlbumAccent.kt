@@ -23,7 +23,9 @@ internal object AlbumAccent {
         val accent: Int,
         val dark: Int,
         val lightAccent: Int = DEFAULT_LIGHT_ACCENT,
-        val lightTint: Int = DEFAULT_LIGHT_TINT
+        val lightTint: Int = DEFAULT_LIGHT_TINT,
+        /** Hifi 2.73 classic round 15: colour that only carries the BACKGROUND tint (hue = dominant colour by area, saturation = 0.45 x strength; grey = no tint). */
+        val tint: Int = DEFAULT_DARK
     )
 
     val NEUTRAL = Result(DEFAULT_ACCENT, DEFAULT_DARK)
@@ -99,7 +101,7 @@ internal object AlbumAccent {
         if (best < 0) {
             // No colour at all: black and white or grey cover. Mix in the average grey of the cover.
             val avg = Color.rgb((avgR / total).toInt(), (avgG / total).toInt(), (avgB / total).toInt())
-            return Result(mix(Color.WHITE, avg, COLOUR_SHARE), DEFAULT_DARK, mix(Color.BLACK, avg, COLOUR_SHARE) or 0xFF000000.toInt(), DEFAULT_LIGHT_TINT)
+            return Result(mix(Color.WHITE, avg, COLOUR_SHARE), DEFAULT_DARK, mix(Color.BLACK, avg, COLOUR_SHARE) or 0xFF000000.toInt(), DEFAULT_LIGHT_TINT, tintOf(bitmap))
         }
 
         val lo = (best + HUE_BINS - 1) % HUE_BINS
@@ -119,7 +121,58 @@ internal object AlbumAccent {
         val strong = Color.HSVToColor(floatArrayOf(rawHsv[0], maxOf(rawHsv[1], 0.75f).coerceAtMost(1f), 1f))
         val lightAccent = mix(Color.BLACK, strong, COLOUR_SHARE)
         val lightTint = Color.HSVToColor(floatArrayOf(rawHsv[0], (rawHsv[1] * 0.4f).coerceIn(0.16f, 0.30f), 0.96f))
-        return Result(accent or 0xFF000000.toInt(), dark or 0xFF000000.toInt(), lightAccent or 0xFF000000.toInt(), lightTint or 0xFF000000.toInt())
+        return Result(accent or 0xFF000000.toInt(), dark or 0xFF000000.toInt(), lightAccent or 0xFF000000.toInt(), lightTint or 0xFF000000.toInt(), tintOf(bitmap))
+    }
+
+    /**
+     * Hifi 2.73 classic round 15: hue of the background tint. Unlike the accent (most striking colour, even a tiny detail) this follows the DOMINANT
+     * colour by area: grey, cream / beige (saturation < 0.28) and black count as neutral, a coloured hue wins only with enough area, and the strength
+     * fades in between 10% and 35% of the non-black samples, so a grey / cream cover with a small other colour stays grey. Returns a colour
+     * (hue, saturation 0.45 x strength, value 0.20) that [BackdropBlur.setTintFromCoverDark] reads back; grey = no tint.
+     */
+    fun tintOf(bitmap: Bitmap?): Int {
+        if (bitmap == null || bitmap.isRecycled || bitmap.width <= 0 || bitmap.height <= 0) return DEFAULT_DARK
+        val bins = 36
+        val area = FloatArray(bins); val cx = FloatArray(bins); val cy = FloatArray(bins)
+        var seen = 0; var coloured = 0
+        val hsv = FloatArray(3)
+        try {
+            for (j in 0 until GRID) {
+                val y = ((j + 0.5f) * bitmap.height / GRID).toInt().coerceIn(0, bitmap.height - 1)
+                for (i in 0 until GRID) {
+                    val x = ((i + 0.5f) * bitmap.width / GRID).toInt().coerceIn(0, bitmap.width - 1)
+                    val p = bitmap.getPixel(x, y)
+                    if (Color.alpha(p) < 128) continue
+                    Color.colorToHSV(p, hsv)
+                    if (hsv[2] < 0.12f) continue           // black does not count at all
+                    seen++
+                    if (hsv[1] < MIN_SATURATION || hsv[2] < 0.20f) continue   // grey / cream / beige / very dark = neutral
+                    val bin = ((hsv[0] / 360f) * bins).toInt().coerceIn(0, bins - 1)
+                    val w = hsv[1] * hsv[2]
+                    coloured++
+                    area[bin] += w
+                    val rad = Math.toRadians(hsv[0].toDouble())
+                    cx[bin] += (Math.cos(rad) * w).toFloat(); cy[bin] += (Math.sin(rad) * w).toFloat()
+                }
+            }
+        } catch (_: Throwable) { return DEFAULT_DARK }
+        if (seen == 0 || coloured == 0) return DEFAULT_DARK
+        var best = 0; var bestW = -1f
+        for (b in 0 until bins) {
+            val w = area[(b + bins - 1) % bins] + area[b] + area[(b + 1) % bins]
+            if (w > bestW) { bestW = w; best = b }
+        }
+        var sx = 0f; var sy = 0f; var inWindow = 0f
+        for (d in -1..1) { val b = (best + d + bins) % bins; sx += cx[b]; sy += cy[b]; inWindow += area[b] }
+        if (inWindow <= 0f) return DEFAULT_DARK
+        var hue = Math.toDegrees(Math.atan2(sy.toDouble(), sx.toDouble())).toFloat()
+        if (hue < 0f) hue += 360f
+        // strength by the share of the samples that really belong to the winning colour window (vividness-weighted share is not used: area decides)
+        val share = coloured.toFloat() / seen
+        val tt = ((share - 0.10f) / 0.25f).coerceIn(0f, 1f)
+        val k = tt * tt * (3f - 2f * tt)
+        if (k <= 0.01f) return DEFAULT_DARK
+        return Color.HSVToColor(floatArrayOf(hue, 0.45f * k, 0.20f)) or 0xFF000000.toInt()
     }
 
     /** Hifi 2.73 classic 19: vivid end colour of the played part of the progress bar (the bar runs from the pure theme colour to this colour).

@@ -90,6 +90,7 @@ object G6Widgets {
     private const val K_ACCENT = "accent"            // Hifi 2.1: accent of the cover (AlbumAccent)
     private const val K_ACCENT_LIGHT = "accent_light"  // Hifi 2.6: Light accent (70% black + 30% cover colour)
     private const val K_TINT_LIGHT = "tint_light"      // Hifi 2.6: Light pastel of the cover colour (cards, buttons, veil)
+    private const val K_TINT_COVER = "accent_tint_cover"  // Hifi 2.73 classic round 15: background tint colour (dominant hue)
     private const val K_ACCENT_DARK = "accent_dark"  // Hifi 2.1: darkened accent = card / button colour of the dark widgets
     private const val K_RENDER_VERSION = "widget_render_version"
     private const val WIDGET_RENDER_VERSION = 255
@@ -105,7 +106,7 @@ object G6Widgets {
 
     private fun syncAccent(context: Context, light: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!prefs.contains(K_ACCENT) || !prefs.contains(K_TINT_LIGHT)) {
+        if (!prefs.contains(K_ACCENT) || !prefs.contains(K_TINT_LIGHT) || !prefs.contains(K_TINT_COVER)) {
             // Saved by an older build: work it out once from the saved cover.
             val file = File(context.filesDir, ART_FILE)
             val result = if (prefs.getBoolean(K_HAS, false) && file.exists()) {
@@ -115,7 +116,7 @@ object G6Widgets {
             storeAccent(prefs, result)
         }
         // Classic Round 11: accent = pure theme colour (as before), but card / button box / backdrop follow the cover tint again (as classic 16)
-        BackdropBlur.setTintFromCoverDark(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK))
+        BackdropBlur.setTintFromCoverDark(prefs.getInt(K_TINT_COVER, AlbumAccent.DEFAULT_DARK))
         accentNow = if (light) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
         progressEndNow = AlbumAccent.vivid(prefs.getInt(K_ACCENT_DARK, AlbumAccent.DEFAULT_DARK), light)   // Hifi 2.73 classic 19: vivid end of the played progress
         cardColorNow = if (light) BackdropBlur.cardLight() else BackdropBlur.windowDark()
@@ -136,7 +137,7 @@ object G6Widgets {
     }
 
     private fun storeAccent(prefs: android.content.SharedPreferences, result: AlbumAccent.Result) {
-        prefs.edit().putInt(K_ACCENT, result.accent).putInt(K_ACCENT_DARK, result.dark).putInt(K_ACCENT_LIGHT, result.lightAccent).putInt(K_TINT_LIGHT, result.lightTint).apply()
+        prefs.edit().putInt(K_ACCENT, result.accent).putInt(K_ACCENT_DARK, result.dark).putInt(K_ACCENT_LIGHT, result.lightAccent).putInt(K_TINT_LIGHT, result.lightTint).putInt(K_TINT_COVER, result.tint).apply()
     }
     private var lastToggleAtMs = Long.MIN_VALUE
     private var lastProgressPersistAtMs = Long.MIN_VALUE

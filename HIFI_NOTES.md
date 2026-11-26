@@ -1120,3 +1120,6 @@ Theme / queue / album icons under the Now Playing info (and the gear) use Blur's
 
 ## Hifi 2.73 classic round 14
 - From round 13: Light tint gain x6 (own gain, Light bases are almost white); Dark stays x3.5. versionCode 344.
+
+## Hifi 2.73 classic round 15
+- From round 14: background tint HUE no longer from the most striking colour (accent logic, even a tiny detail) but from the DOMINANT colour by area (AlbumAccent.tintOf, new Result.tint, widgets prefs accent_tint_cover). Grey, cream/beige (sat < 0.28), black = neutral; strength fades in between 10% and 35% coloured share of the non-black samples, so a grey/cream cover with a small other colour stays grey. Accent, progress end colour, tint gains unchanged. versionCode 345.
