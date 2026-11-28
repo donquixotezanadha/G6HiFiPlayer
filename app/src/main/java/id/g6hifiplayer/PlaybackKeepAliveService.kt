@@ -96,7 +96,7 @@ class PlaybackKeepAliveService : Service() {
         } else cancelIdleClose()
     }
 
-    private fun cancelIdleClose() {
+    fun cancelIdleClose() {
         idleCloseArmed = false
         mainHandler.removeCallbacks(idleCloseRunnable)
     }
@@ -457,7 +457,7 @@ class PlaybackKeepAliveService : Service() {
         @JvmStatic fun setUiVisible(visible: Boolean) {
             uiVisible = visible
             val live = serviceInstance ?: return
-            live.mainHandler.post { live.evaluateIdleClose() }
+            live.mainHandler.post { live.cancelIdleClose(); live.evaluateIdleClose() }   // Blur 14: opening or leaving the app restarts the full 3 minutes
         }
         private const val IDLE_CLOSE_MS = 3 * 60 * 1000L   // Blur 12/13: auto close after 3 min idle on the speaker
         const val ACTION_START = "id.g6hifiplayer.action.START_PLAYBACK_GUARD"
