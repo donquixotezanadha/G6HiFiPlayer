@@ -66,6 +66,39 @@ class PlaybackKeepAliveService : Service() {
         if (exclusiveEnabled()) registerJackWatcher()
     }
 
+    // ---- Blur 12: auto close after 3 minutes of pause on the speaker -------------------------------------------------
+    // A track is loaded but not playing (paused / ended) AND no wired headset is plugged in -> after 3 minutes the player closes
+    // exactly like "Close player". Playing again or plugging in the headset cancels it. Never runs while music plays or with the jack in.
+    private var idleCloseArmed = false
+    private val idleCloseRunnable = Runnable {
+        idleCloseArmed = false
+        if (closing) return@Runnable
+        if (idleNow() && !wiredNow()) {
+            try { AudioPathLog.add(AudioPathLog.KIND_UNMATCH, "AUTO CLOSE", "Paused on speaker for 3 min", "player closed by itself") } catch (_: Throwable) { }
+            stopSessionAndPlayer(stopForGood = true)
+        }
+    }
+
+    private fun idleNow(): Boolean {
+        val p = attachedPlayer ?: sharedPlayer ?: return false
+        if (p.currentMediaItem == null) return false   // nothing loaded yet: the user is just browsing, never close
+        if (p.isPlaying) return false
+        return !p.playWhenReady || p.playbackState == Player.STATE_ENDED || p.playbackState == Player.STATE_IDLE
+    }
+
+    /** Arms the 3-minute timer once when the idle conditions start; disarms it as soon as they stop. */
+    private fun evaluateIdleClose() {
+        if (closing) return
+        if (idleNow() && !wiredNow()) {
+            if (!idleCloseArmed) { idleCloseArmed = true; mainHandler.postDelayed(idleCloseRunnable, IDLE_CLOSE_MS) }
+        } else cancelIdleClose()
+    }
+
+    private fun cancelIdleClose() {
+        idleCloseArmed = false
+        mainHandler.removeCallbacks(idleCloseRunnable)
+    }
+
     // ---- Build 1.66: exclusive mode (jack plug-in confirmation) --------------------------------------------------
     private var jackCallback: AudioDeviceCallback? = null
 
@@ -88,6 +121,7 @@ class PlaybackKeepAliveService : Service() {
                 if (initialReport) return
                 // Build 1.67: no question any more. Plugging in the jack takes over all audio at once.
                 if (addedDevices.any { isWired(it) } && !ExclusiveAudioFocus.takeover) autoTakeover()
+                if (addedDevices.any { isWired(it) }) evaluateIdleClose()
             }
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                 if (removedDevices.none { isWired(it) }) return
@@ -98,6 +132,7 @@ class PlaybackKeepAliveService : Service() {
                         if (ExclusiveAudioFocus.takeover) ExclusiveAudioFocus.stopTakeover()
                         scheduleNotificationPublish()
                     }
+                    evaluateIdleClose()
                 }, 400L)
             }
         }
@@ -237,6 +272,7 @@ class PlaybackKeepAliveService : Service() {
 
     private fun stopSessionAndPlayer(stopForGood: Boolean = false) {
         if (stopForGood) closing = true
+        cancelIdleClose()
         mainHandler.removeCallbacks(publishRunnable)
         foregroundStarted = false
         synchronized(playerLock) {
@@ -273,15 +309,18 @@ class PlaybackKeepAliveService : Service() {
         try { attachedPlayer?.let { old -> serviceListener?.let { old.removeListener(it) } } } catch (_: Exception) { }
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                evaluateIdleClose()
                 publishSessionState(player)
                 scheduleNotificationPublish()
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 // The notification icon follows playWhenReady, so it flips on the tap, not after buffering.
+                evaluateIdleClose()
                 publishSessionState(player)
                 scheduleNotificationPublish()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
+                evaluateIdleClose()
                 publishSessionState(player)
                 scheduleNotificationPublish()
             }
@@ -293,6 +332,7 @@ class PlaybackKeepAliveService : Service() {
         attachedPlayer = player
         serviceListener = listener
         player.addListener(listener)
+        evaluateIdleClose()
         publishSessionState(player)
         scheduleNotificationPublish()
     }
@@ -396,6 +436,7 @@ class PlaybackKeepAliveService : Service() {
     }
 
     override fun onDestroy() {
+        cancelIdleClose()
         unregisterJackWatcher()
         if (serviceInstance === this) serviceInstance = null
         try { attachedPlayer?.let { p -> serviceListener?.let { p.removeListener(it) } } } catch (_: Exception) { }
@@ -408,6 +449,7 @@ class PlaybackKeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        private const val IDLE_CLOSE_MS = 3 * 60 * 1000L   // Blur 12: auto close after 3 min paused on the speaker
         const val ACTION_START = "id.g6hifiplayer.action.START_PLAYBACK_GUARD"
         const val ACTION_STOP = "id.g6hifiplayer.action.STOP_PLAYBACK_GUARD"
         /** Build 2.3: Close player from a notification button: stops everything for good (no standby notification left behind). */

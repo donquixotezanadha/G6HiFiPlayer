@@ -1052,3 +1052,6 @@ Applied as the diff Classic 92 -> Classic 123 of MainActivity.kt (3-way); the th
 
 ## Hifi 3.0 blur 11
 - From blur 10: veil strength for pastel / cream covers with a big black area (A7X Life Is But a Dream: cream paper + black ink looked grey in Blur, correct in Classic). Cause: meanChroma was averaged over ALL samples, black counted as 0 chroma. Now a second strength from the not-dark samples (v >= 0.30, needs 15% of the cover; thresholds 0.06 -> 0.30, slightly more tolerant) and t = max(old, new): covers without big dark areas keep their old strength. Classic untouched. versionCode 350.
+
+## Hifi 3.0 blur 12 (versionCode 359), from blur 11: auto close
+- PlaybackKeepAliveService: when a track is loaded but NOT playing (paused / ended) and NO wired headset is plugged in, a 3-minute timer starts; at the end the player closes exactly like "Close player" (stopSessionAndPlayer(stopForGood), app task removed) and one orange line "AUTO CLOSE" is written to LOG AUDIO PATH. Playing again, or plugging in the headset, cancels the timer; unplugging the headset while paused starts it. Nothing loaded yet (only browsing) never closes. Timer is armed once per idle period (not restarted by repeated player callbacks). No change to the audio path.

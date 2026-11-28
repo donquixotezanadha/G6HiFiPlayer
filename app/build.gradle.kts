@@ -21,8 +21,8 @@ android {
         applicationId = "id.hifi.player.blur"
         minSdk = 28
         targetSdk = 35
-        versionCode = 350
-        versionName = "3.0 blur 11"
+        versionCode = 359
+        versionName = "3.0 blur 12"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
