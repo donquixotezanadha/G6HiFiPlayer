@@ -64,12 +64,13 @@ class PlaybackKeepAliveService : Service() {
         ensureMediaSession(applicationContext)
         sharedPlayer?.let { attachPlayer(it) }
         if (exclusiveEnabled()) registerJackWatcher()
+        evaluateIdleClose()
     }
 
     // ---- Blur 12: auto close after 3 minutes of pause on the speaker -------------------------------------------------
     // A track is loaded but not playing (paused / ended) AND no wired headset is plugged in -> after 3 minutes the player closes
     // exactly like "Close player". Playing again or plugging in the headset cancels it. Never runs while music plays or with the jack in.
-    private var idleCloseArmed = false
+    @Volatile private var idleCloseArmed = false
     private val idleCloseRunnable = Runnable {
         idleCloseArmed = false
         if (closing) return@Runnable
@@ -80,14 +81,15 @@ class PlaybackKeepAliveService : Service() {
     }
 
     private fun idleNow(): Boolean {
-        val p = attachedPlayer ?: sharedPlayer ?: return false
-        if (p.currentMediaItem == null) return false   // nothing loaded yet: the user is just browsing, never close
+        val p = attachedPlayer ?: sharedPlayer
+        // Blur 13: nothing loaded (app opened and forgotten): idle only while the app is NOT on screen; browsing the library never closes it.
+        if (p == null || p.currentMediaItem == null) return !uiVisible
         if (p.isPlaying) return false
         return !p.playWhenReady || p.playbackState == Player.STATE_ENDED || p.playbackState == Player.STATE_IDLE
     }
 
     /** Arms the 3-minute timer once when the idle conditions start; disarms it as soon as they stop. */
-    private fun evaluateIdleClose() {
+    fun evaluateIdleClose() {
         if (closing) return
         if (idleNow() && !wiredNow()) {
             if (!idleCloseArmed) { idleCloseArmed = true; mainHandler.postDelayed(idleCloseRunnable, IDLE_CLOSE_MS) }
@@ -449,7 +451,15 @@ class PlaybackKeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        private const val IDLE_CLOSE_MS = 3 * 60 * 1000L   // Blur 12: auto close after 3 min paused on the speaker
+        /** Blur 13: true while MainActivity is on screen (onStart..onStop). */
+        @Volatile var uiVisible = false
+            private set
+        @JvmStatic fun setUiVisible(visible: Boolean) {
+            uiVisible = visible
+            val live = serviceInstance ?: return
+            live.mainHandler.post { live.evaluateIdleClose() }
+        }
+        private const val IDLE_CLOSE_MS = 3 * 60 * 1000L   // Blur 12/13: auto close after 3 min idle on the speaker
         const val ACTION_START = "id.g6hifiplayer.action.START_PLAYBACK_GUARD"
         const val ACTION_STOP = "id.g6hifiplayer.action.STOP_PLAYBACK_GUARD"
         /** Build 2.3: Close player from a notification button: stops everything for good (no standby notification left behind). */

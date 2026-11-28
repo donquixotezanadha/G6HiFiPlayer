@@ -1055,3 +1055,6 @@ Applied as the diff Classic 92 -> Classic 123 of MainActivity.kt (3-way); the th
 
 ## Hifi 3.0 blur 12 (versionCode 359), from blur 11: auto close
 - PlaybackKeepAliveService: when a track is loaded but NOT playing (paused / ended) and NO wired headset is plugged in, a 3-minute timer starts; at the end the player closes exactly like "Close player" (stopSessionAndPlayer(stopForGood), app task removed) and one orange line "AUTO CLOSE" is written to LOG AUDIO PATH. Playing again, or plugging in the headset, cancels the timer; unplugging the headset while paused starts it. Nothing loaded yet (only browsing) never closes. Timer is armed once per idle period (not restarted by repeated player callbacks). No change to the audio path.
+
+## Hifi 3.0 blur 13 (versionCode 360), from blur 12: auto close when opened and forgotten
+- Same 3-minute rule also when NOTHING is loaded (no player / no track): idle only while the app is not on screen (MainActivity onStart/onStop -> PlaybackKeepAliveService.setUiVisible). Browsing the library with the app open never closes. Still not with a wired headset plugged in. A track loaded but paused keeps the Blur 12 rule (closes after 3 min regardless of screen).

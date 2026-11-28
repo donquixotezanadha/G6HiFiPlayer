@@ -3085,6 +3085,7 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        PlaybackKeepAliveService.setUiVisible(true)   // Blur 13: auto close never runs while the app is on screen with nothing loaded
         // Build 2.4: the takeover notification is gone after Close; opening the player again arms it again.
         if (!isFinishing) PlaybackKeepAliveService.armExclusive(this)
         // Coming back to the app later also checks the folder again (at most once per minute).
@@ -4244,6 +4245,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         persistPlaybackState(force = true)
+        PlaybackKeepAliveService.setUiVisible(false)
         super.onStop()
     }
 
